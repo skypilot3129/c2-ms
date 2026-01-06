@@ -373,7 +373,7 @@ export default function SuratJalanModal({
                                     <input
                                         type="number"
                                         value={formData.beratVolume || ''}
-                                        onChange={(e) => handleChange('beratVolume', parseFloat(e.target.value) || 0)}
+                                        onChange={(e) => handleChange('beratVolume', e.target.value === '' ? '' : parseFloat(e.target.value) || 0)}
                                         placeholder="Berat"
                                         className="flex-1 px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-indigo-500 focus:outline-none"
                                     />

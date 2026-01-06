@@ -384,8 +384,8 @@ export default function EditTransactionPage({ params }: { params: Promise<{ id: 
                                     <input
                                         type="number"
                                         min="1"
-                                        value={formData.koli}
-                                        onChange={(e) => handleChange('koli', parseInt(e.target.value) || 1)}
+                                        value={formData.koli || ''}
+                                        onChange={(e) => handleChange('koli', e.target.value === '' ? '' : parseInt(e.target.value) || 1)}
                                         required
                                         className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:border-blue-500 outline-none text-center font-bold"
                                     />
@@ -397,8 +397,8 @@ export default function EditTransactionPage({ params }: { params: Promise<{ id: 
                                             type="number"
                                             step="0.01"
                                             min="0"
-                                            value={formData.berat}
-                                            onChange={(e) => handleChange('berat', parseFloat(e.target.value) || 0)}
+                                            value={formData.berat || ''}
+                                            onChange={(e) => handleChange('berat', e.target.value === '' ? '' : parseFloat(e.target.value) || 0)}
                                             required
                                             className="w-full px-4 py-2.5 rounded-l-xl border border-gray-200 focus:border-blue-500 outline-none"
                                         />

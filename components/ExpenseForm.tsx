@@ -145,7 +145,7 @@ export default function ExpenseForm({ voyageId, userId, expenseToEdit, onSuccess
                             <input
                                 type="number"
                                 value={formData.amount || ''}
-                                onChange={(e) => handleChange('amount', parseInt(e.target.value) || 0)}
+                                onChange={(e) => handleChange('amount', e.target.value === '' ? '' : parseInt(e.target.value) || 0)}
                                 placeholder="0"
                                 required
                                 min="0"

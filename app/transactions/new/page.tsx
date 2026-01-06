@@ -400,8 +400,8 @@ export default function NewTransactionPage() {
                                                     <input
                                                         type="number"
                                                         min="1"
-                                                        value={penerima.koli}
-                                                        onChange={(e) => updatePenerima(index, 'koli', parseInt(e.target.value) || 1)}
+                                                        value={penerima.koli || ''}
+                                                        onChange={(e) => updatePenerima(index, 'koli', e.target.value === '' ? '' : parseInt(e.target.value) || 1)}
                                                         className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:border-blue-500 outline-none text-center"
                                                     />
                                                 </div>
@@ -412,8 +412,8 @@ export default function NewTransactionPage() {
                                                             type="number"
                                                             step="0.01"
                                                             min="0"
-                                                            value={penerima.berat}
-                                                            onChange={(e) => updatePenerima(index, 'berat', parseFloat(e.target.value) || 0)}
+                                                            value={penerima.berat || ''}
+                                                            onChange={(e) => updatePenerima(index, 'berat', e.target.value === '' ? '' : parseFloat(e.target.value) || 0)}
                                                             className="w-full px-3 py-2 rounded-l-lg border border-gray-200 focus:border-blue-500 outline-none"
                                                         />
                                                         <select
