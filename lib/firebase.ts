@@ -3,12 +3,12 @@ import { getFirestore, collection, getDocs, limit, query } from 'firebase/firest
 import { getAuth } from 'firebase/auth';
 
 const firebaseConfig = {
-    apiKey: "AIzaSyDe4Uh3_gjbutp8-M_TuukUfTCFTSeWGQo",
-    authDomain: "c2express-7e148.firebaseapp.com",
-    projectId: "c2express-7e148",
-    storageBucket: "c2express-7e148.firebasestorage.app",
-    messagingSenderId: "1058527926604",
-    appId: "1:1058527926604:web:e805cbd1e51f3d7f1757e9"
+    apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+    authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+    projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+    storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+    messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+    appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID
 };
 
 // Initialize Firebase
