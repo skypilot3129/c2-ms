@@ -88,28 +88,14 @@ export default function TaxPage() {
 
         snapshot.forEach(doc => {
             const d = doc.data();
-            // Cast strictly or just access known props
-            // Need to convert Timestamp to Date if we use Transaction type fully, but for Display we just need values
-            const t = { ...d, id: doc.id } as any;
+            // Convert Firestore Timestamp to Date for display
+            const tanggalDate = d.tanggal instanceof Timestamp ? d.tanggal.toDate() : new Date(d.tanggal);
 
-            // Calc DPP and PPN
-            // DPP = Jumlah / (1 + Rate) ??? Or is Jumlah BEFORE Tax?
-            // Usually 'Jumlah' in Transaction is TOTAL (Inclusive) or Exclusive?
-            // Let's assume 'Jumlah' is Grand Total. 
-            // If Taxable: PPN = Jumlah - (Jumlah / (1 + Rate)) IF inclusive.
-            // OR if 'Jumlah' is Basic + PPN.
-            // Looking at addTransaction logic: `ppn: ... Math.round(jumlah * rate)`. 
-            // It seems `jumlah` passed to it was DPP? 
-            // Wait, in `addTransaction` logic: `jumlah: jumlah` (passed args).
-            // `ppn` is separate.
-            // So `jumlah` is likely the basic amount (DPP) or Total? 
-            // Let's check `TransactionForm`. Usually 'Total' displayed is Grand Total.
-            // If I implement `ppn` as separate field, `jumlah` usually means Grand Total in UI.
-            // But in `addTransaction` I saw `ppn` calculated from `jumlah`.
-            // So `jumlah` seems to be the BASE (DPP).
-            // Total Payable = jumlah + ppn.
-            // LET'S VERIFY THIS LOGIC in Form Implementation next.
-            // For now, let's assume `jumlah` = DPP, `ppn` = Tax.
+            const t = {
+                ...d,
+                id: doc.id,
+                tanggal: tanggalDate // Ensure tanggal is always a Date object
+            } as Transaction;
 
             totalDPP += (d.jumlah || 0);
             totalPPN += (d.ppn || 0);
@@ -293,7 +279,7 @@ export default function TaxPage() {
                                     <tbody className="divide-y divide-gray-50">
                                         {taxData.transactions.map((t, idx) => (
                                             <tr key={idx} className="hover:bg-gray-50">
-                                                <td className="px-6 py-4">{new Timestamp(t.tanggal.seconds, t.tanggal.nanoseconds).toDate().toLocaleDateString('id-ID')}</td>
+                                                <td className="px-6 py-4">{t.tanggal.toLocaleDateString('id-ID')}</td>
                                                 <td className="px-6 py-4 font-mono text-gray-600">{t.noInvoice || t.noSTT}</td>
                                                 <td className="px-6 py-4">{t.pengirimName}</td>
                                                 <td className="px-6 py-4 text-right">{formatRupiah(t.jumlah)}</td>

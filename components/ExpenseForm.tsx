@@ -20,6 +20,10 @@ const EXPENSE_CATEGORIES: ExpenseCategory[] = [
     'transit',
     'sewa_mobil',
     'gaji_sopir',
+    'gaji_karyawan',
+    'listrik_air_internet',
+    'sewa_kantor',
+    'maintenance',
     'lainnya',
 ];
 
@@ -30,12 +34,17 @@ const CATEGORY_LABELS: Record<ExpenseCategory, string> = {
     transit: 'Transit',
     sewa_mobil: 'Sewa Mobil',
     gaji_sopir: 'Gaji Sopir',
+    gaji_karyawan: 'Gaji Karyawan',
+    listrik_air_internet: 'Listrik/Air/Internet',
+    sewa_kantor: 'Sewa Kantor',
+    maintenance: 'Maintenance Armada',
     lainnya: 'Lainnya',
 };
 
 export default function ExpenseForm({ voyageId, userId, expenseToEdit, onSuccess, onCancel }: ExpenseFormProps) {
     const [loading, setLoading] = useState(false);
     const [formData, setFormData] = useState<ExpenseFormData>({
+        type: 'voyage',
         voyageId,
         category: 'tiket',
         amount: 0,
@@ -46,6 +55,7 @@ export default function ExpenseForm({ voyageId, userId, expenseToEdit, onSuccess
     useEffect(() => {
         if (expenseToEdit) {
             setFormData({
+                type: expenseToEdit.type,
                 voyageId: expenseToEdit.voyageId,
                 category: expenseToEdit.category,
                 amount: expenseToEdit.amount,
