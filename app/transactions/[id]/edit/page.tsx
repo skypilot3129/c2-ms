@@ -50,6 +50,8 @@ export default function EditTransactionPage({ params }: { params: Promise<{ id: 
         ppnRate: 0,
     });
 
+    const [noSTT, setNoSTT] = useState('');
+
     const [penerimaData, setPenerimaData] = useState({
         name: '',
         phone: '',
@@ -113,6 +115,9 @@ export default function EditTransactionPage({ params }: { params: Promise<{ id: 
                 // Let's trust txn.isTaxable.
                 setIsPKP(txn.isTaxable || false);
 
+                // Set noSTT
+                setNoSTT(txn.noSTT || '');
+
                 // Set Jumlah
                 setJumlah(txn.jumlah);
 
@@ -161,6 +166,7 @@ export default function EditTransactionPage({ params }: { params: Promise<{ id: 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
+        if (!noSTT.trim()) return alert('No. STT harus diisi');
         if (!formData.pengirimId) return alert('Pengirim harus dipilih');
         if (!penerimaData.name.trim()) return alert('Nama penerima harus diisi');
         if (!penerimaData.tujuan.trim()) return alert('Tujuan harus diisi');
@@ -194,7 +200,8 @@ export default function EditTransactionPage({ params }: { params: Promise<{ id: 
                     city: pengirim.city,
                 },
                 penerimaData,
-                jumlah
+                jumlah,
+                noSTT  // Pass the edited STT number
             );
 
             alert('Transaksi berhasil diupdate!');
@@ -251,12 +258,14 @@ export default function EditTransactionPage({ params }: { params: Promise<{ id: 
                             </h2>
                             <div className="grid md:grid-cols-2 gap-6">
                                 <div>
-                                    <label className="block text-sm font-semibold text-gray-700 mb-2">No. STT (Permanen)</label>
+                                    <label className="block text-sm font-semibold text-gray-700 mb-2">No. STT</label>
                                     <input
                                         type="text"
-                                        value={transaction?.noSTT || ''}
-                                        disabled
-                                        className="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-100 text-gray-500 cursor-not-allowed"
+                                        value={noSTT}
+                                        onChange={(e) => setNoSTT(e.target.value)}
+                                        placeholder="Nomor STT"
+                                        required
+                                        className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all"
                                     />
                                 </div>
                                 <div>

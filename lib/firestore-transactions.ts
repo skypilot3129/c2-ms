@@ -290,12 +290,18 @@ export const updateTransaction = async (
     data: Partial<TransactionFormData>,
     pengirimData?: { name: string; phone?: string; address?: string; city?: string },
     penerimaData?: { name: string; phone?: string; address?: string; city?: string },
-    jumlah?: number  // Calculated total from form
+    jumlah?: number,  // Calculated total from form
+    noSTT?: string    // Optional: Updated STT number
 ): Promise<void> => {
     const docRef = doc(db, COLLECTION_NAME, id);
     const updates: any = {
         updatedAt: Timestamp.now(),
     };
+
+    // Update noSTT if provided
+    if (noSTT !== undefined) {
+        updates.noSTT = noSTT;
+    }
 
     // Update basic fields
     if (data.tanggal) {
