@@ -64,21 +64,21 @@ export default function ReceivablesPage() {
                 </div>
 
                 {/* Summary Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm flex items-center justify-between">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+                    <div className="bg-white p-5 sm:p-6 rounded-xl sm:rounded-2xl border border-gray-100 shadow-sm flex items-center justify-between">
                         <div>
-                            <p className="text-gray-500 text-sm font-medium mb-1">Total Piutang Belum Tertagih</p>
-                            <h2 className="text-3xl font-bold text-blue-600">{formatRupiah(totalPiutang)}</h2>
+                            <p className="text-gray-500 text-xs sm:text-sm font-medium mb-1">Total Piutang Belum Tertagih</p>
+                            <h2 className="text-xl sm:text-3xl font-bold text-blue-600">{formatRupiah(totalPiutang)}</h2>
                         </div>
                         <div className="p-3 bg-blue-50 text-blue-600 rounded-xl">
                             <Wallet size={24} />
                         </div>
                     </div>
-                    <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm flex items-center justify-between">
+                    <div className="bg-white p-5 sm:p-6 rounded-xl sm:rounded-2xl border border-gray-100 shadow-sm flex items-center justify-between">
                         <div>
-                            <p className="text-gray-500 text-sm font-medium mb-1">Total Resi Gantung</p>
-                            <h2 className="text-3xl font-bold text-orange-600">{totalTransactions}</h2>
-                            <p className="text-xs text-gray-400 mt-1">Resi dengan status pembayaran Pending</p>
+                            <p className="text-gray-500 text-xs sm:text-sm font-medium mb-1">Total Resi Gantung</p>
+                            <h2 className="text-xl sm:text-3xl font-bold text-orange-600">{totalTransactions}</h2>
+                            <p className="text-[10px] sm:text-xs text-gray-400 mt-1">Resi dengan status pembayaran Pending</p>
                         </div>
                         <div className="p-3 bg-orange-50 text-orange-600 rounded-xl">
                             <AlertCircle size={24} />
@@ -86,23 +86,25 @@ export default function ReceivablesPage() {
                     </div>
                 </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 sm:gap-8">
                     {/* Main List */}
-                    <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-100 shadow-sm">
-                        <div className="p-6 border-b border-gray-100 flex items-center justify-between gap-4">
+                    <div className="lg:col-span-2 bg-white rounded-xl sm:rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                        <div className="p-4 sm:p-6 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                             <h3 className="font-bold text-gray-800">Daftar Tagihan Pending</h3>
-                            <div className="relative">
+                            <div className="relative w-full sm:w-auto">
                                 <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                                 <input
                                     type="text"
                                     placeholder="Cari Resi / Client..."
-                                    className="pl-9 pr-4 py-2 bg-gray-50 border-none rounded-xl text-sm w-48 focus:ring-2 focus:ring-blue-100 transition-all outline-none"
+                                    className="pl-9 pr-4 py-2 bg-gray-50 border-none rounded-xl text-sm w-full sm:w-48 focus:ring-2 focus:ring-blue-100 transition-all outline-none"
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
                                 />
                             </div>
                         </div>
-                        <div className="overflow-x-auto">
+
+                        {/* Desktop Table */}
+                        <div className="hidden md:block overflow-x-auto">
                             <table className="w-full text-left text-sm">
                                 <thead className="bg-gray-50 text-gray-500 font-medium border-b border-gray-100">
                                     <tr>
@@ -140,6 +142,36 @@ export default function ReceivablesPage() {
                                 </tbody>
                             </table>
                         </div>
+
+                        {/* Mobile Card List */}
+                        <div className="md:hidden divide-y divide-gray-100">
+                            {filteredTransactions.slice(0, 10).map((t) => (
+                                <div key={t.id} className="p-4 flex flex-col gap-2">
+                                    <div className="flex justify-between items-start">
+                                        <div>
+                                            <span className="font-mono font-bold text-gray-700 text-sm">{t.noSTT}</span>
+                                            <p className="font-medium text-gray-800 text-sm mt-0.5">{t.pengirimName}</p>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className="font-bold text-gray-800 text-base">{formatRupiah(t.jumlah)}</p>
+                                            <span className="inline-block mt-1 px-2 py-0.5 rounded text-[10px] font-bold bg-yellow-100 text-yellow-800">
+                                                Pending
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div className="flex justify-between items-center text-xs text-gray-500 pt-2">
+                                        <span>{new Date(t.tanggal).toLocaleDateString('id-ID')}</span>
+                                        <span>{Math.ceil((new Date().getTime() - new Date(t.tanggal).getTime()) / (1000 * 3600 * 24))} hari lalu</span>
+                                    </div>
+                                </div>
+                            ))}
+                            {filteredTransactions.length === 0 && (
+                                <div className="text-center py-12 px-4 text-gray-400">
+                                    <p className="text-sm">Tidak ada data tagihan.</p>
+                                </div>
+                            )}
+                        </div>
+
                         {filteredTransactions.length > 10 && (
                             <div className="p-4 border-t border-gray-100 text-center">
                                 <button className="text-blue-600 text-sm font-medium hover:underline">Lihat Semua Tagihan</button>

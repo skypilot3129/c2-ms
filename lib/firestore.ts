@@ -40,8 +40,9 @@ export const subscribeToClients = (
     const clientsRef = collection(db, COLLECTION_NAME);
 
     // Filter by userId if provided (removed orderBy to avoid index requirement)
+    // Filter by userId removed for shared access
     const q = userId
-        ? query(clientsRef, where('userId', '==', userId))
+        ? query(clientsRef) // userId ignored
         : query(clientsRef);
 
     return onSnapshot(q, (snapshot) => {

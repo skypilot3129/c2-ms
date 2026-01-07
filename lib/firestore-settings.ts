@@ -13,7 +13,8 @@ export interface TaxSettings {
 }
 
 export const getTaxSettings = async (userId: string): Promise<TaxSettings> => {
-    const docRef = doc(db, SETTINGS_COLLECTION, userId); // User-specific settings document
+    const docRef = doc(db, SETTINGS_COLLECTION, 'global_settings'); // Global settings
+    // const docRef = doc(db, SETTINGS_COLLECTION, userId); // User-specific settings document
     const snapshot = await getDoc(docRef);
 
     if (snapshot.exists() && snapshot.data().tax) {
@@ -28,7 +29,8 @@ export const getTaxSettings = async (userId: string): Promise<TaxSettings> => {
 };
 
 export const updateTaxSettings = async (userId: string, settings: TaxSettings): Promise<void> => {
-    const docRef = doc(db, SETTINGS_COLLECTION, userId);
+    const docRef = doc(db, SETTINGS_COLLECTION, 'global_settings');
+    // const docRef = doc(db, SETTINGS_COLLECTION, userId);
 
     // Merge with existing settings (e.g. if we have other settings later)
     await setDoc(docRef, {

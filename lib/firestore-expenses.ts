@@ -89,7 +89,7 @@ export const getExpensesByVoyage = async (
     const q = query(
         collection(db, EXPENSES_COLLECTION),
         where('voyageId', '==', voyageId),
-        where('userId', '==', userId)
+        // where('userId', '==', userId) // Removed
         // Removed orderBy to avoid composite index requirement
     );
 
@@ -111,7 +111,7 @@ export const subscribeToExpensesByVoyage = (
     const q = query(
         collection(db, EXPENSES_COLLECTION),
         where('voyageId', '==', voyageId),
-        where('userId', '==', userId)
+        // where('userId', '==', userId) // Removed
         // Removed orderBy to avoid composite index requirement
     );
 
@@ -142,7 +142,7 @@ export const subscribeToExpenses = (
     const expensesRef = collection(db, EXPENSES_COLLECTION);
     let constraints: any[] = [];
 
-    constraints.push(where('userId', '==', userId));
+    // constraints.push(where('userId', '==', userId)); // Removed
 
     if (dateRange) {
         // Ensure strictly this range. Firestore composite index might be needed.
@@ -236,10 +236,77 @@ export const calculateVoyageExpenses = async (
 export const getExpenses = async (userId: string): Promise<Expense[]> => {
     const q = query(
         collection(db, EXPENSES_COLLECTION),
-        where('userId', '==', userId),
+        // where('userId', '==', userId), // Removed
         orderBy('date', 'desc')
     );
 
     const snapshot = await getDocs(q);
     return snapshot.docs.map(doc => docToExpense(doc.id, doc.data()));
+};
+
+/**
+ * Cleanup orphan expenses (expenses whose voyageId references deleted voyages)
+ */
+export const cleanupOrphanExpenses = async (userId: string): Promise<{ deletedCount: number; orphanIds: string[] }> => {
+    // Get all voyage expenses for this user
+    const expensesQuery = query(
+        collection(db, EXPENSES_COLLECTION),
+        // where('userId', '==', userId), // Removed
+        where('type', '==', 'voyage')
+    );
+
+    const expensesSnapshot = await getDocs(expensesQuery);
+
+    // Collect all unique voyageIds from expenses
+    const voyageIdsInExpenses = new Set<string>();
+    expensesSnapshot.docs.forEach(doc => {
+        const data = doc.data();
+        if (data.voyageId) {
+            voyageIdsInExpenses.add(data.voyageId);
+        }
+    });
+
+    // Check which voyages actually exist by trying to read them
+    const existingVoyageIds = new Set<string>();
+
+    // Use Promise.allSettled to handle both success and errors
+    const voyageCheckPromises = Array.from(voyageIdsInExpenses).map(async (voyageId) => {
+        try {
+            const voyageRef = doc(db, 'voyages', voyageId);
+            const voyageSnap = await getDoc(voyageRef);
+            // If we can read it and it exists, it's valid
+            if (voyageSnap.exists()) {
+                return { voyageId, exists: true };
+            }
+            return { voyageId, exists: false };
+        } catch (error) {
+            // If we get permission error or any error, assume voyage doesn't exist or we can't access it
+            console.log(`Cannot access voyage ${voyageId}, marking as orphan`);
+            return { voyageId, exists: false };
+        }
+    });
+
+    const results = await Promise.all(voyageCheckPromises);
+
+    // Collect existing voyage IDs
+    results.forEach(result => {
+        if (result.exists) {
+            existingVoyageIds.add(result.voyageId);
+        }
+    });
+
+    // Find orphan expenses (expenses with voyageId that doesn't exist or can't be accessed)
+    const orphanExpenses = expensesSnapshot.docs.filter(doc => {
+        const data = doc.data();
+        return data.voyageId && !existingVoyageIds.has(data.voyageId);
+    });
+
+    // Delete orphan expenses
+    const deletePromises = orphanExpenses.map(doc => deleteDoc(doc.ref));
+    await Promise.all(deletePromises);
+
+    return {
+        deletedCount: orphanExpenses.length,
+        orphanIds: orphanExpenses.map(doc => doc.id)
+    };
 };

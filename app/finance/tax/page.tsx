@@ -114,21 +114,21 @@ export default function TaxPage() {
     return (
         <ProtectedRoute>
             <div className="max-w-6xl mx-auto space-y-6 pb-12">
-                <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                     <div>
-                        <h1 className="text-2xl font-bold text-gray-800">Pajak</h1>
-                        <p className="text-gray-500">Laporan PPN Keluaran & Pengaturan PKP</p>
+                        <h1 className="text-xl sm:text-2xl font-bold text-gray-800">Pajak</h1>
+                        <p className="text-gray-500 text-sm">Laporan PPN Keluaran & Pengaturan PKP</p>
                     </div>
-                    <div className="bg-white p-1 rounded-xl border border-gray-200 flex">
+                    <div className="bg-white p-1 rounded-xl border border-gray-200 flex w-full sm:w-auto">
                         <button
                             onClick={() => setActiveTab('report')}
-                            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === 'report' ? 'bg-blue-50 text-blue-600' : 'text-gray-600 hover:bg-gray-50'}`}
+                            className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === 'report' ? 'bg-blue-50 text-blue-600' : 'text-gray-600 hover:bg-gray-50'}`}
                         >
                             Laporan PPN
                         </button>
                         <button
                             onClick={() => setActiveTab('settings')}
-                            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === 'settings' ? 'bg-blue-50 text-blue-600' : 'text-gray-600 hover:bg-gray-50'}`}
+                            className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === 'settings' ? 'bg-blue-50 text-blue-600' : 'text-gray-600 hover:bg-gray-50'}`}
                         >
                             Pengaturan
                         </button>
@@ -136,8 +136,8 @@ export default function TaxPage() {
                 </div>
 
                 {activeTab === 'settings' && (
-                    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 max-w-2xl">
-                        <h2 className="text-lg font-bold text-gray-800 mb-6 flex items-center gap-2">
+                    <div className="bg-white rounded-xl sm:rounded-2xl border border-gray-100 shadow-sm p-5 sm:p-8 max-w-2xl">
+                        <h2 className="text-base sm:text-lg font-bold text-gray-800 mb-6 flex items-center gap-2">
                             <Settings size={20} className="text-gray-400" />
                             Pengaturan PKP (Pengusaha Kena Pajak)
                         </h2>
@@ -145,8 +145,8 @@ export default function TaxPage() {
                         <div className="space-y-6">
                             <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-gray-200">
                                 <div>
-                                    <h3 className="font-semibold text-gray-800">Status PKP</h3>
-                                    <p className="text-sm text-gray-500">Aktifkan jika perusahaan Anda wajib memungut PPN.</p>
+                                    <h3 className="font-semibold text-gray-800 text-sm sm:text-base">Status PKP</h3>
+                                    <p className="text-xs sm:text-sm text-gray-500">Aktifkan jika perusahaan Anda wajib memungut PPN.</p>
                                 </div>
                                 <label className="relative inline-flex items-center cursor-pointer">
                                     <input
@@ -169,7 +169,7 @@ export default function TaxPage() {
                                                 step="0.01"
                                                 value={settings.defaultPPNRate * 100}
                                                 onChange={(e) => setSettings({ ...settings, defaultPPNRate: Number(e.target.value) / 100 })}
-                                                className="w-24 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                                                className="w-24 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
                                             />
                                             <span className="text-gray-500 font-medium">%</span>
                                         </div>
@@ -183,7 +183,7 @@ export default function TaxPage() {
                                                 type="text"
                                                 value={settings.companyName || ''}
                                                 onChange={(e) => setSettings({ ...settings, companyName: e.target.value })}
-                                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
                                                 placeholder="PT. Cahaya Cargo Express"
                                             />
                                         </div>
@@ -193,7 +193,7 @@ export default function TaxPage() {
                                                 type="text"
                                                 value={settings.companyNPWP || ''}
                                                 onChange={(e) => setSettings({ ...settings, companyNPWP: e.target.value })}
-                                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
                                                 placeholder="00.000.000.0-000.000"
                                             />
                                         </div>
@@ -202,7 +202,7 @@ export default function TaxPage() {
                                             <textarea
                                                 value={settings.companyAddress || ''}
                                                 onChange={(e) => setSettings({ ...settings, companyAddress: e.target.value })}
-                                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
                                                 rows={3}
                                                 placeholder="Alamat lengkap..."
                                             />
@@ -213,7 +213,7 @@ export default function TaxPage() {
 
                             <button
                                 onClick={handleSaveSettings}
-                                className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 transition-colors shadow-lg shadow-blue-600/20 flex items-center justify-center gap-2"
+                                className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 transition-colors shadow-lg shadow-blue-600/20 flex items-center justify-center gap-2 text-sm sm:text-base"
                             >
                                 <Save size={18} />
                                 Simpan Pengaturan
@@ -225,47 +225,50 @@ export default function TaxPage() {
                 {activeTab === 'report' && (
                     <div className="space-y-6">
                         {/* Filter */}
-                        <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex items-center gap-4">
+                        <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col sm:flex-row sm:items-center gap-4">
                             <h2 className="font-bold text-gray-700 flex items-center gap-2">
                                 <FileText size={20} className="text-blue-600" />
-                                Laporan Masa PPN
+                                <span className="text-sm sm:text-base">Laporan Masa PPN</span>
                             </h2>
-                            <div className="h-8 w-px bg-gray-200"></div>
-                            <select
-                                value={month}
-                                onChange={(e) => setMonth(Number(e.target.value))}
-                                className="bg-gray-50 border-none rounded-lg text-sm font-medium text-gray-700 focus:ring-0"
-                            >
-                                {months.map((m, i) => (
-                                    <option key={i} value={i}>{m}</option>
-                                ))}
-                            </select>
-                            <select
-                                value={year}
-                                onChange={(e) => setYear(Number(e.target.value))}
-                                className="bg-gray-50 border-none rounded-lg text-sm font-medium text-gray-700 focus:ring-0"
-                            >
-                                {[2024, 2025, 2026, 2027].map(y => (
-                                    <option key={y} value={y}>{y}</option>
-                                ))}
-                            </select>
+                            <div className="hidden sm:block h-8 w-px bg-gray-200"></div>
+                            <div className="flex items-center gap-2 w-full sm:w-auto">
+                                <select
+                                    value={month}
+                                    onChange={(e) => setMonth(Number(e.target.value))}
+                                    className="flex-1 sm:flex-none bg-gray-50 border-none rounded-lg text-sm font-medium text-gray-700 focus:ring-0"
+                                >
+                                    {months.map((m, i) => (
+                                        <option key={i} value={i}>{m}</option>
+                                    ))}
+                                </select>
+                                <select
+                                    value={year}
+                                    onChange={(e) => setYear(Number(e.target.value))}
+                                    className="flex-1 sm:flex-none bg-gray-50 border-none rounded-lg text-sm font-medium text-gray-700 focus:ring-0"
+                                >
+                                    {[2024, 2025, 2026, 2027].map(y => (
+                                        <option key={y} value={y}>{y}</option>
+                                    ))}
+                                </select>
+                            </div>
                         </div>
 
                         {/* Summary */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
-                                <p className="text-gray-500 text-sm mb-1">Total Dasar Pengenaan Pajak (DPP)</p>
-                                <h3 className="text-2xl font-bold text-gray-800">{formatRupiah(taxData.totalDPP)}</h3>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                            <div className="bg-white p-5 sm:p-6 rounded-xl sm:rounded-2xl border border-gray-100 shadow-sm">
+                                <p className="text-gray-500 text-xs sm:text-sm mb-1">Total Dasar Pengenaan Pajak (DPP)</p>
+                                <h3 className="text-xl sm:text-2xl font-bold text-gray-800">{formatRupiah(taxData.totalDPP)}</h3>
                             </div>
-                            <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
-                                <p className="text-gray-500 text-sm mb-1">Total PPN Keluaran (Output Tax)</p>
-                                <h3 className="text-2xl font-bold text-blue-600">{formatRupiah(taxData.totalPPN)}</h3>
+                            <div className="bg-white p-5 sm:p-6 rounded-xl sm:rounded-2xl border border-gray-100 shadow-sm">
+                                <p className="text-gray-500 text-xs sm:text-sm mb-1">Total PPN Keluaran (Output Tax)</p>
+                                <h3 className="text-xl sm:text-2xl font-bold text-blue-600">{formatRupiah(taxData.totalPPN)}</h3>
                             </div>
                         </div>
 
-                        {/* Table */}
-                        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-                            <div className="overflow-x-auto">
+                        {/* Table Desktop / Card Mobile Hybrid */}
+                        <div className="bg-white rounded-xl sm:rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                            {/* Desktop Table View */}
+                            <div className="hidden md:block overflow-x-auto">
                                 <table className="w-full text-left text-sm">
                                     <thead className="bg-gray-50 text-gray-500 font-medium border-b border-gray-100">
                                         <tr>
@@ -293,6 +296,36 @@ export default function TaxPage() {
                                         )}
                                     </tbody>
                                 </table>
+                            </div>
+
+                            {/* Mobile Card List View */}
+                            <div className="md:hidden divide-y divide-gray-100">
+                                {taxData.transactions.map((t, idx) => (
+                                    <div key={idx} className="p-4 flex flex-col gap-2">
+                                        <div className="flex justify-between items-start">
+                                            <div>
+                                                <span className="font-mono font-bold text-gray-700 text-sm">{t.noInvoice || t.noSTT}</span>
+                                                <p className="font-medium text-gray-800 text-sm mt-0.5">{t.pengirimName}</p>
+                                                <p className="text-xs text-gray-500 mt-1">{t.tanggal.toLocaleDateString('id-ID')}</p>
+                                            </div>
+                                        </div>
+                                        <div className="flex justify-between items-center bg-gray-50 p-3 rounded-lg mt-2">
+                                            <div>
+                                                <p className="text-[10px] text-gray-400">DPP</p>
+                                                <p className="font-medium text-gray-700 text-sm">{formatRupiah(t.jumlah)}</p>
+                                            </div>
+                                            <div className="text-right">
+                                                <p className="text-[10px] text-gray-400">PPN</p>
+                                                <p className="font-bold text-blue-600 text-sm">{formatRupiah(t.ppn || 0)}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                                {taxData.transactions.length === 0 && (
+                                    <div className="py-12 text-center text-gray-400 text-sm px-4">
+                                        Tidak ada transaksi kena pajak pada periode ini.
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>

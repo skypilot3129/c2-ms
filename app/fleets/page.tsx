@@ -201,10 +201,10 @@ export default function FleetsPage() {
         <ProtectedRoute>
             <div className="min-h-screen bg-slate-50 pb-20">
                 {/* Header */}
-                <div className="bg-white border-b border-slate-200 sticky top-0 z-30">
-                    <div className="container mx-auto px-4 md:px-6 py-4">
-                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                            <div className="flex items-center gap-4">
+                <div className="bg-white border-b border-slate-200 sticky top-0 z-30 transition-shadow duration-200">
+                    <div className="container mx-auto px-4 sm:px-6 py-4">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                            <div className="flex items-center gap-3 sm:gap-4">
                                 <button
                                     onClick={() => router.push('/')}
                                     className="p-2 bg-white border border-slate-200 rounded-lg text-slate-500 hover:text-slate-700 hover:bg-slate-50 transition-colors shadow-sm"
@@ -212,15 +212,15 @@ export default function FleetsPage() {
                                     <ArrowLeft size={20} />
                                 </button>
                                 <div>
-                                    <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
-                                        <Truck className="text-rose-600" /> Manajemen Armada
+                                    <h1 className="text-xl sm:text-2xl font-bold text-slate-800 flex items-center gap-2">
+                                        <Truck className="text-rose-600" size={24} /> Manajemen Armada
                                     </h1>
-                                    <p className="text-slate-500 text-sm">Kelola aset kendaraan dan jadwal perawatan</p>
+                                    <p className="text-slate-500 text-xs sm:text-sm">Kelola aset kendaraan dan jadwal perawatan</p>
                                 </div>
                             </div>
                             <button
                                 onClick={handleOpenAddFleet}
-                                className="bg-rose-600 hover:bg-rose-700 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2 shadow-lg shadow-rose-600/20 transition-all"
+                                className="w-full sm:w-auto bg-rose-600 hover:bg-rose-700 text-white px-4 py-2.5 rounded-xl font-medium flex items-center justify-center gap-2 shadow-lg shadow-rose-600/20 transition-all active:scale-95"
                             >
                                 <Plus size={18} /> Tambah Armada
                             </button>
@@ -228,36 +228,36 @@ export default function FleetsPage() {
                     </div>
                 </div>
 
-                <div className="container mx-auto px-4 md:px-6 py-8 space-y-8">
+                <div className="container mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6 sm:space-y-8">
 
                     {/* Stats */}
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-                            <p className="text-slate-500 text-xs font-bold uppercase tracking-wider">Total Armada</p>
-                            <p className="text-2xl font-bold text-slate-800">{stats.total}</p>
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                        <div className="bg-white p-3 sm:p-4 rounded-xl border border-slate-200 shadow-sm">
+                            <p className="text-slate-500 text-[10px] sm:text-xs font-bold uppercase tracking-wider">Total Armada</p>
+                            <p className="text-xl sm:text-2xl font-bold text-slate-800">{stats.total}</p>
                         </div>
-                        <div className="bg-white p-4 rounded-xl border border-emerald-200 shadow-sm bg-emerald-50/30">
-                            <p className="text-emerald-600 text-xs font-bold uppercase tracking-wider">Siap Jalan</p>
-                            <p className="text-2xl font-bold text-emerald-700">{stats.available}</p>
+                        <div className="bg-white p-3 sm:p-4 rounded-xl border border-emerald-200 shadow-sm bg-emerald-50/30">
+                            <p className="text-emerald-600 text-[10px] sm:text-xs font-bold uppercase tracking-wider">Siap Jalan</p>
+                            <p className="text-xl sm:text-2xl font-bold text-emerald-700">{stats.available}</p>
                         </div>
-                        <div className="bg-white p-4 rounded-xl border border-blue-200 shadow-sm bg-blue-50/30">
-                            <p className="text-blue-600 text-xs font-bold uppercase tracking-wider">Sedang Jalan</p>
-                            <p className="text-2xl font-bold text-blue-700">{stats.onTrip}</p>
+                        <div className="bg-white p-3 sm:p-4 rounded-xl border border-blue-200 shadow-sm bg-blue-50/30">
+                            <p className="text-blue-600 text-[10px] sm:text-xs font-bold uppercase tracking-wider">Sedang Jalan</p>
+                            <p className="text-xl sm:text-2xl font-bold text-blue-700">{stats.onTrip}</p>
                         </div>
-                        <div className="bg-white p-4 rounded-xl border border-rose-200 shadow-sm bg-rose-50/30">
-                            <p className="text-rose-600 text-xs font-bold uppercase tracking-wider">Dalam Perbaikan</p>
-                            <p className="text-2xl font-bold text-rose-700">{stats.maintenance}</p>
+                        <div className="bg-white p-3 sm:p-4 rounded-xl border border-rose-200 shadow-sm bg-rose-50/30">
+                            <p className="text-rose-600 text-[10px] sm:text-xs font-bold uppercase tracking-wider">Dalam Perbaikan</p>
+                            <p className="text-xl sm:text-2xl font-bold text-rose-700">{stats.maintenance}</p>
                         </div>
                     </div>
 
                     {/* Filters & Search */}
-                    <div className="flex flex-col md:flex-row md:items-center gap-4 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-4 bg-white p-3 sm:p-4 rounded-xl border border-slate-200 shadow-sm">
                         <div className="flex items-center gap-2 flex-1">
                             <Search className="text-slate-400" size={20} />
                             <input
                                 type="text"
                                 placeholder="Cari nama armada atau plat nomor..."
-                                className="bg-transparent border-none outline-none text-slate-700 placeholder:text-slate-400 flex-1 w-full"
+                                className="bg-transparent border-none outline-none text-slate-700 placeholder:text-slate-400 flex-1 w-full text-sm sm:text-base"
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
                             />
@@ -266,79 +266,81 @@ export default function FleetsPage() {
 
                     {/* Grid List */}
                     {loading ? (
-                        <div className="text-center py-20 text-slate-400">Loading fleet data...</div>
+                        <div className="text-center py-20 text-slate-400 animate-pulse">Loading fleet data...</div>
                     ) : (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
                             {filteredFleets.map(fleet => (
-                                <div key={fleet.id} className="bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all overflow-hidden relative group">
-                                    <div className="p-6">
+                                <div key={fleet.id} className="bg-white rounded-xl sm:rounded-2xl border border-slate-200 shadow-sm hover:shadow-lg transition-all overflow-hidden relative group flex flex-col">
+                                    <div className="p-4 sm:p-5 flex-1">
                                         <div className="flex justify-between items-start mb-4">
                                             <div className="flex items-center gap-3">
-                                                <div className="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center text-slate-600">
-                                                    <Truck size={24} />
+                                                <div className="w-10 h-10 sm:w-12 sm:h-12 bg-slate-100 rounded-full flex items-center justify-center text-slate-600 shrink-0">
+                                                    <Truck size={20} className="sm:hidden" />
+                                                    <Truck size={24} className="hidden sm:block" />
                                                 </div>
                                                 <div>
-                                                    <h3 className="font-bold text-slate-800 text-lg">{fleet.name}</h3>
-                                                    <p className="text-slate-500 text-sm font-mono bg-slate-100 px-2 py-0.5 rounded inline-block mt-1">{fleet.plateNumber}</p>
+                                                    <h3 className="font-bold text-slate-800 text-base sm:text-lg line-clamp-1">{fleet.name}</h3>
+                                                    <p className="text-slate-500 text-[10px] sm:text-sm font-mono bg-slate-100 px-2 py-0.5 rounded inline-block mt-1 font-medium">{fleet.plateNumber}</p>
                                                 </div>
                                             </div>
-                                            <span className={`px-3 py-1 rounded-full text-xs font-bold border ${getStatusColor(fleet.status)}`}>
+                                            <span className={`px-2 py-0.5 sm:px-3 sm:py-1 rounded-full text-[10px] sm:text-xs font-bold border whitespace-nowrap ${getStatusColor(fleet.status)}`}>
                                                 {fleet.status === 'Available' ? 'Ready' : fleet.status}
                                             </span>
                                         </div>
 
-                                        <div className="space-y-2 mb-6">
-                                            <div className="flex justify-between text-sm">
-                                                <span className="text-slate-400">Tipe Kendaraan</span>
+                                        <div className="space-y-2 mb-6 bg-slate-50 p-3 rounded-lg border border-slate-100">
+                                            <div className="flex justify-between text-xs sm:text-sm">
+                                                <span className="text-slate-500">Tipe</span>
                                                 <span className="font-medium text-slate-700">{fleet.type}</span>
                                             </div>
-                                            <div className="flex justify-between text-sm">
-                                                <span className="text-slate-400">Driver Default</span>
-                                                <span className="font-medium text-slate-700">{fleet.driverName || '-'}</span>
+                                            <div className="flex justify-between text-xs sm:text-sm">
+                                                <span className="text-slate-500">Driver</span>
+                                                <span className="font-medium text-slate-700 truncate max-w-[120px]">{fleet.driverName || '-'}</span>
                                             </div>
                                         </div>
 
-                                        <div className="flex gap-2">
+                                        <div className="grid grid-cols-4 gap-2 mt-auto">
                                             <button
                                                 onClick={() => handleOpenMaintenance(fleet)}
-                                                className="flex-1 bg-amber-50 hover:bg-amber-100 text-amber-700 py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-2 transition-colors border border-amber-200"
+                                                className="col-span-2 bg-amber-50 hover:bg-amber-100 text-amber-700 py-2 rounded-lg text-xs sm:text-sm font-medium flex items-center justify-center gap-1.5 transition-colors border border-amber-200"
                                             >
-                                                <Wrench size={16} /> Service
+                                                <Wrench size={14} className="sm:w-4 sm:h-4" /> Service
                                             </button>
                                             <button
                                                 onClick={() => handleOpenHistory(fleet)}
-                                                className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors border border-transparent hover:border-indigo-100"
+                                                className="flex items-center justify-center p-2 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors border border-slate-100 hover:border-indigo-100 bg-white"
                                                 title="Riwayat Maintenance"
                                             >
                                                 <FileText size={18} />
                                             </button>
-                                            <button
-                                                onClick={() => handleOpenEditFleet(fleet)}
-                                                className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                                            >
-                                                <Edit2 size={18} />
-                                            </button>
-                                            <button
-                                                onClick={() => handleDeleteFleet(fleet.id)}
-                                                className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                                            >
-                                                <Trash2 size={18} />
-                                            </button>
+                                            <div className="flex gap-1">
+                                                <button
+                                                    onClick={() => handleOpenEditFleet(fleet)}
+                                                    className="flex-1 flex items-center justify-center p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                                >
+                                                    <Edit2 size={18} />
+                                                </button>
+                                                <button
+                                                    onClick={() => handleDeleteFleet(fleet.id)}
+                                                    className="flex-1 flex items-center justify-center p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                                >
+                                                    <Trash2 size={18} />
+                                                </button>
+                                            </div>
                                         </div>
                                     </div>
-                                    {/* Footer / Last Service indicator could go here */}
                                 </div>
                             ))}
                         </div>
                     )}
 
                     {!loading && filteredFleets.length === 0 && (
-                        <div className="text-center py-20">
+                        <div className="text-center py-16 sm:py-20">
                             <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center text-slate-400 mx-auto mb-4">
                                 <Truck size={32} />
                             </div>
                             <h3 className="text-slate-800 font-bold mb-1">Belum ada armada</h3>
-                            <p className="text-slate-500 text-sm">Tambahkan kendaraan pertama Anda untuk mulai mengelola.</p>
+                            <p className="text-slate-500 text-sm px-4">Tambahkan kendaraan pertama Anda untuk mulai mengelola.</p>
                         </div>
                     )}
                 </div>

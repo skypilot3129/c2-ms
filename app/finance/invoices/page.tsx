@@ -54,47 +54,47 @@ export default function InvoicesPage() {
     return (
         <ProtectedRoute>
             <div className="space-y-6">
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div>
-                        <h1 className="text-2xl font-bold text-gray-800">Daftar Invoice</h1>
-                        <p className="text-gray-500">Kelola tagihan pelanggan (Consolidated Invoices)</p>
+                        <h1 className="text-xl sm:text-2xl font-bold text-gray-800">Daftar Invoice</h1>
+                        <p className="text-gray-500 text-sm">Kelola tagihan pelanggan (Consolidated Invoices)</p>
                     </div>
                     <Link
                         href="/finance/invoices/new"
-                        className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-medium flex items-center gap-2 shadow-lg shadow-blue-600/20 transition-all hover:scale-105"
+                        className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl font-medium flex items-center justify-center gap-2 shadow-lg shadow-blue-600/20 transition-all active:scale-95"
                     >
-                        <Plus size={20} />
+                        <Plus size={18} />
                         Buat Invoice Baru
                     </Link>
                 </div>
 
-                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
+                <div className="bg-white rounded-xl sm:rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
                     {/* Tabs */}
-                    <div className="border-b border-gray-100 flex">
+                    <div className="border-b border-gray-100 flex overflow-x-auto no-scrollbar">
                         <button
                             onClick={() => setActiveTab('all')}
-                            className={`px-6 py-4 text-sm font-medium transition-all relative ${activeTab === 'all' ? 'text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+                            className={`px-4 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm font-medium transition-all relative flex-shrink-0 ${activeTab === 'all' ? 'text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
                         >
                             Semua
                             {activeTab === 'all' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-600 rounded-t-full"></div>}
                         </button>
                         <button
                             onClick={() => setActiveTab('unpaid')}
-                            className={`px-6 py-4 text-sm font-medium transition-all relative ${activeTab === 'unpaid' ? 'text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+                            className={`px-4 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm font-medium transition-all relative flex-shrink-0 ${activeTab === 'unpaid' ? 'text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
                         >
                             Belum Lunas
                             {activeTab === 'unpaid' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-600 rounded-t-full"></div>}
                         </button>
                         <button
                             onClick={() => setActiveTab('paid')}
-                            className={`px-6 py-4 text-sm font-medium transition-all relative ${activeTab === 'paid' ? 'text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+                            className={`px-4 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm font-medium transition-all relative flex-shrink-0 ${activeTab === 'paid' ? 'text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
                         >
                             Lunas (Riwayat)
                             {activeTab === 'paid' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-600 rounded-t-full"></div>}
                         </button>
                     </div>
 
-                    <div className="p-6 border-b border-gray-100 flex items-center justify-between gap-4">
+                    <div className="p-4 sm:p-6 border-b border-gray-100 flex items-center justify-between gap-4">
                         <div className="relative flex-1 max-w-md">
                             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                             <input
@@ -106,7 +106,9 @@ export default function InvoicesPage() {
                             />
                         </div>
                     </div>
-                    <div className="overflow-x-auto">
+
+                    {/* Desktop Table */}
+                    <div className="hidden md:block overflow-x-auto">
                         <table className="w-full text-left text-sm">
                             <thead className="bg-gray-50 text-gray-500 font-medium border-b border-gray-100">
                                 <tr>
@@ -171,14 +173,63 @@ export default function InvoicesPage() {
                                         </td>
                                     </tr>
                                 ))}
-                                {filteredInvoices.length === 0 && (
-                                    <tr>
-                                        <td colSpan={6} className="text-center py-12 text-gray-400">Belum ada invoice {activeTab === 'all' ? '' : activeTab === 'unpaid' ? 'belum lunas' : 'lunas'}.</td>
-                                    </tr>
-                                )}
                             </tbody>
                         </table>
                     </div>
+
+                    {/* Mobile Card List */}
+                    <div className="md:hidden divide-y divide-gray-100">
+                        {filteredInvoices.map((inv) => (
+                            <div key={inv.id} className="p-4 flex flex-col gap-3">
+                                <div className="flex justify-between items-start">
+                                    <div>
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <span className="font-mono font-bold text-blue-600 text-sm">{inv.invoiceNumber}</span>
+                                            <span className={`px-2 py-0.5 rounded-[4px] text-[10px] font-bold border ${inv.status === 'Paid'
+                                                ? 'bg-green-50 text-green-700 border-green-200'
+                                                : 'bg-red-50 text-red-700 border-red-200'
+                                                }`}>
+                                                {inv.status === 'Paid' ? 'LUNAS' : 'PENDING'}
+                                            </span>
+                                        </div>
+                                        <p className="font-medium text-gray-800 text-sm">{inv.clientName}</p>
+                                        <p className="text-xs text-gray-400 mt-0.5">{inv.transactionIds.length} Resi • {inv.issueDate.toLocaleDateString('id-ID')}</p>
+                                    </div>
+                                    <div className="text-right">
+                                        <p className="font-bold text-gray-800 text-base">{formatRupiah(inv.totalAmount)}</p>
+                                    </div>
+                                </div>
+                                <div className="flex justify-end gap-2 pt-2 border-t border-dashed border-gray-100">
+                                    {inv.status !== 'Paid' && (
+                                        <button
+                                            onClick={() => handleMarkPaid(inv)}
+                                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-green-700 bg-green-50 border border-green-200 rounded-lg active:scale-95 transition-transform"
+                                        >
+                                            <CheckCircle2 size={14} /> Lunas
+                                        </button>
+                                    )}
+                                    <button
+                                        onClick={() => window.open(`/finance/invoices/${inv.id}/print`, '_blank')}
+                                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-50 border border-gray-200 rounded-lg active:scale-95 transition-transform"
+                                    >
+                                        <Printer size={14} /> Cetak
+                                    </button>
+                                    <button
+                                        onClick={() => handleDelete(inv.id, inv.invoiceNumber)}
+                                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 border border-red-200 rounded-lg active:scale-95 transition-transform"
+                                    >
+                                        <Trash2 size={14} /> Hapus
+                                    </button>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+
+                    {filteredInvoices.length === 0 && (
+                        <div className="text-center py-12 px-4 text-gray-400">
+                            <p className="text-sm">Belum ada invoice {activeTab === 'all' ? '' : activeTab === 'unpaid' ? 'belum lunas' : 'lunas'}.</p>
+                        </div>
+                    )}
                 </div>
             </div>
         </ProtectedRoute>

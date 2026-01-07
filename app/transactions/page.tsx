@@ -9,7 +9,7 @@ import type { Transaction, StatusTransaksi } from '@/types/transaction';
 import { formatRupiah } from '@/lib/currency';
 import StatusBadge from '@/components/StatusBadge';
 import ProtectedRoute from '@/components/ProtectedRoute';
-import { Plus, Search, Eye, Edit2, Trash2, Filter, Printer, X, Download, Package, TrendingUp, AlertCircle, CheckCircle, ArrowUpDown, Calendar } from 'lucide-react';
+import { Plus, Search, Eye, Edit2, Trash2, Filter, Printer, X, Download, Package, TrendingUp, AlertCircle, CheckCircle, ArrowUpDown, Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
 import BulkInvoiceModal, { type BulkInvoiceFormData } from '@/components/BulkInvoiceModal';
 
 type SortOption = 'date-newest' | 'date-oldest' | 'amount-highest' | 'amount-lowest';
@@ -26,6 +26,10 @@ export default function TransactionsPage() {
     const [sortOption, setSortOption] = useState<SortOption>('date-newest');
     const [loading, setLoading] = useState(true);
     const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+
+    // Pagination state
+    const [currentPage, setCurrentPage] = useState(1);
+    const [itemsPerPage, setItemsPerPage] = useState(25);
 
     // Bulk invoice selection
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -81,6 +85,8 @@ export default function TransactionsPage() {
         });
 
         setFilteredTransactions(result);
+        // Reset to page 1 when filters change
+        setCurrentPage(1);
     }, [searchTerm, statusFilter, paymentFilter, transactions, sortOption]);
 
     const handleDelete = async (id: string) => {
@@ -172,18 +178,35 @@ export default function TransactionsPage() {
     };
 
     const toggleSelectAll = () => {
-        if (selectedIds.length > 0) {
-            setSelectedIds([]);
+        // Get selectable transactions on current page
+        const currentPageSelectable = paginatedTransactions.filter(t => canSelectTransaction(t));
+        const currentPageIds = currentPageSelectable.map(t => t.id);
+
+        // Check if all items on current page are already selected
+        const allCurrentPageSelected = currentPageIds.every(id => selectedIds.includes(id));
+
+        if (allCurrentPageSelected && currentPageIds.length > 0) {
+            // Deselect all items on current page
+            setSelectedIds(prev => prev.filter(id => !currentPageIds.includes(id)));
         } else {
-            const selectable = filteredTransactions.filter(t => canSelectTransaction(t));
-            if (selectable.length > 0) {
-                const firstTx = selectable[0];
-                const sameGroup = selectable.filter(t =>
+            // Select all items on current page
+            if (currentPageSelectable.length > 0) {
+                const firstTx = currentPageSelectable[0];
+                const sameGroup = currentPageSelectable.filter(t =>
                     t.pengirimName === firstTx.pengirimName &&
                     new Date(t.tanggal).toDateString() === new Date(firstTx.tanggal).toDateString() &&
                     t.status !== 'dibatalkan'
                 );
-                setSelectedIds(sameGroup.map(t => t.id));
+                // Add new selections while keeping existing ones that match criteria
+                const newIds = sameGroup.map(t => t.id);
+                setSelectedIds(prev => {
+                    const combined = [...new Set([...prev, ...newIds])];
+                    // Filter to keep only valid selections
+                    return combined.filter(id => {
+                        const tx = transactions.find(t => t.id === id);
+                        return tx && canSelectTransaction(tx);
+                    });
+                });
             }
         }
     };
@@ -219,6 +242,19 @@ export default function TransactionsPage() {
         const cancelled = transactions.filter(t => t.status === 'dibatalkan').length;
         return { total, omset, pending, cancelled };
     }, [transactions]);
+
+    // Pagination calculations
+    const totalPages = Math.ceil(filteredTransactions.length / itemsPerPage);
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    const paginatedTransactions = filteredTransactions.slice(startIndex, endIndex);
+
+    const goToPage = (page: number) => {
+        setCurrentPage(Math.max(1, Math.min(page, totalPages)));
+    };
+
+    const nextPage = () => goToPage(currentPage + 1);
+    const prevPage = () => goToPage(currentPage - 1);
 
     if (!mounted) return null;
 
@@ -388,7 +424,10 @@ export default function TransactionsPage() {
                                             <th className="px-6 py-4 text-center w-12">
                                                 <input
                                                     type="checkbox"
-                                                    checked={selectedIds.length > 0 && selectedIds.length === filteredTransactions.filter(t => canSelectTransaction(t)).length}
+                                                    checked={
+                                                        paginatedTransactions.filter(t => canSelectTransaction(t)).length > 0 &&
+                                                        paginatedTransactions.filter(t => canSelectTransaction(t)).every(t => selectedIds.includes(t.id))
+                                                    }
                                                     onChange={toggleSelectAll}
                                                     className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
                                                 />
@@ -404,7 +443,7 @@ export default function TransactionsPage() {
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-gray-100">
-                                        {filteredTransactions.map((transaction) => {
+                                        {paginatedTransactions.map((transaction) => {
                                             const isSelected = selectedIds.includes(transaction.id);
                                             const isSelectable = canSelectTransaction(transaction);
                                             const isDisabled = !isSelectable && selectedIds.length > 0;
@@ -478,6 +517,90 @@ export default function TransactionsPage() {
                                     </tbody>
                                 </table>
                             </div>
+
+                            {/* Pagination Controls */}
+                            {filteredTransactions.length > 0 && (
+                                <div className="px-6 py-4 border-t border-gray-100 bg-gray-50/50">
+                                    <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+                                        {/* Items per page selector */}
+                                        <div className="flex items-center gap-3">
+                                            <span className="text-sm text-gray-600">Tampilkan</span>
+                                            <select
+                                                value={itemsPerPage}
+                                                onChange={(e) => {
+                                                    setItemsPerPage(Number(e.target.value));
+                                                    setCurrentPage(1);
+                                                }}
+                                                className="px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-sm font-medium focus:outline-none focus:border-blue-500"
+                                            >
+                                                <option value={10}>10</option>
+                                                <option value={25}>25</option>
+                                                <option value={50}>50</option>
+                                                <option value={100}>100</option>
+                                            </select>
+                                            <span className="text-sm text-gray-600">
+                                                dari {filteredTransactions.length} transaksi
+                                            </span>
+                                        </div>
+
+                                        {/* Page info and navigation */}
+                                        <div className="flex items-center gap-4">
+                                            <span className="text-sm text-gray-600">
+                                                Halaman {currentPage} dari {totalPages || 1}
+                                            </span>
+
+                                            <div className="flex items-center gap-2">
+                                                {/* Previous button */}
+                                                <button
+                                                    onClick={prevPage}
+                                                    disabled={currentPage === 1}
+                                                    className="p-2 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white transition-colors"
+                                                >
+                                                    <ChevronLeft size={18} className="text-gray-600" />
+                                                </button>
+
+                                                {/* Page numbers */}
+                                                <div className="hidden md:flex items-center gap-1">
+                                                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                                                        let pageNum;
+                                                        if (totalPages <= 5) {
+                                                            pageNum = i + 1;
+                                                        } else if (currentPage <= 3) {
+                                                            pageNum = i + 1;
+                                                        } else if (currentPage >= totalPages - 2) {
+                                                            pageNum = totalPages - 4 + i;
+                                                        } else {
+                                                            pageNum = currentPage - 2 + i;
+                                                        }
+
+                                                        return (
+                                                            <button
+                                                                key={pageNum}
+                                                                onClick={() => goToPage(pageNum)}
+                                                                className={`min-w-[36px] h-9 px-3 rounded-lg text-sm font-medium transition-colors ${currentPage === pageNum
+                                                                    ? 'bg-blue-600 text-white shadow-sm'
+                                                                    : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
+                                                                    }`}
+                                                            >
+                                                                {pageNum}
+                                                            </button>
+                                                        );
+                                                    })}
+                                                </div>
+
+                                                {/* Next button */}
+                                                <button
+                                                    onClick={nextPage}
+                                                    disabled={currentPage === totalPages}
+                                                    className="p-2 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white transition-colors"
+                                                >
+                                                    <ChevronRight size={18} className="text-gray-600" />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>

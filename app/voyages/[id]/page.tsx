@@ -4,7 +4,7 @@ import { use, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
-import { getVoyageById, deleteVoyage } from '@/lib/firestore-voyages';
+import { getVoyageById, deleteVoyage, removeTransactionsFromVoyage } from '@/lib/firestore-voyages';
 import { getTransactionById } from '@/lib/firestore-transactions';
 import { subscribeToExpensesByVoyage, calculateVoyageExpenses } from '@/lib/firestore-expenses';
 import type { Voyage, Expense } from '@/types/voyage';
@@ -117,6 +117,33 @@ export default function VoyageDetailPage({ params }: { params: Promise<{ id: str
         setShowExpenseForm(true);
     };
 
+    const handleUnassignTransaction = async (transactionId: string, transactionSTT: string) => {
+        if (!voyage) return;
+
+        const confirmed = confirm(`Yakin ingin melepas transaksi ${transactionSTT} dari pemberangkatan ini?`);
+        if (!confirmed) return;
+
+        try {
+            await removeTransactionsFromVoyage(voyage.id, [transactionId]);
+
+            // Update local state
+            setTransactions(prev => prev.filter(tx => tx.id !== transactionId));
+            setVoyage(prev => {
+                if (!prev) return prev;
+                return {
+                    ...prev,
+                    transactionIds: prev.transactionIds.filter(id => id !== transactionId)
+                };
+            });
+
+            alert(`Transaksi ${transactionSTT} berhasil dilepas`);
+        } catch (error) {
+            console.error('Error unassigning transaction:', error);
+            alert('Gagal melepas transaksi');
+        }
+    };
+
+
     // Prepare chart data
     const expenseChartData = Object.entries(EXPENSE_CATEGORY_LABELS).map(([key, label]) => {
         const value = expenses.filter(e => e.category === key).reduce((sum, e) => sum + e.amount, 0);
@@ -167,46 +194,50 @@ export default function VoyageDetailPage({ params }: { params: Promise<{ id: str
                             <div className="ml-auto flex gap-2">
                                 <Link
                                     href={`/voyages/${voyage.id}/manifest`}
-                                    className="hidden md:flex bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg font-medium items-center gap-2 transition-colors"
+                                    className="hidden sm:flex bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 sm:px-4 py-2 rounded-lg font-medium items-center gap-2 transition-colors text-sm"
                                 >
-                                    <Printer size={18} />
-                                    Cetak Manifest
+                                    <Printer size={16} className="sm:w-[18px] sm:h-[18px]" />
+                                    <span className="hidden md:inline">Cetak Manifest</span>
+                                    <span className="md:hidden">Manifest</span>
                                 </Link>
                                 <button
                                     onClick={() => router.push(`/voyages/${voyage.id}/edit`)}
                                     className="p-2 hover:bg-blue-50 text-blue-600 rounded-lg transition-colors"
+                                    title="Edit"
                                 >
-                                    <Edit size={20} />
+                                    <Edit size={18} className="sm:w-5 sm:h-5" />
                                 </button>
                                 <button
                                     onClick={handleDelete}
                                     className="p-2 hover:bg-red-50 text-red-600 rounded-lg transition-colors"
+                                    title="Hapus"
                                 >
-                                    <Trash2 size={20} />
+                                    <Trash2 size={18} className="sm:w-5 sm:h-5" />
                                 </button>
                             </div>
                         </div>
 
                         {/* Status Steps */}
                         {voyage.status !== 'cancelled' && (
-                            <div className="max-w-2xl mx-auto mt-6 mb-2">
+                            <div className="max-w-2xl mx-auto mt-4 sm:mt-6 mb-2 px-2 sm:px-0">
                                 <div className="flex items-center justify-between relative">
                                     <div className="absolute left-0 top-1/2 -translate-y-1/2 w-full h-1 bg-gray-200 -z-10"></div>
                                     <div className={`absolute left-0 top-1/2 -translate-y-1/2 h-1 bg-green-500 -z-10 transition-all duration-500`} style={{ width: `${((currentStep - 1) / 2) * 100}%` }}></div>
 
                                     {[
-                                        { step: 1, label: 'Direncanakan' },
-                                        { step: 2, label: 'Dalam Perjalanan' },
-                                        { step: 3, label: 'Selesai' }
+                                        { step: 1, label: 'Direncanakan', shortLabel: 'Plan' },
+                                        { step: 2, label: 'Dalam Perjalanan', shortLabel: 'Jalan' },
+                                        { step: 3, label: 'Selesai', shortLabel: 'Selesai' }
                                     ].map((s) => (
-                                        <div key={s.step} className="flex flex-col items-center gap-2 bg-white px-2">
+                                        <div key={s.step} className="flex flex-col items-center gap-1 sm:gap-2 bg-white px-1 sm:px-2">
                                             {currentStep >= s.step ? (
-                                                <CheckCircle2 className="text-green-500 fill-white" size={24} />
+                                                <CheckCircle2 className="text-green-500 fill-white" size={20} />
                                             ) : (
-                                                <Circle className="text-gray-300 fill-white" size={24} />
+                                                <Circle className="text-gray-300 fill-white" size={20} />
                                             )}
-                                            <span className={`text-xs font-medium ${currentStep >= s.step ? 'text-green-600' : 'text-gray-400'}`}>
-                                                {s.label}
+                                            <span className={`text-[10px] sm:text-xs font-medium ${currentStep >= s.step ? 'text-green-600' : 'text-gray-400'} text-center`}>
+                                                <span className="hidden sm:inline">{s.label}</span>
+                                                <span className="sm:hidden">{s.shortLabel}</span>
                                             </span>
                                         </div>
                                     ))}
@@ -218,10 +249,10 @@ export default function VoyageDetailPage({ params }: { params: Promise<{ id: str
 
                 <div className="container mx-auto px-4 py-8">
                     {/* Key Info Cards */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 mb-6 sm:mb-8">
                         {/* Voyage Details */}
-                        <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
-                            <h3 className="text-gray-500 text-xs font-bold uppercase tracking-wider mb-4">Informasi Kapal & Jadwal</h3>
+                        <div className="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 border border-gray-100 shadow-sm">
+                            <h3 className="text-gray-500 text-xs font-bold uppercase tracking-wider mb-3 sm:mb-4">Informasi Kapal & Jadwal</h3>
                             <div className="space-y-4">
                                 <div className="flex items-start gap-3">
                                     <div className="bg-blue-50 p-2 rounded-lg">
@@ -257,20 +288,20 @@ export default function VoyageDetailPage({ params }: { params: Promise<{ id: str
                         </div>
 
                         {/* Financial Summary */}
-                        <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-3 gap-4">
-                            <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm flex flex-col justify-center">
-                                <p className="text-gray-500 text-xs mb-1">Total Pendapatan</p>
-                                <p className="text-2xl font-bold text-blue-600">{formatRupiah(totalRevenue)}</p>
+                        <div className="md:col-span-2 grid grid-cols-3 gap-3 sm:gap-4">
+                            <div className="bg-white rounded-xl sm:rounded-2xl p-3 sm:p-5 border border-gray-100 shadow-sm flex flex-col justify-center">
+                                <p className="text-gray-500 text-[10px] sm:text-xs mb-1">Total Pendapatan</p>
+                                <p className="text-sm sm:text-xl md:text-2xl font-bold text-blue-600 break-words">{formatRupiah(totalRevenue)}</p>
                             </div>
-                            <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm flex flex-col justify-center">
-                                <p className="text-gray-500 text-xs mb-1">Total Pengeluaran</p>
-                                <p className="text-2xl font-bold text-red-600">{formatRupiah(totalExpenses)}</p>
+                            <div className="bg-white rounded-xl sm:rounded-2xl p-3 sm:p-5 border border-gray-100 shadow-sm flex flex-col justify-center">
+                                <p className="text-gray-500 text-[10px] sm:text-xs mb-1">Total Pengeluaran</p>
+                                <p className="text-sm sm:text-xl md:text-2xl font-bold text-red-600 break-words">{formatRupiah(totalExpenses)}</p>
                             </div>
-                            <div className={`rounded-2xl p-5 border shadow-sm flex flex-col justify-center ${profit >= 0 ? 'bg-green-50 border-green-100' : 'bg-red-50 border-red-100'}`}>
-                                <p className={`text-xs mb-1 ${profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                    {profit >= 0 ? 'Keuntungan Bersih' : 'Kerugian'}
+                            <div className={`rounded-xl sm:rounded-2xl p-3 sm:p-5 border shadow-sm flex flex-col justify-center ${profit >= 0 ? 'bg-green-50 border-green-100' : 'bg-red-50 border-red-100'}`}>
+                                <p className={`text-[10px] sm:text-xs mb-1 ${profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                    {profit >= 0 ? 'Keuntungan' : 'Rugi'}
                                 </p>
-                                <p className={`text-2xl font-bold ${profit >= 0 ? 'text-green-700' : 'text-red-700'}`}>
+                                <p className={`text-sm sm:text-xl md:text-2xl font-bold ${profit >= 0 ? 'text-green-700' : 'text-red-700'} break-words`}>
                                     {formatRupiah(Math.abs(profit))}
                                 </p>
                             </div>
@@ -347,32 +378,42 @@ export default function VoyageDetailPage({ params }: { params: Promise<{ id: str
 
                         {activeTab === 'cargo' && (
                             <div>
-                                <div className="flex justify-between items-center mb-6">
-                                    <h2 className="text-xl font-bold text-gray-800">Daftar Kargo</h2>
+                                <div className="flex justify-between items-center mb-4 sm:mb-6">
+                                    <h2 className="text-lg sm:text-xl font-bold text-gray-800">Daftar Kargo</h2>
                                     <button
                                         onClick={() => setShowAssignModal(true)}
-                                        className="bg-blue-600 text-white px-4 py-2 rounded-xl hover:bg-blue-700 transition items-center flex gap-2 shadow-lg shadow-blue-600/20"
+                                        className="bg-blue-600 text-white px-3 sm:px-4 py-2 rounded-lg sm:rounded-xl hover:bg-blue-700 transition items-center flex gap-2 shadow-lg shadow-blue-600/20 text-sm sm:text-base"
                                     >
-                                        <Plus size={18} />
-                                        Assign Transaksi
+                                        <Plus size={16} className="sm:w-[18px] sm:h-[18px]" />
+                                        <span className="hidden xs:inline">Assign</span>
+                                        <span className="hidden sm:inline">Transaksi</span>
                                     </button>
                                 </div>
-                                <div className="space-y-3">
+                                <div className="space-y-2 sm:space-y-3">
                                     {transactions.map(tx => (
-                                        <div key={tx.id} className="bg-white border hover:border-blue-400 p-4 rounded-xl transition-all shadow-sm group">
-                                            <div className="flex justify-between items-start">
-                                                <div className="flex gap-4">
-                                                    <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center font-bold text-xs">
+                                        <div key={tx.id} className="bg-white border hover:border-blue-400 p-3 sm:p-4 rounded-lg sm:rounded-xl transition-all shadow-sm group">
+                                            <div className="flex justify-between items-start gap-2">
+                                                <div className="flex gap-2 sm:gap-4 flex-1 min-w-0">
+                                                    <div className="w-8 h-8 sm:w-10 sm:h-10 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center font-bold text-[10px] sm:text-xs flex-shrink-0">
                                                         {tx.noSTT.slice(-4)}
                                                     </div>
-                                                    <div>
-                                                        <h4 className="font-bold text-gray-900">{tx.noSTT}</h4>
-                                                        <p className="text-sm text-gray-500">{tx.pengirimName} ➔ {tx.penerimaName}</p>
+                                                    <div className="min-w-0 flex-1">
+                                                        <h4 className="font-bold text-gray-900 text-sm sm:text-base truncate">{tx.noSTT}</h4>
+                                                        <p className="text-xs sm:text-sm text-gray-500 truncate">{tx.pengirimName} ➔ {tx.penerimaName}</p>
                                                     </div>
                                                 </div>
-                                                <div className="text-right">
-                                                    <p className="font-bold text-gray-900">{formatRupiah(tx.jumlah)}</p>
-                                                    <p className="text-xs text-gray-500">{tx.koli} Koli</p>
+                                                <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+                                                    <div className="text-right">
+                                                        <p className="font-bold text-gray-900 text-sm sm:text-base whitespace-nowrap">{formatRupiah(tx.jumlah)}</p>
+                                                        <p className="text-[10px] sm:text-xs text-gray-500">{tx.koli} Koli</p>
+                                                    </div>
+                                                    <button
+                                                        onClick={() => handleUnassignTransaction(tx.id, tx.noSTT)}
+                                                        className="p-1.5 sm:p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
+                                                        title="Lepas dari pemberangkatan"
+                                                    >
+                                                        <Trash2 size={14} className="sm:w-4 sm:h-4" />
+                                                    </button>
                                                 </div>
                                             </div>
                                         </div>

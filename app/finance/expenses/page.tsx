@@ -96,34 +96,36 @@ export default function GeneralExpensesPage() {
     return (
         <ProtectedRoute>
             <div className="space-y-6">
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div>
-                        <h1 className="text-2xl font-bold text-gray-800">Pengeluaran Umum</h1>
-                        <p className="text-gray-500">Biaya operasional kantor dan umum (Non-Pemberangkatan)</p>
+                        <h1 className="text-xl sm:text-2xl font-bold text-gray-800">Pengeluaran Umum</h1>
+                        <p className="text-gray-500 text-sm">Biaya operasional kantor dan umum (Non-Pemberangkatan)</p>
                     </div>
                     <button
                         onClick={() => { resetForm(); setIsModalOpen(true); }}
-                        className="bg-red-600 hover:bg-red-700 text-white px-5 py-2.5 rounded-xl font-medium flex items-center gap-2 shadow-lg shadow-red-600/20 transition-all hover:scale-105"
+                        className="bg-red-600 hover:bg-red-700 text-white px-4 py-2.5 rounded-xl font-medium flex items-center justify-center gap-2 shadow-lg shadow-red-600/20 transition-all active:scale-95"
                     >
-                        <Plus size={20} />
+                        <Plus size={18} />
                         Catat Pengeluaran
                     </button>
                 </div>
 
                 {/* Summary Card */}
-                <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm flex items-center justify-between max-w-sm">
+                <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm flex items-center justify-between w-full sm:max-w-sm">
                     <div>
-                        <p className="text-gray-500 text-sm font-medium mb-1">Total Pengeluaran Umum</p>
-                        <h2 className="text-3xl font-bold text-red-600">{formatRupiah(totalExpenses)}</h2>
+                        <p className="text-gray-500 text-xs sm:text-sm font-medium mb-1">Total Pengeluaran Umum</p>
+                        <h2 className="text-2xl sm:text-3xl font-bold text-red-600">{formatRupiah(totalExpenses)}</h2>
                     </div>
                     <div className="p-3 bg-red-50 text-red-600 rounded-xl">
                         <Wallet size={24} />
                     </div>
                 </div>
 
-                {/* List */}
-                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-                    <table className="w-full text-left text-sm">
+                {/* List View (Responsive) */}
+                <div className="bg-white rounded-xl sm:rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+
+                    {/* Desktop Table */}
+                    <table className="w-full text-left text-sm hidden md:table">
                         <thead className="bg-gray-50 text-gray-500 font-medium border-b border-gray-100">
                             <tr>
                                 <th className="px-6 py-4">Tanggal</th>
@@ -144,8 +146,10 @@ export default function GeneralExpensesPage() {
                                             {EXPENSE_CATEGORY_LABELS[e.category] || e.category}
                                         </span>
                                     </td>
-                                    <td className="px-6 py-4 text-gray-800 font-medium">{e.description}</td>
-                                    <td className="px-6 py-4 text-right font-bold text-red-600">{formatRupiah(e.amount)}</td>
+                                    <td className="px-6 py-4 text-gray-800 font-medium max-w-xs truncate" title={e.description}>
+                                        {e.description}
+                                    </td>
+                                    <td className="px-6 py-4 text-right font-bold text-red-600 whitespace-nowrap">{formatRupiah(e.amount)}</td>
                                     <td className="px-6 py-4 text-right">
                                         <div className="flex items-center justify-end gap-2">
                                             <button
@@ -164,13 +168,51 @@ export default function GeneralExpensesPage() {
                                     </td>
                                 </tr>
                             ))}
-                            {expenses.length === 0 && (
-                                <tr>
-                                    <td colSpan={5} className="text-center py-8 text-gray-400">Belum ada data pengeluaran umum.</td>
-                                </tr>
-                            )}
                         </tbody>
                     </table>
+
+                    {/* Mobile Card List */}
+                    <div className="md:hidden divide-y divide-gray-100">
+                        {expenses.map((e) => (
+                            <div key={e.id} className="p-4 flex flex-col gap-3">
+                                <div className="flex justify-between items-start">
+                                    <div>
+                                        <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-gray-100 text-gray-600 border border-gray-200 mb-1">
+                                            {EXPENSE_CATEGORY_LABELS[e.category] || e.category}
+                                        </span>
+                                        <p className="font-medium text-gray-800 text-sm line-clamp-2">{e.description}</p>
+                                    </div>
+                                    <div className="text-right shrink-0 ml-4">
+                                        <p className="font-bold text-red-600 text-base">{formatRupiah(e.amount)}</p>
+                                        <p className="text-xs text-gray-400 mt-1">
+                                            {new Date(e.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
+                                        </p>
+                                    </div>
+                                </div>
+                                <div className="flex justify-end gap-3 pt-2 border-t border-dashed border-gray-100">
+                                    <button
+                                        onClick={() => openEdit(e)}
+                                        className="text-xs font-medium text-blue-600 flex items-center gap-1 py-1 px-2 rounded hover:bg-blue-50"
+                                    >
+                                        <Edit2 size={14} /> Edit
+                                    </button>
+                                    <button
+                                        onClick={() => handleDelete(e.id)}
+                                        className="text-xs font-medium text-red-600 flex items-center gap-1 py-1 px-2 rounded hover:bg-red-50"
+                                    >
+                                        <Trash2 size={14} /> Hapus
+                                    </button>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+
+                    {expenses.length === 0 && (
+                        <div className="text-center py-12 px-4 text-gray-400">
+                            <Wallet size={32} className="mx-auto mb-2 opacity-20" />
+                            <p className="text-sm">Belum ada data pengeluaran umum.</p>
+                        </div>
+                    )}
                 </div>
             </div>
 

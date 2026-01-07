@@ -57,12 +57,12 @@ const generateInvoiceNumber = async (userId: string): Promise<string> => {
                 // Check if we are in the same month/year group
                 // Implementation simplification: Global counter for user or month-based?
                 // Let's do month-based for cleaner reset.
-                const key = `${userId}_${year}${month}`;
+                const key = `global_${year}${month}`; // Global key
                 currentNumber = data[key] || 0;
             }
 
             const nextNumber = currentNumber + 1;
-            const key = `${userId}_${year}${month}`;
+            const key = `global_${year}${month}`; // Global key
 
             transaction.set(counterRef, {
                 [key]: nextNumber,
@@ -80,7 +80,9 @@ const generateInvoiceNumber = async (userId: string): Promise<string> => {
 };
 
 export const subscribeToInvoices = (userId: string, callback: (invoices: Invoice[]) => void) => {
-    const q = query(collection(db, COLLECTION_NAME), where('userId', '==', userId));
+    // Shared access: Remove filter
+    const q = query(collection(db, COLLECTION_NAME));
+    // const q = query(collection(db, COLLECTION_NAME), where('userId', '==', userId));
     return onSnapshot(q, (snapshot) => {
         const items = snapshot.docs.map(doc => docToInvoice(doc.id, doc.data() as InvoiceDoc));
         // Sort by issueDate descending

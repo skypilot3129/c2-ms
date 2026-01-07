@@ -58,12 +58,14 @@ export const generateVoyageNumber = async (userId: string): Promise<string> => {
             let currentNumber = 1;
             if (counterDoc.exists()) {
                 const data = counterDoc.data();
-                currentNumber = (data[userId]?.currentNumber || 0) + 1;
+                // Use global key
+                const counterData = data['global'] || {};
+                currentNumber = (counterData.currentNumber || 0) + 1;
             }
 
             // Update counter
             transaction.set(counterRef, {
-                [userId]: {
+                ['global']: {
                     currentNumber,
                     prefix: 'VOY',
                     lastUpdated: Timestamp.now(),
@@ -142,7 +144,7 @@ export const subscribeToVoyages = (
     const voyagesRef = collection(db, VOYAGES_COLLECTION);
     let constraints: any[] = [];
 
-    constraints.push(where('userId', '==', userId));
+    // constraints.push(where('userId', '==', userId)); // Removed
 
     if (dateRange) {
         // Ensure strictly this range. Firestore composite index might be needed.
@@ -189,11 +191,37 @@ export const updateVoyage = async (
 };
 
 /**
- * Delete voyage
+ * Delete voyage and all associated expenses
  */
 export const deleteVoyage = async (id: string): Promise<void> => {
-    const docRef = doc(db, VOYAGES_COLLECTION, id);
-    await deleteDoc(docRef);
+    // First, get the voyage to verify it exists
+    const voyageRef = doc(db, VOYAGES_COLLECTION, id);
+    const voyageSnap = await getDoc(voyageRef);
+
+    if (!voyageSnap.exists()) {
+        throw new Error('Voyage not found');
+    }
+
+    const userId = voyageSnap.data().userId;
+
+    // Delete all expenses associated with this voyage
+    const expensesQuery = query(
+        collection(db, 'expenses'),
+        where('voyageId', '==', id),
+        where('userId', '==', userId)
+    );
+
+    const expensesSnapshot = await getDocs(expensesQuery);
+
+    // Delete each expense
+    const deletePromises = expensesSnapshot.docs.map(doc =>
+        deleteDoc(doc.ref)
+    );
+
+    await Promise.all(deletePromises);
+
+    // Finally, delete the voyage itself
+    await deleteDoc(voyageRef);
 };
 
 /**
@@ -248,7 +276,7 @@ export const removeTransactionsFromVoyage = async (
 export const getVoyages = async (userId: string): Promise<Voyage[]> => {
     const q = query(
         collection(db, VOYAGES_COLLECTION),
-        where('userId', '==', userId),
+        // where('userId', '==', userId), // Removed
         orderBy('departureDate', 'desc')
     );
 

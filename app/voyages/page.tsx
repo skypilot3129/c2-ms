@@ -112,49 +112,67 @@ export default function VoyagesPage() {
         <ProtectedRoute>
             <div className="min-h-screen bg-gray-50 pb-20">
                 {/* Header Section */}
-                <div className="bg-white border-b sticky top-0 z-10">
-                    <div className="container mx-auto px-4 py-4">
-                        <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+                <div className="bg-white border-b sticky top-0 z-10 transition-shadow duration-200">
+                    <div className="container mx-auto px-4 py-4 sm:py-6">
+                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
                             <div>
-                                <Link href="/" className="text-sm text-gray-500 hover:text-blue-600 mb-1 inline-flex items-center gap-1 transition-colors">
-                                    ← Kembali ke Home
+                                <Link href="/" className="text-sm text-gray-500 hover:text-blue-600 mb-2 inline-flex items-center gap-1 transition-colors group">
+                                    <span className="group-hover:-translate-x-1 transition-transform">←</span> Kembali ke Home
                                 </Link>
-                                <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+                                <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 flex items-center gap-2">
+                                    <Ship className="text-blue-600 hidden sm:block" size={32} />
                                     Pemberangkatan
                                 </h1>
-                                <p className="text-gray-500 text-sm mt-1">Kelola jadwal & biaya operasional kapal</p>
+                                <p className="text-gray-500 text-sm mt-1 max-w-xl">Kelola jadwal keberangkatan, manifest kargo, dan biaya operasional kapal dalam satu tempat.</p>
                             </div>
-                            <div className="flex gap-3">
+                            <div className="flex gap-2 sm:gap-3 w-full md:w-auto">
                                 <button
                                     onClick={() => window.open(`/voyages/print-list?status=${statusFilter}&search=${searchTerm}`, '_blank')}
-                                    className="border border-gray-200 text-gray-600 px-4 py-2.5 rounded-xl font-medium hover:bg-gray-50 hover:border-gray-300 transition-all flex items-center justify-center gap-2"
+                                    className="flex-1 md:flex-none border border-gray-200 text-gray-600 px-4 py-2.5 rounded-xl font-medium hover:bg-gray-50 hover:border-gray-300 transition-all flex items-center justify-center gap-2 text-sm sm:text-base"
                                 >
-                                    <Printer size={20} />
-                                    Cetak Laporan
+                                    <Printer size={18} />
+                                    <span className="hidden sm:inline">Cetak Laporan</span>
+                                    <span className="sm:hidden">Cetak</span>
                                 </button>
                                 <Link
                                     href="/voyages/new"
-                                    className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-medium flex items-center gap-2 shadow-lg shadow-blue-600/20 transition-all hover:scale-105"
+                                    className="flex-1 md:flex-none bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-medium flex items-center justify-center gap-2 shadow-lg shadow-blue-600/20 transition-all active:scale-95 text-sm sm:text-base"
                                 >
-                                    <Plus size={20} />
-                                    Buat Pemberangkatan
+                                    <Plus size={18} />
+                                    <span>Buat Baru</span>
                                 </Link>
                             </div>
                         </div>
 
                         {/* Search & Filter Bar */}
-                        <div className="mt-6 flex flex-col md:flex-row gap-4">
-                            <div className="relative flex-1">
+                        <div className="flex flex-col lg:flex-row gap-4">
+                            <div className="relative flex-grow">
                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
                                 <input
                                     type="text"
                                     placeholder="Cari rute, kapal, atau no. voyage..."
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
-                                    className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all"
+                                    className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all shadow-sm"
                                 />
                             </div>
-                            <div className="flex bg-gray-100 p-1 rounded-xl overflow-x-auto">
+
+                            {/* Mobile Filter (Select) */}
+                            <div className="lg:hidden">
+                                <select
+                                    value={statusFilter}
+                                    onChange={(e) => setStatusFilter(e.target.value as any)}
+                                    className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 appearance-none"
+                                >
+                                    <option value="all">Semua Status</option>
+                                    <option value="planned">Direncanakan</option>
+                                    <option value="in-progress">Dalam Perjalanan</option>
+                                    <option value="completed">Selesai</option>
+                                </select>
+                            </div>
+
+                            {/* Desktop Filter (Tabs) */}
+                            <div className="hidden lg:flex bg-gray-100 p-1 rounded-xl">
                                 {[
                                     { id: 'all', label: 'Semua' },
                                     { id: 'planned', label: 'Direncanakan' },
@@ -164,9 +182,9 @@ export default function VoyagesPage() {
                                     <button
                                         key={tab.id}
                                         onClick={() => setStatusFilter(tab.id as any)}
-                                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${statusFilter === tab.id
+                                        className={`px-6 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${statusFilter === tab.id
                                             ? 'bg-white text-gray-800 shadow-sm'
-                                            : 'text-gray-500 hover:text-gray-700'
+                                            : 'text-gray-500 hover:text-gray-700 hover:bg-gray-200/50'
                                             }`}
                                     >
                                         {tab.label}
@@ -179,33 +197,33 @@ export default function VoyagesPage() {
 
                 <div className="container mx-auto px-4 py-8">
                     {/* Stats Grid */}
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-                        <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
-                            <div className="text-gray-500 text-xs font-medium uppercase tracking-wider mb-1">Total</div>
-                            <div className="text-2xl font-bold text-gray-800">{stats.total}</div>
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6 sm:mb-8">
+                        <div className="bg-white p-3 sm:p-4 rounded-xl sm:rounded-2xl border border-gray-100 shadow-sm">
+                            <div className="text-gray-500 text-[10px] sm:text-xs font-medium uppercase tracking-wider mb-1">Total</div>
+                            <div className="text-xl sm:text-2xl font-bold text-gray-800">{stats.total}</div>
                         </div>
-                        <div className="bg-blue-50 p-4 rounded-2xl border border-blue-100">
-                            <div className="text-blue-600 text-xs font-medium uppercase tracking-wider mb-1">Direncanakan</div>
-                            <div className="text-2xl font-bold text-blue-700">{stats.planned}</div>
+                        <div className="bg-blue-50 p-3 sm:p-4 rounded-xl sm:rounded-2xl border border-blue-100">
+                            <div className="text-blue-600 text-[10px] sm:text-xs font-medium uppercase tracking-wider mb-1">Direncanakan</div>
+                            <div className="text-xl sm:text-2xl font-bold text-blue-700">{stats.planned}</div>
                         </div>
-                        <div className="bg-orange-50 p-4 rounded-2xl border border-orange-100">
-                            <div className="text-orange-600 text-xs font-medium uppercase tracking-wider mb-1">Jalan</div>
-                            <div className="text-2xl font-bold text-orange-700">{stats.active}</div>
+                        <div className="bg-orange-50 p-3 sm:p-4 rounded-xl sm:rounded-2xl border border-orange-100">
+                            <div className="text-orange-600 text-[10px] sm:text-xs font-medium uppercase tracking-wider mb-1">Jalan</div>
+                            <div className="text-xl sm:text-2xl font-bold text-orange-700">{stats.active}</div>
                         </div>
-                        <div className="bg-green-50 p-4 rounded-2xl border border-green-100">
-                            <div className="text-green-600 text-xs font-medium uppercase tracking-wider mb-1">Selesai</div>
-                            <div className="text-2xl font-bold text-green-700">{stats.completed}</div>
+                        <div className="bg-green-50 p-3 sm:p-4 rounded-xl sm:rounded-2xl border border-green-100">
+                            <div className="text-green-600 text-[10px] sm:text-xs font-medium uppercase tracking-wider mb-1">Selesai</div>
+                            <div className="text-xl sm:text-2xl font-bold text-green-700">{stats.completed}</div>
                         </div>
                     </div>
 
                     {/* Voyages List */}
                     {filteredVoyages.length === 0 ? (
-                        <div className="text-center py-20 bg-white rounded-3xl border border-dashed border-gray-200">
-                            <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4">
-                                <Ship className="text-gray-400" size={32} />
+                        <div className="text-center py-12 sm:py-20 bg-white rounded-2xl sm:rounded-3xl border border-dashed border-gray-200">
+                            <div className="w-12 h-12 sm:w-16 sm:h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                                <Ship className="text-gray-400" size={24} />
                             </div>
-                            <h3 className="text-lg font-bold text-gray-800 mb-2">Belum ada pemberangkatan</h3>
-                            <p className="text-gray-500 max-w-md mx-auto mb-6">
+                            <h3 className="text-base sm:text-lg font-bold text-gray-800 mb-2">Belum ada pemberangkatan</h3>
+                            <p className="text-gray-500 max-w-md mx-auto mb-6 text-sm sm:text-base px-4">
                                 {searchTerm || statusFilter !== 'all'
                                     ? 'Tidak ada data yang cocok dengan filter pencarian Anda.'
                                     : 'Buat jadwal pemberangkatan baru untuk mulai mencatat biaya operasional.'}
@@ -213,55 +231,55 @@ export default function VoyagesPage() {
                             {(searchTerm || statusFilter !== 'all') && (
                                 <button
                                     onClick={() => { setSearchTerm(''); setStatusFilter('all'); }}
-                                    className="text-blue-600 font-medium hover:underline"
+                                    className="text-blue-600 font-medium hover:underline text-sm sm:text-base"
                                 >
                                     Reset Filter
                                 </button>
                             )}
                         </div>
                     ) : (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
                             {filteredVoyages.map((voyage) => (
-                                <div key={voyage.id} className="group bg-white rounded-2xl border border-gray-200 hover:border-blue-400 hover:shadow-xl transition-all duration-300 flex flex-col overflow-hidden">
+                                <div key={voyage.id} className="group bg-white rounded-xl sm:rounded-2xl border border-gray-200 hover:border-blue-400 hover:shadow-lg transition-all duration-300 flex flex-col overflow-hidden">
                                     {/* Card Header with Status Status Bar */}
                                     <div className={`h-1.5 w-full ${voyage.status === 'completed' ? 'bg-green-500' :
                                         voyage.status === 'in-progress' ? 'bg-orange-500' : 'bg-blue-500'
                                         }`} />
 
-                                    <div className="p-5 flex-1 flex flex-col">
-                                        <div className="flex justify-between items-start mb-4">
+                                    <div className="p-4 sm:p-5 flex-1 flex flex-col">
+                                        <div className="flex justify-between items-start mb-3 sm:mb-4">
                                             <div>
-                                                <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-gray-100 text-gray-500 mb-2">
+                                                <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-gray-100 text-gray-500 mb-2 font-mono">
                                                     {voyage.voyageNumber}
                                                 </span>
-                                                <h3 className="text-lg font-bold text-gray-800 line-clamp-1" title={voyage.route}>
+                                                <h3 className="text-base sm:text-lg font-bold text-gray-800 line-clamp-1" title={voyage.route}>
                                                     {voyage.route}
                                                 </h3>
                                             </div>
                                             <div className="relative">
-                                                <span className={`px-2.5 py-1 rounded-full text-xs font-semibold border ${getStatusColor(voyage.status)}`}>
+                                                <span className={`px-2 py-1 rounded-full text-[10px] sm:text-xs font-semibold border whitespace-nowrap ${getStatusColor(voyage.status)}`}>
                                                     {getStatusLabel(voyage.status)}
                                                 </span>
                                             </div>
                                         </div>
 
                                         {/* Info Grid */}
-                                        <div className="space-y-3 mb-6">
+                                        <div className="space-y-2 sm:space-y-3 mb-4 sm:mb-6">
                                             <div className="flex items-center text-gray-600 text-sm">
                                                 <Calendar size={16} className="text-gray-400 mr-2 flex-shrink-0" />
-                                                <span>{new Date(voyage.departureDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                                                <span className="text-xs sm:text-sm">{new Date(voyage.departureDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
                                             </div>
 
                                             {(voyage.shipName || voyage.vehicleNumber) && (
                                                 <div className="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-dashed border-gray-100">
                                                     {voyage.shipName && (
-                                                        <div className="flex items-center text-gray-600 text-xs bg-gray-50 p-1.5 rounded-lg">
+                                                        <div className="flex items-center text-gray-600 text-xs bg-gray-50 p-1.5 rounded-lg overflow-hidden">
                                                             <Anchor size={14} className="text-blue-400 mr-2 flex-shrink-0" />
                                                             <span className="truncate">{voyage.shipName}</span>
                                                         </div>
                                                     )}
                                                     {voyage.vehicleNumber && (
-                                                        <div className="flex items-center text-gray-600 text-xs bg-gray-50 p-1.5 rounded-lg">
+                                                        <div className="flex items-center text-gray-600 text-xs bg-gray-50 p-1.5 rounded-lg overflow-hidden">
                                                             <Truck size={14} className="text-orange-400 mr-2 flex-shrink-0" />
                                                             <span className="truncate">{voyage.vehicleNumber}</span>
                                                         </div>
@@ -271,20 +289,20 @@ export default function VoyagesPage() {
                                         </div>
 
                                         <div className="mt-auto pt-4 border-t border-gray-100 flex items-center justify-between">
-                                            <div className="text-xs text-gray-400">
+                                            <div className="text-xs text-gray-400 font-medium">
                                                 {voyage.transactionIds?.length || 0} Transaksi
                                             </div>
                                             <div className="flex gap-2">
                                                 <Link
                                                     href={`/voyages/${voyage.id}`}
-                                                    className="w-8 h-8 flex items-center justify-center rounded-full bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors"
+                                                    className="w-8 h-8 flex items-center justify-center rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors"
                                                     title="Lihat Detail"
                                                 >
                                                     <Eye size={16} />
                                                 </Link>
                                                 <button
                                                     onClick={(e) => handleDelete(voyage.id, e)}
-                                                    className="w-8 h-8 flex items-center justify-center rounded-full bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
+                                                    className="w-8 h-8 flex items-center justify-center rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
                                                     title="Hapus"
                                                 >
                                                     <Trash2 size={16} />

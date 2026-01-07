@@ -24,7 +24,7 @@ const MAINT_LOGS_COLLECTION = 'maintenance_logs';
 export const subscribeToFleets = (userId: string, callback: (fleets: Fleet[]) => void) => {
     const q = query(
         collection(db, FLEETS_COLLECTION),
-        where('userId', '==', userId),
+        // where('userId', '==', userId), // Removed
         orderBy('createdAt', 'desc')
     );
 
@@ -87,7 +87,7 @@ export const subscribeToMaintenanceLogs = (userId: string, fleetId: string | nul
     if (fleetId) {
         q = query(
             collection(db, MAINT_LOGS_COLLECTION),
-            where('userId', '==', userId),
+            // where('userId', '==', userId), // Removed
             where('fleetId', '==', fleetId),
             orderBy('date', 'desc')
         );
@@ -95,7 +95,7 @@ export const subscribeToMaintenanceLogs = (userId: string, fleetId: string | nul
         // All logs
         q = query(
             collection(db, MAINT_LOGS_COLLECTION),
-            where('userId', '==', userId),
+            // where('userId', '==', userId), // Removed
             orderBy('date', 'desc')
         );
     }

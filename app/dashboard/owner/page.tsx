@@ -14,7 +14,8 @@ import {
     PieChart,
     Crown,
     Wallet,
-    ArrowLeft
+    ArrowLeft,
+    Zap
 } from 'lucide-react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, AreaChart, Area } from 'recharts';
 
@@ -176,7 +177,7 @@ export default function OwnerDashboardPage() {
             <div className="min-h-screen bg-slate-50 pb-20">
                 {/* Premium Header */}
                 <div className="bg-white border-b sticky top-0 z-30 bg-opacity-80 backdrop-blur-md">
-                    <div className="container mx-auto px-6 py-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div className="container mx-auto px-4 sm:px-6 py-4 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                         <div className="flex items-center gap-4">
                             <button
                                 onClick={() => router.push('/')}
@@ -184,26 +185,26 @@ export default function OwnerDashboardPage() {
                             >
                                 <ArrowLeft size={20} />
                             </button>
-                            <h1 className="text-2xl font-bold bg-gradient-to-r from-slate-800 to-slate-600 bg-clip-text text-transparent flex items-center gap-2">
-                                <Crown className="text-indigo-600" /> Pusat Kendali Owner
+                            <h1 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-slate-800 to-slate-600 bg-clip-text text-transparent flex items-center gap-2">
+                                <Crown className="text-indigo-600 w-5 h-5 sm:w-6 sm:h-6" /> Pusat Kendali Owner
                             </h1>
                         </div>
-                        <div className="flex bg-slate-100 rounded-lg p-1 border border-slate-200 self-start md:self-auto">
+                        <div className="flex bg-slate-100 rounded-lg p-1 border border-slate-200 w-full lg:w-auto overflow-x-auto no-scrollbar">
                             <button
                                 onClick={() => setDateRange('this_month')}
-                                className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${dateRange === 'this_month' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                className={`flex-1 lg:flex-none px-3 sm:px-4 py-1.5 rounded-md text-sm font-medium transition-all whitespace-nowrap ${dateRange === 'this_month' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                             >
                                 Bulan Ini
                             </button>
                             <button
                                 onClick={() => setDateRange('last_month')}
-                                className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${dateRange === 'last_month' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                className={`flex-1 lg:flex-none px-3 sm:px-4 py-1.5 rounded-md text-sm font-medium transition-all whitespace-nowrap ${dateRange === 'last_month' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                             >
                                 Bulan Lalu
                             </button>
                             <button
                                 onClick={() => setDateRange('all')}
-                                className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${dateRange === 'all' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                className={`flex-1 lg:flex-none px-3 sm:px-4 py-1.5 rounded-md text-sm font-medium transition-all whitespace-nowrap ${dateRange === 'all' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                             >
                                 Semua Data
                             </button>
@@ -211,16 +212,56 @@ export default function OwnerDashboardPage() {
                     </div>
                 </div>
 
-                <div className="container mx-auto px-6 py-8 space-y-8">
+                <div className="container mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6 sm:space-y-8">
+
+
+                    {/* 0. Quick Actions (Pintasan Kendali) */}
+                    <div className="bg-white rounded-2xl sm:rounded-3xl p-5 sm:p-6 shadow-sm border border-slate-100">
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                                <Zap className="text-amber-500" size={20} />
+                                Akses Cepat
+                            </h3>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                            <button
+                                onClick={() => window.print()}
+                                className="p-4 rounded-xl bg-violet-50 text-violet-700 font-semibold hover:bg-violet-100 transition-colors text-left flex items-center gap-3"
+                            >
+                                <div className="bg-white p-2 rounded-lg shadow-sm">
+                                    <BarChart3 size={20} />
+                                </div>
+                                <span>Cetak Ringkasan</span>
+                            </button>
+                            <button
+                                onClick={() => router.push('/finance/invoices')}
+                                className="p-4 rounded-xl bg-orange-50 text-orange-700 font-semibold hover:bg-orange-100 transition-colors text-left flex items-center gap-3"
+                            >
+                                <div className="bg-white p-2 rounded-lg shadow-sm">
+                                    <AlertTriangle size={20} />
+                                </div>
+                                <span>Cek Tagihan</span>
+                            </button>
+                            <button
+                                onClick={() => router.push('/finance/expenses')}
+                                className="p-4 rounded-xl bg-red-50 text-red-700 font-semibold hover:bg-red-100 transition-colors text-left flex items-center gap-3"
+                            >
+                                <div className="bg-white p-2 rounded-lg shadow-sm">
+                                    <Wallet size={20} />
+                                </div>
+                                <span>Catat Pengeluaran</span>
+                            </button>
+                        </div>
+                    </div>
 
                     {/* 1. Executive Pulse (Tickers) */}
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
                         {/* Revenue Card */}
-                        <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 relative overflow-hidden group">
-                            <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-50 rounded-bl-full -mr-8 -mt-8 transition-transform group-hover:scale-110"></div>
+                        <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-100 relative overflow-hidden group">
+                            <div className="absolute top-0 right-0 w-24 h-24 sm:w-32 sm:h-32 bg-emerald-50 rounded-bl-full -mr-6 -mt-6 sm:-mr-8 sm:-mt-8 transition-transform group-hover:scale-110"></div>
                             <div className="relative">
                                 <p className="text-slate-500 text-sm font-medium mb-1">Total Pendapatan</p>
-                                <h3 className="text-2xl md:text-3xl font-bold text-slate-800 tracking-tight truncate">
+                                <h3 className="text-2xl sm:text-3xl font-bold text-slate-800 tracking-tight break-words">
                                     {formatRupiah(metrics.revenue)}
                                 </h3>
                                 <div className="flex items-center gap-1 mt-2 text-emerald-600 text-sm font-medium">
@@ -231,16 +272,16 @@ export default function OwnerDashboardPage() {
                         </div>
 
                         {/* Net Profit Card */}
-                        <div className="bg-slate-900 rounded-2xl p-6 shadow-lg border border-slate-800 relative overflow-hidden group text-white">
-                            <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 rounded-bl-full -mr-8 -mt-8 transition-transform group-hover:scale-110"></div>
+                        <div className="bg-slate-900 rounded-2xl p-5 sm:p-6 shadow-lg border border-slate-800 relative overflow-hidden group text-white">
+                            <div className="absolute top-0 right-0 w-24 h-24 sm:w-32 sm:h-32 bg-blue-500/10 rounded-bl-full -mr-6 -mt-6 sm:-mr-8 sm:-mt-8 transition-transform group-hover:scale-110"></div>
                             <div className="relative">
-                                <p className="text-slate-400 text-sm font-medium mb-1 flex items-center gap-2">
+                                <p className="text-slate-400 text-sm font-medium mb-1 flex items-center flex-wrap gap-2">
                                     Est. Laba Bersih
                                     <span className={`text-[10px] px-2 py-0.5 rounded-full border ${metrics.margin > 20 ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-amber-500/20 text-amber-400 border-amber-500/30'}`}>
                                         Margin {metrics.margin.toFixed(1)}%
                                     </span>
                                 </p>
-                                <h3 className="text-2xl md:text-3xl font-bold text-white tracking-tight truncate">
+                                <h3 className="text-2xl sm:text-3xl font-bold text-white tracking-tight break-words">
                                     {formatRupiah(metrics.netProfit)}
                                 </h3>
                                 <div className="flex items-center gap-1 mt-2 text-emerald-400 text-sm font-medium">
@@ -251,8 +292,8 @@ export default function OwnerDashboardPage() {
                         </div>
 
                         {/* Active Operations */}
-                        <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 relative overflow-hidden group">
-                            <div className="absolute top-0 right-0 w-32 h-32 bg-blue-50 rounded-bl-full -mr-8 -mt-8 transition-transform group-hover:scale-110"></div>
+                        <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-100 relative overflow-hidden group">
+                            <div className="absolute top-0 right-0 w-24 h-24 sm:w-32 sm:h-32 bg-blue-50 rounded-bl-full -mr-6 -mt-6 sm:-mr-8 sm:-mt-8 transition-transform group-hover:scale-110"></div>
                             <div className="relative">
                                 <p className="text-slate-500 text-sm font-medium mb-1">Armada Jalan</p>
                                 <h3 className="text-3xl font-bold text-slate-800 tracking-tight flex items-center gap-3">
@@ -266,8 +307,8 @@ export default function OwnerDashboardPage() {
                         </div>
 
                         {/* Risks / Invoices */}
-                        <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 relative overflow-hidden group">
-                            <div className="absolute top-0 right-0 w-32 h-32 bg-amber-50 rounded-bl-full -mr-8 -mt-8 transition-transform group-hover:scale-110"></div>
+                        <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-100 relative overflow-hidden group">
+                            <div className="absolute top-0 right-0 w-24 h-24 sm:w-32 sm:h-32 bg-amber-50 rounded-bl-full -mr-6 -mt-6 sm:-mr-8 sm:-mt-8 transition-transform group-hover:scale-110"></div>
                             <div className="relative">
                                 <p className="text-slate-500 text-sm font-medium mb-1">Tagihan Belum Lunas</p>
                                 <h3 className="text-3xl font-bold text-slate-800 tracking-tight">
@@ -275,33 +316,33 @@ export default function OwnerDashboardPage() {
                                 </h3>
                                 <div className="flex items-center gap-1 mt-2 text-amber-600 text-sm font-medium">
                                     <AlertTriangle size={16} />
-                                    <span>{formatRupiah(metrics.unpaidAmount)}</span>
+                                    <span className="break-words">{formatRupiah(metrics.unpaidAmount)}</span>
                                 </div>
                             </div>
                         </div>
                     </div>
 
                     {/* 2. Main Visuals (Charts) */}
-                    <div className="grid md:grid-cols-3 gap-8">
+                    <div className="grid lg:grid-cols-3 gap-6 sm:gap-8">
                         {/* Financial Deep Dive Chart */}
-                        <div className="md:col-span-2 bg-white rounded-3xl p-8 shadow-sm border border-slate-100 min-h-[400px]">
+                        <div className="lg:col-span-2 bg-white rounded-2xl sm:rounded-3xl p-5 sm:p-8 shadow-sm border border-slate-100 min-h-[400px]">
                             <div className="flex items-center justify-between mb-8">
                                 <div>
                                     <h3 className="text-lg font-bold text-slate-800">Performa Keuangan</h3>
-                                    <p className="text-slate-500 text-sm">Pendapatan vs Pengeluaran Operasional</p>
+                                    <p className="text-slate-500 text-sm">Pendapatan vs Pengeluaran</p>
                                 </div>
                                 <div className="flex gap-2">
                                     <button className="p-2 bg-slate-50 rounded-lg text-indigo-600"><BarChart3 size={20} /></button>
                                 </div>
                             </div>
 
-                            <div className="h-80 w-full">
+                            <div className="h-64 sm:h-80 w-full">
                                 {chartData.length > 0 ? (
                                     <ResponsiveContainer width="100%" height="100%">
-                                        <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                                        <BarChart data={chartData} margin={{ top: 20, right: 30, left: -20, bottom: 5 }}>
                                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
-                                            <XAxis dataKey="date" tick={{ fontSize: 12, fill: '#64748B' }} tickLine={false} axisLine={false} />
-                                            <YAxis tick={{ fontSize: 12, fill: '#64748B' }} tickLine={false} axisLine={false} tickFormatter={(val) => `Rp${(val / 1000000).toFixed(0)}Jt`} />
+                                            <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#64748B' }} tickLine={false} axisLine={false} />
+                                            <YAxis tick={{ fontSize: 10, fill: '#64748B' }} tickLine={false} axisLine={false} tickFormatter={(val) => `Rp${(val / 1000000).toFixed(0)}Jt`} />
                                             <Tooltip
                                                 formatter={(value: any) => formatRupiah(Number(value) || 0)}
                                                 contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
@@ -321,20 +362,20 @@ export default function OwnerDashboardPage() {
                         </div>
 
                         {/* Top Clients Lists */}
-                        <div className="bg-white rounded-3xl p-8 shadow-sm border border-slate-100">
+                        <div className="bg-white rounded-2xl sm:rounded-3xl p-5 sm:p-8 shadow-sm border border-slate-100">
                             <h3 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2">
                                 <Users size={20} className="text-indigo-500" />
                                 Klien Teratas
                             </h3>
-                            <div className="space-y-6">
+                            <div className="space-y-4 sm:space-y-6">
                                 {topClients.length > 0 ? topClients.map((client, i) => (
                                     <div key={i} className="flex items-center justify-between group cursor-pointer hover:bg-slate-50 p-2 rounded-xl transition-colors -mx-2">
                                         <div className="flex items-center gap-3">
-                                            <div className="w-10 h-10 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold text-sm">
+                                            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold text-xs sm:text-sm">
                                                 {client.name.substring(0, 2).toUpperCase()}
                                             </div>
                                             <div>
-                                                <p className="font-bold text-slate-800 text-sm group-hover:text-indigo-600 transition-colors">{client.name}</p>
+                                                <p className="font-bold text-slate-800 text-sm group-hover:text-indigo-600 transition-colors line-clamp-1">{client.name}</p>
                                                 <p className="text-xs text-slate-400">{client.count} Transaksi</p>
                                             </div>
                                         </div>
@@ -353,71 +394,35 @@ export default function OwnerDashboardPage() {
                         </div>
                     </div>
 
-                    {/* 3. Operational Heatmap / Routes */}
-                    <div className="grid md:grid-cols-2 gap-8">
-                        <div className="bg-slate-900 rounded-3xl p-8 shadow-sm text-white overflow-hidden relative">
-                            {/* Decorative Map BG */}
-                            <div className="absolute inset-0 opacity-10 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-indigo-500 via-slate-900 to-slate-900"></div>
+                    {/* 3. Operational Heatmap / Routes (Now Full Width) */}
+                    <div className="bg-slate-900 rounded-2xl sm:rounded-3xl p-5 sm:p-8 shadow-sm text-white overflow-hidden relative">
+                        {/* Decorative Map BG */}
+                        <div className="absolute inset-0 opacity-10 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-indigo-500 via-slate-900 to-slate-900"></div>
 
-                            <div className="relative z-10">
-                                <h3 className="text-lg font-bold mb-6 flex items-center gap-2">
-                                    <Activity size={20} className="text-blue-400" />
-                                    Rute Terpadat (Volume)
-                                </h3>
-                                <div className="space-y-4">
-                                    {topRoutes.length > 0 ? topRoutes.map((r, i) => (
-                                        <div key={i} className="bg-slate-800/50 rounded-xl p-4 border border-slate-700 flex items-center justify-between">
-                                            <div>
-                                                <p className="font-bold text-slate-200">{r.dest}</p>
-                                                <div className="flex gap-2 mt-1">
-                                                    <div className="h-1.5 w-24 bg-slate-700 rounded-full overflow-hidden">
-                                                        <div style={{ width: `${(r.revenue / (topRoutes[0].revenue || 1)) * 100}%` }} className="h-full bg-blue-500 rounded-full"></div>
-                                                    </div>
-                                                    <span className="text-xs text-slate-400">{formatRupiah(r.revenue)}</span>
+                        <div className="relative z-10">
+                            <h3 className="text-lg font-bold mb-6 flex items-center gap-2">
+                                <Activity size={20} className="text-blue-400" />
+                                Rute Terpadat (Volume)
+                            </h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {topRoutes.length > 0 ? topRoutes.map((r, i) => (
+                                    <div key={i} className="bg-slate-800/50 rounded-xl p-4 border border-slate-700 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                        <div>
+                                            <p className="font-bold text-slate-200">{r.dest}</p>
+                                            <div className="flex gap-2 mt-1">
+                                                <div className="h-1.5 w-24 bg-slate-700 rounded-full overflow-hidden self-center">
+                                                    <div style={{ width: `${(r.revenue / (topRoutes[0].revenue || 1)) * 100}%` }} className="h-full bg-blue-500 rounded-full"></div>
                                                 </div>
+                                                <span className="text-xs text-slate-400">{formatRupiah(r.revenue)}</span>
                                             </div>
-                                            <span className="text-xs font-bold px-2 py-1 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                                                {r.count} Jalan
-                                            </span>
                                         </div>
-                                    )) : (
-                                        <p className="text-slate-500 text-sm">Belum ada data rute</p>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Quick Actions */}
-                        <div className="bg-white rounded-3xl p-8 shadow-sm border border-slate-100">
-                            <h3 className="text-lg font-bold text-slate-800 mb-6">Aksi Cepat</h3>
-                            <div className="grid grid-cols-2 gap-4">
-                                <button
-                                    onClick={() => window.print()}
-                                    className="p-4 rounded-xl bg-violet-50 text-violet-700 font-semibold hover:bg-violet-100 transition-colors text-left"
-                                >
-                                    <div className="mb-2 bg-white w-10 h-10 rounded-lg flex items-center justify-center shadow-sm">
-                                        <BarChart3 size={20} />
+                                        <span className="text-xs font-bold px-2 py-1 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 self-start sm:self-auto">
+                                            {r.count} Jalan
+                                        </span>
                                     </div>
-                                    Cetak Ringkasan
-                                </button>
-                                <button
-                                    onClick={() => router.push('/finance/invoices')}
-                                    className="p-4 rounded-xl bg-orange-50 text-orange-700 font-semibold hover:bg-orange-100 transition-colors text-left"
-                                >
-                                    <div className="mb-2 bg-white w-10 h-10 rounded-lg flex items-center justify-center shadow-sm">
-                                        <AlertTriangle size={20} />
-                                    </div>
-                                    Cek Tagihan
-                                </button>
-                                <button
-                                    onClick={() => router.push('/finance/expenses')}
-                                    className="p-4 rounded-xl bg-red-50 text-red-700 font-semibold hover:bg-red-100 transition-colors text-left"
-                                >
-                                    <div className="mb-2 bg-white w-10 h-10 rounded-lg flex items-center justify-center shadow-sm">
-                                        <Wallet size={20} />
-                                    </div>
-                                    Catat Pengeluaran
-                                </button>
+                                )) : (
+                                    <p className="text-slate-500 text-sm">Belum ada data rute</p>
+                                )}
                             </div>
                         </div>
                     </div>

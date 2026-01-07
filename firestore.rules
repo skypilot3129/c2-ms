@@ -2,90 +2,49 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Clients collection - users can only access their own clients
+    // Clients collection - Shared access
     match /clients/{clientId} {
-      // Allow read if authenticated and userId matches
-      allow read: if request.auth != null && 
-                     resource.data.userId == request.auth.uid;
-                     
-      // Allow create if authenticated and setting userId to current user
-      allow create: if request.auth != null && 
-                       request.resource.data.userId == request.auth.uid;
-                       
-      // Allow update/delete if authenticated and userId matches
-      allow update, delete: if request.auth != null && 
-                               resource.data.userId == request.auth.uid;
+      allow read, write: if request.auth != null;
     }
     
-    // Transactions collection - users can only access their own transactions
+    // Transactions collection - Shared access
     match /transactions/{transactionId} {
-      allow read: if request.auth != null && 
-                     resource.data.userId == request.auth.uid;
-      allow create: if request.auth != null && 
-                       request.resource.data.userId == request.auth.uid;
-      allow update, delete: if request.auth != null && 
-                               resource.data.userId == request.auth.uid;
+      allow read, write: if request.auth != null;
     }
     
-    // Metadata collection for counters (STT, Invoice, Voyage numbers)
+    // Metadata collection for counters
     match /metadata/{docId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null;
+      allow read, write: if request.auth != null;
     }
     
-    // Voyages collection - users can only access their own voyages
+    // Voyages collection - Shared access
     match /voyages/{voyageId} {
-      allow read: if request.auth != null && 
-                     resource.data.userId == request.auth.uid;
-      allow create: if request.auth != null && 
-                       request.resource.data.userId == request.auth.uid;
-      allow update, delete: if request.auth != null && 
-                               resource.data.userId == request.auth.uid;
+      allow read, write: if request.auth != null;
     }
     
-    // Expenses collection - users can only access their own expenses
+    // Expenses collection - Shared access
     match /expenses/{expenseId} {
-      allow read: if request.auth != null && 
-                     resource.data.userId == request.auth.uid;
-      allow create: if request.auth != null && 
-                       request.resource.data.userId == request.auth.uid;
-      allow update, delete: if request.auth != null && 
-                               resource.data.userId == request.auth.uid;
+      allow read, write: if request.auth != null;
     }
     
-    // Invoices collection - users can only access their own invoices
+    // Invoices collection - Shared access
     match /invoices/{invoiceId} {
-      allow read: if request.auth != null && 
-                     resource.data.userId == request.auth.uid;
-      allow create: if request.auth != null && 
-                       request.resource.data.userId == request.auth.uid;
-      allow update, delete: if request.auth != null && 
-                               resource.data.userId == request.auth.uid;
+      allow read, write: if request.auth != null;
     }
 
-    // Fleets collection - users can only access their own fleets
+    // Fleets collection - Shared access
     match /fleets/{fleetId} {
-      allow read: if request.auth != null && 
-                     resource.data.userId == request.auth.uid;
-      allow create: if request.auth != null && 
-                       request.resource.data.userId == request.auth.uid;
-      allow update, delete: if request.auth != null && 
-                               resource.data.userId == request.auth.uid;
+      allow read, write: if request.auth != null;
     }
 
-    // Maintenance Logs collection - users can only access their own logs
+    // Maintenance Logs collection - Shared access
     match /maintenance_logs/{logId} {
-      allow read: if request.auth != null && 
-                     resource.data.userId == request.auth.uid;
-      allow create: if request.auth != null && 
-                       request.resource.data.userId == request.auth.uid;
-      allow update, delete: if request.auth != null && 
-                               resource.data.userId == request.auth.uid;
+      allow read, write: if request.auth != null;
     }
 
-    // Settings collection - users can only access their own settings document (ID = userId)
+    // Settings collection - Shared access (Global settings)
     match /settings/{settingId} {
-      allow read, write: if request.auth != null && settingId == request.auth.uid;
+      allow read, write: if request.auth != null;
     }
   }
 }

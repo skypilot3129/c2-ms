@@ -68,6 +68,41 @@ export const docToTransaction = (id: string, data: TransactionDoc): Transaction 
 };
 
 /**
+ * Peek at next STT number without incrementing counter (for preview)
+ */
+export const peekNextSTTNumber = async (userId: string): Promise<string> => {
+    const counterRef = doc(db, METADATA_COLLECTION, STT_COUNTER_DOC);
+
+    try {
+        const counterDoc = await getDoc(counterRef);
+
+        // DEBUG: Log what we're reading
+        console.log('[DEBUG peekNextSTTNumber] userId:', userId);
+        console.log('[DEBUG peekNextSTTNumber] counterDoc exists:', counterDoc.exists());
+
+        let nextNumber = 17642; // Start from 017642
+        if (counterDoc.exists()) {
+            const data = counterDoc.data();
+            // Use 'global' key for shared counter
+            const counterData = data['global'] || {};
+            const existingNumber = counterData.currentNumber || 0;
+
+            // Use the higher of 17641 or existing counter, then add 1
+            nextNumber = Math.max(17641, existingNumber) + 1;
+        }
+
+        // Format: STT017642, STT017643, etc. (6 digits)
+        const formatted = `STT${String(nextNumber).padStart(6, '0')}`;
+        console.log('[DEBUG peekNextSTTNumber] Returning:', formatted);
+        return formatted;
+    } catch (error) {
+        console.error('Error peeking STT number:', error);
+        // Fallback to timestamp-based
+        return `STT${Date.now().toString().slice(-6)}`;
+    }
+};
+
+/**
  * Generate next STT number for user (e.g., STT017642, STT017643)
  */
 export const generateSTTNumber = async (userId: string): Promise<string> => {
@@ -80,14 +115,16 @@ export const generateSTTNumber = async (userId: string): Promise<string> => {
             let currentNumber = 17642; // Start from 017642
             if (counterDoc.exists()) {
                 const data = counterDoc.data();
-                const existingNumber = data[userId]?.currentNumber || 0;
+                // Use 'global' key
+                const counterData = data['global'] || {};
+                const existingNumber = counterData.currentNumber || 0;
                 // Use the higher of 17641 or existing counter, then add 1
                 currentNumber = Math.max(17641, existingNumber) + 1;
             }
 
             // Update counter
             transaction.set(counterRef, {
-                [userId]: {
+                ['global']: {
                     currentNumber,
                     prefix: 'STT',
                     lastUpdated: Timestamp.now(),
@@ -107,13 +144,52 @@ export const generateSTTNumber = async (userId: string): Promise<string> => {
 };
 
 /**
+ * Peek at next invoice number without incrementing counter (for preview)
+ * Regular invoices start from 012366
+ * PKP invoices start from 05177
+ */
+export const peekNextInvoiceNumber = async (userId: string, isPKP: boolean = false): Promise<string> => {
+    const counterRef = doc(db, METADATA_COLLECTION, 'invoice_counters');
+    // Use global keys
+    const counterKey = isPKP ? 'global_pkp' : 'global';
+
+    try {
+        const counterDoc = await getDoc(counterRef);
+
+        // Different starting numbers based on PKP status
+        let nextNumber = isPKP ? 5177 : 12366;
+
+        if (counterDoc.exists()) {
+            const data = counterDoc.data();
+            const lastNumber = isPKP
+                ? (data[counterKey]?.currentNumber || 5176)
+                : (data[counterKey]?.currentNumber || 12365);
+            nextNumber = lastNumber + 1;
+        }
+
+        // Format: INV012366 or INV-PKP05177 (with leading zeros)
+        const formatted = isPKP
+            ? `INV-PKP${String(nextNumber).padStart(5, '0')}`
+            : `INV${String(nextNumber).padStart(6, '0')}`;
+
+        return formatted;
+    } catch (error) {
+        console.error('Error peeking invoice number:', error);
+        // Fallback to timestamp-based
+        const prefix = isPKP ? 'INV-PKP' : 'INV';
+        return `${prefix}${Date.now().toString().slice(-6)}`;
+    }
+};
+
+/**
  * Generate invoice number with proper counters
  * Regular invoices start from 012366
  * PKP invoices start from 05177
  */
 export const generateInvoiceNumber = async (userId: string, isPKP: boolean = false): Promise<string> => {
     const counterRef = doc(db, METADATA_COLLECTION, 'invoice_counters');
-    const counterKey = isPKP ? `${userId}_pkp` : userId;
+    // Use global keys
+    const counterKey = isPKP ? 'global_pkp' : 'global';
 
     try {
         const newNumber = await runTransaction(db, async (transaction) => {
@@ -162,19 +238,18 @@ export const generateInvoiceNumber = async (userId: string, isPKP: boolean = fal
  */
 export const subscribeToTransactions = (
     callback: (transactions: Transaction[]) => void,
-    userId?: string,
+    userId?: string, // Deprecated, kept for signature compatibility
     dateRange?: { startDate: Date; endDate: Date }
 ) => {
     const transactionsRef = collection(db, COLLECTION_NAME);
     let constraints: any[] = [];
 
-    if (userId) {
-        constraints.push(where('userId', '==', userId));
-    }
+    // Removed userId filter to allow shared access
+    // if (userId) {
+    //    constraints.push(where('userId', '==', userId));
+    // }
 
     if (dateRange) {
-        // Ensure strictly this range. Firestore composite index might be needed if combined with other filters.
-        // For 'userId' + 'tanggal', we need an index.
         const start = Timestamp.fromDate(dateRange.startDate);
         const end = Timestamp.fromDate(dateRange.endDate);
         constraints.push(where('tanggal', '>=', start));
@@ -218,10 +293,11 @@ export const addTransaction = async (
     userId: string,
     pengirimData: { name: string; phone?: string; address?: string; city?: string },
     penerimaData: { name: string; phone?: string; address?: string; city?: string },
-    jumlah: number  // Total calculated from form
+    jumlah: number,  // Total calculated from form
+    noSTT?: string   // Optional: Manual STT number
 ): Promise<string> => {
-    // Generate STT and Invoice numbers
-    const noSTT = await generateSTTNumber(userId);
+    // Generate STT and Invoice numbers (use manual if provided)
+    const sttNumber = noSTT && noSTT.trim() ? noSTT.trim() : await generateSTTNumber(userId);
     const noInvoice = data.noInvoice || await generateInvoiceNumber(userId);
 
     const now = Timestamp.now();
@@ -231,7 +307,7 @@ export const addTransaction = async (
         userId,
         tanggal,
         tujuan: data.tujuan,
-        noSTT,
+        noSTT: sttNumber,
 
         // Pengirim
         pengirimId: data.pengirimId,

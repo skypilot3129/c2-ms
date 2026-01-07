@@ -109,7 +109,8 @@ export const getDashboardStats = async (
     const prevEnd = new Date(start.getTime() - 1);
 
     // 1. Fetch ALL data (Optimization: In production, use compound queries to filter on server)
-    const txQuery = query(collection(db, 'transactions'), where('userId', '==', userId));
+    const txQuery = query(collection(db, 'transactions'));
+    // const txQuery = query(collection(db, 'transactions'), where('userId', '==', userId));
     const txSnapshot = await getDocs(txQuery);
     const allTransactions = txSnapshot.docs.map(doc => ({
         id: doc.id,
@@ -128,7 +129,8 @@ export const getDashboardStats = async (
         noSTT: doc.data().noSTT
     })) as any[];
 
-    const expQuery = query(collection(db, 'expenses'), where('userId', '==', userId));
+    const expQuery = query(collection(db, 'expenses'));
+    // const expQuery = query(collection(db, 'expenses'), where('userId', '==', userId));
     const expSnapshot = await getDocs(expQuery);
     const allExpenses = expSnapshot.docs.map(doc => ({
         id: doc.id,
@@ -242,7 +244,8 @@ export const getDashboardStats = async (
     // In our system, Voyage has `transactionIds`. Transaction DOES NOT have `voyageId`.
     // So we need to fetch Voyages for this user.
 
-    const voyageQuery = query(collection(db, 'voyages'), where('userId', '==', userId));
+    const voyageQuery = query(collection(db, 'voyages'));
+    // const voyageQuery = query(collection(db, 'voyages'), where('userId', '==', userId));
     const voyageSnapshot = await getDocs(voyageQuery);
     const validVoyageIds = new Set<string>(); // Voyages that fall within or overlap the period? 
     // Or just strictly analyze voyages that DEPARTED in this period.
