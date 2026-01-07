@@ -41,7 +41,12 @@ const statusConfig: Record<StatusTransaksi, { label: string; color: string; bgCo
 };
 
 export default function StatusBadge({ status, className = '' }: StatusBadgeProps) {
-    const config = statusConfig[status];
+    const config = statusConfig[status] || {
+        label: status || 'Unknown',
+        color: 'text-gray-700',
+        bgColor: 'bg-gray-100',
+        icon: '❓'
+    };
 
     return (
         <span

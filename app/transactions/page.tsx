@@ -151,68 +151,69 @@ export default function TransactionsPage() {
         };
     }, [selectedTransactions]);
 
+    // Allow any selection for bulk delete. Validation for invoice will be separate.
     const canSelectTransaction = (transaction: Transaction): boolean => {
-        if (transaction.status === 'dibatalkan') return false;
-        if (selectedIds.length === 0) return true;
-        const firstSelected = selectedTransactions[0];
-        if (!firstSelected) return true;
-        if (transaction.pengirimName !== firstSelected.pengirimName) return false;
-        const txDate = new Date(transaction.tanggal).toDateString();
-        const selectedDate = new Date(firstSelected.tanggal).toDateString();
-        if (txDate !== selectedDate) return false;
         return true;
     };
 
     const toggleSelection = (id: string) => {
-        const transaction = transactions.find(t => t.id === id);
-        if (!transaction) return;
         if (selectedIds.includes(id)) {
             setSelectedIds(prev => prev.filter(sid => sid !== id));
         } else {
-            if (canSelectTransaction(transaction)) {
-                setSelectedIds(prev => [...prev, id]);
-            } else {
-                alert('Transaksi ini tidak dapat digabung:\n- Pengirim harus sama\n- Tanggal harus sama\n- Status tidak boleh "Dibatalkan"');
-            }
+            setSelectedIds(prev => [...prev, id]);
         }
     };
 
     const toggleSelectAll = () => {
-        // Get selectable transactions on current page
-        const currentPageSelectable = paginatedTransactions.filter(t => canSelectTransaction(t));
-        const currentPageIds = currentPageSelectable.map(t => t.id);
-
-        // Check if all items on current page are already selected
+        const currentPageIds = paginatedTransactions.map(t => t.id);
         const allCurrentPageSelected = currentPageIds.every(id => selectedIds.includes(id));
 
-        if (allCurrentPageSelected && currentPageIds.length > 0) {
+        if (allCurrentPageSelected) {
             // Deselect all items on current page
             setSelectedIds(prev => prev.filter(id => !currentPageIds.includes(id)));
         } else {
-            // Select all items on current page
-            if (currentPageSelectable.length > 0) {
-                const firstTx = currentPageSelectable[0];
-                const sameGroup = currentPageSelectable.filter(t =>
-                    t.pengirimName === firstTx.pengirimName &&
-                    new Date(t.tanggal).toDateString() === new Date(firstTx.tanggal).toDateString() &&
-                    t.status !== 'dibatalkan'
-                );
-                // Add new selections while keeping existing ones that match criteria
-                const newIds = sameGroup.map(t => t.id);
-                setSelectedIds(prev => {
-                    const combined = [...new Set([...prev, ...newIds])];
-                    // Filter to keep only valid selections
-                    return combined.filter(id => {
-                        const tx = transactions.find(t => t.id === id);
-                        return tx && canSelectTransaction(tx);
-                    });
-                });
+            // Select all items on current page that aren't already selected
+            const newIds = currentPageIds.filter(id => !selectedIds.includes(id));
+            setSelectedIds(prev => [...prev, ...newIds]);
+        }
+    };
+
+    // Validation for Bulk Invoice
+    const isSelectionValidForInvoice = useMemo(() => {
+        if (selectedTransactions.length <= 1) return true;
+        const first = selectedTransactions[0];
+        return selectedTransactions.every(t =>
+            t.pengirimName === first.pengirimName &&
+            new Date(t.tanggal).toDateString() === new Date(first.tanggal).toDateString() &&
+            t.status !== 'dibatalkan'
+        );
+    }, [selectedTransactions]);
+
+    const handleBulkDelete = async () => {
+        if (selectedIds.length === 0) return;
+
+        if (!confirm(`Apakah Anda yakin ingin menghapus ${selectedIds.length} transaksi terpilih? Tindakan ini permanen.`)) {
+            return;
+        }
+
+        try {
+            // Delete sequentially to avoid overwhelming Firestore if too many
+            for (const id of selectedIds) {
+                await deleteTransaction(id);
             }
+            setSelectedIds([]);
+        } catch (error) {
+            console.error('Error bulk deleting:', error);
+            alert('Gagal menghapus beberapa transaksi.');
         }
     };
 
     const handleBulkPrint = () => {
         if (selectedIds.length === 0) return;
+        if (!isSelectionValidForInvoice) {
+            alert('Untuk membuat Invoice Gabungan:\n- Pengirim harus sama\n- Tanggal harus sama\n- Status tidak boleh "Dibatalkan"');
+            return;
+        }
         setShowBulkModal(true);
     };
 
@@ -425,8 +426,8 @@ export default function TransactionsPage() {
                                                 <input
                                                     type="checkbox"
                                                     checked={
-                                                        paginatedTransactions.filter(t => canSelectTransaction(t)).length > 0 &&
-                                                        paginatedTransactions.filter(t => canSelectTransaction(t)).every(t => selectedIds.includes(t.id))
+                                                        paginatedTransactions.length > 0 &&
+                                                        paginatedTransactions.every(t => selectedIds.includes(t.id))
                                                     }
                                                     onChange={toggleSelectAll}
                                                     className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
@@ -451,15 +452,14 @@ export default function TransactionsPage() {
                                             return (
                                                 <tr
                                                     key={transaction.id}
-                                                    className={`hover:bg-blue-50/50 transition-colors ${isDisabled ? 'opacity-50' : ''} ${isSelected ? 'bg-blue-50/80' : ''}`}
+                                                    className={`hover:bg-blue-50/50 transition-colors ${isSelected ? 'bg-blue-50/80' : ''}`}
                                                 >
                                                     <td className="px-6 py-4 text-center">
                                                         <input
                                                             type="checkbox"
                                                             checked={isSelected}
                                                             onChange={() => toggleSelection(transaction.id)}
-                                                            disabled={isDisabled}
-                                                            className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer disabled:cursor-not-allowed"
+                                                            className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
                                                         />
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap">
@@ -633,8 +633,20 @@ export default function TransactionsPage() {
                                     Batal
                                 </button>
                                 <button
+                                    onClick={handleBulkDelete}
+                                    className="bg-red-600 hover:bg-red-500 text-white px-6 py-2.5 rounded-xl font-semibold transition-all flex items-center gap-2 shadow-lg shadow-red-600/30"
+                                >
+                                    <Trash2 size={18} />
+                                    Hapus ({selectedIds.length})
+                                </button>
+                                <button
                                     onClick={handleBulkPrint}
-                                    className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2.5 rounded-xl font-semibold transition-all flex items-center gap-2 shadow-lg shadow-blue-600/30"
+                                    disabled={!isSelectionValidForInvoice}
+                                    className={`px-6 py-2.5 rounded-xl font-semibold transition-all flex items-center gap-2 shadow-lg ${isSelectionValidForInvoice
+                                        ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-600/30'
+                                        : 'bg-gray-700 text-gray-400 cursor-not-allowed'
+                                        }`}
+                                    title={!isSelectionValidForInvoice ? 'Pengirim dan Tanggal harus sama' : 'Buat Invoice'}
                                 >
                                     <Printer size={18} />
                                     Cetak Invoice

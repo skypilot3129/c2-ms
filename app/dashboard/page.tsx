@@ -33,6 +33,7 @@ import {
 } from 'recharts';
 
 export default function DashboardPage() {
+    console.log('Rendering Dashboard Page...'); // Debug log
     const { user } = useAuth();
     const [stats, setStats] = useState<DashboardStats | null>(null);
     const [loading, setLoading] = useState(true);
