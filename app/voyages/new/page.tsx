@@ -1,27 +1,41 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { createVoyage } from '@/lib/firestore-voyages';
+import { subscribeToFleets } from '@/lib/firestore-fleet';
 import type { VoyageFormData, VoyageStatus } from '@/types/voyage';
+import type { Fleet } from '@/types/fleet';
 import ProtectedRoute from '@/components/ProtectedRoute';
-import { ArrowLeft, Save, Ship } from 'lucide-react';
+import { ArrowLeft, Save, Ship, Truck } from 'lucide-react';
 
 export default function NewVoyagePage() {
     const router = useRouter();
     const { user } = useAuth();
     const [loading, setLoading] = useState(false);
+    const [fleets, setFleets] = useState<Fleet[]>([]);
+    const [selectedVehicles, setSelectedVehicles] = useState<string[]>([]);
     const [formData, setFormData] = useState<VoyageFormData>({
         route: '',
         departureDate: new Date().toISOString().split('T')[0],
         arrivalDate: '',
         status: 'planned',
         shipName: '',
-        vehicleNumber: '',
+        vehicleNumbers: [],
         notes: '',
     });
+
+    // Load fleet data
+    useEffect(() => {
+        if (!user) return;
+        const unsubscribe = subscribeToFleets(user.uid, (data) => {
+            // Filter only available vehicles
+            setFleets(data.filter(f => f.status === 'Available'));
+        });
+        return () => unsubscribe();
+    }, [user]);
 
     const handleChange = (field: keyof VoyageFormData, value: string) => {
         setFormData(prev => ({ ...prev, [field]: value }));
@@ -42,7 +56,11 @@ export default function NewVoyagePage() {
 
         setLoading(true);
         try {
-            const voyageId = await createVoyage(formData, user.uid);
+            const voyageData = {
+                ...formData,
+                vehicleNumbers: selectedVehicles
+            };
+            const voyageId = await createVoyage(voyageData, user.uid);
             alert('Pemberangkatan berhasil dibuat!');
             router.push(`/voyages/${voyageId}`);
         } catch (error) {
@@ -104,18 +122,82 @@ export default function NewVoyagePage() {
                                     />
                                 </div>
 
-                                {/* Vehicle Number */}
-                                <div>
-                                    <label className="block text-gray-700 font-semibold mb-2">
-                                        Nopol Kendaraan
+                                {/* Fleet Multi-Select */}
+                                <div className="mb-6">
+                                    <label className="block text-gray-700 font-semibold mb-2 flex items-center gap-2">
+                                        <Truck size={18} />
+                                        Pilih Kendaraan
                                     </label>
-                                    <input
-                                        type="text"
-                                        value={formData.vehicleNumber || ''}
-                                        onChange={(e) => handleChange('vehicleNumber', e.target.value)}
-                                        placeholder="Contoh: L 1234 AB"
-                                        className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-blue-500 focus:outline-none transition-all"
-                                    />
+
+                                    {fleets.length === 0 ? (
+                                        <div className="bg-gray-50 border-2 border-dashed border-gray-300 rounded-xl p-6 text-center">
+                                            <Truck size={32} className="mx-auto text-gray-400 mb-2" />
+                                            <p className="text-sm text-gray-500 mb-2">
+                                                Belum ada armada tersedia.
+                                            </p>
+                                            <Link href="/fleets/new" className="text-blue-600 hover:text-blue-700 text-sm font-semibold">
+                                                Tambah Armada →
+                                            </Link>
+                                        </div>
+                                    ) : (
+                                        <div className="border-2 border-gray-200 rounded-xl p-4 max-h-80 overflow-y-auto">
+                                            {fleets.map(fleet => (
+                                                <label
+                                                    key={fleet.id}
+                                                    className="flex items-center gap-3 p-3 hover:bg-blue-50 rounded-lg cursor-pointer transition-colors group"
+                                                >
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={selectedVehicles.includes(fleet.plateNumber)}
+                                                        onChange={(e) => {
+                                                            if (e.target.checked) {
+                                                                setSelectedVehicles(prev => [...prev, fleet.plateNumber]);
+                                                            } else {
+                                                                setSelectedVehicles(prev => prev.filter(v => v !== fleet.plateNumber));
+                                                            }
+                                                        }}
+                                                        className="w-5 h-5 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
+                                                    />
+                                                    <div className="flex-1">
+                                                        <p className="font-semibold text-gray-800 group-hover:text-blue-600">
+                                                            {fleet.plateNumber}
+                                                        </p>
+                                                        <p className="text-sm text-gray-500">
+                                                            {fleet.name} • {fleet.type}
+                                                        </p>
+                                                    </div>
+                                                    <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full font-medium">
+                                                        {fleet.status}
+                                                    </span>
+                                                </label>
+                                            ))}
+                                        </div>
+                                    )}
+
+                                    {selectedVehicles.length > 0 && (
+                                        <div className="mt-3 p-3 bg-blue-50 rounded-lg">
+                                            <p className="text-sm font-semibold text-blue-900 mb-2">
+                                                Kendaraan Terpilih ({selectedVehicles.length}):
+                                            </p>
+                                            <div className="flex flex-wrap gap-2">
+                                                {selectedVehicles.map(plate => (
+                                                    <span
+                                                        key={plate}
+                                                        className="bg-blue-600 text-white px-3 py-1 rounded-full text-sm font-medium flex items-center gap-2"
+                                                    >
+                                                        {plate}
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setSelectedVehicles(prev => prev.filter(v => v !== plate))}
+                                                            className="hover:bg-blue-700 rounded-full w-4 h-4 flex items-center justify-center"
+                                                        >
+                                                            ×
+                                                        </button>
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
 

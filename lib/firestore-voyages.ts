@@ -36,7 +36,9 @@ const docToVoyage = (id: string, data: any): Voyage => {
         arrivalDate: data.arrivalDate?.toDate(),
         route: data.route,
         shipName: data.shipName,
-        vehicleNumber: data.vehicleNumber,
+        // Backward compatibility: if vehicleNumbers doesn't exist, convert old vehicleNumber to array
+        vehicleNumbers: data.vehicleNumbers || (data.vehicleNumber ? [data.vehicleNumber] : []),
+        vehicleNumber: data.vehicleNumber,  // Keep for backward compatibility
         status: data.status,
         transactionIds: data.transactionIds || [],
         notes: data.notes,
@@ -103,7 +105,8 @@ export const createVoyage = async (
         arrivalDate: arrivalDate || undefined,
         route: data.route,
         shipName: data.shipName,
-        vehicleNumber: data.vehicleNumber,
+        vehicleNumbers: data.vehicleNumbers || [],  // Save array
+        vehicleNumber: data.vehicleNumber,  // Keep for backward compatibility
         status: data.status,
         transactionIds: [],
         notes: data.notes,

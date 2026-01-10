@@ -41,7 +41,8 @@ export interface Voyage {
     arrivalDate?: Date;
     route: string;
     shipName?: string;
-    vehicleNumber?: string;
+    vehicleNumbers: string[];  // Multiple vehicles
+    vehicleNumber?: string;  // Deprecated, for backward compatibility
     status: VoyageStatus;
     transactionIds: string[];
     notes?: string;
@@ -57,7 +58,8 @@ export interface VoyageDoc {
     arrivalDate?: any;
     route: string;
     shipName?: string;
-    vehicleNumber?: string;
+    vehicleNumbers?: string[];  // Multiple vehicles
+    vehicleNumber?: string;  // Deprecated, for backward compatibility
     status: VoyageStatus;
     transactionIds: string[];
     notes?: string;
@@ -71,7 +73,8 @@ export interface VoyageFormData {
     arrivalDate?: string;
     route: string;
     shipName?: string;
-    vehicleNumber?: string;
+    vehicleNumbers?: string[];  // Multiple vehicles
+    vehicleNumber?: string;  // Deprecated, for backward compatibility
     status: VoyageStatus;
     notes?: string;
 }
