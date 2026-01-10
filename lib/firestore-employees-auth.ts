@@ -1,3 +1,10 @@
+import { query, collection, where, getDocs } from 'firebase/firestore';
+import { db } from './firebase';
+import type { Employee, EmployeeDoc } from '@/types/employee';
+import { docToEmployee } from './firestore-employees';
+
+const COLLECTION_NAME = 'employees';
+
 /**
  * Get employee by Firebase Auth UID
  */

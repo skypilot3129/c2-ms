@@ -92,7 +92,9 @@ export default function EmployeeList({ onEdit, onAdd, roleFilter }: EmployeeList
                                         <div className="flex items-center gap-2">
                                             <span className="font-mono text-sm">{emp.employeeId}</span>
                                             {hasExpiringDocs(emp) && (
-                                                <AlertTriangle size={16} className="text-amber-500" title="Ada dokumen yang akan expired" />
+                                                <span title="Ada dokumen yang akan expired">
+                                                    <AlertTriangle size={16} className="text-amber-500" />
+                                                </span>
                                             )}
                                         </div>
                                     </td>

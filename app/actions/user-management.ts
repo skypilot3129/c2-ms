@@ -135,7 +135,7 @@ export async function deleteAuthUser(uid: string): Promise<{
     } catch (error: any) {
         console.error('[User Management] Error deleting user:', error);
         return {
-            success: boolean,
+            success: false,
             error: error.message
         };
     }

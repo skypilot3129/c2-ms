@@ -10,6 +10,7 @@ import { subscribeToClients } from '@/lib/firestore';
 import { formatRupiah } from '@/lib/currency';
 import type { Client } from '@/types/client';
 import type { Transaction, TransactionFormData, TipeTransaksi, MetodePembayaran, CaraPelunasan, BeratUnit, StatusTransaksi } from '@/types/transaction';
+import type { Branch } from '@/types/branch';
 import CurrencyInput from '@/components/CurrencyInput';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { ArrowLeft, Save, Package, Users, FileText, CheckCircle, Clock } from 'lucide-react';
@@ -31,6 +32,7 @@ export default function EditTransactionPage({ params }: { params: Promise<{ id: 
     const [taxSettings, setTaxSettings] = useState({ isPKP: false, defaultPPNRate: 0.11 });
 
     const [formData, setFormData] = useState<TransactionFormData>({
+        branch: 'surabaya',  // Default, will be set from transaction
         tanggal: new Date().toISOString().split('T')[0],
         tujuan: '',
         pengirimId: '',
@@ -78,6 +80,7 @@ export default function EditTransactionPage({ params }: { params: Promise<{ id: 
 
                 // Set form data
                 setFormData({
+                    branch: txn.branch || 'surabaya',  // Set from transaction
                     tanggal: txn.tanggal.toISOString().split('T')[0],
                     tujuan: txn.tujuan,
                     pengirimId: txn.pengirimId,
