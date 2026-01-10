@@ -15,6 +15,8 @@ import {
 } from 'firebase/firestore';
 import { db } from './firebase';
 import type { Transaction, TransactionFormData, TransactionDoc, StatusTransaksi, SuratJalanData } from '@/types/transaction';
+import type { Branch } from '@/types/branch';
+import { BRANCHES } from '@/types/branch';
 
 const COLLECTION_NAME = 'transactions';
 const METADATA_COLLECTION = 'metadata';
@@ -25,6 +27,7 @@ export const docToTransaction = (id: string, data: TransactionDoc): Transaction 
     return {
         id,
         userId: data.userId,
+        branch: data.branch || 'surabaya',  // Default to Surabaya for backward compatibility
         tanggal: data.tanggal?.toDate() || new Date(),
         tujuan: data.tujuan || '',
         noSTT: data.noSTT || '',
@@ -69,29 +72,29 @@ export const docToTransaction = (id: string, data: TransactionDoc): Transaction 
 
 /**
  * Peek at next STT number without incrementing counter (for preview)
+ * @param branch - Branch ID (surabaya or bandung)
  */
-export const peekNextSTTNumber = async (userId: string): Promise<string> => {
+export const peekNextSTTNumber = async (branch: Branch = 'surabaya'): Promise<string> => {
     const counterRef = doc(db, METADATA_COLLECTION, STT_COUNTER_DOC);
+    const branchInfo = BRANCHES[branch];
 
     try {
         const counterDoc = await getDoc(counterRef);
 
         // DEBUG: Log what we're reading
-        console.log('[DEBUG peekNextSTTNumber] userId:', userId);
+        console.log('[DEBUG peekNextSTTNumber] branch:', branch);
         console.log('[DEBUG peekNextSTTNumber] counterDoc exists:', counterDoc.exists());
 
-        let nextNumber = 17642; // Start from 017642
+        let nextNumber = branchInfo.initialCounter + 1;
         if (counterDoc.exists()) {
             const data = counterDoc.data();
-            // Use 'global' key for shared counter
-            const counterData = data['global'] || {};
-            const existingNumber = counterData.currentNumber || 0;
-
-            // Use the higher of 17641 or existing counter, then add 1
-            nextNumber = Math.max(17641, existingNumber) + 1;
+            // Use branch-specific key
+            const counterData = data[branch] || {};
+            const existingNumber = counterData.currentNumber || branchInfo.initialCounter;
+            nextNumber = existingNumber + 1;
         }
 
-        // Format: STT017642, STT017643, etc. (6 digits)
+        // Format: STT017642, STT001033, etc. (6 digits)
         const formatted = `STT${String(nextNumber).padStart(6, '0')}`;
         console.log('[DEBUG peekNextSTTNumber] Returning:', formatted);
         return formatted;
@@ -103,30 +106,32 @@ export const peekNextSTTNumber = async (userId: string): Promise<string> => {
 };
 
 /**
- * Generate next STT number for user (e.g., STT017642, STT017643)
+ * Generate next STT number for branch (e.g., STT017642, STT001033)
+ * @param branch - Branch ID (surabaya or bandung)
  */
-export const generateSTTNumber = async (userId: string): Promise<string> => {
+export const generateSTTNumber = async (branch: Branch = 'surabaya'): Promise<string> => {
     const counterRef = doc(db, METADATA_COLLECTION, STT_COUNTER_DOC);
+    const branchInfo = BRANCHES[branch];
 
     try {
         const newNumber = await runTransaction(db, async (transaction) => {
             const counterDoc = await transaction.get(counterRef);
 
-            let currentNumber = 17642; // Start from 017642
+            let currentNumber = branchInfo.initialCounter + 1;
             if (counterDoc.exists()) {
                 const data = counterDoc.data();
-                // Use 'global' key
-                const counterData = data['global'] || {};
-                const existingNumber = counterData.currentNumber || 0;
-                // Use the higher of 17641 or existing counter, then add 1
-                currentNumber = Math.max(17641, existingNumber) + 1;
+                // Use branch-specific key
+                const counterData = data[branch] || {};
+                const existingNumber = counterData.currentNumber || branchInfo.initialCounter;
+                currentNumber = existingNumber + 1;
             }
 
-            // Update counter
+            // Update branch-specific counter
             transaction.set(counterRef, {
-                ['global']: {
+                [branch]: {
                     currentNumber,
                     prefix: 'STT',
+                    branchName: branchInfo.displayName,
                     lastUpdated: Timestamp.now(),
                 }
             }, { merge: true });
@@ -134,7 +139,7 @@ export const generateSTTNumber = async (userId: string): Promise<string> => {
             return currentNumber;
         });
 
-        // Format: STT017642, STT017643, etc. (6 digits)
+        // Format: STT017642, STT001033, etc. (6 digits)
         return `STT${String(newNumber).padStart(6, '0')}`;
     } catch (error) {
         console.error('Error generating STT number:', error);
@@ -297,7 +302,7 @@ export const addTransaction = async (
     noSTT?: string   // Optional: Manual STT number
 ): Promise<string> => {
     // Generate STT and Invoice numbers (use manual if provided)
-    const sttNumber = noSTT && noSTT.trim() ? noSTT.trim() : await generateSTTNumber(userId);
+    const sttNumber = noSTT && noSTT.trim() ? noSTT.trim() : await generateSTTNumber(data.branch);
     const noInvoice = data.noInvoice || await generateInvoiceNumber(userId);
 
     const now = Timestamp.now();
@@ -305,6 +310,7 @@ export const addTransaction = async (
 
     const transactionData: Omit<TransactionDoc, 'userId'> & { userId: string } = {
         userId,
+        branch: data.branch,  // Include branch from form data
         tanggal,
         tujuan: data.tujuan,
         noSTT: sttNumber,

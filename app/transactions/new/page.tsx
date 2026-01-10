@@ -10,6 +10,8 @@ import { getTaxSettings } from '@/lib/firestore-settings';
 import { formatRupiah } from '@/lib/currency';
 import type { Client } from '@/types/client';
 import type { TransactionFormData, TipeTransaksi, MetodePembayaran, CaraPelunasan, BeratUnit, StatusTransaksi } from '@/types/transaction';
+import type { Branch } from '@/types/branch';
+import { getAllBranches } from '@/types/branch';
 import CurrencyInput from '@/components/CurrencyInput';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { ArrowLeft, Save, Package, Users, FileText, CheckCircle, AlertCircle, Trash2, Plus } from 'lucide-react';
@@ -22,6 +24,7 @@ export default function NewTransactionPage() {
 
 
     const [formData, setFormData] = useState<TransactionFormData>({
+        branch: 'surabaya',  // Default to Surabaya branch
         tanggal: new Date().toISOString().split('T')[0],
         tujuan: '',
         pengirimId: '',
@@ -181,6 +184,7 @@ export default function NewTransactionPage() {
 
             const transactionPromises = penerimaList.map(async (penerima) => {
                 const dataToSubmit = {
+                    branch: formData.branch,  // Include branch
                     tanggal: formData.tanggal,
                     tujuan: penerima.tujuan,
                     pengirimId: formData.pengirimId,
@@ -289,7 +293,27 @@ export default function NewTransactionPage() {
                                 <Package size={20} className="text-blue-600" />
                                 Informasi Dasar
                             </h2>
-                            <div className="grid md:grid-cols-2 gap-6">
+                            <div className="grid md:grid-cols-3 gap-6">
+                                {/* Branch Selector - NEW */}
+                                <div>
+                                    <label className="block text-sm font-semibold text-gray-700 mb-2">Cabang</label>
+                                    <select
+                                        value={formData.branch}
+                                        onChange={(e) => handleChange('branch', e.target.value as Branch)}
+                                        required
+                                        className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all bg-white"
+                                    >
+                                        {getAllBranches().map(branch => (
+                                            <option key={branch.id} value={branch.id}>
+                                                {branch.displayName}
+                                            </option>
+                                        ))}
+                                    </select>
+                                    <p className="text-xs text-gray-500 mt-1">
+                                        Pilih cabang untuk transaksi ini
+                                    </p>
+                                </div>
+
                                 <div>
                                     <label className="block text-sm font-semibold text-gray-700 mb-2">Tanggal Transaksi</label>
                                     <input

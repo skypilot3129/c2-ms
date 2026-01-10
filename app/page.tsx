@@ -2,12 +2,12 @@
 
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
-import { LogOut, User as UserIcon, LogIn, UserPlus, Package, Users, Ship, BarChart3, Plus, Search, FileText, ArrowRight, Wallet, Crown, Truck } from "lucide-react";
+import { LogOut, User as UserIcon, LogIn, UserPlus, Package, Users, Ship, BarChart3, Plus, Search, FileText, ArrowRight, Wallet, Crown, Truck, Clock, UserCircle } from "lucide-react";
 import InstallPrompt from "@/components/InstallPrompt";
 import { useState, useEffect } from "react";
 
 export default function Home() {
-    const { user, logout, loading } = useAuth();
+    const { user, logout, loading, role } = useAuth();
     const [greeting, setGreeting] = useState('');
 
     useEffect(() => {
@@ -176,40 +176,86 @@ export default function Home() {
 
                     {/* Main Features Grid */}
                     <div className="grid md:grid-cols-2 gap-6 relative z-10">
-                        {/* Owner Dashboard (Executive) - MOVED TO TOP */}
-                        <Link href="/dashboard/owner" className="group md:col-span-2">
-                            <div className="bg-slate-900 rounded-3xl p-8 shadow-xl shadow-slate-900/20 border border-slate-700 hover:border-indigo-500 hover:shadow-2xl hover:shadow-indigo-500/20 transition-all duration-300 relative overflow-hidden group-hover:-translate-y-1">
-                                <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-600/20 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none"></div>
-                                <div className="absolute bottom-0 left-0 w-64 h-64 bg-blue-600/10 rounded-full blur-3xl -ml-16 -mb-16 pointer-events-none"></div>
-
-                                <div className="relative flex flex-col md:flex-row items-center justify-between gap-8">
-                                    <div className="flex-1">
-                                        <div className="w-16 h-16 bg-indigo-500/20 rounded-2xl flex items-center justify-center text-indigo-400 mb-6 border border-indigo-500/30 group-hover:bg-indigo-500 group-hover:text-white transition-all duration-500">
-                                            <Crown size={32} />
+                        {/* Attendance - Accessible to ALL authenticated users */}
+                        {user && (
+                            <Link href="/attendance" className="group">
+                                <div className="bg-white rounded-3xl p-8 shadow-xl shadow-gray-200/50 border border-gray-100 hover:border-blue-300 hover:shadow-2xl hover:shadow-blue-500/10 transition-all duration-300 relative overflow-hidden group-hover:-translate-y-1">
+                                    <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-blue-50 to-transparent rounded-bl-full opacity-50 group-hover:scale-110 transition-transform origin-top-right"></div>
+                                    <div className="relative">
+                                        <div className="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center text-blue-600 mb-6 group-hover:rotate-6 transition-transform">
+                                            <Clock size={32} />
                                         </div>
-                                        <h2 className="text-2xl font-bold text-white mb-2 group-hover:text-indigo-400 transition-colors">Pusat Kendali Owner</h2>
-                                        <p className="text-slate-400 mb-6 leading-relaxed max-w-xl">
-                                            Dashboard eksklusif untuk pemilik bisnis. Pantau revenue real-time, profitabilitas, efisiensi rute, dan performa klien utama dalam satu tampilan premium.
+                                        <h2 className="text-2xl font-bold text-gray-800 mb-2 group-hover:text-blue-600 transition-colors">Absensi Karyawan</h2>
+                                        <p className="text-gray-500 mb-6 leading-relaxed">
+                                            Check-in dan check-out shift kerja, lembur bongkar/muat, dan monitoring kehadiran.
                                         </p>
-                                        <div className="flex items-center text-indigo-400 font-semibold gap-2 group-hover:text-white transition-colors">
-                                            Akses Dashboard Eksekutif <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
+                                        <div className="flex items-center text-blue-600 font-semibold gap-2">
+                                            Catat Kehadiran <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
                                         </div>
                                     </div>
-                                    <div className="hidden md:block pr-8 opacity-80 group-hover:opacity-100 group-hover:scale-105 transition-all duration-500">
-                                        {/* Abstract Chart UI representation */}
-                                        <div className="w-48 h-32 bg-slate-800/50 rounded-lg border border-slate-700 p-4 relative backdrop-blur-sm">
-                                            <div className="flex items-end gap-1 h-full pb-2">
-                                                <div className="w-1/5 bg-indigo-500/40 h-[40%] rounded-t-sm"></div>
-                                                <div className="w-1/5 bg-indigo-500/60 h-[65%] rounded-t-sm"></div>
-                                                <div className="w-1/5 bg-indigo-500/80 h-[50%] rounded-t-sm"></div>
-                                                <div className="w-1/5 bg-indigo-500 h-[85%] rounded-t-sm"></div>
-                                                <div className="w-1/5 bg-emerald-400 h-[95%] rounded-t-sm shadow-[0_0_10px_rgba(52,211,153,0.5)] animate-pulse"></div>
+                                </div>
+                            </Link>
+                        )}
+
+                        {/* My Profile - Accessible to ALL authenticated users */}
+                        {user && (
+                            <Link href="/my-profile" className="group">
+                                <div className="bg-white rounded-3xl p-8 shadow-xl shadow-gray-200/50 border border-gray-100 hover:border-indigo-300 hover:shadow-2xl hover:shadow-indigo-500/10 transition-all duration-300 relative overflow-hidden group-hover:-translate-y-1">
+                                    <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-indigo-50 to-transparent rounded-bl-full opacity-50 group-hover:scale-110 transition-transform origin-top-right"></div>
+                                    <div className="relative">
+                                        <div className="w-16 h-16 bg-indigo-100 rounded-2xl flex items-center justify-center text-indigo-600 mb-6 group-hover:rotate-6 transition-transform">
+                                            <UserCircle size={32} />
+                                        </div>
+                                        <h2 className="text-2xl font-bold text-gray-800 mb-2 group-hover:text-indigo-600 transition-colors">Profil Saya</h2>
+                                        <p className="text-gray-500 mb-6 leading-relaxed">
+                                            Lihat informasi pribadi, riwayat absensi, dan slip gaji Anda.
+                                        </p>
+                                        <div className="flex items-center text-indigo-600 font-semibold gap-2">
+                                            Buka Profil <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
+                                        </div>
+                                    </div>
+                                </div>
+                            </Link>
+                        )}
+
+
+
+                        {/* Owner Dashboard (Executive) - Owner ONLY */}
+                        {user && role === 'owner' && (
+                            <Link href="/dashboard/owner" className="group md:col-span-2">
+                                <div className="bg-slate-900 rounded-3xl p-8 shadow-xl shadow-slate-900/20 border border-slate-700 hover:border-indigo-500 hover:shadow-2xl hover:shadow-indigo-500/20 transition-all duration-300 relative overflow-hidden group-hover:-translate-y-1">
+                                    <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-600/20 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none"></div>
+                                    <div className="absolute bottom-0 left-0 w-64 h-64 bg-blue-600/10 rounded-full blur-3xl -ml-16 -mb-16 pointer-events-none"></div>
+
+                                    <div className="relative flex flex-col md:flex-row items-center justify-between gap-8">
+                                        <div className="flex-1">
+                                            <div className="w-16 h-16 bg-indigo-500/20 rounded-2xl flex items-center justify-center text-indigo-400 mb-6 border border-indigo-500/30 group-hover:bg-indigo-500 group-hover:text-white transition-all duration-500">
+                                                <Crown size={32} />
+                                            </div>
+                                            <h2 className="text-2xl font-bold text-white mb-2 group-hover:text-indigo-400 transition-colors">Pusat Kendali Owner</h2>
+                                            <p className="text-slate-400 mb-6 leading-relaxed max-w-xl">
+                                                Dashboard eksklusif untuk pemilik bisnis. Pantau revenue real-time, profitabilitas, efisiensi rute, dan performa klien utama dalam satu tampilan premium.
+                                            </p>
+                                            <div className="flex items-center text-indigo-400 font-semibold gap-2 group-hover:text-white transition-colors">
+                                                Akses Dashboard Eksekutif <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
+                                            </div>
+                                        </div>
+                                        <div className="hidden md:block pr-8 opacity-80 group-hover:opacity-100 group-hover:scale-105 transition-all duration-500">
+                                            {/* Abstract Chart UI representation */}
+                                            <div className="w-48 h-32 bg-slate-800/50 rounded-lg border border-slate-700 p-4 relative backdrop-blur-sm">
+                                                <div className="flex items-end gap-1 h-full pb-2">
+                                                    <div className="w-1/5 bg-indigo-500/40 h-[40%] rounded-t-sm"></div>
+                                                    <div className="w-1/5 bg-indigo-500/60 h-[65%] rounded-t-sm"></div>
+                                                    <div className="w-1/5 bg-indigo-500/80 h-[50%] rounded-t-sm"></div>
+                                                    <div className="w-1/5 bg-indigo-500 h-[85%] rounded-t-sm"></div>
+                                                    <div className="w-1/5 bg-emerald-400 h-[95%] rounded-t-sm shadow-[0_0_10px_rgba(52,211,153,0.5)] animate-pulse"></div>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
-                            </div>
-                        </Link>
+                            </Link>
+                        )}
 
                         {/* Resi & Transaksi */}
                         <Link href="/transactions" className="group">
@@ -324,6 +370,48 @@ export default function Home() {
                                 </div>
                             </div>
                         </Link>
+
+                        {/* Payroll & Gaji Module (Owner/Admin Only) */}
+                        {user && (role === 'owner' || role === 'admin') && (
+                            <Link href="/payroll" className="group">
+                                <div className="bg-white rounded-3xl p-8 shadow-xl shadow-gray-200/50 border border-gray-100 hover:border-emerald-300 hover:shadow-2xl hover:shadow-emerald-500/10 transition-all duration-300 relative overflow-hidden group-hover:-translate-y-1">
+                                    <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-emerald-50 to-transparent rounded-bl-full opacity-50 group-hover:scale-110 transition-transform origin-top-right"></div>
+                                    <div className="relative">
+                                        <div className="w-16 h-16 bg-emerald-100 rounded-2xl flex items-center justify-center text-emerald-600 mb-6 group-hover:rotate-6 transition-transform">
+                                            <Wallet size={32} />
+                                        </div>
+                                        <h2 className="text-2xl font-bold text-gray-800 mb-2 group-hover:text-emerald-600 transition-colors">Payroll & Gaji</h2>
+                                        <p className="text-gray-500 mb-6 leading-relaxed">
+                                            Generate payroll bulanan, kelola slip gaji karyawan, dan laporan penggajian otomatis.
+                                        </p>
+                                        <div className="flex items-center text-emerald-600 font-semibold gap-2">
+                                            Kelola Payroll <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
+                                        </div>
+                                    </div>
+                                </div>
+                            </Link>
+                        )}
+
+                        {/* HRD & Karyawan Module (Owner/Admin Only) */}
+                        {user && (role === 'owner' || role === 'admin') && (
+                            <Link href="/employees" className="group">
+                                <div className="bg-white rounded-3xl p-8 shadow-xl shadow-gray-200/50 border border-gray-100 hover:border-amber-300 hover:shadow-2xl hover:shadow-amber-500/10 transition-all duration-300 relative overflow-hidden group-hover:-translate-y-1">
+                                    <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-amber-50 to-transparent rounded-bl-full opacity-50 group-hover:scale-110 transition-transform origin-top-right"></div>
+                                    <div className="relative">
+                                        <div className="w-16 h-16 bg-amber-100 rounded-2xl flex items-center justify-center text-amber-600 mb-6 group-hover:rotate-6 transition-transform">
+                                            <Users size={32} />
+                                        </div>
+                                        <h2 className="text-2xl font-bold text-gray-800 mb-2 group-hover:text-amber-600 transition-colors">HRD & Karyawan</h2>
+                                        <p className="text-gray-500 mb-6 leading-relaxed">
+                                            Manajemen data karyawan, kontrak, dokumen, dan pengaturan akses pengguna sistem.
+                                        </p>
+                                        <div className="flex items-center text-amber-600 font-semibold gap-2">
+                                            Kelola Karyawan <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
+                                        </div>
+                                    </div>
+                                </div>
+                            </Link>
+                        )}
                     </div>
 
                     {/* Footer Simplified */}

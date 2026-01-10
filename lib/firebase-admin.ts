@@ -27,3 +27,4 @@ console.log('Admin SDK Env Check:', {
 });
 
 export const adminDb = admin.firestore();
+export const adminAuth = admin.auth();

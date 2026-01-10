@@ -102,9 +102,9 @@ export async function chatWithGemini(history: ChatMessage[], message: string) {
     }
 
     try {
-        // User requested gemini-3-flash-preview
+        // User requested gemini-2.5-pro
         const model = genAI.getGenerativeModel({
-            model: 'gemini-3-flash-preview',
+            model: 'gemini-2.5-pro',
             systemInstruction: SYSTEM_INSTRUCTION,
             tools: tools
         });

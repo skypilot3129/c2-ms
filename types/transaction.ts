@@ -1,4 +1,5 @@
 import { Timestamp } from 'firebase/firestore';
+import type { Branch } from './branch';
 
 // Transaction Types
 export type TipeTransaksi = 'regular' | 'borongan';
@@ -55,6 +56,7 @@ export interface SuratJalanData {
 export interface Transaction {
     id: string;
     userId: string;
+    branch: Branch;  // Branch: jakarta or bandung
 
     // Core fields
     tanggal: Date;
@@ -113,6 +115,7 @@ export interface Transaction {
 
 // Form data (user input)
 export interface TransactionFormData {
+    branch: Branch;             // Branch selection
     tanggal: string;            // Date string from input
     tujuan: string;
     pengirimId: string;
@@ -178,6 +181,7 @@ export interface SuratJalanData {
 // Firestore document type (with Timestamp)
 export interface TransactionDoc {
     userId: string;
+    branch: Branch;  // Branch: jakarta or bandung
     tanggal: Timestamp;
     tujuan: string;
     noSTT: string;
