@@ -101,35 +101,92 @@ export default function OwnerDashboardPage() {
 
     const metrics = useMemo(() => {
         const revenue = filteredData.transactions.reduce((sum, t) => sum + t.jumlah, 0);
-        const expenseTotal = filteredData.expenses.reduce((sum, e) => sum + e.amount, 0);
-        // COGS estimation: could filter expenses by type='voyage' vs 'general' if needed. For now sum all.
 
+        // Breakdown by category
+        const expenseSurabaya = filteredData.expenses
+            .filter(e => e.category === 'operasional_surabaya')
+            .reduce((sum, e) => sum + e.amount, 0);
+
+        const expenseMakassar = filteredData.expenses
+            .filter(e => e.category === 'operasional_makassar')
+            .reduce((sum, e) => sum + e.amount, 0);
+
+        const maintenance = filteredData.expenses
+            .filter(e => e.category === 'maintenance')
+            .reduce((sum, e) => sum + e.amount, 0);
+
+        const expenseOther = filteredData.expenses
+            .filter(e => !['operasional_surabaya', 'operasional_makassar', 'maintenance'].includes(e.category))
+            .reduce((sum, e) => sum + e.amount, 0);
+
+        const expenseTotal = expenseSurabaya + expenseMakassar + maintenance + expenseOther;
         const netProfit = revenue - expenseTotal;
         const margin = revenue > 0 ? (netProfit / revenue) * 100 : 0;
-
         const unpaidAmount = filteredData.unpaidTransactions.reduce((sum, t) => sum + t.jumlah, 0);
 
-        return { revenue, expenseTotal, netProfit, margin, unpaidAmount };
+        return {
+            revenue,
+            expenseSurabaya,
+            expenseMakassar,
+            maintenance,
+            expenseOther,
+            expenseTotal,
+            netProfit,
+            margin,
+            unpaidAmount
+        };
     }, [filteredData]);
 
     // Chart Data Preparation (Daily Aggregation)
     const chartData = useMemo(() => {
-        const map = new Map<string, { date: string; revenue: number; expense: number }>();
+        const map = new Map<string, {
+            date: string;
+            revenue: number;
+            expenseSurabaya: number;
+            expenseMakassar: number;
+            maintenance: number;
+            expenseOther: number;
+        }>();
 
         // Helper to key by date
         const getKey = (d: Date) => d.toISOString().split('T')[0];
 
         filteredData.transactions.forEach(t => {
             const key = getKey(t.tanggal);
-            const entry = map.get(key) || { date: key, revenue: 0, expense: 0 };
+            const entry = map.get(key) || {
+                date: key,
+                revenue: 0,
+                expenseSurabaya: 0,
+                expenseMakassar: 0,
+                maintenance: 0,
+                expenseOther: 0
+            };
             entry.revenue += t.jumlah;
             map.set(key, entry);
         });
 
         filteredData.expenses.forEach(e => {
             const key = getKey(e.date);
-            const entry = map.get(key) || { date: key, revenue: 0, expense: 0 };
-            entry.expense += e.amount;
+            const entry = map.get(key) || {
+                date: key,
+                revenue: 0,
+                expenseSurabaya: 0,
+                expenseMakassar: 0,
+                maintenance: 0,
+                expenseOther: 0
+            };
+
+            // Categorize based on expense.category
+            if (e.category === 'operasional_surabaya') {
+                entry.expenseSurabaya += e.amount;
+            } else if (e.category === 'operasional_makassar') {
+                entry.expenseMakassar += e.amount;
+            } else if (e.category === 'maintenance') {
+                entry.maintenance += e.amount;
+            } else {
+                entry.expenseOther += e.amount;
+            }
+
             map.set(key, entry);
         });
 
@@ -348,8 +405,11 @@ export default function OwnerDashboardPage() {
                                                 contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
                                             />
                                             <Legend wrapperStyle={{ paddingTop: '20px' }} />
-                                            <Bar dataKey="revenue" name="Pendapatan" fill="#4F46E5" radius={[4, 4, 0, 0]} barSize={20} />
-                                            <Bar dataKey="expense" name="Pengeluaran" fill="#EF4444" radius={[4, 4, 0, 0]} barSize={20} />
+                                            <Bar dataKey="revenue" name="Pendapatan" fill="#10B981" radius={[4, 4, 0, 0]} barSize={16} />
+                                            <Bar dataKey="expenseSurabaya" name="Pengeluaran Surabaya" fill="#F59E0B" radius={[4, 4, 0, 0]} barSize={16} />
+                                            <Bar dataKey="expenseMakassar" name="Pengeluaran Makassar" fill="#EC4899" radius={[4, 4, 0, 0]} barSize={16} />
+                                            <Bar dataKey="maintenance" name="Maintenance Armada" fill="#EF4444" radius={[4, 4, 0, 0]} barSize={16} />
+                                            <Bar dataKey="expenseOther" name="Pengeluaran Lainnya" fill="#64748B" radius={[4, 4, 0, 0]} barSize={16} />
                                         </BarChart>
                                     </ResponsiveContainer>
                                 ) : (
