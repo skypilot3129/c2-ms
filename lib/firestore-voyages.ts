@@ -106,7 +106,7 @@ export const createVoyage = async (
         route: data.route,
         shipName: data.shipName,
         vehicleNumbers: data.vehicleNumbers || [],  // Save array
-        vehicleNumber: data.vehicleNumber,  // Keep for backward compatibility
+        ...(data.vehicleNumber && { vehicleNumber: data.vehicleNumber }),  // Only if has value
         status: data.status,
         transactionIds: [],
         notes: data.notes,
