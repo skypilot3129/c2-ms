@@ -307,7 +307,7 @@ export default function FleetsPage() {
                                                 <Wrench size={14} className="sm:w-4 sm:h-4" /> Service
                                             </button>
                                             <button
-                                                onClick={() => handleOpenHistory(fleet)}
+                                                onClick={() => router.push('/fleets/maintenance')}
                                                 className="flex items-center justify-center p-2 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors border border-slate-100 hover:border-indigo-100 bg-white"
                                                 title="Riwayat Maintenance"
                                             >
