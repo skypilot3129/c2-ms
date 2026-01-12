@@ -143,6 +143,32 @@ export const addMaintenanceLog = async (userId: string, data: Omit<MaintenanceLo
     }
 };
 
+/**
+ * Update maintenance log
+ */
+export const updateMaintenanceLog = async (
+    id: string,
+    data: Partial<Omit<MaintenanceLog, 'id' | 'createdAt' | 'userId' | 'expenseId'>>
+) => {
+    try {
+        const logRef = doc(db, MAINT_LOGS_COLLECTION, id);
+        const updates: any = {};
+
+        if (data.fleetId !== undefined) updates.fleetId = data.fleetId;
+        if (data.fleetName !== undefined) updates.fleetName = data.fleetName;
+        if (data.date !== undefined) updates.date = Timestamp.fromDate(data.date);
+        if (data.serviceType !== undefined) updates.serviceType = data.serviceType;
+        if (data.description !== undefined) updates.description = data.description;
+        if (data.cost !== undefined) updates.cost = data.cost;
+        if (data.provider !== undefined) updates.provider = data.provider;
+
+        await updateDoc(logRef, updates);
+    } catch (error) {
+        console.error("Error updating maintenance log:", error);
+        throw error;
+    }
+};
+
 export const deleteMaintenanceLog = async (id: string) => {
     try {
         // Note: This does NOT automatically delete the linked Expense to prevent accidental financial data loss.
