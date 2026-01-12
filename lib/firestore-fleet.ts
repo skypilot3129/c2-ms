@@ -171,9 +171,29 @@ export const updateMaintenanceLog = async (
 
 export const deleteMaintenanceLog = async (id: string) => {
     try {
-        // Note: This does NOT automatically delete the linked Expense to prevent accidental financial data loss.
-        // User should delete expense manually if needed, or we implement improved logic later.
-        await deleteDoc(doc(db, MAINT_LOGS_COLLECTION, id));
+        // 1. Get the maintenance log to find the linked expense ID
+        const logRef = doc(db, MAINT_LOGS_COLLECTION, id);
+        const logSnap = await getDoc(logRef);
+
+        if (!logSnap.exists()) {
+            throw new Error('Maintenance log not found');
+        }
+
+        const logData = logSnap.data();
+        const expenseId = logData.expenseId;
+
+        // 2. Delete the maintenance log
+        await deleteDoc(logRef);
+
+        // 3. Delete the linked expense if it exists
+        if (expenseId) {
+            try {
+                await deleteDoc(doc(db, 'expenses', expenseId));
+            } catch (expError) {
+                console.warn('Could not delete linked expense:', expError);
+                // Continue even if expense deletion fails
+            }
+        }
     } catch (error) {
         console.error("Error deleting maintenance log:", error);
         throw error;
