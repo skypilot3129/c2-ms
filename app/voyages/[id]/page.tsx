@@ -202,10 +202,11 @@ export default function VoyageDetailPage({ params }: { params: Promise<{ id: str
                                 </Link>
                                 <button
                                     onClick={() => router.push(`/voyages/${voyage.id}/edit`)}
-                                    className="p-2 hover:bg-blue-50 text-blue-600 rounded-lg transition-colors"
-                                    title="Edit"
+                                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors flex items-center gap-2 font-medium shadow-sm"
+                                    title="Edit Pemberangkatan"
                                 >
                                     <Edit size={18} className="sm:w-5 sm:h-5" />
+                                    <span className="hidden sm:inline">Edit</span>
                                 </button>
                                 <button
                                     onClick={handleDelete}
@@ -267,9 +268,22 @@ export default function VoyageDetailPage({ params }: { params: Promise<{ id: str
                                     <div className="bg-orange-50 p-2 rounded-lg">
                                         <Truck size={20} className="text-orange-600" />
                                     </div>
-                                    <div>
-                                        <p className="text-sm text-gray-500">Kendaraan</p>
-                                        <p className="font-semibold text-gray-800">{voyage.vehicleNumber || '-'}</p>
+                                    <div className="flex-1">
+                                        <p className="text-sm text-gray-500 mb-1">Kendaraan</p>
+                                        {voyage.vehicleNumbers && voyage.vehicleNumbers.length > 0 ? (
+                                            <div className="flex flex-wrap gap-2">
+                                                {voyage.vehicleNumbers.map((plate, index) => (
+                                                    <span
+                                                        key={index}
+                                                        className="bg-orange-100 text-orange-800 px-3 py-1 rounded-full text-sm font-semibold"
+                                                    >
+                                                        {plate}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <p className="font-semibold text-gray-800">-</p>
+                                        )}
                                     </div>
                                 </div>
                                 <div className="flex items-start gap-3">

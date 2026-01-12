@@ -219,6 +219,48 @@ export default function EditVoyagePage({ params }: { params: Promise<{ id: strin
                                         </div>
                                     )}
 
+                                    {/* Manual Input for Rental Trucks */}
+                                    <div className="mt-4">
+                                        <p className="text-sm font-semibold text-gray-700 mb-2">
+                                            + Tambah Nopol Manual (Truk Sewaan)
+                                        </p>
+                                        <div className="flex gap-2">
+                                            <input
+                                                type="text"
+                                                placeholder="Contoh: L 9999 XY"
+                                                className="flex-1 px-4 py-2 rounded-lg border-2 border-gray-200 focus:border-blue-500 focus:outline-none text-sm"
+                                                onKeyPress={(e) => {
+                                                    if (e.key === 'Enter') {
+                                                        e.preventDefault();
+                                                        const input = e.currentTarget;
+                                                        const plate = input.value.trim().toUpperCase();
+                                                        if (plate && !selectedVehicles.includes(plate)) {
+                                                            setSelectedVehicles(prev => [...prev, plate]);
+                                                            input.value = '';
+                                                        }
+                                                    }
+                                                }}
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={(e) => {
+                                                    const input = e.currentTarget.previousElementSibling as HTMLInputElement;
+                                                    const plate = input.value.trim().toUpperCase();
+                                                    if (plate && !selectedVehicles.includes(plate)) {
+                                                        setSelectedVehicles(prev => [...prev, plate]);
+                                                        input.value = '';
+                                                    }
+                                                }}
+                                                className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg font-medium text-sm transition-colors"
+                                            >
+                                                Tambah
+                                            </button>
+                                        </div>
+                                        <p className="text-xs text-gray-500 mt-1">
+                                            Tekan Enter atau klik Tambah untuk memasukkan nopol truk sewaan
+                                        </p>
+                                    </div>
+
                                     {selectedVehicles.length > 0 && (
                                         <div className="mt-3 p-3 bg-blue-50 rounded-lg">
                                             <p className="text-sm font-semibold text-blue-900 mb-2">
