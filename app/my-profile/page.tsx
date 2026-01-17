@@ -115,8 +115,8 @@ export default function EmployeePortalPage() {
                             <button
                                 onClick={() => setActiveTab('profile')}
                                 className={`px-4 py-2 rounded-lg font-medium transition-colors ${activeTab === 'profile'
-                                        ? 'bg-white text-blue-600'
-                                        : 'text-white hover:bg-white/10'
+                                    ? 'bg-white text-blue-600'
+                                    : 'text-white hover:bg-white/10'
                                     }`}
                             >
                                 <User size={16} className="inline mr-2" />
@@ -125,8 +125,8 @@ export default function EmployeePortalPage() {
                             <button
                                 onClick={() => setActiveTab('attendance')}
                                 className={`px-4 py-2 rounded-lg font-medium transition-colors ${activeTab === 'attendance'
-                                        ? 'bg-white text-blue-600'
-                                        : 'text-white hover:bg-white/10'
+                                    ? 'bg-white text-blue-600'
+                                    : 'text-white hover:bg-white/10'
                                     }`}
                             >
                                 <Calendar size={16} className="inline mr-2" />
@@ -135,8 +135,8 @@ export default function EmployeePortalPage() {
                             <button
                                 onClick={() => setActiveTab('payroll')}
                                 className={`px-4 py-2 rounded-lg font-medium transition-colors ${activeTab === 'payroll'
-                                        ? 'bg-white text-blue-600'
-                                        : 'text-white hover:bg-white/10'
+                                    ? 'bg-white text-blue-600'
+                                    : 'text-white hover:bg-white/10'
                                     }`}
                             >
                                 <Wallet size={16} className="inline mr-2" />
@@ -202,6 +202,19 @@ export default function EmployeePortalPage() {
                                     </div>
                                 </div>
                             </div>
+
+                            {/* Job Description */}
+                            {employee.jobdesk && (
+                                <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+                                    <h2 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                                        <FileText size={20} className="text-blue-600" />
+                                        Job Description / Tugas & Tanggung Jawab
+                                    </h2>
+                                    <div className="text-gray-700 whitespace-pre-wrap bg-blue-50 p-4 rounded-lg border border-blue-200">
+                                        {employee.jobdesk}
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     )}
 
@@ -248,8 +261,8 @@ export default function EmployeePortalPage() {
                                                         <p className="font-medium text-gray-800">{att.date}</p>
                                                         <div className="flex items-center gap-2 mt-1">
                                                             <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${att.status === 'present' ? 'bg-emerald-100 text-emerald-700' :
-                                                                    att.status === 'late' ? 'bg-amber-100 text-amber-700' :
-                                                                        'bg-gray-100 text-gray-700'
+                                                                att.status === 'late' ? 'bg-amber-100 text-amber-700' :
+                                                                    'bg-gray-100 text-gray-700'
                                                                 }`}>
                                                                 {att.status}
                                                             </span>
