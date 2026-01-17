@@ -456,6 +456,23 @@ export default function EmployeeForm({ employee, onClose, onSuccess }: EmployeeF
                                     className="w-full px-3 py-2 border rounded-lg"
                                 />
                             </div>
+
+                            {/* Job Description */}
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Job Description / Tugas & Tanggung Jawab
+                                </label>
+                                <textarea
+                                    value={formData.jobdesk}
+                                    onChange={(e) => setFormData(prev => ({ ...prev, jobdesk: e.target.value }))}
+                                    rows={5}
+                                    className="w-full px-3 py-2 border rounded-lg"
+                                    placeholder={`Contoh:\n• Mengelola inventory gudang\n• Membuat laporan harian\n• Koordinasi dengan driver\n• Memastikan kualitas layanan`}
+                                />
+                                <p className="text-xs text-gray-500 mt-1">
+                                    Karyawan dapat melihat job description ini di halaman profil mereka
+                                </p>
+                            </div>
                         </div>
                     </div>
 
