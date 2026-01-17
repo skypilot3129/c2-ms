@@ -55,6 +55,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                             documents: data.documents || [],
                             salaryConfig: data.salaryConfig,
                             photoUrl: data.photoUrl,
+                            jobdesk: data.jobdesk,
                             notes: data.notes,
                             authUid: data.authUid || null,
                             email: data.email || '',
