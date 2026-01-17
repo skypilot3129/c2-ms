@@ -33,6 +33,7 @@ export const docToEmployee = (id: string, data: EmployeeDoc): Employee => {
         documents: data.documents || [],
         salaryConfig: data.salaryConfig,
         photoUrl: data.photoUrl,
+        jobdesk: data.jobdesk,
         notes: data.notes,
         // Auth fields
         authUid: data.authUid || null,
