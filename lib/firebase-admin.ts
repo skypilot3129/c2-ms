@@ -3,17 +3,26 @@ import admin from 'firebase-admin';
 
 if (!admin.apps.length) {
     try {
+        // Get and clean the private key
+        let privateKey = process.env.FIREBASE_PRIVATE_KEY || '';
+
+        // Remove quotes if present
+        privateKey = privateKey.replace(/^["']|["']$/g, '');
+
+        // Replace escaped newlines with actual newlines
+        privateKey = privateKey.replace(/\\n/g, '\n');
+
         admin.initializeApp({
             credential: admin.credential.cert({
                 projectId: process.env.FIREBASE_PROJECT_ID,
                 clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-                // Replace \n with actual newlines if stored as a single string
-                privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+                privateKey: privateKey,
             }),
         });
         console.log('Firebase Admin Initialized successfully');
     } catch (error: any) {
-        console.error('Firebase Admin Initialization Error:', error.stack);
+        console.error('Firebase Admin Initialization Error:', error.message);
+        console.error('Stack:', error.stack);
     }
 } else {
     console.log('Firebase Admin already initialized');
