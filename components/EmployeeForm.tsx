@@ -39,6 +39,7 @@ export default function EmployeeForm({ employee, onClose, onSuccess }: EmployeeF
             commissionType: 'fixed'
         },
         photoUrl: '',
+        jobdesk: '',
         notes: '',
         email: '',
         accountStatus: 'pending'
@@ -56,6 +57,7 @@ export default function EmployeeForm({ employee, onClose, onSuccess }: EmployeeF
                 documents: employee.documents,
                 salaryConfig: employee.salaryConfig,
                 photoUrl: employee.photoUrl,
+                jobdesk: employee.jobdesk,
                 notes: employee.notes,
                 email: employee.email || '',
                 authUid: employee.authUid,

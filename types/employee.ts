@@ -47,6 +47,7 @@ export interface EmployeeFormData {
     documents: EmployeeDocument[];
     salaryConfig: SalaryConfig;
     photoUrl?: string; // Profile photo
+    jobdesk?: string; // Job description/responsibilities
     notes?: string;
     // Auth integration fields
     authUid?: string | null; // Firebase Auth UID
