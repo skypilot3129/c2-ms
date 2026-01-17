@@ -109,8 +109,8 @@ export default function Home() {
                         </p>
                     </div>
 
-                    {/* Quick Actions (Shortcut Bar) */}
-                    {user && (
+                    {/* Quick Actions (Shortcut Bar) - Hide for branch_manager */}
+                    {user && role !== 'branch_manager' && (
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-12 max-w-4xl mx-auto">
                             <Link href="/transactions/new" className="group">
                                 <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md hover:border-blue-200 transition-all flex items-center justify-between">
@@ -257,122 +257,134 @@ export default function Home() {
                             </Link>
                         )}
 
-                        {/* Resi & Transaksi */}
-                        <Link href="/transactions" className="group">
-                            <div className="bg-white rounded-3xl p-8 shadow-xl shadow-gray-200/50 border border-gray-100 hover:border-blue-300 hover:shadow-2xl hover:shadow-blue-500/10 transition-all duration-300 relative overflow-hidden group-hover:-translate-y-1">
-                                <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-blue-50 to-transparent rounded-bl-full opacity-50 group-hover:scale-110 transition-transform origin-top-right"></div>
-                                <div className="relative">
-                                    <div className="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center text-blue-600 mb-6 group-hover:rotate-6 transition-transform">
-                                        <Package size={32} />
-                                    </div>
-                                    <h2 className="text-2xl font-bold text-gray-800 mb-2 group-hover:text-blue-600 transition-colors">Resi & Transaksi</h2>
-                                    <p className="text-gray-500 mb-6 leading-relaxed">
-                                        Kelola pengiriman, buat STT, invoice, dan pantau status pembayaran dalam satu dashboard terpusat.
-                                    </p>
-                                    <div className="flex items-center text-blue-600 font-semibold gap-2">
-                                        Buka Modul <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
-                                    </div>
-                                </div>
-                            </div>
-                        </Link>
-
-                        {/* Database Client */}
-                        <Link href="/clients" className="group">
-                            <div className="bg-white rounded-3xl p-8 shadow-xl shadow-gray-200/50 border border-gray-100 hover:border-green-300 hover:shadow-2xl hover:shadow-green-500/10 transition-all duration-300 relative overflow-hidden group-hover:-translate-y-1">
-                                <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-green-50 to-transparent rounded-bl-full opacity-50 group-hover:scale-110 transition-transform origin-top-right"></div>
-                                <div className="relative">
-                                    <div className="w-16 h-16 bg-green-100 rounded-2xl flex items-center justify-center text-green-600 mb-6 group-hover:rotate-6 transition-transform">
-                                        <Users size={32} />
-                                    </div>
-                                    <h2 className="text-2xl font-bold text-gray-800 mb-2 group-hover:text-green-600 transition-colors">Database Client</h2>
-                                    <p className="text-gray-500 mb-6 leading-relaxed">
-                                        Simpan data pengirim dan penerima langganan untuk mempercepat proses input transaksi.
-                                    </p>
-                                    <div className="flex items-center text-green-600 font-semibold gap-2">
-                                        Kelola Client <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
+                        {/* Resi & Transaksi - Hidden for branch_manager */}
+                        {role !== 'branch_manager' && (
+                            <Link href="/transactions" className="group">
+                                <div className="bg-white rounded-3xl p-8 shadow-xl shadow-gray-200/50 border border-gray-100 hover:border-blue-300 hover:shadow-2xl hover:shadow-blue-500/10 transition-all duration-300 relative overflow-hidden group-hover:-translate-y-1">
+                                    <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-blue-50 to-transparent rounded-bl-full opacity-50 group-hover:scale-110 transition-transform origin-top-right"></div>
+                                    <div className="relative">
+                                        <div className="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center text-blue-600 mb-6 group-hover:rotate-6 transition-transform">
+                                            <Package size={32} />
+                                        </div>
+                                        <h2 className="text-2xl font-bold text-gray-800 mb-2 group-hover:text-blue-600 transition-colors">Resi & Transaksi</h2>
+                                        <p className="text-gray-500 mb-6 leading-relaxed">
+                                            Kelola pengiriman, buat STT, invoice, dan pantau status pembayaran dalam satu dashboard terpusat.
+                                        </p>
+                                        <div className="flex items-center text-blue-600 font-semibold gap-2">
+                                            Buka Modul <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                        </Link>
+                            </Link>
+                        )}
 
-                        {/* Pemberangkatan */}
-                        <Link href="/voyages" className="group">
-                            <div className="bg-white rounded-3xl p-8 shadow-xl shadow-gray-200/50 border border-gray-100 hover:border-purple-300 hover:shadow-2xl hover:shadow-purple-500/10 transition-all duration-300 relative overflow-hidden group-hover:-translate-y-1">
-                                <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-purple-50 to-transparent rounded-bl-full opacity-50 group-hover:scale-110 transition-transform origin-top-right"></div>
-                                <div className="relative">
-                                    <div className="w-16 h-16 bg-purple-100 rounded-2xl flex items-center justify-center text-purple-600 mb-6 group-hover:rotate-6 transition-transform">
-                                        <Ship size={32} />
-                                    </div>
-                                    <h2 className="text-2xl font-bold text-gray-800 mb-2 group-hover:text-purple-600 transition-colors">Pemberangkatan</h2>
-                                    <p className="text-gray-500 mb-6 leading-relaxed">
-                                        Manajemen manifest muatan, armada, dan perhitungan biaya operasional perjalanan.
-                                    </p>
-                                    <div className="flex items-center text-purple-600 font-semibold gap-2">
-                                        Atur Jalan <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
+                        {/* Database Client - Hidden for branch_manager */}
+                        {role !== 'branch_manager' && (
+                            <Link href="/clients" className="group">
+                                <div className="bg-white rounded-3xl p-8 shadow-xl shadow-gray-200/50 border border-gray-100 hover:border-green-300 hover:shadow-2xl hover:shadow-green-500/10 transition-all duration-300 relative overflow-hidden group-hover:-translate-y-1">
+                                    <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-green-50 to-transparent rounded-bl-full opacity-50 group-hover:scale-110 transition-transform origin-top-right"></div>
+                                    <div className="relative">
+                                        <div className="w-16 h-16 bg-green-100 rounded-2xl flex items-center justify-center text-green-600 mb-6 group-hover:rotate-6 transition-transform">
+                                            <Users size={32} />
+                                        </div>
+                                        <h2 className="text-2xl font-bold text-gray-800 mb-2 group-hover:text-green-600 transition-colors">Database Client</h2>
+                                        <p className="text-gray-500 mb-6 leading-relaxed">
+                                            Simpan data pengirim dan penerima langganan untuk mempercepat proses input transaksi.
+                                        </p>
+                                        <div className="flex items-center text-green-600 font-semibold gap-2">
+                                            Kelola Client <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                        </Link>
+                            </Link>
+                        )}
 
-                        {/* Dashboard BI */}
-                        <Link href="/dashboard" className="group">
-                            <div className="bg-white rounded-3xl p-8 shadow-xl shadow-gray-200/50 border border-gray-100 hover:border-orange-300 hover:shadow-2xl hover:shadow-orange-500/10 transition-all duration-300 relative overflow-hidden group-hover:-translate-y-1">
-                                <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-orange-50 to-transparent rounded-bl-full opacity-50 group-hover:scale-110 transition-transform origin-top-right"></div>
-                                <div className="relative">
-                                    <div className="w-16 h-16 bg-orange-100 rounded-2xl flex items-center justify-center text-orange-600 mb-6 group-hover:rotate-6 transition-transform">
-                                        <BarChart3 size={32} />
-                                    </div>
-                                    <h2 className="text-2xl font-bold text-gray-800 mb-2 group-hover:text-orange-600 transition-colors">Laporan & Analitik</h2>
-                                    <p className="text-gray-500 mb-6 leading-relaxed">
-                                        Analisa performa bisnis, omzet bulanan, dan statistik pengiriman secara real-time.
-                                    </p>
-                                    <div className="flex items-center text-orange-600 font-semibold gap-2">
-                                        Lihat Data <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
+                        {/* Pemberangkatan - Hidden for branch_manager */}
+                        {role !== 'branch_manager' && (
+                            <Link href="/voyages" className="group">
+                                <div className="bg-white rounded-3xl p-8 shadow-xl shadow-gray-200/50 border border-gray-100 hover:border-purple-300 hover:shadow-2xl hover:shadow-purple-500/10 transition-all duration-300 relative overflow-hidden group-hover:-translate-y-1">
+                                    <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-purple-50 to-transparent rounded-bl-full opacity-50 group-hover:scale-110 transition-transform origin-top-right"></div>
+                                    <div className="relative">
+                                        <div className="w-16 h-16 bg-purple-100 rounded-2xl flex items-center justify-center text-purple-600 mb-6 group-hover:rotate-6 transition-transform">
+                                            <Ship size={32} />
+                                        </div>
+                                        <h2 className="text-2xl font-bold text-gray-800 mb-2 group-hover:text-purple-600 transition-colors">Pemberangkatan</h2>
+                                        <p className="text-gray-500 mb-6 leading-relaxed">
+                                            Manajemen manifest muatan, armada, dan perhitungan biaya operasional perjalanan.
+                                        </p>
+                                        <div className="flex items-center text-purple-600 font-semibold gap-2">
+                                            Atur Jalan <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                        </Link>
+                            </Link>
+                        )}
 
-                        {/* Finance Module */}
-                        <Link href="/finance/receivables" className="group">
-                            <div className="bg-white rounded-3xl p-8 shadow-xl shadow-gray-200/50 border border-gray-100 hover:border-teal-300 hover:shadow-2xl hover:shadow-teal-500/10 transition-all duration-300 relative overflow-hidden group-hover:-translate-y-1">
-                                <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-teal-50 to-transparent rounded-bl-full opacity-50 group-hover:scale-110 transition-transform origin-top-right"></div>
-                                <div className="relative">
-                                    <div className="w-16 h-16 bg-teal-100 rounded-2xl flex items-center justify-center text-teal-600 mb-6 group-hover:rotate-6 transition-transform">
-                                        <Wallet size={32} />
-                                    </div>
-                                    <h2 className="text-2xl font-bold text-gray-800 mb-2 group-hover:text-teal-600 transition-colors">Keuangan & Invoice</h2>
-                                    <p className="text-gray-500 mb-6 leading-relaxed">
-                                        Kelola penagihan piutang, buat invoice tagihan consolidated, dan monitor status pelunasan.
-                                    </p>
-                                    <div className="flex items-center text-teal-600 font-semibold gap-2">
-                                        Kelola Keuangan <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
+                        {/* Dashboard BI - Hidden for branch_manager */}
+                        {role !== 'branch_manager' && (
+                            <Link href="/dashboard" className="group">
+                                <div className="bg-white rounded-3xl p-8 shadow-xl shadow-gray-200/50 border border-gray-100 hover:border-orange-300 hover:shadow-2xl hover:shadow-orange-500/10 transition-all duration-300 relative overflow-hidden group-hover:-translate-y-1">
+                                    <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-orange-50 to-transparent rounded-bl-full opacity-50 group-hover:scale-110 transition-transform origin-top-right"></div>
+                                    <div className="relative">
+                                        <div className="w-16 h-16 bg-orange-100 rounded-2xl flex items-center justify-center text-orange-600 mb-6 group-hover:rotate-6 transition-transform">
+                                            <BarChart3 size={32} />
+                                        </div>
+                                        <h2 className="text-2xl font-bold text-gray-800 mb-2 group-hover:text-orange-600 transition-colors">Laporan & Analitik</h2>
+                                        <p className="text-gray-500 mb-6 leading-relaxed">
+                                            Analisa performa bisnis, omzet bulanan, dan statistik pengiriman secara real-time.
+                                        </p>
+                                        <div className="flex items-center text-orange-600 font-semibold gap-2">
+                                            Lihat Data <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                        </Link>
+                            </Link>
+                        )}
 
-                        {/* Armada & Maintenance Module (New) */}
-                        <Link href="/fleets" className="group">
-                            <div className="bg-white rounded-3xl p-8 shadow-xl shadow-gray-200/50 border border-gray-100 hover:border-rose-300 hover:shadow-2xl hover:shadow-rose-500/10 transition-all duration-300 relative overflow-hidden group-hover:-translate-y-1">
-                                <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-rose-50 to-transparent rounded-bl-full opacity-50 group-hover:scale-110 transition-transform origin-top-right"></div>
-                                <div className="relative">
-                                    <div className="w-16 h-16 bg-rose-100 rounded-2xl flex items-center justify-center text-rose-600 mb-6 group-hover:rotate-6 transition-transform">
-                                        <Truck size={32} />
-                                    </div>
-                                    <h2 className="text-2xl font-bold text-gray-800 mb-2 group-hover:text-rose-600 transition-colors">Armada & Maintenance</h2>
-                                    <p className="text-gray-500 mb-6 leading-relaxed">
-                                        Manajemen aset kendaraan, jadwal servis, dan pelacakan biaya perawatan armada.
-                                    </p>
-                                    <div className="flex items-center text-rose-600 font-semibold gap-2">
-                                        Atur Armada <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
+                        {/* Finance Module - Hidden for branch_manager */}
+                        {role !== 'branch_manager' && (
+                            <Link href="/finance/receivables" className="group">
+                                <div className="bg-white rounded-3xl p-8 shadow-xl shadow-gray-200/50 border border-gray-100 hover:border-teal-300 hover:shadow-2xl hover:shadow-teal-500/10 transition-all duration-300 relative overflow-hidden group-hover:-translate-y-1">
+                                    <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-teal-50 to-transparent rounded-bl-full opacity-50 group-hover:scale-110 transition-transform origin-top-right"></div>
+                                    <div className="relative">
+                                        <div className="w-16 h-16 bg-teal-100 rounded-2xl flex items-center justify-center text-teal-600 mb-6 group-hover:rotate-6 transition-transform">
+                                            <Wallet size={32} />
+                                        </div>
+                                        <h2 className="text-2xl font-bold text-gray-800 mb-2 group-hover:text-teal-600 transition-colors">Keuangan & Invoice</h2>
+                                        <p className="text-gray-500 mb-6 leading-relaxed">
+                                            Kelola penagihan piutang, buat invoice tagihan consolidated, dan monitor status pelunasan.
+                                        </p>
+                                        <div className="flex items-center text-teal-600 font-semibold gap-2">
+                                            Kelola Keuangan <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                        </Link>
+                            </Link>
+                        )}
 
-                        {/* Payroll & Gaji Module (Owner/Admin Only) */}
-                        {user && (role === 'owner' || role === 'admin') && (
+                        {/* Armada & Maintenance Module - Hidden for branch_manager */}
+                        {role !== 'branch_manager' && (
+                            <Link href="/fleets" className="group">
+                                <div className="bg-white rounded-3xl p-8 shadow-xl shadow-gray-200/50 border border-gray-100 hover:border-rose-300 hover:shadow-2xl hover:shadow-rose-500/10 transition-all duration-300 relative overflow-hidden group-hover:-translate-y-1">
+                                    <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-rose-50 to-transparent rounded-bl-full opacity-50 group-hover:scale-110 transition-transform origin-top-right"></div>
+                                    <div className="relative">
+                                        <div className="w-16 h-16 bg-rose-100 rounded-2xl flex items-center justify-center text-rose-600 mb-6 group-hover:rotate-6 transition-transform">
+                                            <Truck size={32} />
+                                        </div>
+                                        <h2 className="text-2xl font-bold text-gray-800 mb-2 group-hover:text-rose-600 transition-colors">Armada & Maintenance</h2>
+                                        <p className="text-gray-500 mb-6 leading-relaxed">
+                                            Manajemen aset kendaraan, jadwal servis, dan pelacakan biaya perawatan armada.
+                                        </p>
+                                        <div className="flex items-center text-rose-600 font-semibold gap-2">
+                                            Atur Armada <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
+                                        </div>
+                                    </div>
+                                </div>
+                            </Link>
+                        )}
+
+                        {/* Payroll & Gaji Module - Allow branch_manager */}
+                        {user && (role === 'owner' || role === 'admin' || role === 'branch_manager') && (
                             <Link href="/payroll" className="group">
                                 <div className="bg-white rounded-3xl p-8 shadow-xl shadow-gray-200/50 border border-gray-100 hover:border-emerald-300 hover:shadow-2xl hover:shadow-emerald-500/10 transition-all duration-300 relative overflow-hidden group-hover:-translate-y-1">
                                     <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-emerald-50 to-transparent rounded-bl-full opacity-50 group-hover:scale-110 transition-transform origin-top-right"></div>
@@ -392,8 +404,8 @@ export default function Home() {
                             </Link>
                         )}
 
-                        {/* HRD & Karyawan Module (Owner/Admin Only) */}
-                        {user && (role === 'owner' || role === 'admin') && (
+                        {/* HRD & Karyawan Module - Allow branch_manager */}
+                        {user && (role === 'owner' || role === 'admin' || role === 'branch_manager') && (
                             <Link href="/employees" className="group">
                                 <div className="bg-white rounded-3xl p-8 shadow-xl shadow-gray-200/50 border border-gray-100 hover:border-amber-300 hover:shadow-2xl hover:shadow-amber-500/10 transition-all duration-300 relative overflow-hidden group-hover:-translate-y-1">
                                     <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-amber-50 to-transparent rounded-bl-full opacity-50 group-hover:scale-110 transition-transform origin-top-right"></div>

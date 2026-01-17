@@ -87,13 +87,16 @@ export const getRolePermissions = (role: UserRole): FeaturePermissions => {
         case 'branch_manager':
             return {
                 ...permissions,
-                canViewDashboardOwner: false,
-                canManageTransactions: true,
-                canManageClients: true,
-                canManageVoyages: true,
-                canViewFinance: true, // Read-only
-                canManageFleet: true,
-                canViewAllAttendance: true
+                canViewDashboardOwner: false,        // No access to owner dashboard
+                canManageTransactions: false,        // No access to transactions
+                canManageClients: false,             // No access to clients
+                canManageVoyages: false,             // No access to voyages
+                canViewFinance: false,               // No access to finance
+                canManageFinance: false,             // No access to finance management
+                canManageFleet: false,               // No access to fleet
+                canManageEmployees: true,            // Can manage employees
+                canViewOwnAttendance: true,          // Can view own attendance
+                canViewAllAttendance: true           // Can view all employee attendance
             };
 
         case 'staff':
