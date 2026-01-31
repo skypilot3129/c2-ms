@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
-import { LogOut, User as UserIcon, LogIn, UserPlus, Package, Users, Ship, BarChart3, Plus, Search, FileText, ArrowRight, Wallet, Crown, Truck, Clock, UserCircle } from "lucide-react";
+import { LogOut, User as UserIcon, LogIn, UserPlus, Package, Users, Ship, BarChart3, Plus, Search, FileText, ArrowRight, Wallet, Crown, Truck, Clock, UserCircle, TrendingUp, MessageCircle, Calendar, CheckSquare, Calculator } from "lucide-react";
 import InstallPrompt from "@/components/InstallPrompt";
 import { useState, useEffect } from "react";
 
@@ -257,6 +257,47 @@ export default function Home() {
                             </Link>
                         )}
 
+                        {/* Bagas Dashboard (Marketing Manager) - bagas@gmail.com ONLY */}
+                        {user && user.email === 'bagas@gmail.com' && (
+                            <Link href="/dashboard/bagas" className="group md:col-span-2">
+                                <div className="bg-gradient-to-br from-purple-900 to-blue-900 rounded-3xl p-8 shadow-xl shadow-purple-900/20 border border-purple-700 hover:border-purple-500 hover:shadow-2xl hover:shadow-purple-500/20 transition-all duration-300 relative overflow-hidden group-hover:-translate-y-1">
+                                    <div className="absolute top-0 right-0 w-64 h-64 bg-purple-600/20 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none"></div>
+                                    <div className="absolute bottom-0 left-0 w-64 h-64 bg-blue-600/10 rounded-full blur-3xl -ml-16 -mb-16 pointer-events-none"></div>
+
+                                    <div className="relative flex flex-col md:flex-row items-center justify-between gap-8">
+                                        <div className="flex-1">
+                                            <div className="w-16 h-16 bg-purple-500/20 rounded-2xl flex items-center justify-center text-purple-400 mb-6 border border-purple-500/30 group-hover:bg-purple-500 group-hover:text-white transition-all duration-500">
+                                                <BarChart3 size={32} />
+                                            </div>
+                                            <h2 className="text-2xl font-bold text-white mb-2 group-hover:text-purple-400 transition-colors">Dashboard Marketing CCE</h2>
+                                            <p className="text-purple-200 mb-6 leading-relaxed max-w-xl">
+                                                Dashboard khusus untuk mengelola social media analytics (TikTok, Instagram, Website, YouTube), customer messages, dan todo list interaktif.
+                                            </p>
+                                            <div className="flex items-center text-purple-400 font-semibold gap-2 group-hover:text-white transition-colors">
+                                                Akses Dashboard Marketing <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
+                                            </div>
+                                        </div>
+                                        <div className="hidden md:block pr-8 opacity-80 group-hover:opacity-100 group-hover:scale-105 transition-all duration-500">
+                                            <div className="grid grid-cols-2 gap-2">
+                                                <div className="w-16 h-16 bg-purple-800/50 rounded-lg border border-purple-700 p-2 flex items-center justify-center">
+                                                    <TrendingUp size={24} className="text-purple-400" />
+                                                </div>
+                                                <div className="w-16 h-16 bg-purple-800/50 rounded-lg border border-purple-700 p-2 flex items-center justify-center">
+                                                    <MessageCircle size={24} className="text-green-400" />
+                                                </div>
+                                                <div className="w-16 h-16 bg-purple-800/50 rounded-lg border border-purple-700 p-2 flex items-center justify-center">
+                                                    <Calendar size={24} className="text-blue-400" />
+                                                </div>
+                                                <div className="w-16 h-16 bg-purple-800/50 rounded-lg border border-purple-700 p-2 flex items-center justify-center">
+                                                    <CheckSquare size={24} className="text-yellow-400" />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </Link>
+                        )}
+
                         {/* Resi & Transaksi - Hidden for branch_manager */}
                         {role !== 'branch_manager' && (
                             <Link href="/transactions" className="group">
@@ -298,6 +339,25 @@ export default function Home() {
                                 </div>
                             </Link>
                         )}
+
+                        {/* Volume Calculator - All authenticated users */}
+                        <Link href="/tools/volume-calculator" className="group">
+                            <div className="bg-white rounded-3xl p-8 shadow-xl shadow-gray-200/50 border border-gray-100 hover:border-orange-300 hover:shadow-2xl hover:shadow-orange-500/10 transition-all duration-300 relative overflow-hidden group-hover:-translate-y-1">
+                                <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-orange-50 to-transparent rounded-bl-full opacity-50 group-hover:scale-110 transition-transform origin-top-right"></div>
+                                <div className="relative">
+                                    <div className="w-16 h-16 bg-orange-100 rounded-2xl flex items-center justify-center text-orange-600 mb-6 group-hover:rotate-6 transition-transform">
+                                        <Calculator size={32} />
+                                    </div>
+                                    <h2 className="text-2xl font-bold text-gray-800 mb-2 group-hover:text-orange-600 transition-colors">Kalkulator Volume</h2>
+                                    <p className="text-gray-500 mb-6 leading-relaxed">
+                                        Hitung berat tagihan berdasarkan dimensi dan berat aktual barang dengan standar divisor 4000.
+                                    </p>
+                                    <div className="flex items-center text-orange-600 font-semibold gap-2">
+                                        Buka Kalkulator <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
+                                    </div>
+                                </div>
+                            </div>
+                        </Link>
 
                         {/* Pemberangkatan - Hidden for branch_manager */}
                         {role !== 'branch_manager' && (

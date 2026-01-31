@@ -66,5 +66,20 @@ service cloud.firestore {
       // However, Firestore rules don't support complex queries easily,
       // so we rely on client-side checks and backend validation
     }
+    
+    // Social Media Reports collection - Bagas Dashboard
+    match /social_media_reports/{reportId} {
+      allow read, write: if request.auth != null;
+    }
+    
+    // Customer Messages collection - Bagas Dashboard
+    match /customer_messages/{messageId} {
+      allow read, write: if request.auth != null;
+    }
+    
+    // Todos collection - Bagas Dashboard
+    match /todos/{todoId} {
+      allow read, write: if request.auth != null;
+    }
   }
 }
