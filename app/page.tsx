@@ -114,8 +114,8 @@ export default function Home() {
                     </div>
 
                     {/* Quick Actions (Shortcut Bar) - Owner & Admin only */}
-                    {user && isAdmin && (
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-12 max-w-4xl mx-auto">
+                    {user && isManager && (
+                        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-12 max-w-5xl mx-auto">
                             <Link href="/transactions/new" className="group">
                                 <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md hover:border-blue-200 transition-all flex items-center justify-between">
                                     <div className="flex items-center gap-3">
@@ -127,7 +127,7 @@ export default function Home() {
                                             <p className="text-xs text-gray-400">Transaksi Baru</p>
                                         </div>
                                     </div>
-                                    <ArrowRight size={16} className="text-gray-300 group-hover:text-blue-500 group-hover:translate-x-1 transition-all" />
+                                    <ArrowRight size={16} className="hidden md:block text-gray-300 group-hover:text-blue-500 group-hover:translate-x-1 transition-all" />
                                 </div>
                             </Link>
 
@@ -142,7 +142,22 @@ export default function Home() {
                                             <p className="text-xs text-gray-400">Database</p>
                                         </div>
                                     </div>
-                                    <ArrowRight size={16} className="text-gray-300 group-hover:text-green-500 group-hover:translate-x-1 transition-all" />
+                                    <ArrowRight size={16} className="hidden md:block text-gray-300 group-hover:text-green-500 group-hover:translate-x-1 transition-all" />
+                                </div>
+                            </Link>
+
+                            <Link href="/operations/active" className="group">
+                                <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md hover:border-orange-200 transition-all flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-10 h-10 rounded-full bg-orange-50 flex items-center justify-center text-orange-600 group-hover:scale-110 transition-transform">
+                                            <Truck size={20} />
+                                        </div>
+                                        <div className="text-left">
+                                            <p className="text-sm font-bold text-gray-700">Tugas Truk</p>
+                                            <p className="text-xs text-gray-400">Real-time</p>
+                                        </div>
+                                    </div>
+                                    <ArrowRight size={16} className="hidden md:block text-gray-300 group-hover:text-orange-500 group-hover:translate-x-1 transition-all" />
                                 </div>
                             </Link>
 
@@ -157,14 +172,14 @@ export default function Home() {
                                             <p className="text-xs text-gray-400">Lacak Status</p>
                                         </div>
                                     </div>
-                                    <ArrowRight size={16} className="text-gray-300 group-hover:text-purple-500 group-hover:translate-x-1 transition-all" />
+                                    <ArrowRight size={16} className="hidden md:block text-gray-300 group-hover:text-purple-500 group-hover:translate-x-1 transition-all" />
                                 </div>
                             </Link>
 
                             <Link href="/transactions/print-bulk" className="group">
-                                <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md hover:border-orange-200 transition-all flex items-center justify-between">
+                                <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md hover:border-slate-200 transition-all flex items-center justify-between">
                                     <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 rounded-full bg-orange-50 flex items-center justify-center text-orange-600 group-hover:scale-110 transition-transform">
+                                        <div className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center text-slate-600 group-hover:scale-110 transition-transform">
                                             <FileText size={20} />
                                         </div>
                                         <div className="text-left">
@@ -172,7 +187,7 @@ export default function Home() {
                                             <p className="text-xs text-gray-400">Invoice</p>
                                         </div>
                                     </div>
-                                    <ArrowRight size={16} className="text-gray-300 group-hover:text-orange-500 group-hover:translate-x-1 transition-all" />
+                                    <ArrowRight size={16} className="hidden md:block text-gray-300 group-hover:text-slate-500 group-hover:translate-x-1 transition-all" />
                                 </div>
                             </Link>
                         </div>
