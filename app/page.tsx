@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
-import { LogOut, User as UserIcon, LogIn, UserPlus, Package, Users, Ship, BarChart3, Plus, Search, FileText, ArrowRight, Wallet, Crown, Truck, Clock, UserCircle, TrendingUp, MessageCircle, Calendar, CheckSquare, Calculator } from "lucide-react";
+import { LogOut, User as UserIcon, LogIn, UserPlus, Package, Users, Ship, BarChart3, Plus, Search, FileText, ArrowRight, Wallet, Crown, Truck, Clock, UserCircle, TrendingUp, MessageCircle, Calendar, CheckSquare, Calculator, MapPin } from "lucide-react";
 import InstallPrompt from "@/components/InstallPrompt";
 import { useState, useEffect } from "react";
 
@@ -191,6 +191,27 @@ export default function Home() {
                                         </p>
                                         <div className="flex items-center text-blue-600 font-semibold gap-2">
                                             Catat Kehadiran <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
+                                        </div>
+                                    </div>
+                                </div>
+                            </Link>
+                        )}
+
+                        {/* Monitor Absensi (Admin) - Owner, Admin, Branch Manager */}
+                        {user && (role === 'owner' || role === 'admin' || role === 'branch_manager') && (
+                            <Link href="/attendance/admin" className="group">
+                                <div className="bg-white rounded-3xl p-8 shadow-xl shadow-gray-200/50 border border-gray-100 hover:border-cyan-300 hover:shadow-2xl hover:shadow-cyan-500/10 transition-all duration-300 relative overflow-hidden group-hover:-translate-y-1">
+                                    <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-cyan-50 to-transparent rounded-bl-full opacity-50 group-hover:scale-110 transition-transform origin-top-right"></div>
+                                    <div className="relative">
+                                        <div className="w-16 h-16 bg-cyan-100 rounded-2xl flex items-center justify-center text-cyan-600 mb-6 group-hover:rotate-6 transition-transform">
+                                            <MapPin size={32} />
+                                        </div>
+                                        <h2 className="text-2xl font-bold text-gray-800 mb-2 group-hover:text-cyan-600 transition-colors">Monitor Absensi</h2>
+                                        <p className="text-gray-500 mb-6 leading-relaxed">
+                                            Dashboard kehadiran karyawan, pengaturan lokasi absensi, dan laporan absensi harian.
+                                        </p>
+                                        <div className="flex items-center text-cyan-600 font-semibold gap-2">
+                                            Buka Monitor <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
                                         </div>
                                     </div>
                                 </div>

@@ -13,7 +13,7 @@ import {
     setDoc
 } from 'firebase/firestore';
 import { db } from './firebase';
-import type { Attendance, AttendanceFormData, AttendanceDoc, AttendanceShift } from '@/types/attendance';
+import type { Attendance, AttendanceFormData, AttendanceDoc, AttendanceShift, GeoLocation } from '@/types/attendance';
 import { calculateTotalHours, countOvertimeEvents, determineStatus } from '@/types/attendance';
 
 const COLLECTION_NAME = 'attendance';
@@ -28,7 +28,9 @@ export const docToAttendance = (id: string, data: AttendanceDoc): Attendance => 
             type: shift.type,
             checkIn: shift.checkIn?.toDate() || new Date(),
             checkOut: shift.checkOut?.toDate() || null,
-            notes: shift.notes || ''
+            notes: shift.notes || '',
+            checkInLocation: shift.checkInLocation,
+            checkOutLocation: shift.checkOutLocation,
         })),
         status: data.status,
         notes: data.notes,
@@ -60,7 +62,8 @@ export const getTodayAttendance = async (employeeId: string): Promise<Attendance
 export const checkIn = async (
     employeeId: string,
     shiftType: AttendanceShift['type'],
-    notes: string = ''
+    notes: string = '',
+    location?: GeoLocation
 ): Promise<void> => {
     const today = new Date().toISOString().split('T')[0];
     const docId = `${employeeId}_${today}`;
@@ -79,7 +82,8 @@ export const checkIn = async (
                 type: shiftType,
                 checkIn: Timestamp.fromDate(now),
                 checkOut: null,
-                notes
+                notes,
+                ...(location && { checkInLocation: location }),
             }
         ];
 
@@ -93,7 +97,8 @@ export const checkIn = async (
             type: shiftType,
             checkIn: Timestamp.fromDate(now),
             checkOut: null,
-            notes
+            notes,
+            ...(location && { checkInLocation: location }),
         };
 
         await setDoc(docRef, {
@@ -113,7 +118,7 @@ export const checkIn = async (
 /**
  * Check out (end the current active shift)
  */
-export const checkOut = async (employeeId: string): Promise<void> => {
+export const checkOut = async (employeeId: string, location?: GeoLocation): Promise<void> => {
     const today = new Date().toISOString().split('T')[0];
     const docId = `${employeeId}_${today}`;
     const docRef = doc(db, COLLECTION_NAME, docId);
@@ -131,7 +136,8 @@ export const checkOut = async (employeeId: string): Promise<void> => {
         if (index === data.shifts.length - 1 && !shift.checkOut) {
             return {
                 ...shift,
-                checkOut: Timestamp.fromDate(now)
+                checkOut: Timestamp.fromDate(now),
+                ...(location && { checkOutLocation: location }),
             };
         }
         return shift;

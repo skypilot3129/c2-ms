@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { Calculator, Package, Copy, RotateCcw, Info, Plus, Trash2, DollarSign } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Calculator, Package, Copy, RotateCcw, Info, Plus, Trash2, DollarSign, Printer } from 'lucide-react';
 import {
     calculateDimensions,
     formatWeight,
@@ -16,6 +17,8 @@ interface KoliItem extends VolumeCalculation {
 }
 
 export default function VolumeCalculator() {
+    const router = useRouter();
+
     const [formData, setFormData] = useState<VolumeCalculatorFormData>({
         length: 0,
         width: 0,
@@ -110,6 +113,17 @@ export default function VolumeCalculator() {
 
         navigator.clipboard.writeText(text);
         alert('Hasil berhasil disalin ke clipboard!');
+    };
+
+    const handlePrint = () => {
+        if (koliList.length === 0) return;
+
+        // Encode data for URL
+        const dataString = encodeURIComponent(JSON.stringify(koliList));
+        const priceString = pricePerKg.toString();
+
+        // Navigate to print page
+        router.push(`/tools/volume-calculator/print?data=${dataString}&price=${priceString}`);
     };
 
     // Calculate totals
@@ -259,14 +273,25 @@ export default function VolumeCalculator() {
                             <Calculator size={20} className="text-green-600 hidden md:block" />
                             <span>Daftar Koli ({koliList.length})</span>
                         </h3>
-                        <button
-                            onClick={handleCopyResult}
-                            className="flex items-center gap-1 md:gap-2 px-3 md:px-4 py-2 bg-white text-gray-700 rounded-lg text-sm font-semibold hover:bg-gray-50 transition-colors border border-gray-300"
-                        >
-                            <Copy size={14} className="md:hidden" />
-                            <Copy size={16} className="hidden md:block" />
-                            <span className="hidden sm:inline">Salin</span>
-                        </button>
+                        <div className="flex gap-2">
+                            <button
+                                onClick={handlePrint}
+                                className="flex items-center gap-1 md:gap-2 px-3 md:px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 transition-colors"
+                                title="Print / Save as PDF"
+                            >
+                                <Printer size={14} className="md:hidden" />
+                                <Printer size={16} className="hidden md:block" />
+                                <span className="hidden sm:inline">Print</span>
+                            </button>
+                            <button
+                                onClick={handleCopyResult}
+                                className="flex items-center gap-1 md:gap-2 px-3 md:px-4 py-2 bg-white text-gray-700 rounded-lg text-sm font-semibold hover:bg-gray-50 transition-colors border border-gray-300"
+                            >
+                                <Copy size={14} className="md:hidden" />
+                                <Copy size={16} className="hidden md:block" />
+                                <span className="hidden sm:inline">Salin</span>
+                            </button>
+                        </div>
                     </div>
 
                     {/* Desktop Table View */}

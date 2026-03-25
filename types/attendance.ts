@@ -4,12 +4,30 @@ import { Timestamp } from 'firebase/firestore';
 export type ShiftType = 'regular' | 'overtime_loading' | 'overtime_unloading';
 export type AttendanceStatus = 'present' | 'absent' | 'late' | 'leave';
 
+// GPS Location
+export interface GeoLocation {
+    lat: number;
+    lng: number;
+    accuracy: number; // meters
+}
+
+// Office Location (for admin settings)
+export interface OfficeLocation {
+    id: string;
+    name: string;
+    lat: number;
+    lng: number;
+    radius: number; // meters
+}
+
 // Individual shift record
 export interface AttendanceShift {
     type: ShiftType;
     checkIn: Date;
     checkOut: Date | null;
     notes: string;
+    checkInLocation?: GeoLocation;
+    checkOutLocation?: GeoLocation;
 }
 
 // Daily attendance record (form data)
@@ -28,6 +46,8 @@ export interface AttendanceDoc extends Omit<AttendanceFormData, 'shifts'> {
         checkIn: Timestamp;
         checkOut: Timestamp | null;
         notes: string;
+        checkInLocation?: GeoLocation;
+        checkOutLocation?: GeoLocation;
     }[];
     totalHours: number;
     overtimeCount: number; // Number of loading/unloading events
