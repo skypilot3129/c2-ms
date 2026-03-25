@@ -12,7 +12,7 @@ export default function ContractPrintPage() {
     const { id } = useParams();
     const router = useRouter();
     const { user, role, loading: authLoading } = useAuth();
-    
+
     const [employee, setEmployee] = useState<Employee | null>(null);
     const [loading, setLoading] = useState(true);
 
@@ -62,14 +62,14 @@ export default function ContractPrintPage() {
             {/* Control Bar (Hidden on Print) */}
             <div className="print:hidden bg-white border-b shadow-sm sticky top-0 z-10 p-4">
                 <div className="max-w-4xl mx-auto flex items-center justify-between">
-                    <button 
-                        onClick={() => window.close()} 
+                    <button
+                        onClick={() => window.close()}
                         className="flex items-center gap-2 text-gray-600 hover:text-gray-900"
                     >
                         <ArrowLeft size={20} />
                         Tutup
                     </button>
-                    <button 
+                    <button
                         onClick={handlePrint}
                         className="flex items-center gap-2 bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 font-medium"
                     >
@@ -81,23 +81,23 @@ export default function ContractPrintPage() {
 
             {/* A4 Document Container */}
             <div className="max-w-4xl mx-auto bg-white my-8 print:my-0 shadow-lg print:shadow-none min-h-[297mm] p-[20mm]">
-                
+
                 {/* KOP Surat */}
                 <div className="flex items-center justify-between border-b-4 border-black pb-6 mb-8">
                     <div className="w-1/4">
-                        <Image 
-                            src="/logo.png" 
-                            alt="Cahaya Cargo Express" 
-                            width={150} 
+                        <Image
+                            src="/logo.png"
+                            alt="Cahaya Cargo Express"
+                            width={150}
                             height={150}
-                            className="object-contain drop-shadow" 
+                            className="object-contain drop-shadow"
                         />
                     </div>
                     <div className="w-3/4 text-center">
                         <h1 className="text-3xl font-extrabold text-[#d97706] tracking-tight uppercase">CAHAYA CARGO EXPRESS</h1>
                         <p className="text-sm font-medium mt-1">Jasa Ekspedisi Darat, Laut & Udara Terpercaya</p>
                         <p className="text-xs text-gray-600 mt-1">
-                            Jl. Raya Cargo No.88, Jakarta Barat, 11460 | Telp: (021) 555-1234<br/>
+                            Jl. Raya Cargo No.88, Jakarta Barat, 11460 | Telp: (021) 555-1234<br />
                             Email: info@cahayacargo.com | Web: www.cahayacargo.com
                         </p>
                     </div>
@@ -230,7 +230,7 @@ export default function ContractPrintPage() {
                             Pihak Pertama berhak melakukan Pemutusan Hubungan Kerja (PHK) secara sepihak apabila Pihak Kedua melakukan pelanggaran berat berupa: pencurian, penggelapan dana bongkar muat, mabuk-mabukan di area kerja, manipulasi absensi, atau memberikan kerusakan yang disengaja pada armada dan properti perusahaan.
                         </p>
                     </div>
-                    
+
                     <div>
                         <h3 className="font-bold text-base mb-1">Pasal 5: Penutup</h3>
                         <p>
@@ -243,7 +243,7 @@ export default function ContractPrintPage() {
                 <div className="mt-16 flex justify-between text-center text-sm px-8">
                     <div>
                         <p className="mb-24">PIHAK PERTAMA</p>
-                        <p className="font-bold underline uppercase">Bpk. H. Suparman</p>
+                        <p className="font-bold underline uppercase">Bpk. Hilal Bafagih</p>
                         <p className="text-gray-600">Direktur / Owner</p>
                     </div>
                     <div>
