@@ -10,6 +10,10 @@ export default function Home() {
     const { user, logout, loading, role } = useAuth();
     const [greeting, setGreeting] = useState('');
 
+    // Role helpers
+    const isAdmin = role === 'owner' || role === 'admin';
+    const isManager = isAdmin || role === 'branch_manager';
+
     useEffect(() => {
         const hour = new Date().getHours();
         if (hour < 11) setGreeting('Selamat Pagi');
@@ -109,8 +113,8 @@ export default function Home() {
                         </p>
                     </div>
 
-                    {/* Quick Actions (Shortcut Bar) - Hide for branch_manager */}
-                    {user && role !== 'branch_manager' && (
+                    {/* Quick Actions (Shortcut Bar) - Owner & Admin only */}
+                    {user && isAdmin && (
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-12 max-w-4xl mx-auto">
                             <Link href="/transactions/new" className="group">
                                 <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md hover:border-blue-200 transition-all flex items-center justify-between">
@@ -319,8 +323,8 @@ export default function Home() {
                             </Link>
                         )}
 
-                        {/* Resi & Transaksi - Hidden for branch_manager */}
-                        {role !== 'branch_manager' && (
+                        {/* Resi & Transaksi - Owner & Admin only */}
+                        {user && isAdmin && (
                             <Link href="/transactions" className="group">
                                 <div className="bg-white rounded-3xl p-8 shadow-xl shadow-gray-200/50 border border-gray-100 hover:border-blue-300 hover:shadow-2xl hover:shadow-blue-500/10 transition-all duration-300 relative overflow-hidden group-hover:-translate-y-1">
                                     <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-blue-50 to-transparent rounded-bl-full opacity-50 group-hover:scale-110 transition-transform origin-top-right"></div>
@@ -340,8 +344,8 @@ export default function Home() {
                             </Link>
                         )}
 
-                        {/* Database Client - Hidden for branch_manager */}
-                        {role !== 'branch_manager' && (
+                        {/* Database Client - Owner & Admin only */}
+                        {user && isAdmin && (
                             <Link href="/clients" className="group">
                                 <div className="bg-white rounded-3xl p-8 shadow-xl shadow-gray-200/50 border border-gray-100 hover:border-green-300 hover:shadow-2xl hover:shadow-green-500/10 transition-all duration-300 relative overflow-hidden group-hover:-translate-y-1">
                                     <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-green-50 to-transparent rounded-bl-full opacity-50 group-hover:scale-110 transition-transform origin-top-right"></div>
@@ -361,27 +365,29 @@ export default function Home() {
                             </Link>
                         )}
 
-                        {/* Volume Calculator - All authenticated users */}
-                        <Link href="/tools/volume-calculator" className="group">
-                            <div className="bg-white rounded-3xl p-8 shadow-xl shadow-gray-200/50 border border-gray-100 hover:border-orange-300 hover:shadow-2xl hover:shadow-orange-500/10 transition-all duration-300 relative overflow-hidden group-hover:-translate-y-1">
-                                <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-orange-50 to-transparent rounded-bl-full opacity-50 group-hover:scale-110 transition-transform origin-top-right"></div>
-                                <div className="relative">
-                                    <div className="w-16 h-16 bg-orange-100 rounded-2xl flex items-center justify-center text-orange-600 mb-6 group-hover:rotate-6 transition-transform">
-                                        <Calculator size={32} />
-                                    </div>
-                                    <h2 className="text-2xl font-bold text-gray-800 mb-2 group-hover:text-orange-600 transition-colors">Kalkulator Volume</h2>
-                                    <p className="text-gray-500 mb-6 leading-relaxed">
-                                        Hitung berat tagihan berdasarkan dimensi dan berat aktual barang dengan standar divisor 4000.
-                                    </p>
-                                    <div className="flex items-center text-orange-600 font-semibold gap-2">
-                                        Buka Kalkulator <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
+                        {/* Volume Calculator - Owner, Admin, Branch Manager */}
+                        {user && isManager && (
+                            <Link href="/tools/volume-calculator" className="group">
+                                <div className="bg-white rounded-3xl p-8 shadow-xl shadow-gray-200/50 border border-gray-100 hover:border-orange-300 hover:shadow-2xl hover:shadow-orange-500/10 transition-all duration-300 relative overflow-hidden group-hover:-translate-y-1">
+                                    <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-orange-50 to-transparent rounded-bl-full opacity-50 group-hover:scale-110 transition-transform origin-top-right"></div>
+                                    <div className="relative">
+                                        <div className="w-16 h-16 bg-orange-100 rounded-2xl flex items-center justify-center text-orange-600 mb-6 group-hover:rotate-6 transition-transform">
+                                            <Calculator size={32} />
+                                        </div>
+                                        <h2 className="text-2xl font-bold text-gray-800 mb-2 group-hover:text-orange-600 transition-colors">Kalkulator Volume</h2>
+                                        <p className="text-gray-500 mb-6 leading-relaxed">
+                                            Hitung berat tagihan berdasarkan dimensi dan berat aktual barang dengan standar divisor 4000.
+                                        </p>
+                                        <div className="flex items-center text-orange-600 font-semibold gap-2">
+                                            Buka Kalkulator <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                        </Link>
+                            </Link>
+                        )}
 
-                        {/* Pemberangkatan - Hidden for branch_manager */}
-                        {role !== 'branch_manager' && (
+                        {/* Pemberangkatan - Owner & Admin only */}
+                        {user && isAdmin && (
                             <Link href="/voyages" className="group">
                                 <div className="bg-white rounded-3xl p-8 shadow-xl shadow-gray-200/50 border border-gray-100 hover:border-purple-300 hover:shadow-2xl hover:shadow-purple-500/10 transition-all duration-300 relative overflow-hidden group-hover:-translate-y-1">
                                     <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-purple-50 to-transparent rounded-bl-full opacity-50 group-hover:scale-110 transition-transform origin-top-right"></div>
@@ -401,8 +407,8 @@ export default function Home() {
                             </Link>
                         )}
 
-                        {/* Dashboard BI - Hidden for branch_manager */}
-                        {role !== 'branch_manager' && (
+                        {/* Dashboard BI - Owner & Admin only */}
+                        {user && isAdmin && (
                             <Link href="/dashboard" className="group">
                                 <div className="bg-white rounded-3xl p-8 shadow-xl shadow-gray-200/50 border border-gray-100 hover:border-orange-300 hover:shadow-2xl hover:shadow-orange-500/10 transition-all duration-300 relative overflow-hidden group-hover:-translate-y-1">
                                     <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-orange-50 to-transparent rounded-bl-full opacity-50 group-hover:scale-110 transition-transform origin-top-right"></div>
@@ -422,8 +428,8 @@ export default function Home() {
                             </Link>
                         )}
 
-                        {/* Finance Module - Hidden for branch_manager */}
-                        {role !== 'branch_manager' && (
+                        {/* Finance Module - Owner & Admin only */}
+                        {user && isAdmin && (
                             <Link href="/finance/receivables" className="group">
                                 <div className="bg-white rounded-3xl p-8 shadow-xl shadow-gray-200/50 border border-gray-100 hover:border-teal-300 hover:shadow-2xl hover:shadow-teal-500/10 transition-all duration-300 relative overflow-hidden group-hover:-translate-y-1">
                                     <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-teal-50 to-transparent rounded-bl-full opacity-50 group-hover:scale-110 transition-transform origin-top-right"></div>
@@ -443,8 +449,8 @@ export default function Home() {
                             </Link>
                         )}
 
-                        {/* Armada & Maintenance Module - Hidden for branch_manager */}
-                        {role !== 'branch_manager' && (
+                        {/* Armada & Maintenance - Owner & Admin only */}
+                        {user && isAdmin && (
                             <Link href="/fleets" className="group">
                                 <div className="bg-white rounded-3xl p-8 shadow-xl shadow-gray-200/50 border border-gray-100 hover:border-rose-300 hover:shadow-2xl hover:shadow-rose-500/10 transition-all duration-300 relative overflow-hidden group-hover:-translate-y-1">
                                     <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-rose-50 to-transparent rounded-bl-full opacity-50 group-hover:scale-110 transition-transform origin-top-right"></div>
