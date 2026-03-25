@@ -11,7 +11,7 @@ import type { Employee } from '@/types/employee';
 import type { MonthlySchedule } from '@/types/truck-operation';
 
 export default function MonthlySchedulePage() {
-    const { employee: currentUser } = useAuth();
+    const { user, employee: currentUser, role, loading: authLoading } = useAuth();
     const router = useRouter();
 
     const [month, setMonth] = useState(() => {
@@ -28,12 +28,14 @@ export default function MonthlySchedulePage() {
     const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
     useEffect(() => {
-        if (currentUser && ['admin', 'pengurus'].includes(currentUser.role)) {
+        if (authLoading) return;
+        
+        if (user && ['admin', 'pengurus'].includes(role)) {
             loadData();
-        } else if (currentUser) {
+        } else if (!user) {
             router.push('/');
         }
-    }, [currentUser, month, router]);
+    }, [user, role, authLoading, month, router]);
 
     const loadData = async () => {
         setLoading(true);
@@ -62,7 +64,7 @@ export default function MonthlySchedulePage() {
     };
 
     const handleSave = async () => {
-        if (!currentUser) return;
+        if (!user) return;
         
         setSaving(true);
         setMessage(null);
@@ -71,7 +73,7 @@ export default function MonthlySchedulePage() {
                 month,
                 loaderIds,
                 stackerPoolIds,
-                updatedBy: currentUser.employeeId
+                updatedBy: currentUser?.employeeId || user?.email || 'admin'
             };
             
             await saveMonthlySchedule(schedule);
@@ -105,7 +107,7 @@ export default function MonthlySchedulePage() {
         });
     };
 
-    if (!currentUser || !['admin', 'pengurus'].includes(currentUser.role)) {
+    if (authLoading || (!user) || !['admin', 'pengurus'].includes(role)) {
         return null;
     }
 

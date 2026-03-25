@@ -18,7 +18,7 @@ import type { Attendance } from '@/types/attendance';
 import type { MonthlySchedule, TruckOperation } from '@/types/truck-operation';
 
 export default function ActiveOperationsPage() {
-    const { employee: currentUser } = useAuth();
+    const { user, employee: currentUser, role, loading: authLoading } = useAuth();
     const router = useRouter();
 
     const [todayStr] = useState(() => new Date().toISOString().split('T')[0]);
@@ -41,14 +41,17 @@ export default function ActiveOperationsPage() {
     const [selectedEscort, setSelectedEscort] = useState('');
 
     useEffect(() => {
-        if (currentUser && ['admin', 'pengurus'].includes(currentUser.role)) {
+        if (authLoading) return;
+        
+        let unsub = () => {};
+        if (user && ['admin', 'pengurus'].includes(role)) {
             loadInitialData();
-            const unsub = subscribeToDailyOperations(todayStr, setOperations);
-            return () => unsub();
-        } else if (currentUser) {
+            unsub = subscribeToDailyOperations(todayStr, setOperations);
+        } else if (!user) {
             router.push('/');
         }
-    }, [currentUser, todayStr, router]);
+        return () => unsub();
+    }, [user, role, authLoading, todayStr, router]);
 
     const loadInitialData = async () => {
         try {
@@ -85,7 +88,7 @@ export default function ActiveOperationsPage() {
     );
 
     const handleStartOperation = async () => {
-        if (!currentUser) return;
+        if (!user) return;
         if (selectedStackers.length === 0) {
             alert('Wajib memilih minimal 1 penyusun!');
             return;
@@ -101,7 +104,7 @@ export default function ActiveOperationsPage() {
                 escortId: selectedEscort || null,
                 startTime: new Date(),
                 endTime: null,
-                createdBy: currentUser.employeeId
+                createdBy: currentUser?.employeeId || user?.email || 'admin'
             });
             
             setShowNewModal(false);
@@ -135,7 +138,7 @@ export default function ActiveOperationsPage() {
         });
     };
 
-    if (!currentUser || !['admin', 'pengurus'].includes(currentUser.role)) return null;
+    if (authLoading || (!user) || !['admin', 'pengurus'].includes(role)) return null;
 
     return (
         <ProtectedRoute>
