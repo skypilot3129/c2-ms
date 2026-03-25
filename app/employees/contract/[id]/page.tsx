@@ -97,8 +97,8 @@ export default function ContractPrintPage() {
                         <h1 className="text-3xl font-extrabold text-[#d97706] tracking-tight uppercase">CAHAYA CARGO EXPRESS</h1>
                         <p className="text-sm font-medium mt-1">Jasa Ekspedisi Darat, Laut & Udara Terpercaya</p>
                         <p className="text-xs text-gray-600 mt-1">
-                            Jl. Raya Cargo No.88, Jakarta Barat, 11460 | Telp: (021) 555-1234<br />
-                            Email: info@cahayacargo.com | Web: www.cahayacargo.com
+                            Jl. Kemudi No.4, RT.007, Krembangan Utara, Kec. Pabean Cantian, Surabaya, Jawa Timur | Telp: 0813-5797-9159<br />
+                            Email: cahayacargoexpress@gmail.com | Web: cahayacargoexpress.com
                         </p>
                     </div>
                 </div>
@@ -128,7 +128,7 @@ export default function ContractPrintPage() {
                                     <td className="w-8 align-top"></td>
                                     <td className="w-40 font-semibold align-top">Alamat Domisili</td>
                                     <td className="w-2 align-top">:</td>
-                                    <td>Jl. Raya Cargo No.88, Jakarta Barat</td>
+                                    <td>Jl. Kemudi No.4, RT.007, Krembangan Utara, Kec. Pabean Cantian, Surabaya, Jawa Timur</td>
                                 </tr>
                                 <tr>
                                     <td colSpan={4} className="pt-2 text-gray-700 italic">
