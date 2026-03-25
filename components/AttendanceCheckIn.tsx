@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Clock, LogIn, LogOut, Calendar, AlertCircle, MapPin, Navigation, Loader2, CheckCircle2, XCircle, Shield } from 'lucide-react';
+import { Clock, MapPin, Calendar, CheckCircle2, AlertCircle, Loader2, Navigation, LogIn, LogOut, XCircle, Shield, Truck, Sun, Package } from 'lucide-react';
 import { checkIn, checkOut, getTodayAttendance } from '@/lib/firestore-attendance';
 import { getAttendanceLocationSettings } from '@/lib/firestore-settings';
 import type { AttendanceLocationSettings } from '@/lib/firestore-settings';
@@ -355,29 +355,45 @@ export default function AttendanceCheckIn({ employeeId, employeeName }: Attendan
                     // Check In Mode
                     <div className="space-y-4">
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                                Pilih Tipe Shift
+                            <label className="block text-sm font-medium text-gray-700 mb-3">
+                                Pilih Tipe Aktivitas
                             </label>
-                            <div className="space-y-2">
-                                {(['regular', 'overtime_loading', 'overtime_unloading'] as ShiftType[]).map((type) => (
-                                    <label
-                                        key={type}
-                                        className={`flex items-center p-3 border rounded-lg cursor-pointer transition-all ${selectedShift === type
-                                            ? 'border-blue-500 bg-blue-50'
-                                            : 'border-gray-200 hover:border-gray-300'
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                {[
+                                    { id: 'regular', label: 'Shift Reguler', icon: Sun, color: 'text-amber-500', bg: 'bg-amber-100', border: 'border-amber-200', active: 'border-amber-500 ring-2 ring-amber-200' },
+                                    { id: 'overtime_loading', label: 'Muat Barang', icon: Package, color: 'text-blue-500', bg: 'bg-blue-100', border: 'border-blue-200', active: 'border-blue-500 ring-2 ring-blue-200' },
+                                    { id: 'overtime_unloading', label: 'Bongkar Barang', icon: Truck, color: 'text-purple-500', bg: 'bg-purple-100', border: 'border-purple-200', active: 'border-purple-500 ring-2 ring-purple-200' }
+                                ].map((type) => {
+                                    const Icon = type.icon;
+                                    const isSelected = selectedShift === type.id;
+                                    
+                                    return (
+                                        <button
+                                            key={type.id}
+                                            type="button"
+                                            onClick={() => setSelectedShift(type.id as ShiftType)}
+                                            className={`relative flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all duration-200 ${
+                                                isSelected 
+                                                ? `${type.bg} ${type.active}` 
+                                                : `bg-white border-gray-100 hover:border-gray-300 hover:bg-gray-50 shadow-sm`
                                             }`}
-                                    >
-                                        <input
-                                            type="radio"
-                                            name="shift"
-                                            value={type}
-                                            checked={selectedShift === type}
-                                            onChange={(e) => setSelectedShift(e.target.value as ShiftType)}
-                                            className="mr-3"
-                                        />
-                                        <span className="font-medium">{SHIFT_TYPE_LABELS[type]}</span>
-                                    </label>
-                                ))}
+                                        >
+                                            {isSelected && (
+                                                <div className="absolute top-2 right-2 text-green-500">
+                                                    <CheckCircle2 size={16} className="fill-current text-white bg-green-500 rounded-full" />
+                                                </div>
+                                            )}
+                                            
+                                            <div className={`p-3 rounded-full mb-3 ${isSelected ? 'bg-white shadow-sm' : type.bg}`}>
+                                                <Icon size={24} className={type.color} />
+                                            </div>
+                                            
+                                            <span className={`text-sm font-semibold text-center ${isSelected ? 'text-gray-900' : 'text-gray-700'}`}>
+                                                {type.label}
+                                            </span>
+                                        </button>
+                                    );
+                                })}
                             </div>
                         </div>
 

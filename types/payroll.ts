@@ -7,13 +7,25 @@ export type PayrollPeriod = string; // "2026-01" format
 export type PayrollStatus = 'draft' | 'approved' | 'paid';
 
 // Deduction types
-export type DeductionType = 'tax' | 'insurance' | 'advance' | 'other';
+export type DeductionType = 'tax' | 'insurance' | 'advance' | 'late_mild' | 'late_severe' | 'other';
 
 // Deduction detail
 export interface PayrollDeduction {
     type: DeductionType;
     description: string;
     amount: number;
+}
+
+// Truck loading operation record
+export interface LoadingOperation {
+    date: string; // YYYY-MM-DD
+    truckId?: string;
+    truckName?: string;
+    totalHelpers: number; // Total helpers pada operasi ini
+    isStacker: boolean; // Apakah helper ini bagian susun barang
+    shareAmount: number; // Bagian dari 650k ÷ totalHelpers
+    stackingBonus: number; // 50k jika isStacker
+    totalEarned: number; // shareAmount + stackingBonus
 }
 
 // Individual employee payroll calculation
@@ -23,29 +35,49 @@ export interface PayrollCalculation {
     employeeRole: string;
     period: PayrollPeriod;
 
-    // Base Salary Components
+    // Base Salary Components (admin/pengurus)
     baseSalary: number;
-    dailyAllowance: number; // Per day rate
-    daysWorked: number; // Actual days present
-    totalAllowance: number; // allowance * daysWorked
 
-    // Commission (for drivers/helpers)
+    // Attendance-based pay (helper)
+    dailyRate: number; // 50k per hari
+    daysPresent: number; // Hari hadir (present)
+    daysLate: number; // Hari hadir tapi telat
+    attendancePay: number; // daysPresent * dailyRate
+
+    // Late deductions (helper)
+    lateMild: number; // Jumlah hari telat 1-2 jam
+    lateSevere: number; // Jumlah hari telat >2 jam
+    lateMildDeduction: number; // lateMild * 10k
+    lateSevereDeduction: number; // lateSevere * 20k
+    totalLateDeductions: number;
+
+    // Allowance
+    dailyAllowance: number;
+    daysWorked: number;
+    totalAllowance: number;
+
+    // Loading operations (helper)
+    loadingOperations: LoadingOperation[];
+    totalLoadingPay: number; // Sum of all loading shareAmount
+    totalStackingBonus: number; // Sum of all stacking bonuses
+
+    // Overtime (lembur muat)
+    overtimeEvents: number;
+    overtimeRate: number;
+    totalOvertime: number;
+
+    // Legacy commission fields
     tripsCompleted: number;
     commissionPerTrip: number;
     totalCommission: number;
-
-    // Overtime (loading/unloading events)
-    overtimeEvents: number;
-    overtimeRate: number; // Per event
-    totalOvertime: number;
 
     // Deductions
     deductions: PayrollDeduction[];
     totalDeductions: number;
 
     // Final Calculation
-    grossPay: number; // Sum of all income
-    netPay: number; // Gross - Deductions
+    grossPay: number;
+    netPay: number;
 
     // Metadata
     status: PayrollStatus;
@@ -100,6 +132,8 @@ export const DEDUCTION_TYPE_LABELS: Record<DeductionType, string> = {
     'tax': 'Pajak',
     'insurance': 'Asuransi',
     'advance': 'Kasbon',
+    'late_mild': 'Telat Ringan (1-2 jam)',
+    'late_severe': 'Telat Berat (>2 jam)',
     'other': 'Lainnya'
 };
 

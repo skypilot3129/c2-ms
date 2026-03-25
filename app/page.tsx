@@ -11,8 +11,8 @@ export default function Home() {
     const [greeting, setGreeting] = useState('');
 
     // Role helpers
-    const isAdmin = role === 'owner' || role === 'admin';
-    const isManager = isAdmin || role === 'branch_manager';
+    const isAdmin = role === 'admin';
+    const isManager = isAdmin || role === 'pengurus';
 
     useEffect(() => {
         const hour = new Date().getHours();
@@ -201,8 +201,8 @@ export default function Home() {
                             </Link>
                         )}
 
-                        {/* Monitor Absensi (Admin) - Owner, Admin, Branch Manager */}
-                        {user && (role === 'owner' || role === 'admin' || role === 'branch_manager') && (
+                        {/* Monitor Absensi (Admin) - Admin & Pengurus */}
+                        {user && isManager && (
                             <Link href="/attendance/admin" className="group">
                                 <div className="bg-white rounded-3xl p-8 shadow-xl shadow-gray-200/50 border border-gray-100 hover:border-cyan-300 hover:shadow-2xl hover:shadow-cyan-500/10 transition-all duration-300 relative overflow-hidden group-hover:-translate-y-1">
                                     <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-cyan-50 to-transparent rounded-bl-full opacity-50 group-hover:scale-110 transition-transform origin-top-right"></div>
@@ -245,8 +245,8 @@ export default function Home() {
 
 
 
-                        {/* Owner Dashboard (Executive) - Owner ONLY */}
-                        {user && role === 'owner' && (
+                        {/* Owner Dashboard (Executive) - Admin ONLY */}
+                        {user && isAdmin && (
                             <Link href="/dashboard/owner" className="group md:col-span-2">
                                 <div className="bg-slate-900 rounded-3xl p-8 shadow-xl shadow-slate-900/20 border border-slate-700 hover:border-indigo-500 hover:shadow-2xl hover:shadow-indigo-500/20 transition-all duration-300 relative overflow-hidden group-hover:-translate-y-1">
                                     <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-600/20 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none"></div>
@@ -470,8 +470,8 @@ export default function Home() {
                             </Link>
                         )}
 
-                        {/* Payroll & Gaji Module - Allow branch_manager */}
-                        {user && (role === 'owner' || role === 'admin' || role === 'branch_manager') && (
+                        {/* Payroll & Gaji Module - Admin & Pengurus */}
+                        {user && isManager && (
                             <Link href="/payroll" className="group">
                                 <div className="bg-white rounded-3xl p-8 shadow-xl shadow-gray-200/50 border border-gray-100 hover:border-emerald-300 hover:shadow-2xl hover:shadow-emerald-500/10 transition-all duration-300 relative overflow-hidden group-hover:-translate-y-1">
                                     <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-emerald-50 to-transparent rounded-bl-full opacity-50 group-hover:scale-110 transition-transform origin-top-right"></div>
@@ -491,8 +491,8 @@ export default function Home() {
                             </Link>
                         )}
 
-                        {/* HRD & Karyawan Module - Allow branch_manager */}
-                        {user && (role === 'owner' || role === 'admin' || role === 'branch_manager') && (
+                        {/* HRD & Karyawan Module - Admin & Pengurus */}
+                        {user && isManager && (
                             <Link href="/employees" className="group">
                                 <div className="bg-white rounded-3xl p-8 shadow-xl shadow-gray-200/50 border border-gray-100 hover:border-amber-300 hover:shadow-2xl hover:shadow-amber-500/10 transition-all duration-300 relative overflow-hidden group-hover:-translate-y-1">
                                     <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-amber-50 to-transparent rounded-bl-full opacity-50 group-hover:scale-110 transition-transform origin-top-right"></div>

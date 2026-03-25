@@ -24,23 +24,23 @@ const DEFAULT_LOCATIONS: OfficeLocation[] = [
     {
         id: 'surabaya',
         name: 'Kantor Surabaya (Pusat)',
-        lat: -7.2283, // Approximate: Jl. Kalimas Baru, Surabaya
-        lng: 112.7363,
-        radius: 100,
+        lat: -7.2094, // Jl. Kalimas Baru No. 60, Surabaya
+        lng: 112.7364,
+        radius: 150,
     },
     {
         id: 'makassar',
         name: 'Kantor Makassar',
-        lat: -5.1477, // Approximate: Jl Irian, Makassar
-        lng: 119.4327,
-        radius: 100,
+        lat: -5.1278, // Jl Irian No. 245 B, Makassar
+        lng: 119.4125,
+        radius: 150,
     },
     {
         id: 'banjarmasin',
         name: 'Kantor Banjarmasin',
-        lat: -3.3186, // Approximate: Banjarmasin
-        lng: 114.5944,
-        radius: 100,
+        lat: -3.3169, // Jl. Gelandakan, Ps Sentra Bilanja Hancap
+        lng: 114.5901,
+        radius: 150,
     },
 ];
 

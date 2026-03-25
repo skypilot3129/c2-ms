@@ -1,24 +1,18 @@
 // User roles in the system
-export type UserRole = 'owner' | 'admin' | 'branch_manager' | 'driver' | 'helper' | 'staff';
+export type UserRole = 'admin' | 'pengurus' | 'helper';
 
 // Role labels for UI
 export const ROLE_LABELS: Record<UserRole, string> = {
-    'owner': 'Pemilik',
     'admin': 'Administrator',
-    'branch_manager': 'Kepala Cabang',
-    'driver': 'Supir',
-    'helper': 'Helper/Kernet',
-    'staff': 'Staff'
+    'pengurus': 'Pengurus',
+    'helper': 'Helper',
 };
 
 // Role hierarchy (higher number = more privileges)
 export const ROLE_HIERARCHY: Record<UserRole, number> = {
-    'owner': 100,
-    'admin': 80,
-    'branch_manager': 60,
-    'staff': 40,
-    'driver': 20,
-    'helper': 20
+    'admin': 100,
+    'pengurus': 60,
+    'helper': 20,
 };
 
 // Check if user has minimum required role
@@ -56,20 +50,6 @@ export const getRolePermissions = (role: UserRole): FeaturePermissions => {
     };
 
     switch (role) {
-        case 'owner':
-            return {
-                canViewDashboardOwner: true,
-                canManageTransactions: true,
-                canManageClients: true,
-                canManageVoyages: true,
-                canViewFinance: true,
-                canManageFinance: true,
-                canManageFleet: true,
-                canManageEmployees: true,
-                canViewOwnAttendance: true,
-                canViewAllAttendance: true
-            };
-
         case 'admin':
             return {
                 canViewDashboardOwner: true,
@@ -84,31 +64,16 @@ export const getRolePermissions = (role: UserRole): FeaturePermissions => {
                 canViewAllAttendance: true
             };
 
-        case 'branch_manager':
+        case 'pengurus':
             return {
                 ...permissions,
-                canViewDashboardOwner: false,        // No access to owner dashboard
-                canManageTransactions: false,        // No access to transactions
-                canManageClients: false,             // No access to clients
-                canManageVoyages: false,             // No access to voyages
-                canViewFinance: false,               // No access to finance
-                canManageFinance: false,             // No access to finance management
-                canManageFleet: false,               // No access to fleet
-                canManageEmployees: true,            // Can manage employees
-                canViewOwnAttendance: true,          // Can view own attendance
-                canViewAllAttendance: true           // Can view all employee attendance
+                canManageEmployees: true,
+                canViewOwnAttendance: true,
+                canViewAllAttendance: true
             };
 
-        case 'staff':
-            return {
-                ...permissions,
-                canManageTransactions: false,
-                canManageClients: false
-            };
-
-        case 'driver':
         case 'helper':
-            return permissions; // Only attendance
+            return permissions; // Only attendance + profile
 
         default:
             return permissions;

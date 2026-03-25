@@ -263,6 +263,33 @@ export const updateAttendanceStatus = async (
     await updateDoc(docRef, updates);
 };
 
+// Helper to get late breakdown
+export const getLateDaysBreakdown = (attendances: Attendance[]): { lateMild: number; lateSevere: number } => {
+    let lateMild = 0;
+    let lateSevere = 0;
+
+    attendances.forEach(att => {
+        if (att.status === 'late') {
+            const regularShift = att.shifts.find(s => s.type === 'regular');
+            if (regularShift) {
+                // Check in time
+                const checkIn = new Date(regularShift.checkIn);
+                const hour = checkIn.getHours();
+                
+                // Late mild: between 09:16 and 10:59 (< 11)
+                // Late severe: 11:00 onwards
+                if (hour < 11) {
+                    lateMild++;
+                } else {
+                    lateSevere++;
+                }
+            }
+        }
+    });
+
+    return { lateMild, lateSevere };
+};
+
 /**
  * Get attendance summary for a period (for reports)
  */
@@ -278,6 +305,8 @@ export const getAttendanceSummary = async (
     leave: number;
     totalHours: number;
     overtimeCount: number;
+    lateMild: number;
+    lateSevere: number;
 }> => {
     const attendances = await getEmployeeAttendance(employeeId, startDate, endDate);
 
@@ -288,8 +317,14 @@ export const getAttendanceSummary = async (
         late: 0,
         leave: 0,
         totalHours: 0,
-        overtimeCount: 0
+        overtimeCount: 0,
+        lateMild: 0,
+        lateSevere: 0
     };
+
+    const breakdown = getLateDaysBreakdown(attendances);
+    summary.lateMild = breakdown.lateMild;
+    summary.lateSevere = breakdown.lateSevere;
 
     attendances.forEach(att => {
         summary[att.status]++;

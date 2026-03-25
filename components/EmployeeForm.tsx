@@ -5,7 +5,7 @@ import { X, Plus, Trash2 } from 'lucide-react';
 import { addEmployee, updateEmployee, peekNextEmployeeId, generateEmployeeId } from '@/lib/firestore-employees';
 import { createAuthUser } from '@/app/actions/user-management';
 import type { Employee, EmployeeFormData, EmployeeRole, EmployeeStatus, DocumentType, EmployeeDocument } from '@/types/employee';
-import { EMPLOYEE_ROLE_LABELS, EMPLOYEE_STATUS_LABELS, DOCUMENT_TYPE_LABELS } from '@/types/employee';
+import { EMPLOYEE_ROLE_LABELS, EMPLOYEE_STATUS_LABELS, DOCUMENT_TYPE_LABELS, GENDER_LABELS, MARITAL_STATUS_LABELS } from '@/types/employee';
 import { generateEmployeeEmail } from '@/types/roles';
 
 interface EmployeeFormProps {
@@ -20,7 +20,7 @@ export default function EmployeeForm({ employee, onClose, onSuccess }: EmployeeF
     const [formData, setFormData] = useState<EmployeeFormData>({
         employeeId: '',
         fullName: '',
-        role: 'staff',
+        role: 'helper',
         status: 'active',
         joinDate: new Date(),
         contact: {
@@ -34,9 +34,32 @@ export default function EmployeeForm({ employee, onClose, onSuccess }: EmployeeF
         documents: [],
         salaryConfig: {
             baseSalary: 0,
+            dailyRate: 50000,
             allowance: 0,
+            lateDeduction1: 10000,
+            lateDeduction2: 20000,
+            truckOperationalBudget: 700000,
+            stackingBonus: 50000,
             tripCommission: 0,
             commissionType: 'fixed'
+        },
+        ktpIdentity: {
+            nik: '',
+            namaLengkap: '',
+            tempatLahir: '',
+            tanggalLahir: '',
+            jenisKelamin: 'Laki-laki',
+            alamatKTP: '',
+            rt: '',
+            rw: '',
+            kelurahan: '',
+            kecamatan: '',
+            kabupatenKota: '',
+            provinsi: '',
+            agama: '',
+            statusPerkawinan: 'Belum Kawin',
+            pekerjaan: '',
+            kewarganegaraan: 'WNI'
         },
         photoUrl: '',
         jobdesk: '',
@@ -61,7 +84,25 @@ export default function EmployeeForm({ employee, onClose, onSuccess }: EmployeeF
                 notes: employee.notes,
                 email: employee.email || '',
                 authUid: employee.authUid,
-                accountStatus: employee.accountStatus || 'pending'
+                accountStatus: employee.accountStatus || 'pending',
+                ktpIdentity: employee.ktpIdentity || {
+                    nik: '',
+                    namaLengkap: '',
+                    tempatLahir: '',
+                    tanggalLahir: '',
+                    jenisKelamin: 'Laki-laki',
+                    alamatKTP: '',
+                    rt: '',
+                    rw: '',
+                    kelurahan: '',
+                    kecamatan: '',
+                    kabupatenKota: '',
+                    provinsi: '',
+                    agama: '',
+                    statusPerkawinan: 'Belum Kawin',
+                    pekerjaan: '',
+                    kewarganegaraan: 'WNI'
+                }
             });
         } else {
             // Preview next ID (without incrementing counter)
@@ -339,6 +380,249 @@ export default function EmployeeForm({ employee, onClose, onSuccess }: EmployeeF
                         </div>
                     </div>
 
+                    {/* Data Identitas KTP */}
+                    <div className="space-y-4">
+                        <h3 className="font-medium text-gray-900 border-b pb-2">Identitas Karyawan (Sesuai KTP)</h3>
+                        
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">NIK KTP *</label>
+                                <input
+                                    type="text"
+                                    value={formData.ktpIdentity?.nik || ''}
+                                    onChange={(e) => setFormData(prev => ({
+                                        ...prev,
+                                        ktpIdentity: { ...prev.ktpIdentity!, nik: e.target.value }
+                                    }))}
+                                    required
+                                    className="w-full px-3 py-2 border rounded-lg focus:ring-blue-500 focus:border-blue-500"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Nama Lengkap KTP *</label>
+                                <input
+                                    type="text"
+                                    value={formData.ktpIdentity?.namaLengkap || ''}
+                                    onChange={(e) => setFormData(prev => ({
+                                        ...prev,
+                                        ktpIdentity: { ...prev.ktpIdentity!, namaLengkap: e.target.value }
+                                    }))}
+                                    required
+                                    className="w-full px-3 py-2 border rounded-lg focus:ring-blue-500 focus:border-blue-500"
+                                />
+                            </div>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Tempat Lahir *</label>
+                                <input
+                                    type="text"
+                                    value={formData.ktpIdentity?.tempatLahir || ''}
+                                    onChange={(e) => setFormData(prev => ({
+                                        ...prev,
+                                        ktpIdentity: { ...prev.ktpIdentity!, tempatLahir: e.target.value }
+                                    }))}
+                                    required
+                                    className="w-full px-3 py-2 border rounded-lg"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Tanggal Lahir *</label>
+                                <input
+                                    type="date"
+                                    value={formData.ktpIdentity?.tanggalLahir || ''}
+                                    onChange={(e) => setFormData(prev => ({
+                                        ...prev,
+                                        ktpIdentity: { ...prev.ktpIdentity!, tanggalLahir: e.target.value }
+                                    }))}
+                                    required
+                                    className="w-full px-3 py-2 border rounded-lg"
+                                />
+                            </div>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Jenis Kelamin *</label>
+                                <select
+                                    value={formData.ktpIdentity?.jenisKelamin || 'Laki-laki'}
+                                    onChange={(e) => setFormData(prev => ({
+                                        ...prev,
+                                        ktpIdentity: { ...prev.ktpIdentity!, jenisKelamin: e.target.value as any }
+                                    }))}
+                                    className="w-full px-3 py-2 border rounded-lg bg-white"
+                                >
+                                    {Object.entries(GENDER_LABELS).map(([v, l]) => (
+                                        <option key={v} value={v}>{l}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div className="md:col-span-2">
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Agama *</label>
+                                <select
+                                    value={formData.ktpIdentity?.agama || ''}
+                                    onChange={(e) => setFormData(prev => ({
+                                        ...prev,
+                                        ktpIdentity: { ...prev.ktpIdentity!, agama: e.target.value }
+                                    }))}
+                                    required
+                                    className="w-full px-3 py-2 border rounded-lg bg-white"
+                                >
+                                    <option value="">Pilih Agama</option>
+                                    <option value="Islam">Islam</option>
+                                    <option value="Kristen Protestan">Kristen Protestan</option>
+                                    <option value="Katolik">Katolik</option>
+                                    <option value="Hindu">Hindu</option>
+                                    <option value="Buddha">Buddha</option>
+                                    <option value="Konghucu">Konghucu</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Alamat Sesuai KTP *</label>
+                            <textarea
+                                value={formData.ktpIdentity?.alamatKTP || ''}
+                                onChange={(e) => setFormData(prev => ({
+                                    ...prev,
+                                    ktpIdentity: { ...prev.ktpIdentity!, alamatKTP: e.target.value }
+                                }))}
+                                rows={2}
+                                required
+                                className="w-full px-3 py-2 border rounded-lg"
+                            />
+                        </div>
+                        
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">RT *</label>
+                                <input
+                                    type="text"
+                                    value={formData.ktpIdentity?.rt || ''}
+                                    onChange={(e) => setFormData(prev => ({
+                                        ...prev,
+                                        ktpIdentity: { ...prev.ktpIdentity!, rt: e.target.value }
+                                    }))}
+                                    required
+                                    className="w-full px-3 py-2 border rounded-lg"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">RW *</label>
+                                <input
+                                    type="text"
+                                    value={formData.ktpIdentity?.rw || ''}
+                                    onChange={(e) => setFormData(prev => ({
+                                        ...prev,
+                                        ktpIdentity: { ...prev.ktpIdentity!, rw: e.target.value }
+                                    }))}
+                                    required
+                                    className="w-full px-3 py-2 border rounded-lg"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Kelurahan/Desa *</label>
+                                <input
+                                    type="text"
+                                    value={formData.ktpIdentity?.kelurahan || ''}
+                                    onChange={(e) => setFormData(prev => ({
+                                        ...prev,
+                                        ktpIdentity: { ...prev.ktpIdentity!, kelurahan: e.target.value }
+                                    }))}
+                                    required
+                                    className="w-full px-3 py-2 border rounded-lg"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Kecamatan *</label>
+                                <input
+                                    type="text"
+                                    value={formData.ktpIdentity?.kecamatan || ''}
+                                    onChange={(e) => setFormData(prev => ({
+                                        ...prev,
+                                        ktpIdentity: { ...prev.ktpIdentity!, kecamatan: e.target.value }
+                                    }))}
+                                    required
+                                    className="w-full px-3 py-2 border rounded-lg"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Kabupaten/Kota *</label>
+                                <input
+                                    type="text"
+                                    value={formData.ktpIdentity?.kabupatenKota || ''}
+                                    onChange={(e) => setFormData(prev => ({
+                                        ...prev,
+                                        ktpIdentity: { ...prev.ktpIdentity!, kabupatenKota: e.target.value }
+                                    }))}
+                                    required
+                                    className="w-full px-3 py-2 border rounded-lg"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Provinsi *</label>
+                                <input
+                                    type="text"
+                                    value={formData.ktpIdentity?.provinsi || ''}
+                                    onChange={(e) => setFormData(prev => ({
+                                        ...prev,
+                                        ktpIdentity: { ...prev.ktpIdentity!, provinsi: e.target.value }
+                                    }))}
+                                    required
+                                    className="w-full px-3 py-2 border rounded-lg"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Status Perkawinan *</label>
+                                <select
+                                    value={formData.ktpIdentity?.statusPerkawinan || 'Belum Kawin'}
+                                    onChange={(e) => setFormData(prev => ({
+                                        ...prev,
+                                        ktpIdentity: { ...prev.ktpIdentity!, statusPerkawinan: e.target.value as any }
+                                    }))}
+                                    className="w-full px-3 py-2 border rounded-lg bg-white"
+                                >
+                                    {Object.entries(MARITAL_STATUS_LABELS).map(([v, l]) => (
+                                        <option key={v} value={v}>{l}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Pekerjaan *</label>
+                                <input
+                                    type="text"
+                                    value={formData.ktpIdentity?.pekerjaan || ''}
+                                    onChange={(e) => setFormData(prev => ({
+                                        ...prev,
+                                        ktpIdentity: { ...prev.ktpIdentity!, pekerjaan: e.target.value }
+                                    }))}
+                                    required
+                                    className="w-full px-3 py-2 border rounded-lg"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Kewarganegaraan *</label>
+                                <input
+                                    type="text"
+                                    value={formData.ktpIdentity?.kewarganegaraan || 'WNI'}
+                                    onChange={(e) => setFormData(prev => ({
+                                        ...prev,
+                                        ktpIdentity: { ...prev.ktpIdentity!, kewarganegaraan: e.target.value }
+                                    }))}
+                                    required
+                                    className="w-full px-3 py-2 border rounded-lg"
+                                />
+                            </div>
+                        </div>
+                    </div>
+
                     {/* Documents */}
                     <div className="space-y-4">
                         <div className="flex justify-between items-center">
@@ -396,67 +680,104 @@ export default function EmployeeForm({ employee, onClose, onSuccess }: EmployeeF
 
                     {/* Salary Config */}
                     <div className="space-y-4">
-                        <h3 className="font-medium text-gray-900">Konfigurasi Gaji</h3>
+                        <h3 className="font-medium text-gray-900 border-b pb-2">
+                            Konfigurasi Gaji ({formData.role === 'helper' ? 'Helper' : 'Staff / Pengurus'})
+                        </h3>
 
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Gaji Pokok</label>
-                                <input
-                                    type="number"
-                                    value={formData.salaryConfig.baseSalary}
-                                    onChange={(e) => setFormData(prev => ({
-                                        ...prev,
-                                        salaryConfig: { ...prev.salaryConfig, baseSalary: Number(e.target.value) }
-                                    }))}
-                                    className="w-full px-3 py-2 border rounded-lg"
-                                />
+                        {formData.role !== 'helper' && (
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Gaji Pokok</label>
+                                    <input
+                                        type="number"
+                                        value={formData.salaryConfig.baseSalary}
+                                        onChange={(e) => setFormData(prev => ({
+                                            ...prev,
+                                            salaryConfig: { ...prev.salaryConfig, baseSalary: Number(e.target.value) }
+                                        }))}
+                                        className="w-full px-3 py-2 border rounded-lg"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Uang Makan/Harian</label>
+                                    <input
+                                        type="number"
+                                        value={formData.salaryConfig.allowance}
+                                        onChange={(e) => setFormData(prev => ({
+                                            ...prev,
+                                            salaryConfig: { ...prev.salaryConfig, allowance: Number(e.target.value) }
+                                        }))}
+                                        className="w-full px-3 py-2 border rounded-lg"
+                                    />
+                                </div>
                             </div>
+                        )}
 
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Uang Makan/Harian</label>
-                                <input
-                                    type="number"
-                                    value={formData.salaryConfig.allowance}
-                                    onChange={(e) => setFormData(prev => ({
-                                        ...prev,
-                                        salaryConfig: { ...prev.salaryConfig, allowance: Number(e.target.value) }
-                                    }))}
-                                    className="w-full px-3 py-2 border rounded-lg"
-                                />
+                        {formData.role === 'helper' && (
+                            <div className="space-y-4 bg-gray-50 p-4 rounded-xl border border-gray-100">
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Gaji Kehadiran Harian</label>
+                                        <input
+                                            type="number"
+                                            value={formData.salaryConfig.dailyRate}
+                                            onChange={(e) => setFormData(prev => ({
+                                                ...prev,
+                                                salaryConfig: { ...prev.salaryConfig, dailyRate: Number(e.target.value) }
+                                            }))}
+                                            className="w-full px-3 py-2 border rounded-lg border-blue-200 focus:border-blue-500"
+                                        />
+                                    </div>
+                                    <div className="text-xs text-gray-500 flex items-center mt-6">
+                                        Standar: Rp 50.000 per hari absen
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Potongan Telat (1-2 Jam)</label>
+                                        <input
+                                            type="number"
+                                            value={formData.salaryConfig.lateDeduction1}
+                                            onChange={(e) => setFormData(prev => ({
+                                                ...prev,
+                                                salaryConfig: { ...prev.salaryConfig, lateDeduction1: Number(e.target.value) }
+                                            }))}
+                                            className="w-full px-3 py-2 border rounded-lg border-amber-200 focus:border-amber-500"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Potongan Telat (&gt;2 Jam)</label>
+                                        <input
+                                            type="number"
+                                            value={formData.salaryConfig.lateDeduction2}
+                                            onChange={(e) => setFormData(prev => ({
+                                                ...prev,
+                                                salaryConfig: { ...prev.salaryConfig, lateDeduction2: Number(e.target.value) }
+                                            }))}
+                                            className="w-full px-3 py-2 border rounded-lg border-red-200 focus:border-red-500"
+                                        />
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-gray-200">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Porsi Susun Barang (Bonus Truk)</label>
+                                        <input
+                                            type="number"
+                                            value={formData.salaryConfig.stackingBonus}
+                                            onChange={(e) => setFormData(prev => ({
+                                                ...prev,
+                                                salaryConfig: { ...prev.salaryConfig, stackingBonus: Number(e.target.value) }
+                                            }))}
+                                            className="w-full px-3 py-2 border rounded-lg"
+                                        />
+                                        <p className="text-xs text-gray-500 mt-1">Total budget operasional truk: Rp 700.000</p>
+                                    </div>
+                                </div>
                             </div>
-                        </div>
+                        )}
 
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Tipe Komisi Trip</label>
-                                <select
-                                    value={formData.salaryConfig.commissionType}
-                                    onChange={(e) => setFormData(prev => ({
-                                        ...prev,
-                                        salaryConfig: { ...prev.salaryConfig, commissionType: e.target.value as 'fixed' | 'percentage' }
-                                    }))}
-                                    className="w-full px-3 py-2 border rounded-lg"
-                                >
-                                    <option value="fixed">Tetap per Trip</option>
-                                    <option value="percentage">Persentase dari Omzet</option>
-                                </select>
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Nilai Komisi {formData.salaryConfig.commissionType === 'percentage' ? '(%)' : '(Rp)'}
-                                </label>
-                                <input
-                                    type="number"
-                                    value={formData.salaryConfig.tripCommission}
-                                    onChange={(e) => setFormData(prev => ({
-                                        ...prev,
-                                        salaryConfig: { ...prev.salaryConfig, tripCommission: Number(e.target.value) }
-                                    }))}
-                                    className="w-full px-3 py-2 border rounded-lg"
-                                />
-                            </div>
-
+                        <div className="grid grid-cols-1 gap-4 mt-6">
                             {/* Job Description */}
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">

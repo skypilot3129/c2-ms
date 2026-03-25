@@ -28,13 +28,64 @@ export interface EmployeeContact {
     emergencyContactPhone?: string;
 }
 
+// KTP Identity (data sesuai KTP)
+export interface KTPIdentity {
+    nik: string;
+    namaLengkap: string;
+    tempatLahir: string;
+    tanggalLahir: string; // YYYY-MM-DD
+    jenisKelamin: 'Laki-laki' | 'Perempuan';
+    alamatKTP: string;
+    rt: string;
+    rw: string;
+    kelurahan: string;
+    kecamatan: string;
+    kabupatenKota: string;
+    provinsi: string;
+    agama: string;
+    statusPerkawinan: 'Belum Kawin' | 'Kawin' | 'Cerai Hidup' | 'Cerai Mati';
+    pekerjaan: string;
+    kewarganegaraan: string;
+}
+
 // Salary Configuration
 export interface SalaryConfig {
-    baseSalary: number; // Gaji Pokok
-    allowance: number; // Uang Makan/Harian
-    tripCommission: number; // Per trip or percentage
-    commissionType: 'fixed' | 'percentage'; // How to calculate trip pay
+    baseSalary: number;        // Gaji Pokok (untuk admin/pengurus)
+    dailyRate: number;         // Upah harian helper (Rp 50.000)
+    allowance: number;         // Uang Makan/Harian
+    lateDeduction1: number;    // Potongan telat 1-2 jam (Rp 10.000)
+    lateDeduction2: number;    // Potongan telat >2 jam (Rp 20.000)
+    truckOperationalBudget: number; // Budget per truck (Rp 700.000)
+    stackingBonus: number;     // Bonus susun barang dari budget truck (Rp 50.000)
+    tripCommission: number;    // Per trip or percentage
+    commissionType: 'fixed' | 'percentage';
 }
+
+// Default salary config for helper
+export const DEFAULT_HELPER_SALARY: SalaryConfig = {
+    baseSalary: 0,
+    dailyRate: 50000,
+    allowance: 0,
+    lateDeduction1: 10000,
+    lateDeduction2: 20000,
+    truckOperationalBudget: 700000,
+    stackingBonus: 50000,
+    tripCommission: 0,
+    commissionType: 'fixed',
+};
+
+// Default salary config for admin/pengurus
+export const DEFAULT_STAFF_SALARY: SalaryConfig = {
+    baseSalary: 0,
+    dailyRate: 0,
+    allowance: 0,
+    lateDeduction1: 0,
+    lateDeduction2: 0,
+    truckOperationalBudget: 0,
+    stackingBonus: 0,
+    tripCommission: 0,
+    commissionType: 'fixed',
+};
 
 // Main Employee Interface (for form data)
 export interface EmployeeFormData {
@@ -46,6 +97,7 @@ export interface EmployeeFormData {
     contact: EmployeeContact;
     documents: EmployeeDocument[];
     salaryConfig: SalaryConfig;
+    ktpIdentity?: KTPIdentity; // Data identitas KTP
     photoUrl?: string; // Profile photo
     jobdesk?: string; // Job description/responsibilities
     notes?: string;
@@ -90,6 +142,20 @@ export const DOCUMENT_TYPE_LABELS: Record<DocumentType, string> = {
     'KK': 'Kartu Keluarga',
     'NPWP': 'NPWP',
     'STNK': 'STNK'
+};
+
+// Gender labels
+export const GENDER_LABELS = {
+    'Laki-laki': 'Laki-laki',
+    'Perempuan': 'Perempuan',
+};
+
+// Marital status labels
+export const MARITAL_STATUS_LABELS = {
+    'Belum Kawin': 'Belum Kawin',
+    'Kawin': 'Kawin',
+    'Cerai Hidup': 'Cerai Hidup',
+    'Cerai Mati': 'Cerai Mati',
 };
 
 // Helper function to check if document is expiring soon

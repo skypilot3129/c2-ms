@@ -105,8 +105,9 @@ export default function EmployeeList({ onEdit, onAdd, roleFilter }: EmployeeList
                                         </div>
                                     </td>
                                     <td className="px-4 py-3">
-                                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${emp.role === 'driver' ? 'bg-blue-100 text-blue-800' :
+                                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${emp.role === 'helper' ? 'bg-amber-100 text-amber-800' :
                                             emp.role === 'admin' ? 'bg-purple-100 text-purple-800' :
+                                            emp.role === 'pengurus' ? 'bg-blue-100 text-blue-800' :
                                                 'bg-gray-100 text-gray-800'
                                             }`}>
                                             {EMPLOYEE_ROLE_LABELS[emp.role] || emp.role}

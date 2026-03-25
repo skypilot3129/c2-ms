@@ -16,7 +16,7 @@ export default function EmployeesPage() {
     const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
 
     // Role Guard
-    if (role !== 'owner' && role !== 'admin') {
+    if (role !== 'admin' && role !== 'pengurus') {
         return (
             <ProtectedRoute>
                 <div className="min-h-screen flex items-center justify-center bg-gray-50">

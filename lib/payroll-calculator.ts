@@ -24,48 +24,58 @@ export const calculateEmployeePayroll = async (
         endDateStr
     );
 
-    // Days worked = present + late (tidak termasuk absent/leave)
-    const daysWorked = attendanceSummary.present + attendanceSummary.late;
+    const isHelper = employee.role === 'helper';
 
-    // 2. Calculate allowance
-    const dailyAllowance = employee.salaryConfig.allowance;
-    const totalAllowance = dailyAllowance * daysWorked;
+    // 2. Attendance Pay (Khusus Helper)
+    const daysPresent = attendanceSummary.present;
+    const daysLate = attendanceSummary.late;
+    const daysWorked = daysPresent + daysLate;
+    
+    const dailyRate = isHelper ? (employee.salaryConfig.dailyRate || 50000) : 0;
+    const attendancePay = isHelper ? daysWorked * dailyRate : 0;
 
-    // 3. Calculate overtime
+    // 3. Late Deductions (Khusus Helper)
+    const lateMild = attendanceSummary.lateMild || 0;
+    const lateSevere = attendanceSummary.lateSevere || 0;
+    const lateMildDeduction = isHelper ? lateMild * (employee.salaryConfig.lateDeduction1 || 10000) : 0;
+    const lateSevereDeduction = isHelper ? lateSevere * (employee.salaryConfig.lateDeduction2 || 20000) : 0;
+    const totalLateDeductions = lateMildDeduction + lateSevereDeduction;
+
+    // 4. Overtime / Lembur Muat
     const overtimeEvents = attendanceSummary.overtimeCount;
     const overtimeRate = OVERTIME_RATE_PER_EVENT;
     const totalOvertime = overtimeEvents * overtimeRate;
 
-    // 4. Calculate trip commission
-    // TODO: Implement when voyage/trip tracking is ready
-    // For now, use placeholder values
+    // 5. Loading Operations (Belum diimplementasikan database-nya)
+    const loadingOperations: any[] = [];
+    const totalLoadingPay = 0;
+    const totalStackingBonus = 0;
+
+    // 6. Allowance (Khusus Admin/Pengurus jika ada)
+    const dailyAllowance = employee.salaryConfig.allowance || 0;
+    const totalAllowance = dailyAllowance * daysWorked;
+
+    // 7. Legacy commission
     const tripsCompleted = 0;
-    const commissionPerTrip = employee.salaryConfig.tripCommission;
+    const commissionPerTrip = employee.salaryConfig.tripCommission || 0;
     const totalCommission = 0;
 
-    // If driver/helper role, we would calculate:
-    // if (['driver', 'helper'].includes(employee.role)) {
-    //     const trips = await getEmployeeTripsForPeriod(employee.employeeId, period);
-    //     tripsCompleted = trips.length;
-    //     if (employee.salaryConfig.commissionType === 'fixed') {
-    //         totalCommission = tripsCompleted * employee.salaryConfig.tripCommission;
-    //     } else {
-    //         // Percentage of trip revenue
-    //         const tripRevenue = trips.reduce((sum, t) => sum + t.revenue, 0);
-    //         totalCommission = tripRevenue * (employee.salaryConfig.tripCommission / 100);
-    //     }
-    // }
-
-    // 5. Calculate deductions
+    // 8. Deductions list
     const deductions: PayrollDeduction[] = [];
+    if (lateMild > 0 && isHelper) {
+        deductions.push({ type: 'late_mild', description: `Telat 1-2 Jam (${lateMild}x)`, amount: lateMildDeduction });
+    }
+    if (lateSevere > 0 && isHelper) {
+        deductions.push({ type: 'late_severe', description: `Telat >2 Jam (${lateSevere}x)`, amount: lateSevereDeduction });
+    }
     const totalDeductions = deductions.reduce((sum, d) => sum + d.amount, 0);
 
-    // 6. Calculate gross and net pay
-    const baseSalary = employee.salaryConfig.baseSalary;
-    const grossPay = baseSalary + totalAllowance + totalCommission + totalOvertime;
+    // 9. Calculate gross and net pay
+    const baseSalary = !isHelper ? (employee.salaryConfig.baseSalary || 0) : 0;
+    const grossPay = baseSalary + attendancePay + totalAllowance + totalLoadingPay + totalStackingBonus + totalOvertime + totalCommission;
     const netPay = grossPay - totalDeductions;
 
-    // 7. Build result
+    // 10. Build result
     const calculation: PayrollCalculation = {
         employeeId: employee.employeeId,
         employeeName: employee.fullName,
@@ -73,9 +83,25 @@ export const calculateEmployeePayroll = async (
         period,
 
         baseSalary,
+        
+        dailyRate,
+        daysPresent,
+        daysLate,
+        attendancePay,
+
+        lateMild,
+        lateSevere,
+        lateMildDeduction,
+        lateSevereDeduction,
+        totalLateDeductions,
+
         dailyAllowance,
         daysWorked,
         totalAllowance,
+
+        loadingOperations,
+        totalLoadingPay,
+        totalStackingBonus,
 
         tripsCompleted,
         commissionPerTrip,

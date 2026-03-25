@@ -188,18 +188,82 @@ export default function EmployeePortalPage() {
                                 </div>
                             </div>
 
+                            {/* Data Identitas (KTP) */}
+                            {employee.ktpIdentity && (
+                                <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+                                    <h2 className="text-lg font-bold text-gray-800 mb-4">Data Identitas (Sesuai KTP)</h2>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <p className="text-sm text-gray-500">NIK</p>
+                                            <p className="font-medium text-gray-800">{employee.ktpIdentity.nik || '-'}</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-sm text-gray-500">Nama Lengkap</p>
+                                            <p className="font-medium text-gray-800">{employee.ktpIdentity.namaLengkap || '-'}</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-sm text-gray-500">Tempat, Tanggal Lahir</p>
+                                            <p className="font-medium text-gray-800">{employee.ktpIdentity.tempatLahir}, {employee.ktpIdentity.tanggalLahir}</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-sm text-gray-500">Jenis Kelamin</p>
+                                            <p className="font-medium text-gray-800">{employee.ktpIdentity.jenisKelamin}</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-sm text-gray-500">Agama</p>
+                                            <p className="font-medium text-gray-800">{employee.ktpIdentity.agama}</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-sm text-gray-500">Status Perkawinan</p>
+                                            <p className="font-medium text-gray-800">{employee.ktpIdentity.statusPerkawinan}</p>
+                                        </div>
+                                        <div className="col-span-2">
+                                            <p className="text-sm text-gray-500">Alamat KTP</p>
+                                            <p className="font-medium text-gray-800">
+                                                {employee.ktpIdentity.alamatKTP} RT {employee.ktpIdentity.rt} RW {employee.ktpIdentity.rw}, 
+                                                Kel/Desa {employee.ktpIdentity.kelurahan}, Kec. {employee.ktpIdentity.kecamatan}, 
+                                                {employee.ktpIdentity.kabupatenKota}, Prov. {employee.ktpIdentity.provinsi}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
                             {/* Salary Info */}
                             <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
                                 <h2 className="text-lg font-bold text-gray-800 mb-4">Informasi Gaji</h2>
                                 <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <p className="text-sm text-gray-500">Gaji Pokok</p>
-                                        <p className="text-lg font-bold text-gray-800">{formatRupiah(employee.salaryConfig.baseSalary)}</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-sm text-gray-500">Uang Harian</p>
-                                        <p className="text-lg font-bold text-gray-800">{formatRupiah(employee.salaryConfig.allowance)}</p>
-                                    </div>
+                                    {employee.role === 'helper' ? (
+                                        <>
+                                            <div>
+                                                <p className="text-sm text-gray-500">Gaji Kehadiran Harian</p>
+                                                <p className="text-lg font-bold text-gray-800">{formatRupiah(employee.salaryConfig.dailyRate || 50000)}</p>
+                                            </div>
+                                            <div>
+                                                <p className="text-sm text-gray-500">Bonus Susun Barang</p>
+                                                <p className="text-lg font-bold text-gray-800">{formatRupiah(employee.salaryConfig.stackingBonus || 50000)}</p>
+                                            </div>
+                                            <div>
+                                                <p className="text-sm text-gray-500">Potongan Telat (1-2 Jam)</p>
+                                                <p className="font-medium text-amber-600">-{formatRupiah(employee.salaryConfig.lateDeduction1 || 10000)}</p>
+                                            </div>
+                                            <div>
+                                                <p className="text-sm text-gray-500">Potongan Telat (&gt;2 Jam)</p>
+                                                <p className="font-medium text-red-600">-{formatRupiah(employee.salaryConfig.lateDeduction2 || 20000)}</p>
+                                            </div>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <div>
+                                                <p className="text-sm text-gray-500">Gaji Pokok</p>
+                                                <p className="text-lg font-bold text-gray-800">{formatRupiah(employee.salaryConfig.baseSalary || 0)}</p>
+                                            </div>
+                                            <div>
+                                                <p className="text-sm text-gray-500">Uang Harian</p>
+                                                <p className="text-lg font-bold text-gray-800">{formatRupiah(employee.salaryConfig.allowance || 0)}</p>
+                                            </div>
+                                        </>
+                                    )}
                                 </div>
                             </div>
 

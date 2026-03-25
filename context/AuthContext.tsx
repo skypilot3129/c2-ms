@@ -23,7 +23,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const [user, setUser] = useState<User | null>(null);
     const [loading, setLoading] = useState(true);
-    const [role, setRole] = useState<UserRole>('owner'); // Default to owner for backward compatibility
+    const [role, setRole] = useState<UserRole>('admin'); // Default to admin for backward compatibility
     const [employee, setEmployee] = useState<Employee | null>(null);
 
     useEffect(() => {
@@ -67,17 +67,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                         setEmployee(empData);
                         setRole(data.role);
                     } else {
-                        // No employee record = assume owner (backward compatibility)
+                        // No employee record = assume admin (backward compatibility)
                         setEmployee(null);
-                        setRole('owner');
+                        setRole('admin');
                     }
                 } catch (error) {
                     console.error('Error fetching employee data:', error);
-                    setRole('owner'); // Fallback
+                    setRole('admin'); // Fallback
                 }
             } else {
                 setEmployee(null);
-                setRole('owner');
+                setRole('admin');
             }
 
             setLoading(false);

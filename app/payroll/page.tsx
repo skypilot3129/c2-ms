@@ -32,8 +32,8 @@ export default function PayrollPage() {
     const [payrollHistory, setPayrollHistory] = useState<MonthlyPayroll[]>([]);
     const [loading, setLoading] = useState(true);
 
-    // Access control
-    if (role !== 'owner' && role !== 'admin') {
+    // Role Guard
+    if (role !== 'admin' && role !== 'pengurus') {
         return (
             <ProtectedRoute>
                 <div className="min-h-screen flex items-center justify-center bg-gray-50">
