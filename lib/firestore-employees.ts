@@ -32,6 +32,7 @@ export const docToEmployee = (id: string, data: EmployeeDoc): Employee => {
         contact: data.contact,
         documents: data.documents || [],
         salaryConfig: data.salaryConfig,
+        ktpIdentity: data.ktpIdentity,
         photoUrl: data.photoUrl,
         jobdesk: data.jobdesk,
         notes: data.notes,

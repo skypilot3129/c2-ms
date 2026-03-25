@@ -170,7 +170,7 @@ export default function ContractPrintPage() {
                                     <td className="w-8 align-top"></td>
                                     <td className="w-40 font-semibold align-top">Alamat Lengkap</td>
                                     <td className="w-2 align-top">:</td>
-                                    <td>{employee.contact?.address || '-'}</td>
+                                    <td>{employee.ktpIdentity?.alamatKTP || employee.contact?.address || '-'}</td>
                                 </tr>
                                 <tr>
                                     <td colSpan={4} className="pt-2 text-gray-700 italic">
