@@ -59,8 +59,8 @@ export default function AttendanceCheckIn({ employeeId, employeeName }: Attendan
             setLocationSettings(settings);
 
             if (settings.enabled) {
-                // Auto-request location
-                requestLocation();
+                // Pass settings directly to avoid stale state
+                requestLocation(settings);
             } else {
                 setLocationStatus('disabled');
             }
@@ -70,7 +70,10 @@ export default function AttendanceCheckIn({ employeeId, employeeName }: Attendan
         }
     };
 
-    const requestLocation = async () => {
+    const requestLocation = async (settings?: AttendanceLocationSettings) => {
+        // Use passed settings or current state
+        const activeSettings = settings || locationSettings;
+
         setLocationStatus('loading');
         setLocationError('');
 
@@ -80,8 +83,8 @@ export default function AttendanceCheckIn({ employeeId, employeeName }: Attendan
             setLocationStatus('granted');
 
             // Check nearest location
-            if (locationSettings) {
-                const nearest = findNearestLocation(position, locationSettings.locations);
+            if (activeSettings && activeSettings.locations.length > 0) {
+                const nearest = findNearestLocation(position, activeSettings.locations);
                 if (nearest) {
                     setNearestInfo({
                         locationName: nearest.location.name,
@@ -255,7 +258,7 @@ export default function AttendanceCheckIn({ employeeId, employeeName }: Attendan
 
                         {(locationStatus === 'error' || locationStatus === 'denied' || (locationStatus === 'granted' && !nearestInfo?.isWithin)) && (
                             <button
-                                onClick={requestLocation}
+                                onClick={() => requestLocation()}
                                 className="px-3 py-1.5 bg-white border rounded-lg text-xs font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-1 transition-colors"
                             >
                                 <Navigation size={12} />
