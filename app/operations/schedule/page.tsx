@@ -30,9 +30,9 @@ export default function MonthlySchedulePage() {
     useEffect(() => {
         if (authLoading) return;
         
-        if (user && ['admin', 'pengurus'].includes(role)) {
+        if (user) {
             loadData();
-        } else if (!user) {
+        } else {
             router.push('/');
         }
     }, [user, role, authLoading, month, router]);
@@ -107,9 +107,11 @@ export default function MonthlySchedulePage() {
         });
     };
 
-    if (authLoading || (!user) || !['admin', 'pengurus'].includes(role)) {
+    if (authLoading || !user) {
         return null;
     }
+
+    const isManager = ['admin', 'pengurus'].includes(role);
 
     return (
         <ProtectedRoute>
@@ -165,7 +167,8 @@ export default function MonthlySchedulePage() {
                                             type="checkbox"
                                             checked={loaderIds.includes(emp.employeeId)}
                                             onChange={() => toggleLoader(emp.employeeId)}
-                                            className="mr-3 w-4 h-4 text-blue-600 rounded"
+                                            disabled={!isManager}
+                                            className="mr-3 w-4 h-4 text-blue-600 rounded disabled:opacity-50"
                                         />
                                         <div>
                                             <p className="font-medium text-gray-800">{emp.fullName}</p>
@@ -200,7 +203,8 @@ export default function MonthlySchedulePage() {
                                                 type="checkbox"
                                                 checked={isStacker}
                                                 onChange={() => toggleStacker(emp.employeeId)}
-                                                className="mr-3 w-4 h-4 text-purple-600 rounded"
+                                                disabled={!isManager}
+                                                className="mr-3 w-4 h-4 text-purple-600 rounded disabled:opacity-50"
                                             />
                                             <div className="flex-1">
                                                 <p className="font-medium text-gray-800">{emp.fullName}</p>
@@ -221,16 +225,18 @@ export default function MonthlySchedulePage() {
                     </div>
                 )}
 
-                <div className="flex justify-end pt-4">
-                    <button
-                        onClick={handleSave}
-                        disabled={saving || loading}
-                        className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium transition-colors disabled:opacity-50"
-                    >
-                        <Save size={20} />
-                        {saving ? 'Menyimpan...' : `Simpan Jadwal ${month}`}
-                    </button>
-                </div>
+                {isManager && (
+                    <div className="flex justify-end pt-4">
+                        <button
+                            onClick={handleSave}
+                            disabled={saving || loading}
+                            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium transition-colors disabled:opacity-50"
+                        >
+                            <Save size={20} />
+                            {saving ? 'Menyimpan...' : `Simpan Jadwal ${month}`}
+                        </button>
+                    </div>
+                )}
             </div>
         </ProtectedRoute>
     );

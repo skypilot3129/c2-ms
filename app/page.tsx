@@ -237,26 +237,28 @@ export default function Home() {
                             </Link>
                         )}
 
-                        {/* Operasional Truk - Admin & Pengurus */}
-                        {user && isManager && (
+                        {/* Operasional Truk & Jadwal Muat - Accessible to ALL */}
+                        {user && (
                             <>
-                                <Link href="/operations/active" className="group">
-                                    <div className="bg-white rounded-3xl p-8 shadow-xl shadow-gray-200/50 border border-gray-100 hover:border-orange-300 hover:shadow-2xl hover:shadow-orange-500/10 transition-all duration-300 relative overflow-hidden group-hover:-translate-y-1">
-                                        <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-orange-50 to-transparent rounded-bl-full opacity-50 group-hover:scale-110 transition-transform origin-top-right"></div>
-                                        <div className="relative">
-                                            <div className="w-16 h-16 bg-orange-100 rounded-2xl flex items-center justify-center text-orange-600 mb-6 group-hover:rotate-6 transition-transform">
-                                                <Truck size={32} />
-                                            </div>
-                                            <h2 className="text-2xl font-bold text-gray-800 mb-2 group-hover:text-orange-600 transition-colors">Tugas Truk Hari Ini</h2>
-                                            <p className="text-gray-500 mb-6 leading-relaxed">
-                                                Mulai sesi pemuatan truk, tugaskan penyusun, dan pantau aktivitas Helper.
-                                            </p>
-                                            <div className="flex items-center text-orange-600 font-semibold gap-2">
-                                                Atur Pemuatan <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
+                                {isManager && (
+                                    <Link href="/operations/active" className="group">
+                                        <div className="bg-white rounded-3xl p-8 shadow-xl shadow-gray-200/50 border border-gray-100 hover:border-orange-300 hover:shadow-2xl hover:shadow-orange-500/10 transition-all duration-300 relative overflow-hidden group-hover:-translate-y-1">
+                                            <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-orange-50 to-transparent rounded-bl-full opacity-50 group-hover:scale-110 transition-transform origin-top-right"></div>
+                                            <div className="relative">
+                                                <div className="w-16 h-16 bg-orange-100 rounded-2xl flex items-center justify-center text-orange-600 mb-6 group-hover:rotate-6 transition-transform">
+                                                    <Truck size={32} />
+                                                </div>
+                                                <h2 className="text-2xl font-bold text-gray-800 mb-2 group-hover:text-orange-600 transition-colors">Tugas Truk Hari Ini</h2>
+                                                <p className="text-gray-500 mb-6 leading-relaxed">
+                                                    Mulai sesi pemuatan truk, tugaskan penyusun, dan pantau aktivitas Helper.
+                                                </p>
+                                                <div className="flex items-center text-orange-600 font-semibold gap-2">
+                                                    Atur Pemuatan <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
+                                                </div>
                                             </div>
                                         </div>
-                                    </div>
-                                </Link>
+                                    </Link>
+                                )}
 
                                 <Link href="/operations/schedule" className="group">
                                     <div className="bg-white rounded-3xl p-8 shadow-xl shadow-gray-200/50 border border-gray-100 hover:border-purple-300 hover:shadow-2xl hover:shadow-purple-500/10 transition-all duration-300 relative overflow-hidden group-hover:-translate-y-1">
@@ -267,10 +269,10 @@ export default function Home() {
                                             </div>
                                             <h2 className="text-2xl font-bold text-gray-800 mb-2 group-hover:text-purple-600 transition-colors">Jadwal Muat Bulanan</h2>
                                             <p className="text-gray-500 mb-6 leading-relaxed">
-                                                Pilih tim muat dan daftar calon penyusun (stacker pool) untuk bulan ini.
+                                                {isManager ? 'Pilih tim muat dan daftar calon penyusun untuk bulan ini.' : 'Lihat daftar tim muat dan calon penyusun bulan ini.'}
                                             </p>
                                             <div className="flex items-center text-purple-600 font-semibold gap-2">
-                                                Atur Jadwal <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
+                                                {isManager ? 'Atur Jadwal' : 'Lihat Jadwal'} <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
                                             </div>
                                         </div>
                                     </div>
@@ -421,8 +423,8 @@ export default function Home() {
                             </Link>
                         )}
 
-                        {/* Volume Calculator - Owner, Admin, Branch Manager */}
-                        {user && isManager && (
+                        {/* Volume Calculator - All authenticated users */}
+                        {user && (
                             <Link href="/tools/volume-calculator" className="group">
                                 <div className="bg-white rounded-3xl p-8 shadow-xl shadow-gray-200/50 border border-gray-100 hover:border-orange-300 hover:shadow-2xl hover:shadow-orange-500/10 transition-all duration-300 relative overflow-hidden group-hover:-translate-y-1">
                                     <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-orange-50 to-transparent rounded-bl-full opacity-50 group-hover:scale-110 transition-transform origin-top-right"></div>
