@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { User, Phone, Calendar, AlertTriangle, Edit, Trash2, Plus } from 'lucide-react';
+import { User, Phone, Calendar, AlertTriangle, Edit, Trash2, Plus, Printer } from 'lucide-react';
 import { subscribeToEmployees, deleteEmployee } from '@/lib/firestore-employees';
 import type { Employee, EmployeeRole } from '@/types/employee';
 import { EMPLOYEE_ROLE_LABELS, EMPLOYEE_STATUS_LABELS, isDocumentExpiringSoon } from '@/types/employee';
@@ -135,6 +135,13 @@ export default function EmployeeList({ onEdit, onAdd, roleFilter }: EmployeeList
                                     </td>
                                     <td className="px-4 py-3">
                                         <div className="flex justify-end gap-2">
+                                            <button
+                                                onClick={() => window.open(`/employees/contract/${emp.id}`, '_blank')}
+                                                className="p-1.5 text-slate-600 hover:bg-slate-50 rounded"
+                                                title="Cetak Kontrak"
+                                            >
+                                                <Printer size={16} />
+                                            </button>
                                             <button
                                                 onClick={() => onEdit(emp)}
                                                 className="p-1.5 text-blue-600 hover:bg-blue-50 rounded"

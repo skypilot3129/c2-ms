@@ -75,7 +75,7 @@ export default function ActiveOperationsPage() {
         }
     };
 
-    const getEmpName = (id: string) => employees.find(e => e.id === id)?.fullName || 'Tidak Diketahui';
+    const getEmpName = (id: string) => employees.find(e => e.employeeId === id)?.fullName || 'Tidak Diketahui';
 
     // Get today's active loaders based on the monthly schedule
     const activeLoaders = (monthlySchedule?.loaderIds || []).filter(loaderId => 

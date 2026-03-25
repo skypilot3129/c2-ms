@@ -58,17 +58,17 @@ export default function AttendanceDashboard() {
     }, [selectedDate, todayStr]);
 
     const getEmployeeName = (employeeId: string) => {
-        const emp = employees.find(e => e.id === employeeId);
+        const emp = employees.find(e => e.employeeId === employeeId);
         return emp ? emp.fullName : 'Unknown';
     };
 
     const getEmployeeRole = (employeeId: string) => {
-        const emp = employees.find(e => e.id === employeeId);
+        const emp = employees.find(e => e.employeeId === employeeId);
         return emp ? emp.role : '';
     };
 
     const checkedInEmployeeIds = new Set(attendances.map(a => a.employeeId));
-    const absentEmployees = employees.filter(emp => emp.status === 'active' && !checkedInEmployeeIds.has(emp.id));
+    const absentEmployees = employees.filter(emp => emp.status === 'active' && !checkedInEmployeeIds.has(emp.employeeId));
 
     const stats = {
         total: employees.filter(e => e.status === 'active').length,

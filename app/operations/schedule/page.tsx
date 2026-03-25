@@ -158,13 +158,13 @@ export default function MonthlySchedulePage() {
                                 {helpers.length === 0 ? (
                                     <p className="text-gray-500 text-center py-4">Belum ada helper aktif.</p>
                                 ) : helpers.map(emp => (
-                                    <label key={emp.id} className={`flex items-center p-3 border rounded-lg cursor-pointer transition-colors ${
-                                        loaderIds.includes(emp.id) ? 'bg-blue-50 border-blue-200' : 'hover:bg-gray-50 border-gray-100'
+                                    <label key={emp.employeeId} className={`flex items-center p-3 border rounded-lg cursor-pointer transition-colors ${
+                                        loaderIds.includes(emp.employeeId) ? 'bg-blue-50 border-blue-200' : 'hover:bg-gray-50 border-gray-100'
                                     }`}>
                                         <input 
                                             type="checkbox"
-                                            checked={loaderIds.includes(emp.id)}
-                                            onChange={() => toggleLoader(emp.id)}
+                                            checked={loaderIds.includes(emp.employeeId)}
+                                            onChange={() => toggleLoader(emp.employeeId)}
                                             className="mr-3 w-4 h-4 text-blue-600 rounded"
                                         />
                                         <div>
@@ -188,18 +188,18 @@ export default function MonthlySchedulePage() {
                                 {helpers.length === 0 ? (
                                     <p className="text-gray-500 text-center py-4">Belum ada helper aktif.</p>
                                 ) : helpers.map(emp => {
-                                    const isStacker = stackerPoolIds.includes(emp.id);
+                                    const isStacker = stackerPoolIds.includes(emp.employeeId);
                                     // Normally stackers should be within loaders, but we show all just in case
-                                    const isLoader = loaderIds.includes(emp.id);
+                                    const isLoader = loaderIds.includes(emp.employeeId);
                                     
                                     return (
-                                        <label key={`stacker-${emp.id}`} className={`flex items-center p-3 border rounded-lg cursor-pointer transition-colors ${
+                                        <label key={`stacker-${emp.employeeId}`} className={`flex items-center p-3 border rounded-lg cursor-pointer transition-colors ${
                                             isStacker ? 'bg-purple-50 border-purple-200' : 'hover:bg-gray-50 border-gray-100'
                                         } ${!isLoader && !isStacker ? 'opacity-50' : ''}`}>
                                             <input 
                                                 type="checkbox"
                                                 checked={isStacker}
-                                                onChange={() => toggleStacker(emp.id)}
+                                                onChange={() => toggleStacker(emp.employeeId)}
                                                 className="mr-3 w-4 h-4 text-purple-600 rounded"
                                             />
                                             <div className="flex-1">
