@@ -286,6 +286,64 @@ export const deleteAttendanceRecord = async (id: string): Promise<void> => {
     await deleteDoc(docRef);
 };
 
+/**
+ * Add manual attendance record (Admin function)
+ */
+export const addManualAttendance = async (
+    employeeId: string,
+    date: string,
+    checkInTime: string, // HH:mm format
+    checkOutTime: string | null, // HH:mm format
+    status: Attendance['status'],
+    notes: string,
+    shiftType: AttendanceShift['type'] = 'regular'
+): Promise<void> => {
+    const docId = `${employeeId}_${date}`;
+    const docRef = doc(db, COLLECTION_NAME, docId);
+
+    // Create Date objects from HH:mm
+    const [inHours, inMinutes] = checkInTime.split(':').map(Number);
+    const checkInDate = new Date(`${date}T00:00:00`);
+    checkInDate.setHours(inHours, inMinutes, 0, 0);
+
+    let checkOutDate: Date | null = null;
+    if (checkOutTime) {
+        const [outHours, outMinutes] = checkOutTime.split(':').map(Number);
+        checkOutDate = new Date(`${date}T00:00:00`);
+        checkOutDate.setHours(outHours, outMinutes, 0, 0);
+    }
+
+    const shift: AttendanceShift = {
+        type: shiftType,
+        checkIn: checkInDate,
+        checkOut: checkOutDate,
+        notes: notes
+    };
+
+    const shiftsForCalc = [shift];
+    const totalHours = checkOutDate ? calculateTotalHours(shiftsForCalc) : 0;
+    const overtimeCount = countOvertimeEvents(shiftsForCalc);
+
+    const shiftData = {
+        type: shiftType,
+        checkIn: Timestamp.fromDate(checkInDate),
+        checkOut: checkOutDate ? Timestamp.fromDate(checkOutDate) : null,
+        notes: notes
+    };
+
+    await setDoc(docRef, {
+        employeeId,
+        date,
+        shifts: [shiftData],
+        status,
+        notes,
+        totalHours,
+        overtimeCount,
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now()
+    });
+};
+
 // Helper to get late breakdown
 export const getLateDaysBreakdown = (attendances: Attendance[]): { lateMild: number; lateSevere: number } => {
     let lateMild = 0;
