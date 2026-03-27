@@ -279,6 +279,67 @@ export const updateAttendanceRecord = async (
 };
 
 /**
+ * Update check-in, check-out times, status, and notes for an existing record
+ */
+export const updateAttendanceTimeAndStatus = async (
+    id: string,
+    date: string, // YYYY-MM-DD
+    checkInTime: string, // HH:mm format
+    checkOutTime: string | null, // HH:mm format
+    status: Attendance['status'],
+    notes: string,
+    existingShifts: AttendanceShift[] // need this to preserve check-in locations and shift types
+): Promise<void> => {
+    const docRef = doc(db, COLLECTION_NAME, id);
+
+    // Reconstruct the first shift with new times
+    const [inHours, inMinutes] = checkInTime.split(':').map(Number);
+    const checkInDate = new Date(`${date}T00:00:00`);
+    checkInDate.setHours(inHours, inMinutes, 0, 0);
+
+    let checkOutDate: Date | null = null;
+    if (checkOutTime) {
+        const [outHours, outMinutes] = checkOutTime.split(':').map(Number);
+        checkOutDate = new Date(`${date}T00:00:00`);
+        checkOutDate.setHours(outHours, outMinutes, 0, 0);
+    }
+
+    // Usually we only edit the primary/first shift here, or we just overwrite the whole shifts array to be length 1
+    const shiftType = existingShifts[0]?.type || 'regular';
+    
+    // For calculation
+    const shiftForCalc: AttendanceShift = {
+        type: shiftType,
+        checkIn: checkInDate,
+        checkOut: checkOutDate,
+        notes: notes
+    };
+
+    const shiftsForCalc = [shiftForCalc];
+    const totalHours = checkOutDate ? calculateTotalHours(shiftsForCalc) : 0;
+    const overtimeCount = countOvertimeEvents(shiftsForCalc);
+
+    // For firestore
+    const shiftData = {
+        type: shiftType,
+        checkIn: Timestamp.fromDate(checkInDate),
+        checkOut: checkOutDate ? Timestamp.fromDate(checkOutDate) : null,
+        notes: notes,
+        ...(existingShifts[0]?.checkInLocation && { checkInLocation: existingShifts[0].checkInLocation }),
+        ...(existingShifts[0]?.checkOutLocation && { checkOutLocation: existingShifts[0].checkOutLocation })
+    };
+
+    await updateDoc(docRef, {
+        shifts: [shiftData],
+        status,
+        notes,
+        totalHours,
+        overtimeCount,
+        updatedAt: Timestamp.now()
+    });
+};
+
+/**
  * Delete attendance record completely (Admin function)
  */
 export const deleteAttendanceRecord = async (id: string): Promise<void> => {

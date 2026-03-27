@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Users, Calendar, Clock, CheckCircle, XCircle, AlertCircle, Pickaxe, Package, Shield, Truck, Edit, Trash2, X, Save, Plus } from 'lucide-react';
-import { getAttendanceByDate, subscribeToTodayAttendance, deleteAttendanceRecord, updateAttendanceRecord, addManualAttendance } from '@/lib/firestore-attendance';
+import { getAttendanceByDate, subscribeToTodayAttendance, deleteAttendanceRecord, updateAttendanceRecord, updateAttendanceTimeAndStatus, addManualAttendance } from '@/lib/firestore-attendance';
 import { getEmployees } from '@/lib/firestore-employees';
 import { subscribeToDailyOperations } from '@/lib/firestore-operations';
 import type { Attendance } from '@/types/attendance';
@@ -26,6 +26,8 @@ export default function AttendanceDashboard() {
     // Editing State
     const [editingAtt, setEditingAtt] = useState<Attendance | null>(null);
     const [editStatus, setEditStatus] = useState<Attendance['status']>('present');
+    const [editTimeIn, setEditTimeIn] = useState('');
+    const [editTimeOut, setEditTimeOut] = useState('');
     const [editNotes, setEditNotes] = useState('');
     const [saving, setSaving] = useState(false);
 
@@ -71,16 +73,36 @@ export default function AttendanceDashboard() {
         setEditingAtt(att);
         setEditStatus(att.status);
         setEditNotes(att.notes || '');
+
+        const shift = att.shifts[0];
+        if (shift) {
+            setEditTimeIn(
+                shift.checkIn.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
+            );
+            setEditTimeOut(
+                shift.checkOut
+                    ? shift.checkOut.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
+                    : ''
+            );
+        } else {
+            setEditTimeIn('');
+            setEditTimeOut('');
+        }
     };
 
     const handleSaveEdit = async () => {
-        if (!editingAtt || !editingAtt.id) return;
+        if (!editingAtt || !editingAtt.id || !editTimeIn) return;
         setSaving(true);
         try {
-            await updateAttendanceRecord(editingAtt.id, {
-                status: editStatus,
-                notes: editNotes,
-            });
+            await updateAttendanceTimeAndStatus(
+                editingAtt.id,
+                selectedDate,
+                editTimeIn,
+                editTimeOut || null,
+                editStatus,
+                editNotes,
+                editingAtt.shifts
+            );
             setEditingAtt(null);
             if (selectedDate !== todayStr) {
                 // Manually refresh if looking at past date
@@ -516,6 +538,28 @@ export default function AttendanceDashboard() {
                                 </div>
                             </div>
                             
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">Jam Masuk <span className="text-red-500">*</span></label>
+                                    <input 
+                                        type="time" 
+                                        required
+                                        value={editTimeIn}
+                                        onChange={e => setEditTimeIn(e.target.value)}
+                                        className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 focus:bg-white transition-colors outline-none"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">Jam Keluar</label>
+                                    <input 
+                                        type="time" 
+                                        value={editTimeOut}
+                                        onChange={e => setEditTimeOut(e.target.value)}
+                                        className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 focus:bg-white transition-colors outline-none"
+                                    />
+                                </div>
+                            </div>
+
                             <div>
                                 <label className="block text-sm font-semibold text-gray-700 mb-1.5">Status Kehadiran</label>
                                 <select 
