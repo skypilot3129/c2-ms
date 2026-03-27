@@ -1,16 +1,20 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Users, Calendar, Clock, CheckCircle, XCircle, AlertCircle, Pickaxe, Package, Shield, Truck } from 'lucide-react';
-import { getAttendanceByDate, subscribeToTodayAttendance } from '@/lib/firestore-attendance';
+import { Users, Calendar, Clock, CheckCircle, XCircle, AlertCircle, Pickaxe, Package, Shield, Truck, Edit, Trash2, X, Save } from 'lucide-react';
+import { getAttendanceByDate, subscribeToTodayAttendance, deleteAttendanceRecord, updateAttendanceRecord } from '@/lib/firestore-attendance';
 import { getEmployees } from '@/lib/firestore-employees';
 import { subscribeToDailyOperations } from '@/lib/firestore-operations';
 import type { Attendance } from '@/types/attendance';
 import type { Employee } from '@/types/employee';
 import type { TruckOperation } from '@/types/truck-operation';
 import { ATTENDANCE_STATUS_LABELS, SHIFT_TYPE_LABELS } from '@/types/attendance';
+import { useAuth } from '@/context/AuthContext';
 
 export default function AttendanceDashboard() {
+    const { role } = useAuth();
+    const isManager = ['admin', 'pengurus'].includes(role);
+
     const [todayStr] = useState(new Date().toISOString().split('T')[0]);
     const [selectedDate, setSelectedDate] = useState(todayStr);
     
@@ -18,6 +22,53 @@ export default function AttendanceDashboard() {
     const [employees, setEmployees] = useState<Employee[]>([]);
     const [operations, setOperations] = useState<TruckOperation[]>([]);
     const [loading, setLoading] = useState(true);
+
+    // Editing State
+    const [editingAtt, setEditingAtt] = useState<Attendance | null>(null);
+    const [editStatus, setEditStatus] = useState<Attendance['status']>('present');
+    const [editNotes, setEditNotes] = useState('');
+    const [saving, setSaving] = useState(false);
+
+    const handleEditClick = (att: Attendance) => {
+        setEditingAtt(att);
+        setEditStatus(att.status);
+        setEditNotes(att.notes || '');
+    };
+
+    const handleSaveEdit = async () => {
+        if (!editingAtt || !editingAtt.id) return;
+        setSaving(true);
+        try {
+            await updateAttendanceRecord(editingAtt.id, {
+                status: editStatus,
+                notes: editNotes,
+            });
+            setEditingAtt(null);
+            if (selectedDate !== todayStr) {
+                // Manually refresh if looking at past date
+                const data = await getAttendanceByDate(selectedDate);
+                setAttendances(data);
+            }
+        } catch (error) {
+            alert('Gagal menyimpan data.');
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const handleDelete = async (att: Attendance) => {
+        if (!att.id) return;
+        if (!confirm(`Hapus data absensi ini secara permanen?`)) return;
+        try {
+            await deleteAttendanceRecord(att.id);
+            if (selectedDate !== todayStr) {
+                const data = await getAttendanceByDate(selectedDate);
+                setAttendances(data);
+            }
+        } catch (error) {
+            alert('Gagal menghapus data.');
+        }
+    };
 
     // Initial Load for Employees
     useEffect(() => {
@@ -213,12 +264,34 @@ export default function AttendanceDashboard() {
                                                 <h4 className="font-bold text-gray-900">{getEmployeeName(att.employeeId)}</h4>
                                                 <p className="text-xs text-gray-500 capitalize">{getEmployeeRole(att.employeeId)}</p>
                                             </div>
-                                            <span className={`px-2 py-1 text-[10px] font-bold uppercase tracking-wide rounded ${
-                                                att.status === 'present' ? 'bg-green-100 text-green-700' :
-                                                att.status === 'late' ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-700'
-                                            }`}>
-                                                {ATTENDANCE_STATUS_LABELS[att.status]}
-                                            </span>
+                                            <div className="flex flex-col items-end gap-2">
+                                                <span className={`px-2 py-1 text-[10px] font-bold uppercase tracking-wide rounded ${
+                                                    att.status === 'present' ? 'bg-green-100 text-green-700' :
+                                                    att.status === 'late' ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-700'
+                                                }`}>
+                                                    {ATTENDANCE_STATUS_LABELS[att.status]}
+                                                </span>
+                                                {isManager && (
+                                                    <div className="flex gap-1 mt-1">
+                                                        <button
+                                                            onClick={() => handleEditClick(att)}
+                                                            className="p-1.5 text-blue-600 hover:bg-blue-50 rounded bg-blue-50 border border-blue-100"
+                                                            title="Edit Absensi"
+                                                        >
+                                                            <Edit size={14} />
+                                                        </button>
+                                                        {role === 'admin' && (
+                                                            <button
+                                                                onClick={() => handleDelete(att)}
+                                                                className="p-1.5 text-red-600 hover:bg-red-50 rounded bg-red-50 border border-red-100"
+                                                                title="Hapus Absensi"
+                                                            >
+                                                                <Trash2 size={14} />
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
 
                                         {/* Realtime Activity Badge */}
@@ -246,6 +319,66 @@ export default function AttendanceDashboard() {
                         {attendances.length === 0 && (
                             <div className="py-12 text-center text-gray-500">Belum ada absen kehadiran hari ini.</div>
                         )}
+                    </div>
+                </div>
+            )}
+
+            {/* Edit Modal */}
+            {editingAtt && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+                    <div className="bg-white rounded-2xl w-full max-w-md shadow-xl overflow-hidden">
+                        <div className="p-4 border-b flex justify-between items-center bg-gray-50">
+                            <h2 className="font-bold text-gray-800">Edit Absensi</h2>
+                            <button onClick={() => setEditingAtt(null)} className="text-gray-500 hover:text-gray-700">
+                                <X size={20} />
+                            </button>
+                        </div>
+                        <div className="p-4 space-y-4">
+                            <div className="bg-blue-50 text-blue-800 p-3 rounded-lg border border-blue-100">
+                                <p className="font-bold">{getEmployeeName(editingAtt.employeeId)}</p>
+                                <p className="text-sm opacity-80">{selectedDate}</p>
+                            </div>
+                            
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Status Kehadiran</label>
+                                <select 
+                                    value={editStatus}
+                                    onChange={e => setEditStatus(e.target.value as any)}
+                                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 bg-white"
+                                >
+                                    {Object.entries(ATTENDANCE_STATUS_LABELS).map(([val, label]) => (
+                                        <option key={val} value={val}>{label}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Catatan</label>
+                                <textarea 
+                                    value={editNotes}
+                                    onChange={e => setEditNotes(e.target.value)}
+                                    rows={3}
+                                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 bg-white"
+                                    placeholder="Alasan telat, sakit, dll."
+                                />
+                            </div>
+                        </div>
+                        <div className="p-4 border-t bg-gray-50 flex justify-end gap-3 shrink-0">
+                            <button 
+                                onClick={() => setEditingAtt(null)}
+                                className="px-4 py-2 text-gray-600 bg-white border rounded-lg hover:bg-gray-100"
+                            >
+                                Batal
+                            </button>
+                            <button 
+                                onClick={handleSaveEdit}
+                                disabled={saving}
+                                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                            >
+                                <Save size={18} />
+                                {saving ? 'Menyimpan...' : 'Simpan'}
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}

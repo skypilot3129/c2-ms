@@ -2,6 +2,7 @@ import {
     collection,
     addDoc,
     updateDoc,
+    deleteDoc,
     doc,
     getDoc,
     getDocs,
@@ -261,6 +262,28 @@ export const updateAttendanceStatus = async (
     }
 
     await updateDoc(docRef, updates);
+};
+
+/**
+ * Update full attendance record (Admin function)
+ */
+export const updateAttendanceRecord = async (
+    id: string,
+    data: Partial<AttendanceDoc>
+): Promise<void> => {
+    const docRef = doc(db, COLLECTION_NAME, id);
+    await updateDoc(docRef, {
+        ...data,
+        updatedAt: Timestamp.now()
+    });
+};
+
+/**
+ * Delete attendance record completely (Admin function)
+ */
+export const deleteAttendanceRecord = async (id: string): Promise<void> => {
+    const docRef = doc(db, COLLECTION_NAME, id);
+    await deleteDoc(docRef);
 };
 
 // Helper to get late breakdown
