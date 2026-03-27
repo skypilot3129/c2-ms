@@ -66,18 +66,13 @@ export default function Home() {
                                         </button>
                                     </div>
                                 ) : (
-                                    <div className="flex gap-3">
-                                        <Link href="/login">
-                                            <button className="text-sm font-semibold text-gray-600 hover:text-blue-600 transition-colors px-3 py-2">
-                                                Login
-                                            </button>
-                                        </Link>
-                                        <Link href="/register">
-                                            <button className="bg-blue-600 text-white px-5 py-2 rounded-full text-sm font-semibold shadow-lg shadow-blue-600/20 hover:bg-blue-700 hover:shadow-blue-600/30 transition-all">
-                                                Register
-                                            </button>
-                                        </Link>
-                                    </div>
+                                <div className="flex gap-3">
+                                    <Link href="/login">
+                                        <button className="bg-blue-600 text-white px-6 py-2 rounded-full text-sm font-semibold shadow-lg shadow-blue-600/20 hover:bg-blue-700 hover:shadow-blue-600/30 transition-all">
+                                            Login
+                                        </button>
+                                    </Link>
+                                </div>
                                 )}
                             </div>
                         )}

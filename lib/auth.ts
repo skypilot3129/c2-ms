@@ -1,5 +1,4 @@
 import {
-    createUserWithEmailAndPassword,
     signInWithEmailAndPassword,
     signOut,
     updateProfile,
@@ -9,21 +8,7 @@ import {
 } from 'firebase/auth';
 import { auth } from './firebase';
 
-// Register new user with email and password
-export const registerWithEmail = async (
-    email: string,
-    password: string,
-    displayName?: string
-): Promise<UserCredential> => {
-    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
 
-    // Update display name if provided
-    if (displayName && userCredential.user) {
-        await updateProfile(userCredential.user, { displayName });
-    }
-
-    return userCredential;
-};
 
 // Login with email and password
 export const loginWithEmail = async (

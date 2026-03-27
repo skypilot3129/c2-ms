@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { User } from 'firebase/auth';
-import { onAuthChanged, loginWithEmail, registerWithEmail, logoutUser } from '@/lib/auth';
+import { onAuthChanged, loginWithEmail, logoutUser } from '@/lib/auth';
 import { query, collection, where, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { UserRole } from '@/types/roles';
@@ -14,7 +14,6 @@ interface AuthContextType {
     role: UserRole;
     employee: Employee | null;
     login: (email: string, password: string) => Promise<void>;
-    register: (email: string, password: string, displayName?: string) => Promise<void>;
     logout: () => Promise<void>;
 }
 
@@ -96,16 +95,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
     };
 
-    const register = async (email: string, password: string, displayName?: string) => {
-        setLoading(true);
-        try {
-            await registerWithEmail(email, password, displayName);
-            // User state will be updated by onAuthChanged listener
-        } finally {
-            setLoading(false);
-        }
-    };
-
     const logout = async () => {
         setLoading(true);
         try {
@@ -117,7 +106,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     };
 
     return (
-        <AuthContext.Provider value={{ user, loading, role, employee, login, register, logout }}>
+        <AuthContext.Provider value={{ user, loading, role, employee, login, logout }}>
             {children}
         </AuthContext.Provider>
     );
