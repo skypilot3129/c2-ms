@@ -23,7 +23,8 @@ export default function VolumeCalculator() {
         length: 0,
         width: 0,
         height: 0,
-        actualWeight: 0
+        actualWeight: 0,
+        quantity: 1
     });
 
     const [koliList, setKoliList] = useState<KoliItem[]>([]);
@@ -62,7 +63,8 @@ export default function VolumeCalculator() {
             length: 0,
             width: 0,
             height: 0,
-            actualWeight: 0
+            actualWeight: 0,
+            quantity: 1
         });
         setErrors([]);
     };
@@ -80,7 +82,8 @@ export default function VolumeCalculator() {
             length: 0,
             width: 0,
             height: 0,
-            actualWeight: 0
+            actualWeight: 0,
+            quantity: 1
         });
         setKoliList([]);
         setPricePerKg(0);
@@ -95,11 +98,12 @@ export default function VolumeCalculator() {
 
         koliList.forEach(koli => {
             text += `Koli ${koli.koliNumber}:\n`;
+            text += `  Jumlah: ${koli.quantity} pcs\n`;
             text += `  Dimensi: ${koli.length} × ${koli.width} × ${koli.height} cm\n`;
-            text += `  Volume: ${formatVolume(koli.volume)} cm³\n`;
-            text += `  Berat Aktual: ${formatWeight(koli.actualWeight)} kg\n`;
-            text += `  Berat Volume: ${formatWeight(koli.volumetricWeight)} kg\n`;
-            text += `  Berat Tagihan: ${formatWeight(koli.chargeableWeight)} kg (${koli.weightType === 'actual' ? 'Actual' : 'Volumetric'})\n\n`;
+            text += `  Total Volume: ${formatVolume(koli.volume)} cm³\n`;
+            text += `  Berat Aktual (Satuan): ${formatWeight(koli.actualWeight)} kg\n`;
+            text += `  Total Berat Volume: ${formatWeight(koli.volumetricWeight)} kg\n`;
+            text += `  Total Berat Tagihan: ${formatWeight(koli.chargeableWeight)} kg (${koli.weightType === 'actual' ? 'Actual' : 'Volumetric'})\n\n`;
         });
 
         text += `${'='.repeat(50)}\n`;
@@ -218,19 +222,34 @@ export default function VolumeCalculator() {
                     </div>
                 </div>
 
-                <div className="mb-4">
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                        Berat Aktual (kg) *
-                    </label>
-                    <input
-                        type="number"
-                        value={formData.actualWeight || ''}
-                        onChange={(e) => handleInputChange('actualWeight', parseFloat(e.target.value) || 0)}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        placeholder="0"
-                        min="0"
-                        step="0.1"
-                    />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">
+                            Berat Aktual Per Barang (kg) *
+                        </label>
+                        <input
+                            type="number"
+                            value={formData.actualWeight || ''}
+                            onChange={(e) => handleInputChange('actualWeight', parseFloat(e.target.value) || 0)}
+                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            placeholder="0"
+                            min="0"
+                            step="0.1"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">
+                            Jumlah Barang (Qty) *
+                        </label>
+                        <input
+                            type="number"
+                            value={formData.quantity || ''}
+                            onChange={(e) => handleInputChange('quantity', parseInt(e.target.value) || 1)}
+                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            placeholder="1"
+                            min="1"
+                        />
+                    </div>
                 </div>
 
                 {/* Error Messages */}
@@ -300,11 +319,12 @@ export default function VolumeCalculator() {
                             <thead>
                                 <tr className="border-b-2 border-gray-300">
                                     <th className="text-left py-3 px-2 text-sm font-semibold text-gray-700">Koli</th>
+                                    <th className="text-center py-3 px-2 text-sm font-semibold text-gray-700">Jumlah</th>
                                     <th className="text-right py-3 px-2 text-sm font-semibold text-gray-700">Dimensi</th>
-                                    <th className="text-right py-3 px-2 text-sm font-semibold text-gray-700">Volume</th>
-                                    <th className="text-right py-3 px-2 text-sm font-semibold text-gray-700">Aktual</th>
-                                    <th className="text-right py-3 px-2 text-sm font-semibold text-gray-700">Volumetrik</th>
-                                    <th className="text-right py-3 px-2 text-sm font-semibold text-gray-700">Tagihan</th>
+                                    <th className="text-right py-3 px-2 text-sm font-semibold text-gray-700">Total Volume</th>
+                                    <th className="text-right py-3 px-2 text-sm font-semibold text-gray-700">Berat Aktual</th>
+                                    <th className="text-right py-3 px-2 text-sm font-semibold text-gray-700">Berat Volumetrik</th>
+                                    <th className="text-right py-3 px-2 text-sm font-semibold text-gray-700">Berat Tagihan</th>
                                     <th className="text-center py-3 px-2 text-sm font-semibold text-gray-700">Tipe</th>
                                     <th className="text-center py-3 px-2 text-sm font-semibold text-gray-700">Aksi</th>
                                 </tr>
@@ -313,6 +333,7 @@ export default function VolumeCalculator() {
                                 {koliList.map((koli) => (
                                     <tr key={koli.koliNumber} className="border-b border-gray-100 hover:bg-gray-50">
                                         <td className="py-3 px-2 text-sm font-semibold text-gray-800">#{koli.koliNumber}</td>
+                                        <td className="py-3 px-2 text-sm text-center text-gray-800">{koli.quantity}</td>
                                         <td className="py-3 px-2 text-sm text-right text-gray-700">
                                             {koli.length}×{koli.width}×{koli.height}
                                         </td>
@@ -320,7 +341,7 @@ export default function VolumeCalculator() {
                                             {formatVolume(koli.volume)} cm³
                                         </td>
                                         <td className="py-3 px-2 text-sm text-right text-gray-700">
-                                            {formatWeight(koli.actualWeight)} kg
+                                            {formatWeight(koli.actualWeight * koli.quantity)} kg
                                         </td>
                                         <td className="py-3 px-2 text-sm text-right text-gray-700">
                                             {formatWeight(koli.volumetricWeight)} kg
@@ -368,19 +389,23 @@ export default function VolumeCalculator() {
 
                                 <div className="grid grid-cols-2 gap-2 text-xs mb-2">
                                     <div>
+                                        <span className="text-gray-600">Jumlah:</span>
+                                        <p className="font-semibold text-gray-800">{koli.quantity} pcs</p>
+                                    </div>
+                                    <div>
                                         <span className="text-gray-600">Dimensi:</span>
                                         <p className="font-semibold text-gray-800">{koli.length}×{koli.width}×{koli.height} cm</p>
                                     </div>
                                     <div>
-                                        <span className="text-gray-600">Volume:</span>
+                                        <span className="text-gray-600">Total Volume:</span>
                                         <p className="font-semibold text-gray-800">{formatVolume(koli.volume)} cm³</p>
                                     </div>
                                     <div>
-                                        <span className="text-gray-600">Berat Aktual:</span>
-                                        <p className="font-semibold text-gray-800">{formatWeight(koli.actualWeight)} kg</p>
+                                        <span className="text-gray-600">Total Berat Aktual:</span>
+                                        <p className="font-semibold text-gray-800">{formatWeight(koli.actualWeight * koli.quantity)} kg</p>
                                     </div>
-                                    <div>
-                                        <span className="text-gray-600">Berat Volume:</span>
+                                    <div className="col-span-2">
+                                        <span className="text-gray-600">Total Berat Volume:</span>
                                         <p className="font-semibold text-gray-800">{formatWeight(koli.volumetricWeight)} kg</p>
                                     </div>
                                 </div>

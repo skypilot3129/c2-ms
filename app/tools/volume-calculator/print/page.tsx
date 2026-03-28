@@ -11,6 +11,7 @@ interface KoliData {
     width: number;
     height: number;
     actualWeight: number;
+    quantity: number;
     volume: number;
     volumetricWeight: number;
     chargeableWeight: number;
@@ -116,8 +117,9 @@ function PrintContent() {
                     <thead>
                         <tr className="bg-gray-200">
                             <th className="border border-gray-400 px-3 py-2 text-left text-sm">No</th>
+                            <th className="border border-gray-400 px-3 py-2 text-center text-sm">Qty</th>
                             <th className="border border-gray-400 px-3 py-2 text-left text-sm">Dimensi (cm)</th>
-                            <th className="border border-gray-400 px-3 py-2 text-right text-sm">Volume (cm³)</th>
+                            <th className="border border-gray-400 px-3 py-2 text-right text-sm">Total Volume (cm³)</th>
                             <th className="border border-gray-400 px-3 py-2 text-right text-sm">Berat Aktual (kg)</th>
                             <th className="border border-gray-400 px-3 py-2 text-right text-sm">Berat Volume (kg)</th>
                             <th className="border border-gray-400 px-3 py-2 text-right text-sm">Berat Tagihan (kg)</th>
@@ -130,6 +132,9 @@ function PrintContent() {
                                 <td className="border border-gray-400 px-3 py-2 text-sm font-semibold">
                                     #{koli.koliNumber}
                                 </td>
+                                <td className="border border-gray-400 px-3 py-2 text-sm text-center">
+                                    {koli.quantity}
+                                </td>
                                 <td className="border border-gray-400 px-3 py-2 text-sm">
                                     {koli.length} × {koli.width} × {koli.height}
                                 </td>
@@ -137,7 +142,7 @@ function PrintContent() {
                                     {formatVolume(koli.volume)}
                                 </td>
                                 <td className="border border-gray-400 px-3 py-2 text-sm text-right">
-                                    {formatWeight(koli.actualWeight)}
+                                    {formatWeight(koli.actualWeight * koli.quantity)}
                                 </td>
                                 <td className="border border-gray-400 px-3 py-2 text-sm text-right">
                                     {formatWeight(koli.volumetricWeight)}
@@ -153,7 +158,7 @@ function PrintContent() {
                     </tbody>
                     <tfoot>
                         <tr className="bg-gray-100 font-bold">
-                            <td colSpan={5} className="border border-gray-400 px-3 py-2 text-sm text-right">
+                            <td colSpan={6} className="border border-gray-400 px-3 py-2 text-sm text-right">
                                 TOTAL BERAT TAGIHAN:
                             </td>
                             <td className="border border-gray-400 px-3 py-2 text-sm text-right">

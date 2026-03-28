@@ -45,25 +45,32 @@ export function calculateChargeableWeight(actualWeight: number, volumetricWeight
  * @returns Complete calculation result
  */
 export function calculateDimensions(formData: VolumeCalculatorFormData): VolumeCalculation {
-    const { length, width, height, actualWeight } = formData;
+    const { length, width, height, actualWeight, quantity = 1 } = formData;
 
-    // Calculate volume
-    const volume = calculateVolume(length, width, height);
+    // Calculate volume for one item
+    const singleVolume = calculateVolume(length, width, height);
+    
+    // Total volume
+    const volume = singleVolume * quantity;
 
-    // Calculate volumetric weight
+    // Total volumetric weight
     const volumetricWeight = calculateVolumetricWeight(volume);
 
+    // Total actual weight
+    const totalActualWeight = actualWeight * quantity;
+
     // Determine chargeable weight
-    const chargeableWeight = calculateChargeableWeight(actualWeight, volumetricWeight);
+    const chargeableWeight = calculateChargeableWeight(totalActualWeight, volumetricWeight);
 
     // Determine which weight type is used
-    const weightType: 'actual' | 'volumetric' = chargeableWeight === actualWeight ? 'actual' : 'volumetric';
+    const weightType: 'actual' | 'volumetric' = chargeableWeight === totalActualWeight ? 'actual' : 'volumetric';
 
     return {
         length,
         width,
         height,
         actualWeight,
+        quantity,
         volume,
         volumetricWeight,
         chargeableWeight,

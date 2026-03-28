@@ -4,10 +4,11 @@ export interface VolumeCalculation {
     length: number;           // cm
     width: number;            // cm
     height: number;           // cm
-    actualWeight: number;     // kg
-    volume: number;           // cm³
-    volumetricWeight: number; // kg
-    chargeableWeight: number; // kg
+    actualWeight: number;     // kg (per item)
+    quantity: number;         // number of items
+    volume: number;           // total cm³
+    volumetricWeight: number; // total kg
+    chargeableWeight: number; // total kg
     weightType: 'actual' | 'volumetric';
 }
 
@@ -16,7 +17,7 @@ export interface VolumeCalculatorFormData {
     width: number;
     height: number;
     actualWeight: number;
-    quantity?: number;
+    quantity: number;
 }
 
 export interface VolumeCalculationResult {
