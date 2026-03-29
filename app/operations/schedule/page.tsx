@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Calendar, Save, CheckCircle2, UserCheck, AlertCircle } from 'lucide-react';
+import MonthlyOperationalSchedule from '@/components/MonthlyOperationalSchedule';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { getEmployees } from '@/lib/firestore-employees';
 import { getMonthlySchedule, saveMonthlySchedule } from '@/lib/firestore-operations';
@@ -237,6 +238,9 @@ export default function MonthlySchedulePage() {
                         </button>
                     </div>
                 )}
+
+                {/* ── Jadwal Operasional Bulanan ── */}
+                <MonthlyOperationalSchedule />
             </div>
         </ProtectedRoute>
     );
