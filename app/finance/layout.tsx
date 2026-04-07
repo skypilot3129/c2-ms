@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, FileText, ArrowLeft, PieChart, Wallet, Receipt, Menu, X, BarChart3, Target } from "lucide-react";
+import { LayoutDashboard, FileText, ArrowLeft, PieChart, Wallet, Receipt, Menu, X, BarChart3, Target, ClipboardList } from "lucide-react";
 
 export default function FinanceLayout({ children }: { children: ReactNode }) {
     const pathname = usePathname();
@@ -40,6 +40,12 @@ export default function FinanceLayout({ children }: { children: ReactNode }) {
             icon: <Target size={18} />,
             href: '/finance/expenses/budget',
             active: pathname.startsWith('/finance/expenses/budget')
+        },
+        {
+            label: '↳ Perencanaan',
+            icon: <ClipboardList size={18} />,
+            href: '/finance/expenses/planning',
+            active: pathname.startsWith('/finance/expenses/planning')
         },
         {
             label: 'Laporan Keuangan',

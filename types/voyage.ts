@@ -230,3 +230,33 @@ export interface CategoryBudget {
     updatedAt: Date;
 }
 
+// ── Daily Expense Plan (Perencanaan Pengeluaran Harian) ──
+export type PlanItemStatus = 'planned' | 'done' | 'canceled';
+
+export interface ExpensePlanItem {
+    id: string;           // local UUID for list key
+    category: ExpenseCategory;
+    description: string;
+    estimatedAmount: number;
+    status: PlanItemStatus;
+}
+
+export interface ExpensePlan {
+    id: string;
+    date: string;         // YYYY-MM-DD – the day being planned for
+    userId: string;
+    items: ExpensePlanItem[];
+    notes?: string;
+    createdAt: Date;
+    updatedAt: Date;
+}
+
+export interface ExpensePlanDoc {
+    date: string;
+    userId: string;
+    items: ExpensePlanItem[];
+    notes?: string;
+    createdAt: any;
+    updatedAt: any;
+}
+

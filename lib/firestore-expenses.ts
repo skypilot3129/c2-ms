@@ -17,7 +17,7 @@ import {
     Timestamp,
 } from 'firebase/firestore';
 import { db } from './firebase';
-import type { Expense, ExpenseDoc, ExpenseFormData, ExpenseCategory, PettyCashTopUp, PettyCashTopUpFormData, CategoryBudget } from '@/types/voyage';
+import type { Expense, ExpenseDoc, ExpenseFormData, ExpenseCategory, PettyCashTopUp, PettyCashTopUpFormData, CategoryBudget, ExpensePlan, ExpensePlanItem } from '@/types/voyage';
 
 const EXPENSES_COLLECTION = 'expenses';
 const TOPUPS_COLLECTION = 'petty_cash_topups';
@@ -419,3 +419,55 @@ export const subscribeToBudget = (
         callback(snap.docs[0].data().budgets || {});
     });
 };
+
+// ============================================================
+// ── DAILY EXPENSE PLANS (Perencanaan Pengeluaran Harian) ─────
+// ============================================================
+
+const PLANS_COLLECTION = 'expense_plans';
+
+const docToPlan = (id: string, data: any): ExpensePlan => ({
+    id,
+    date: data.date,
+    userId: data.userId,
+    items: data.items || [],
+    notes: data.notes,
+    createdAt: data.createdAt?.toDate() || new Date(),
+    updatedAt: data.updatedAt?.toDate() || new Date(),
+});
+
+/** Save or update a full expense plan for a given date */
+export const saveExpensePlan = async (
+    date: string,
+    items: ExpensePlanItem[],
+    notes: string,
+    userId: string
+): Promise<void> => {
+    const q = query(collection(db, PLANS_COLLECTION), where('date', '==', date), where('userId', '==', userId));
+    const snap = await getDocs(q);
+    const now = Timestamp.now();
+    if (snap.empty) {
+        await addDoc(collection(db, PLANS_COLLECTION), { date, userId, items, notes, createdAt: now, updatedAt: now });
+    } else {
+        await updateDoc(snap.docs[0].ref, { items, notes, updatedAt: now });
+    }
+};
+
+/** Subscribe to plans for a date */
+export const subscribeToExpensePlan = (
+    date: string,
+    userId: string,
+    callback: (plan: ExpensePlan | null) => void
+): (() => void) => {
+    const q = query(collection(db, PLANS_COLLECTION), where('date', '==', date), where('userId', '==', userId));
+    return onSnapshot(q, snap => {
+        if (snap.empty) { callback(null); return; }
+        callback(docToPlan(snap.docs[0].id, snap.docs[0].data()));
+    });
+};
+
+/** Delete a plan */
+export const deleteExpensePlan = async (id: string): Promise<void> => {
+    await deleteDoc(doc(db, PLANS_COLLECTION, id));
+};
+

@@ -81,5 +81,20 @@ service cloud.firestore {
     match /todos/{todoId} {
       allow read, write: if request.auth != null;
     }
+    
+    // Petty Cash Top-Ups collection
+    match /petty_cash_topups/{docId} {
+      allow read, write: if request.auth != null;
+    }
+    
+    // Expense Budgets collection
+    match /expense_budgets/{docId} {
+      allow read, write: if request.auth != null;
+    }
+    
+    // Expense Plans collection (daily planning)
+    match /expense_plans/{docId} {
+      allow read, write: if request.auth != null;
+    }
   }
 }
