@@ -95,6 +95,18 @@ export default function GeneralExpensesPage() {
     }, [user]);
 
     // ── Filter logic ──
+    const beforePeriod = (date: Date) => {
+        const ds = date.toISOString().split('T')[0];
+        if (filterMode === 'month') {
+            const [y, m] = filterMonth.split('-').map(Number);
+            return date < new Date(y, m - 1, 1); // before first day of month
+        } else if (filterMode === 'date') {
+            return ds < filterDate;
+        } else {
+            return ds < filterStart;
+        }
+    };
+
     const inRange = (date: Date) => {
         const ds = date.toISOString().split('T')[0];
         if (filterMode === 'month') {
@@ -132,9 +144,22 @@ export default function GeneralExpensesPage() {
     const totalTopUps = filteredTopups.reduce((s, t) => s + t.amount, 0);
     const pendingCount = filteredExpenses.filter(e => e.status === 'pending').length;
 
-    // Running balance for each ledger row
+    // ── Starting balance = modal awal + topups before period - expenses before period ──
+    const balanceBeforePeriod = useMemo(() => {
+        const prevTopups = topups.filter(t => beforePeriod(new Date(t.date)));
+        const prevExpenses = expenses.filter(e =>
+            beforePeriod(new Date(e.date)) &&
+            (e.type === 'general' || !e.type) &&
+            e.status !== 'rejected'
+        );
+        const topupSum = prevTopups.reduce((s, t) => s + t.amount, 0);
+        const expenseSum = prevExpenses.reduce((s, e) => s + e.amount, 0);
+        return modalAwal + topupSum - expenseSum;
+    }, [topups, expenses, filterMode, filterMonth, filterDate, filterStart, filterEnd, modalAwal]);
+
+    // Running balance for each ledger row (starts from balance before the period)
     const ledgerWithBalance = useMemo(() => {
-        let running = modalAwal;
+        let running = balanceBeforePeriod;
         return ledger.map(entry => {
             if (entry.entryType === 'topup') {
                 running += entry.amount;
@@ -143,9 +168,10 @@ export default function GeneralExpensesPage() {
             }
             return { ...entry, runningBalance: running };
         });
-    }, [ledger, modalAwal]);
+    }, [ledger, balanceBeforePeriod]);
 
-    const saldoAkhir = modalAwal + totalTopUps - totalExpenses;
+    // Final saldo = balance before period + topups in period - expenses in period
+    const saldoAkhir = balanceBeforePeriod + totalTopUps - totalExpenses;
 
     // ── Period label ──
     const periodLabel = useMemo(() => {
