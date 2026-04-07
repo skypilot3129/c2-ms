@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { addExpense, updateExpense } from '@/lib/firestore-expenses';
 import type { ExpenseFormData, ExpenseCategory, Expense } from '@/types/voyage';
+import { EXPENSE_CATEGORY_LABELS } from '@/types/voyage';
 import { X, Save } from 'lucide-react';
 
 interface ExpenseFormProps {
@@ -13,33 +14,7 @@ interface ExpenseFormProps {
     onCancel: () => void;
 }
 
-const EXPENSE_CATEGORIES: ExpenseCategory[] = [
-    'tiket',
-    'operasional_surabaya',
-    'operasional_makassar',
-    'transit',
-    'sewa_mobil',
-    'gaji_sopir',
-    'gaji_karyawan',
-    'listrik_air_internet',
-    'sewa_kantor',
-    'maintenance',
-    'lainnya',
-];
-
-const CATEGORY_LABELS: Record<ExpenseCategory, string> = {
-    tiket: 'Tiket',
-    operasional_surabaya: 'Operasional Surabaya',
-    operasional_makassar: 'Operasional Makassar',
-    transit: 'Transit',
-    sewa_mobil: 'Sewa Mobil',
-    gaji_sopir: 'Gaji Sopir',
-    gaji_karyawan: 'Gaji Karyawan',
-    listrik_air_internet: 'Listrik/Air/Internet',
-    sewa_kantor: 'Sewa Kantor',
-    maintenance: 'Maintenance Armada',
-    lainnya: 'Lainnya',
-};
+const EXPENSE_CATEGORIES: ExpenseCategory[] = Object.keys(EXPENSE_CATEGORY_LABELS) as ExpenseCategory[];
 
 export default function ExpenseForm({ voyageId, userId, expenseToEdit, onSuccess, onCancel }: ExpenseFormProps) {
     const [loading, setLoading] = useState(false);
@@ -129,7 +104,7 @@ export default function ExpenseForm({ voyageId, userId, expenseToEdit, onSuccess
                         >
                             {EXPENSE_CATEGORIES.map(cat => (
                                 <option key={cat} value={cat}>
-                                    {CATEGORY_LABELS[cat]}
+                                    {EXPENSE_CATEGORY_LABELS[cat]}
                                 </option>
                             ))}
                         </select>

@@ -17,9 +17,11 @@ import {
     Timestamp,
 } from 'firebase/firestore';
 import { db } from './firebase';
-import type { Expense, ExpenseDoc, ExpenseFormData, ExpenseCategory } from '@/types/voyage';
+import type { Expense, ExpenseDoc, ExpenseFormData, ExpenseCategory, PettyCashTopUp, PettyCashTopUpFormData, CategoryBudget } from '@/types/voyage';
 
 const EXPENSES_COLLECTION = 'expenses';
+const TOPUPS_COLLECTION = 'petty_cash_topups';
+const BUDGETS_COLLECTION = 'expense_budgets';
 
 /**
  * Convert Firestore document to Expense object
@@ -28,17 +30,21 @@ const docToExpense = (id: string, data: any): Expense => {
     return {
         id,
         userId: data.userId,
-        type: data.type || 'voyage', // Default to voyage for existing data
+        type: data.type || 'voyage',
         voyageId: data.voyageId,
         category: data.category,
         amount: data.amount,
         description: data.description,
         date: data.date?.toDate() || new Date(),
         receiptUrl: data.receiptUrl,
+        status: data.status || 'approved', // default for old records
+        approvedBy: data.approvedBy,
+        rejectedReason: data.rejectedReason,
         createdAt: data.createdAt?.toDate() || new Date(),
         updatedAt: data.updatedAt?.toDate() || new Date(),
     };
 };
+
 
 export const addExpense = async (
     data: ExpenseFormData,
@@ -202,26 +208,19 @@ export const calculateVoyageExpenses = async (
     const expenses = await getExpensesByVoyage(voyageId, userId);
 
     const byCategory: Record<ExpenseCategory, number> = {
-        tiket: 0,
-        operasional_surabaya: 0,
-        operasional_makassar: 0,
-        transit: 0,
-        sewa_mobil: 0,
-        gaji_sopir: 0,
-        gaji_karyawan: 0,
-        listrik_air_internet: 0,
-        sewa_kantor: 0,
-        maintenance: 0,
-        lainnya: 0,
+        bbm_solar: 0, parkir_tol: 0, makan_tim: 0, perlengkapan_kerja: 0, biaya_pelabuhan: 0,
+        tiket: 0, transit: 0, sewa_mobil: 0, gaji_sopir: 0,
+        servis_rutin: 0, ganti_oli: 0, ban: 0, spare_part: 0,
+        gaji_karyawan: 0, listrik_air_internet: 0, sewa_kantor: 0,
+        atk_kantor: 0, pulsa_kuota: 0, konsumsi_rapat: 0, iuran_retribusi: 0,
+        operasional_surabaya: 0, operasional_makassar: 0, maintenance: 0, lainnya: 0,
     };
 
     let total = 0;
-
     expenses.forEach(expense => {
         if (byCategory[expense.category] !== undefined) {
             byCategory[expense.category] += expense.amount;
         } else {
-            // Fallback for unknown categories if any
             byCategory['lainnya'] += expense.amount;
         }
         total += expense.amount;
@@ -229,6 +228,7 @@ export const calculateVoyageExpenses = async (
 
     return { total, byCategory };
 };
+
 
 /**
  * Get all expenses for a user
@@ -309,4 +309,113 @@ export const cleanupOrphanExpenses = async (userId: string): Promise<{ deletedCo
         deletedCount: orphanExpenses.length,
         orphanIds: orphanExpenses.map(doc => doc.id)
     };
+};
+
+// ============================================================
+// ── PETTY CASH TOP-UP (Pemasukan Kas Kecil) ─────────────────
+// ============================================================
+
+const docToTopUp = (id: string, data: any): PettyCashTopUp => ({
+    id,
+    userId: data.userId,
+    amount: data.amount,
+    description: data.description,
+    date: data.date?.toDate() || new Date(),
+    createdBy: data.createdBy || '',
+    createdAt: data.createdAt?.toDate() || new Date(),
+    updatedAt: data.updatedAt?.toDate() || new Date(),
+});
+
+export const addTopUp = async (data: PettyCashTopUpFormData, userId: string, createdBy: string): Promise<string> => {
+    const now = Timestamp.now();
+    const ref = await addDoc(collection(db, TOPUPS_COLLECTION), {
+        userId,
+        amount: data.amount,
+        description: data.description,
+        date: Timestamp.fromDate(new Date(data.date)),
+        createdBy,
+        createdAt: now,
+        updatedAt: now,
+    });
+    return ref.id;
+};
+
+export const subscribeToTopUps = (
+    userId: string,
+    callback: (topups: PettyCashTopUp[]) => void
+): (() => void) => {
+    const q = query(collection(db, TOPUPS_COLLECTION));
+    return onSnapshot(q, snapshot => {
+        const items = snapshot.docs.map(d => docToTopUp(d.id, d.data()));
+        callback(items.sort((a, b) => a.date.getTime() - b.date.getTime()));
+    });
+};
+
+export const deleteTopUp = async (id: string): Promise<void> => {
+    await deleteDoc(doc(db, TOPUPS_COLLECTION, id));
+};
+
+export const updateTopUp = async (id: string, data: Partial<PettyCashTopUpFormData>): Promise<void> => {
+    const updates: any = { ...data, updatedAt: Timestamp.now() };
+    if (data.date) updates.date = Timestamp.fromDate(new Date(data.date));
+    await updateDoc(doc(db, TOPUPS_COLLECTION, id), updates);
+};
+
+// ============================================================
+// ── APPROVAL FLOW ────────────────────────────────────────────
+// ============================================================
+
+export const approveExpense = async (id: string, approverId: string): Promise<void> => {
+    await updateDoc(doc(db, EXPENSES_COLLECTION, id), {
+        status: 'approved',
+        approvedBy: approverId,
+        rejectedReason: null,
+        updatedAt: Timestamp.now(),
+    });
+};
+
+export const rejectExpense = async (id: string, approverId: string, reason: string): Promise<void> => {
+    await updateDoc(doc(db, EXPENSES_COLLECTION, id), {
+        status: 'rejected',
+        approvedBy: approverId,
+        rejectedReason: reason,
+        updatedAt: Timestamp.now(),
+    });
+};
+
+export const submitExpenseForApproval = async (id: string): Promise<void> => {
+    await updateDoc(doc(db, EXPENSES_COLLECTION, id), {
+        status: 'pending',
+        updatedAt: Timestamp.now(),
+    });
+};
+
+// ============================================================
+// ── BUDGET PER KATEGORI ──────────────────────────────────────
+// ============================================================
+
+export const saveBudget = async (month: string, budgets: Partial<Record<string, number>>): Promise<void> => {
+    const docRef = doc(db, BUDGETS_COLLECTION, month);
+    await updateDoc(docRef, { budgets, month, updatedAt: Timestamp.now() }).catch(async () => {
+        // If doc doesn't exist, create it
+        await addDoc(collection(db, BUDGETS_COLLECTION), { budgets, month, updatedAt: Timestamp.now() });
+    });
+};
+
+export const getBudget = async (month: string): Promise<Partial<Record<string, number>>> => {
+    const q = query(collection(db, BUDGETS_COLLECTION), where('month', '==', month));
+    const snap = await getDocs(q);
+    if (snap.empty) return {};
+    return snap.docs[0].data().budgets || {};
+};
+
+export const subscribeToBudget = (
+    month: string,
+    callback: (budgets: Partial<Record<string, number>>) => void
+): (() => void) => {
+    const q = query(collection(db, BUDGETS_COLLECTION), where('month', '==', month));
+    return onSnapshot(q, snap => {
+        if (snap.empty) { callback({}); return; }
+        callback(snap.docs[0].data().budgets || {});
+    });
 };
