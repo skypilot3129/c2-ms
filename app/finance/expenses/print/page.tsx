@@ -4,9 +4,10 @@ import { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Phone, Mail, MapPin } from 'lucide-react';
 
-interface ExpenseRow {
+interface LedgerRow {
     id: string;
-    category: string;
+    entryType: 'expense' | 'topup';
+    category?: string;
     description: string;
     amount: number;
     date: string;
@@ -22,9 +23,22 @@ const CATEGORY_LABELS: Record<string, string> = {
     gaji_sopir: 'Gaji Sopir',
     gaji_karyawan: 'Gaji Karyawan',
     listrik_air_internet: 'Listrik/Air/Internet',
-    sewa_kantor: 'Sewa Kantor/Gudang',
+    sewa_kantor: 'Sewa Kantor',
     maintenance: 'Maintenance',
     lainnya: 'Lainnya',
+    bbm_solar: 'BBM/Solar',
+    parkir_tol: 'Parkir/Tol',
+    makan_tim: 'Makan Tim',
+    perlengkapan_kerja: 'Perlengkapan Kerja',
+    biaya_pelabuhan: 'Biaya Pelabuhan',
+    servis_rutin: 'Servis Rutin',
+    ganti_oli: 'Ganti Oli',
+    ban: 'Ban Kendaraan',
+    spare_part: 'Spare Part',
+    atk_kantor: 'ATK',
+    pulsa_kuota: 'Pulsa/Kuota',
+    konsumsi_rapat: 'Konsumsi Rapat',
+    iuran_retribusi: 'Iuran/Retribusi'
 };
 
 function formatRp(n: number) {
@@ -35,21 +49,26 @@ function PrintContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
 
-    const [rows, setRows] = useState<ExpenseRow[]>([]);
+    const [rows, setRows] = useState<LedgerRow[]>([]);
     const [periodLabel, setPeriodLabel] = useState('');
-    const [modalAwal, setModalAwal] = useState(0);
+    const [modalAwal, setModalAwal] = useState(0); // This is now balanceBeforePeriod
+    const [totalExpenses, setTotalExpenses] = useState(0);
+    const [totalTopups, setTotalTopups] = useState(0);
+    const [saldoAkhir, setSaldoAkhir] = useState(0);
     const [printDate, setPrintDate] = useState('');
 
     useEffect(() => {
         const dataStr = searchParams.get('data');
         const labelStr = searchParams.get('label');
         const modalStr = searchParams.get('modal');
+        setTotalExpenses(Number(searchParams.get('expenses') || 0));
+        setTotalTopups(Number(searchParams.get('topups') || 0));
+        setSaldoAkhir(Number(searchParams.get('saldo') || 0));
 
         if (dataStr) {
             try {
                 const parsed = JSON.parse(decodeURIComponent(dataStr));
-                // Convert date strings back to Date-like objects safely
-                const mapped: ExpenseRow[] = parsed.map((r: any) => ({
+                const mapped: LedgerRow[] = parsed.map((r: any) => ({
                     ...r,
                     date: r.date ? (typeof r.date === 'string' ? r.date : new Date(r.date).toISOString()) : '',
                 }));
@@ -72,9 +91,6 @@ function PrintContent() {
         return () => clearTimeout(timer);
     }, [searchParams]);
 
-    const totalExpenses = rows.reduce((s, r) => s + r.amount, 0);
-    const saldoAkhir = modalAwal - totalExpenses;
-
     return (
         <div className="min-h-screen bg-white p-8 text-gray-900" style={{ fontSize: '12px' }}>
             {/* Header */}
@@ -94,16 +110,20 @@ function PrintContent() {
 
             {/* Title */}
             <div className="text-center mb-5">
-                <h2 className="text-lg font-bold mb-1">LAPORAN PENGELUARAN KAS KECIL</h2>
+                <h2 className="text-lg font-bold mb-1">LAPORAN BUKU KAS KECIL</h2>
                 <p className="text-xs text-gray-600">Periode: {periodLabel}</p>
                 <p className="text-xs text-gray-500">Dicetak: {printDate}</p>
             </div>
 
             {/* Summary Box */}
-            <div className="border-2 border-gray-300 rounded-lg p-4 mb-5 grid grid-cols-3 gap-4">
+            <div className="border-2 border-gray-300 rounded-lg p-4 mb-5 grid grid-cols-4 gap-4">
                 <div>
-                    <p className="text-xs text-gray-600 mb-0.5">Modal Awal Kas Kecil</p>
+                    <p className="text-xs text-gray-600 mb-0.5">Saldo Awal</p>
                     <p className="text-base font-bold text-gray-900">{formatRp(modalAwal)}</p>
+                </div>
+                <div>
+                    <p className="text-xs text-gray-600 mb-0.5">Total Pemasukan</p>
+                    <p className="text-base font-bold text-green-700">{formatRp(totalTopups)}</p>
                 </div>
                 <div>
                     <p className="text-xs text-gray-600 mb-0.5">Total Pengeluaran</p>
@@ -119,54 +139,65 @@ function PrintContent() {
             <table className="w-full border-collapse border border-gray-400 mb-5">
                 <thead>
                     <tr className="bg-gray-200">
-                        <th className="border border-gray-400 px-2 py-1.5 text-left text-xs">No</th>
-                        <th className="border border-gray-400 px-2 py-1.5 text-left text-xs">Tanggal</th>
-                        <th className="border border-gray-400 px-2 py-1.5 text-left text-xs">Kategori</th>
+                        <th className="border border-gray-400 px-2 py-1.5 text-left text-xs w-8">No</th>
+                        <th className="border border-gray-400 px-2 py-1.5 text-left text-xs w-24">Tanggal</th>
+                        <th className="border border-gray-400 px-2 py-1.5 text-left text-xs w-24">Kategori</th>
                         <th className="border border-gray-400 px-2 py-1.5 text-left text-xs">Keterangan</th>
-                        <th className="border border-gray-400 px-2 py-1.5 text-right text-xs">Jumlah (Rp)</th>
-                        <th className="border border-gray-400 px-2 py-1.5 text-right text-xs">Saldo (Rp)</th>
+                        <th className="border border-gray-400 px-2 py-1.5 text-right text-xs w-24">Masuk (Rp)</th>
+                        <th className="border border-gray-400 px-2 py-1.5 text-right text-xs w-24">Keluar (Rp)</th>
+                        <th className="border border-gray-400 px-2 py-1.5 text-right text-xs w-24">Saldo (Rp)</th>
                     </tr>
                 </thead>
                 <tbody>
                     {/* Starting balance row */}
-                    <tr className="bg-green-50">
+                    <tr className="bg-emerald-50">
                         <td className="border border-gray-400 px-2 py-1.5 text-xs text-center" colSpan={4}>
-                            <strong>Saldo Awal Kas Kecil</strong>
+                            <strong>Saldo Awal Periode</strong>
                         </td>
-                        <td className="border border-gray-400 px-2 py-1.5 text-xs text-right">-</td>
-                        <td className="border border-gray-400 px-2 py-1.5 text-xs text-right font-bold text-green-700">
+                        <td className="border border-gray-400 px-2 py-1.5 text-xs text-right"></td>
+                        <td className="border border-gray-400 px-2 py-1.5 text-xs text-right"></td>
+                        <td className="border border-gray-400 px-2 py-1.5 text-xs text-right font-bold text-emerald-700">
                             {formatRp(modalAwal)}
                         </td>
                     </tr>
-                    {rows.map((r, idx) => (
-                        <tr key={r.id || idx} className={idx % 2 === 0 ? '' : 'bg-gray-50'}>
-                            <td className="border border-gray-400 px-2 py-1.5 text-xs text-center">{idx + 1}</td>
-                            <td className="border border-gray-400 px-2 py-1.5 text-xs whitespace-nowrap">
-                                {(() => {
-                                    try {
-                                        return new Date(r.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
-                                    } catch {
-                                        return r.date;
-                                    }
-                                })()}
-                            </td>
-                            <td className="border border-gray-400 px-2 py-1.5 text-xs">
-                                {CATEGORY_LABELS[r.category] || r.category}
-                            </td>
-                            <td className="border border-gray-400 px-2 py-1.5 text-xs">{r.description}</td>
-                            <td className="border border-gray-400 px-2 py-1.5 text-xs text-right text-red-700 font-semibold">
-                                {formatRp(r.amount)}
-                            </td>
-                            <td className={`border border-gray-400 px-2 py-1.5 text-xs text-right font-semibold ${r.runningBalance >= 0 ? 'text-blue-700' : 'text-orange-700'}`}>
-                                {formatRp(r.runningBalance)}
-                            </td>
-                        </tr>
-                    ))}
+                    {rows.map((r, idx) => {
+                        const isTopup = r.entryType === 'topup';
+                        return (
+                            <tr key={r.id || idx} className={idx % 2 === 0 ? '' : 'bg-gray-50'}>
+                                <td className="border border-gray-400 px-2 py-1.5 text-xs text-center">{idx + 1}</td>
+                                <td className="border border-gray-400 px-2 py-1.5 text-xs whitespace-nowrap">
+                                    {(() => {
+                                        try {
+                                            return new Date(r.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+                                        } catch {
+                                            return r.date;
+                                        }
+                                    })()}
+                                </td>
+                                <td className="border border-gray-400 px-2 py-1.5 text-[10px]">
+                                    {isTopup ? 'Top-Up Kas' : (CATEGORY_LABELS[r.category || ''] || r.category)}
+                                </td>
+                                <td className="border border-gray-400 px-2 py-1.5 text-xs">{r.description}</td>
+                                <td className="border border-gray-400 px-2 py-1.5 text-xs text-right text-green-700 font-semibold">
+                                    {isTopup ? formatRp(r.amount) : '-'}
+                                </td>
+                                <td className="border border-gray-400 px-2 py-1.5 text-xs text-right text-red-700 font-semibold">
+                                    {!isTopup ? formatRp(r.amount) : '-'}
+                                </td>
+                                <td className={`border border-gray-400 px-2 py-1.5 text-xs text-right font-semibold ${r.runningBalance >= 0 ? 'text-blue-700' : 'text-orange-700'}`}>
+                                    {formatRp(r.runningBalance)}
+                                </td>
+                            </tr>
+                        );
+                    })}
                 </tbody>
                 <tfoot>
                     <tr className="bg-gray-100 font-bold">
                         <td colSpan={4} className="border border-gray-400 px-2 py-2 text-xs text-right">
-                            TOTAL PENGELUARAN:
+                            TOTAL:
+                        </td>
+                        <td className="border border-gray-400 px-2 py-2 text-xs text-right text-green-700">
+                            {formatRp(totalTopups)}
                         </td>
                         <td className="border border-gray-400 px-2 py-2 text-xs text-right text-red-700">
                             {formatRp(totalExpenses)}

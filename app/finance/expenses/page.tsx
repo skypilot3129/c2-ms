@@ -119,11 +119,18 @@ export default function GeneralExpensesPage() {
         [topups, filterMode, filterMonth, filterDate, filterStart, filterEnd]
     );
 
-    // ── Merged ledger sorted by date ──
+    // ── Merged ledger sorted by date then input time ──
     const ledger: LedgerEntry[] = useMemo(() => {
         const exp = filteredExpenses.map(e => ({ ...e, entryType: 'expense' as const }));
         const top = filteredTopups.map(t => ({ ...t, entryType: 'topup' as const }));
-        return [...exp, ...top].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+        return [...exp, ...top].sort((a, b) => {
+            const timeA = new Date(a.createdAt || a.date).getTime();
+            const timeB = new Date(b.createdAt || b.date).getTime();
+            if (a.date !== b.date) {
+                return new Date(a.date).getTime() - new Date(b.date).getTime();
+            }
+            return timeA - timeB;
+        });
     }, [filteredExpenses, filteredTopups]);
 
     // ── Calculations ──
@@ -272,7 +279,7 @@ export default function GeneralExpensesPage() {
         const approvedLedger = ledgerWithBalance.filter(e => e.entryType === 'topup' || (e as Expense).status !== 'rejected');
         const dataStr = encodeURIComponent(JSON.stringify(approvedLedger));
         const labelStr = encodeURIComponent(periodLabel);
-        router.push(`/finance/expenses/print?data=${dataStr}&label=${labelStr}&modal=${modalAwal}`);
+        router.push(`/finance/expenses/print?data=${dataStr}&label=${labelStr}&modal=${balanceBeforePeriod}&expenses=${totalExpenses}&topups=${totalTopUps}&saldo=${saldoAkhir}`);
     };
 
     if (loading) return <div className="p-8 text-center text-gray-500">Memuat data...</div>;
