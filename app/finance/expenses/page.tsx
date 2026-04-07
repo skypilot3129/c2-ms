@@ -95,17 +95,6 @@ export default function GeneralExpensesPage() {
     }, [user]);
 
     // ── Filter logic ──
-    const beforePeriod = (date: Date) => {
-        const ds = date.toISOString().split('T')[0];
-        if (filterMode === 'month') {
-            const [y, m] = filterMonth.split('-').map(Number);
-            return date < new Date(y, m - 1, 1); // before first day of month
-        } else if (filterMode === 'date') {
-            return ds < filterDate;
-        } else {
-            return ds < filterStart;
-        }
-    };
 
     const inRange = (date: Date) => {
         const ds = date.toISOString().split('T')[0];
@@ -144,18 +133,32 @@ export default function GeneralExpensesPage() {
     const totalTopUps = filteredTopups.reduce((s, t) => s + t.amount, 0);
     const pendingCount = filteredExpenses.filter(e => e.status === 'pending').length;
 
-    // ── Starting balance = modal awal + topups before period - expenses before period ──
+    // ── Starting balance = modal awal + topups - expenses (from start of the month to before the selected period) ──
     const balanceBeforePeriod = useMemo(() => {
-        const prevTopups = topups.filter(t => beforePeriod(new Date(t.date)));
+        if (filterMode === 'month') return modalAwal;
+
+        // Start from the 1st of the month of the selected filter
+        const startOfMonth = filterMode === 'date' ? filterDate.substring(0, 8) + '01' : filterStart.substring(0, 8) + '01';
+        const endDate = filterMode === 'date' ? filterDate : filterStart;
+
+        const isBeforePeriodInMonth = (dateObj: Date | string) => {
+            const dateStr = typeof dateObj === 'string' ? dateObj : dateObj.toISOString().split('T')[0];
+            const ds = dateStr.includes('T') ? dateStr.split('T')[0] : dateStr;
+            return ds >= startOfMonth && ds < endDate;
+        };
+
+        const prevTopups = topups.filter(t => isBeforePeriodInMonth(t.date));
         const prevExpenses = expenses.filter(e =>
-            beforePeriod(new Date(e.date)) &&
+            isBeforePeriodInMonth(e.date) &&
             (e.type === 'general' || !e.type) &&
-            e.status !== 'rejected'
+            (e.status === 'approved' || e.status === 'draft' || !e.status)
         );
+
         const topupSum = prevTopups.reduce((s, t) => s + t.amount, 0);
         const expenseSum = prevExpenses.reduce((s, e) => s + e.amount, 0);
+        
         return modalAwal + topupSum - expenseSum;
-    }, [topups, expenses, filterMode, filterMonth, filterDate, filterStart, filterEnd, modalAwal]);
+    }, [topups, expenses, filterMode, filterDate, filterStart, modalAwal]);
 
     // Running balance for each ledger row (starts from balance before the period)
     const ledgerWithBalance = useMemo(() => {
@@ -163,8 +166,12 @@ export default function GeneralExpensesPage() {
         return ledger.map(entry => {
             if (entry.entryType === 'topup') {
                 running += entry.amount;
-            } else if ((entry as Expense).status !== 'rejected') {
-                running -= entry.amount;
+            } else {
+                const e = entry as Expense;
+                // Only approved or draft expenses deduct from balance
+                if (e.status === 'approved' || e.status === 'draft' || !e.status) {
+                    running -= entry.amount;
+                }
             }
             return { ...entry, runningBalance: running };
         });
