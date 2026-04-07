@@ -46,11 +46,15 @@ export default function GeneralExpensesPage() {
     const [tempModalAwal, setTempModalAwal] = useState<number>(0);
 
     // Filter State
+    type FilterMode = 'month' | 'date' | 'range';
+    const [filterMode, setFilterMode] = useState<FilterMode>('month');
     const [filterMonth, setFilterMonth] = useState(() => {
         const now = new Date();
         return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
     });
-    const [showFilter, setShowFilter] = useState(false);
+    const [filterDate, setFilterDate] = useState(() => new Date().toISOString().split('T')[0]);
+    const [filterStart, setFilterStart] = useState(() => new Date().toISOString().split('T')[0]);
+    const [filterEnd, setFilterEnd] = useState(() => new Date().toISOString().split('T')[0]);
 
     // Load modal awal from localStorage
     useEffect(() => {
@@ -70,14 +74,21 @@ export default function GeneralExpensesPage() {
 
     // ── Filtered & Sorted Data ──
     const filteredExpenses = useMemo(() => {
-        const [year, month] = filterMonth.split('-').map(Number);
         return expenses
             .filter(e => {
                 const d = new Date(e.date);
-                return d.getFullYear() === year && d.getMonth() + 1 === month;
+                if (filterMode === 'month') {
+                    const [year, month] = filterMonth.split('-').map(Number);
+                    return d.getFullYear() === year && d.getMonth() + 1 === month;
+                } else if (filterMode === 'date') {
+                    return d.toISOString().split('T')[0] === filterDate;
+                } else {
+                    const ds = d.toISOString().split('T')[0];
+                    return ds >= filterStart && ds <= filterEnd;
+                }
             })
-            .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()); // oldest first for running balance
-    }, [expenses, filterMonth]);
+            .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    }, [expenses, filterMode, filterMonth, filterDate, filterStart, filterEnd]);
 
     // ── Calculations ──
     const totalExpenses = filteredExpenses.reduce((sum, e) => sum + e.amount, 0);
@@ -163,17 +174,24 @@ export default function GeneralExpensesPage() {
 
     const handlePrint = () => {
         const dataStr = encodeURIComponent(JSON.stringify(expensesWithBalance));
-        const monthStr = filterMonth;
         const modalStr = String(modalAwal);
-        router.push(`/finance/expenses/print?data=${dataStr}&month=${monthStr}&modal=${modalStr}`);
+        const labelStr = encodeURIComponent(periodLabel);
+        router.push(`/finance/expenses/print?data=${dataStr}&label=${labelStr}&modal=${modalStr}`);
     };
 
-    // ── Month label ──
-    const monthLabel = (() => {
-        const [y, m] = filterMonth.split('-');
-        const d = new Date(Number(y), Number(m) - 1);
-        return d.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
-    })();
+    // ── Period label ──
+    const periodLabel = useMemo(() => {
+        if (filterMode === 'month') {
+            const [y, m] = filterMonth.split('-');
+            return new Date(Number(y), Number(m) - 1).toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+        } else if (filterMode === 'date') {
+            return new Date(filterDate + 'T00:00:00').toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+        } else {
+            const s = new Date(filterStart + 'T00:00:00').toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+            const e = new Date(filterEnd + 'T00:00:00').toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+            return `${s} – ${e}`;
+        }
+    }, [filterMode, filterMonth, filterDate, filterStart, filterEnd]);
 
     if (loading) return <div className="p-8 text-center text-gray-500">Memuat data...</div>;
 
@@ -204,15 +222,50 @@ export default function GeneralExpensesPage() {
                 </div>
 
                 {/* ── Filter Row ── */}
-                <div className="flex flex-wrap items-center gap-3">
-                    <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-3 py-2 shadow-sm">
-                        <CalendarDays size={16} className="text-blue-500" />
-                        <input
-                            type="month"
-                            value={filterMonth}
-                            onChange={e => setFilterMonth(e.target.value)}
-                            className="border-none outline-none text-sm font-medium bg-transparent"
-                        />
+                {/* ── Filter Row ── */}
+                <div className="flex flex-col gap-3">
+                    {/* Mode Toggle */}
+                    <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1 w-fit">
+                        {(['month', 'date', 'range'] as FilterMode[]).map(mode => (
+                            <button
+                                key={mode}
+                                onClick={() => setFilterMode(mode)}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                                    filterMode === mode
+                                        ? 'bg-white text-blue-600 shadow-sm'
+                                        : 'text-gray-500 hover:text-gray-700'
+                                }`}
+                            >
+                                {mode === 'month' ? 'Bulanan' : mode === 'date' ? 'Harian' : 'Rentang'}
+                            </button>
+                        ))}
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-3">
+                        {filterMode === 'month' && (
+                            <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-3 py-2 shadow-sm">
+                                <CalendarDays size={16} className="text-blue-500" />
+                                <input type="month" value={filterMonth} onChange={e => setFilterMonth(e.target.value)} className="border-none outline-none text-sm font-medium bg-transparent" />
+                            </div>
+                        )}
+                        {filterMode === 'date' && (
+                            <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-3 py-2 shadow-sm">
+                                <CalendarDays size={16} className="text-blue-500" />
+                                <input type="date" value={filterDate} onChange={e => setFilterDate(e.target.value)} className="border-none outline-none text-sm font-medium bg-transparent" />
+                            </div>
+                        )}
+                        {filterMode === 'range' && (
+                            <div className="flex items-center gap-2 flex-wrap">
+                                <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-3 py-2 shadow-sm">
+                                    <span className="text-xs text-gray-400 font-medium">Dari</span>
+                                    <input type="date" value={filterStart} onChange={e => setFilterStart(e.target.value)} className="border-none outline-none text-sm font-medium bg-transparent" />
+                                </div>
+                                <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-3 py-2 shadow-sm">
+                                    <span className="text-xs text-gray-400 font-medium">Sampai</span>
+                                    <input type="date" value={filterEnd} onChange={e => setFilterEnd(e.target.value)} className="border-none outline-none text-sm font-medium bg-transparent" />
+                                </div>
+                            </div>
+                        )}
                     </div>
                     <button
                         onClick={() => { setTempModalAwal(modalAwal); setIsSettingModal(true); }}
@@ -234,7 +287,7 @@ export default function GeneralExpensesPage() {
                     </div>
                     <div className="bg-gradient-to-br from-red-500 to-red-600 rounded-xl p-4 text-white shadow-lg shadow-red-500/20">
                         <div className="flex items-center justify-between mb-1">
-                            <p className="text-red-100 text-xs font-medium">Total Pengeluaran ({monthLabel})</p>
+                            <p className="text-red-100 text-xs font-medium">Total Pengeluaran ({periodLabel})</p>
                             <TrendingDown size={20} className="text-red-200" />
                         </div>
                         <p className="text-xl sm:text-2xl font-bold">{formatRupiah(totalExpenses)}</p>
@@ -253,7 +306,7 @@ export default function GeneralExpensesPage() {
                     <div className="p-4 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
                         <h3 className="font-bold text-gray-800 text-sm flex items-center gap-2">
                             <ArrowDownRight size={16} className="text-red-500" />
-                            Rincian Pengeluaran – {monthLabel}
+                            Rincian Pengeluaran – {periodLabel}
                         </h3>
                         <span className="text-xs text-gray-400 font-medium">{filteredExpenses.length} item</span>
                     </div>

@@ -36,13 +36,13 @@ function PrintContent() {
     const searchParams = useSearchParams();
 
     const [rows, setRows] = useState<ExpenseRow[]>([]);
-    const [monthLabel, setMonthLabel] = useState('');
+    const [periodLabel, setPeriodLabel] = useState('');
     const [modalAwal, setModalAwal] = useState(0);
     const [printDate, setPrintDate] = useState('');
 
     useEffect(() => {
         const dataStr = searchParams.get('data');
-        const monthStr = searchParams.get('month');
+        const labelStr = searchParams.get('label');
         const modalStr = searchParams.get('modal');
 
         if (dataStr) {
@@ -59,10 +59,8 @@ function PrintContent() {
             }
         }
 
-        if (monthStr) {
-            const [y, m] = monthStr.split('-');
-            const d = new Date(Number(y), Number(m) - 1);
-            setMonthLabel(d.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' }));
+        if (labelStr) {
+            setPeriodLabel(decodeURIComponent(labelStr));
         }
 
         if (modalStr) setModalAwal(Number(modalStr));
@@ -97,7 +95,7 @@ function PrintContent() {
             {/* Title */}
             <div className="text-center mb-5">
                 <h2 className="text-lg font-bold mb-1">LAPORAN PENGELUARAN KAS KECIL</h2>
-                <p className="text-xs text-gray-600">Periode: {monthLabel}</p>
+                <p className="text-xs text-gray-600">Periode: {periodLabel}</p>
                 <p className="text-xs text-gray-500">Dicetak: {printDate}</p>
             </div>
 
