@@ -7,6 +7,8 @@ import { subscribeToEmployeeAdvances, updateEmployeeAdvance, saveMonthlySalaryRe
 import type { Employee } from '@/types/employee';
 import type { AttendanceDay, EmployeeAdvance, MonthlySalaryRecord } from '@/types/payroll-ops';
 import { DAILY_RATE, LATE_MILD_DEDUCTION, LATE_SEVERE_DEDUCTION, computeDayPay, ATTENDANCE_TYPE_LABELS } from '@/types/payroll-ops';
+import { getEmployeeAttendance } from '@/lib/firestore-attendance';
+import { getPeriodDateRange } from '@/types/payroll';
 import { formatRupiah } from '@/lib/currency';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import Link from 'next/link';
@@ -93,6 +95,7 @@ export default function EmployeeSalaryPage() {
   const [expandedEmp, setExpandedEmp] = useState<string | null>(null);
   const [attendance, setAttendance] = useState<Record<string, AttendanceDay[]>>({});
   const [saving, setSaving] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState<boolean>(false);
 
   useEffect(() => {
     const u1 = subscribeToEmployees(data => setEmployees(data.filter(e => e.role === 'helper' && e.status === 'active')));
@@ -124,6 +127,58 @@ export default function EmployeeSalaryPage() {
       return { ...prev, [empId]: days };
     });
   }, []);
+
+  const handleSyncAttendance = async () => {
+    setSyncing(true);
+    try {
+      const { startDate, endDate } = getPeriodDateRange(period);
+      const startStr = startDate.toISOString().split('T')[0];
+      const endStr = endDate.toISOString().split('T')[0];
+      
+      const newMap = { ...attendance };
+      
+      for (const emp of employees) {
+        const realData = await getEmployeeAttendance(emp.id, startStr, endStr);
+        const baseDays = buildEmptyAttendance(period);
+        
+        realData.forEach(real => {
+           const idx = baseDays.findIndex(d => d.date === real.date);
+           if (idx !== -1) {
+             let mappedType: AttendanceDay['type'] = 'absent';
+             if (real.status === 'present') mappedType = 'present';
+             else if (real.status === 'late') {
+               const regularShift = real.shifts.find(s => s.type === 'regular');
+               if (regularShift) {
+                 const checkInHour = new Date(regularShift.checkIn).getHours();
+                 mappedType = checkInHour < 11 ? 'late_mild' : 'late_severe';
+               } else {
+                 mappedType = 'late_mild';
+               }
+             } else if (real.status === 'leave' || real.status === 'absent') {
+               mappedType = 'absent';
+             }
+             
+             const existingOverridden = newMap[emp.id]?.[idx]?.overridden || false;
+             
+             baseDays[idx] = {
+               ...baseDays[idx],
+               type: mappedType,
+               overridden: existingOverridden
+             };
+           }
+        });
+        newMap[emp.id] = baseDays;
+      }
+      
+      setAttendance(newMap);
+      alert('Berhasil menarik data absensi karyawan.');
+    } catch (e) {
+      console.error(e);
+      alert('Gagal menyinkronkan data.');
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   const toggleOverride = useCallback((empId: string, idx: number) => {
     setAttendance(prev => {
@@ -180,8 +235,14 @@ export default function EmployeeSalaryPage() {
             <p className="text-xs text-gray-500">Input absensi & hitung gaji bulanan helper</p>
           </div>
           {/* Period selector */}
-          <input type="month" value={period} onChange={e => setPeriod(e.target.value)}
-            className="px-3 py-2 border border-gray-200 rounded-xl text-sm bg-gray-50 outline-none focus:ring-2 focus:ring-blue-200" />
+          <div className="flex gap-2">
+            <input type="month" value={period} onChange={e => setPeriod(e.target.value)}
+              className="px-3 py-2 border border-gray-200 rounded-xl text-sm bg-gray-50 outline-none focus:ring-2 focus:ring-blue-200" />
+            <button onClick={handleSyncAttendance} disabled={syncing}
+              className="flex items-center gap-2 px-3 py-2 bg-white border border-blue-200 text-blue-600 rounded-xl text-sm font-semibold hover:bg-blue-50 transition-colors disabled:opacity-50 shadow-sm">
+              <Clock size={16} /> {syncing ? 'Menarik...' : 'Tarik Data Absensi'}
+            </button>
+          </div>
         </div>
 
         {/* Employee Cards */}

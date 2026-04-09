@@ -64,6 +64,7 @@ export default function LoadingPayPage() {
             employeeName: e.fullName,
             present: false,
             isStacker: false,
+            contributionPercentage: 100,
             shareAmount: 0,
             stackingBonus: 0,
             total: 0,
@@ -87,6 +88,7 @@ export default function LoadingPayPage() {
                 employeeName: e.fullName,
                 present: false,
                 isStacker: false,
+                contributionPercentage: 100,
                 shareAmount: 0,
                 stackingBonus: 0,
                 total: 0,
@@ -101,6 +103,9 @@ export default function LoadingPayPage() {
     };
     const toggleStacker = (empId: string) => {
         setFormMembers(prev => prev.map(m => m.employeeId === empId && m.present ? { ...m, isStacker: !m.isStacker } : m));
+    };
+    const updateContribution = (empId: string, percentage: number) => {
+        setFormMembers(prev => prev.map(m => m.employeeId === empId ? { ...m, contributionPercentage: percentage } : m));
     };
 
     // Live preview of splits
@@ -118,7 +123,7 @@ export default function LoadingPayPage() {
             truckType: formTruck,
             truckLabel: formLabel,
             notes: formNotes,
-            members: formMembers.map(m => ({ employeeId: m.employeeId, employeeName: m.employeeName, present: m.present, isStacker: m.isStacker })),
+            members: formMembers.map(m => ({ employeeId: m.employeeId, employeeName: m.employeeName, present: m.present, isStacker: m.isStacker, contributionPercentage: m.contributionPercentage })),
         };
         try {
             if (editId) {
@@ -236,6 +241,7 @@ export default function LoadingPayPage() {
                                                 <p className="text-sm font-medium text-gray-800 flex-1">
                                                     {m.employeeName}
                                                     {m.isStacker && <span className="ml-2 text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-semibold">Susun</span>}
+                                                    {m.contributionPercentage && m.contributionPercentage < 100 && <span className="ml-2 text-[10px] bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded font-semibold">{m.contributionPercentage}%</span>}
                                                 </p>
                                                 <div className="text-right">
                                                     <p className="font-bold text-green-700 text-sm">{formatRupiah(m.total)}</p>
@@ -319,7 +325,7 @@ export default function LoadingPayPage() {
                                 <div>
                                     <label className="text-xs font-semibold text-gray-500 block mb-2">
                                         Anggota Hadir ({formMembers.filter(m => m.present).length})
-                                        <span className="text-gray-400 font-normal ml-1">— Ketuk nama untuk hadir, centang 📦 untuk tukang susun</span>
+                                        <span className="text-gray-400 font-normal ml-1">— Ketuk nama untuk hadir, centang 📦 untuk susun</span>
                                     </label>
                                     <div className="space-y-2 max-h-60 overflow-y-auto">
                                         {formMembers.map(m => {
@@ -334,6 +340,17 @@ export default function LoadingPayPage() {
                                                     <p className="flex-1 text-sm font-medium text-gray-800">{m.employeeName}</p>
                                                     {m.present && (
                                                         <>
+                                                            <select
+                                                                onClick={e => e.stopPropagation()}
+                                                                onChange={e => updateContribution(m.employeeId, parseInt(e.target.value))}
+                                                                value={m.contributionPercentage ?? 100}
+                                                                className="px-1.5 py-1 rounded-lg text-[10px] font-semibold border border-gray-200 bg-white text-gray-600 outline-none"
+                                                            >
+                                                                <option value={100}>100%</option>
+                                                                <option value={75}>75%</option>
+                                                                <option value={50}>50%</option>
+                                                                <option value={25}>25%</option>
+                                                            </select>
                                                             <button onClick={e => { e.stopPropagation(); toggleStacker(m.employeeId); }}
                                                                 className={`px-2 py-1 rounded-lg text-[10px] font-semibold border transition-all ${m.isStacker ? 'bg-amber-500 text-white border-amber-500' : 'border-gray-200 text-gray-400 hover:border-amber-300'}`}>
                                                                 📦 Susun

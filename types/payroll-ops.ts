@@ -73,6 +73,7 @@ export interface LoadingMember {
     employeeName: string;
     present: boolean;
     isStacker: boolean;     // tukang susun
+    contributionPercentage?: number; // persen kontribusi kerja, default 100
     shareAmount: number;    // computed: pool / presentCount
     stackingBonus: number;  // computed: 50_000 / 2 if stacker
     total: number;
@@ -97,7 +98,7 @@ export interface LoadingSessionFormData {
     date: string;
     truckType: TruckType;
     truckLabel?: string;
-    members: Pick<LoadingMember, 'employeeId' | 'employeeName' | 'present' | 'isStacker'>[];
+    members: Pick<LoadingMember, 'employeeId' | 'employeeName' | 'present' | 'isStacker' | 'contributionPercentage'>[];
     notes?: string;
 }
 
@@ -118,14 +119,19 @@ export function computeLoadingShares(session: Omit<LoadingSession, 'id' | 'creat
     const presentCount = presentMembers.length;
     if (presentCount === 0) return session.members;
 
-    const sharePerPerson = Math.floor(pool / presentCount);
+    const totalContribution = presentMembers.reduce((sum, m) => sum + (m.contributionPercentage ?? 100), 0);
     const stackersPresent = presentMembers.filter(m => m.isStacker).length;
     const stackingBonusPerPerson = stackersPresent >= 2 ? 25_000 : stackersPresent === 1 ? 50_000 : 0;
 
     return session.members.map(m => {
         if (!m.present) return { ...m, shareAmount: 0, stackingBonus: 0, total: 0 };
+        
+        // Share base based on contribution percentage relative to total contribution
+        const percentage = m.contributionPercentage ?? 100;
+        const shareAmount = totalContribution > 0 ? Math.floor(pool * (percentage / totalContribution)) : 0;
+        
         const bonus = m.isStacker ? stackingBonusPerPerson : 0;
-        return { ...m, shareAmount: sharePerPerson, stackingBonus: bonus, total: sharePerPerson + bonus };
+        return { ...m, shareAmount, stackingBonus: bonus, total: shareAmount + bonus };
     });
 }
 
