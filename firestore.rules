@@ -96,5 +96,25 @@ service cloud.firestore {
     match /expense_plans/{docId} {
       allow read, write: if request.auth != null;
     }
+
+    // Payroll Operations collections
+    match /employee_advances/{docId} {
+      allow read, write: if request.auth != null;
+    }
+    match /monthly_salary_records/{docId} {
+      allow read, write: if request.auth != null;
+    }
+    match /loading_sessions/{docId} {
+      allow read, write: if request.auth != null;
+    }
+    match /vehicle_rentals/{docId} {
+      allow read, write: if request.auth != null;
+    }
+    match /driver_advances/{docId} {
+      allow read, write: if request.auth != null;
+    }
+    match /driver_salaries/{docId} {
+      allow read, write: if request.auth != null;
+    }
   }
 }
