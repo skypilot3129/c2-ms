@@ -85,20 +85,32 @@ function PrintContent() {
                     const present = s.members.filter((m: any) => m.present);
                     return (
                         <div key={s.id} className="mb-4 border border-gray-200 rounded-lg overflow-hidden">
-                            <div className="bg-gray-50 px-3 py-2 flex items-center gap-2 text-xs">
-                                <span className={`font-bold px-2 py-0.5 rounded ${s.truckType === 'fuso' ? 'bg-green-200 text-green-800' : 'bg-blue-200 text-blue-800'}`}>{s.truckType.toUpperCase()}</span>
-                                <span className="font-bold">{new Date(s.date + 'T00:00:00').toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
-                                {s.truckLabel && <span className="text-gray-500">· {s.truckLabel}</span>}
-                                <span className="ml-auto text-gray-500">{formatRupiah(s.pool)} pool · {present.length} orang</span>
+                            <div className="bg-gray-100 px-4 py-2 flex items-center gap-3 text-xs border-b border-gray-200">
+                                <span className={`font-bold px-2 py-0.5 rounded ${s.truckType === 'fuso' ? 'bg-green-600 text-white' : 'bg-blue-600 text-white'}`}>{s.truckType.toUpperCase()}</span>
+                                <span className="font-bold text-gray-800">{new Date(s.date + 'T00:00:00').toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</span>
+                                {s.truckLabel && <span className="text-gray-500 font-medium">· Memuat Truk {s.truckLabel}</span>}
+                                <span className="ml-auto text-gray-600 font-medium">{formatRupiah(s.pool)} · {present.length} orang</span>
                             </div>
-                            <table className="w-full text-xs">
+                            <table className="w-full text-xs border-collapse">
+                                <thead className="bg-gray-50 text-gray-500 text-left border-b border-gray-100">
+                                    <tr>
+                                        <th className="px-3 py-1 font-semibold">Bekerja</th>
+                                        <th className="px-3 py-1 font-semibold text-right">Pembagian</th>
+                                        <th className="px-3 py-1 font-semibold text-right">Bonus</th>
+                                        <th className="px-3 py-1 font-semibold text-right">Diterima</th>
+                                    </tr>
+                                </thead>
                                 <tbody>
                                     {present.map((m: any) => (
                                         <tr key={m.employeeId} className="border-t border-gray-100">
-                                            <td className="px-3 py-1.5">{m.employeeName}{m.isStacker && <span className="ml-1 text-amber-600">(Susun)</span>}</td>
-                                            <td className="px-3 py-1.5 text-right">{formatRupiah(m.shareAmount)}</td>
-                                            <td className="px-3 py-1.5 text-right text-amber-600">{m.stackingBonus > 0 ? `+${formatRupiah(m.stackingBonus)}` : ''}</td>
-                                            <td className="px-3 py-1.5 text-right font-bold text-green-700">{formatRupiah(m.total)}</td>
+                                            <td className="px-3 py-1.5 border border-gray-100 flex items-center gap-1">
+                                                {m.employeeName}
+                                                {m.isStacker && <span className="text-[10px] bg-amber-50 text-amber-700 px-1 py-0.5 rounded font-bold border border-amber-200">Susun</span>}
+                                                {m.contributionPercentage && m.contributionPercentage < 100 && <span className="text-[10px] bg-gray-100 text-gray-600 px-1 py-0.5 rounded font-bold border border-gray-200">{m.contributionPercentage}%</span>}
+                                            </td>
+                                            <td className="px-3 py-1.5 border border-gray-100 text-right">{formatRupiah(m.shareAmount)}</td>
+                                            <td className="px-3 py-1.5 border border-gray-100 text-right text-amber-600 font-medium">{m.stackingBonus > 0 ? `+${formatRupiah(m.stackingBonus)}` : ''}</td>
+                                            <td className="px-3 py-1.5 border border-gray-100 text-right font-bold text-green-700">{formatRupiah(m.total)}</td>
                                         </tr>
                                     ))}
                                 </tbody>

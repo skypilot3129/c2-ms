@@ -123,7 +123,7 @@ export default function LoadingPayPage() {
             truckType: formTruck,
             truckLabel: formLabel,
             notes: formNotes,
-            members: formMembers.map(m => ({ employeeId: m.employeeId, employeeName: m.employeeName, present: m.present, isStacker: m.isStacker, contributionPercentage: m.contributionPercentage })),
+            members: formMembers.map(m => ({ employeeId: m.employeeId, employeeName: m.employeeName, present: m.present, isStacker: m.isStacker, contributionPercentage: m.contributionPercentage ?? 100 })),
         };
         try {
             if (editId) {
@@ -340,17 +340,17 @@ export default function LoadingPayPage() {
                                                     <p className="flex-1 text-sm font-medium text-gray-800">{m.employeeName}</p>
                                                     {m.present && (
                                                         <>
-                                                            <select
-                                                                onClick={e => e.stopPropagation()}
-                                                                onChange={e => updateContribution(m.employeeId, parseInt(e.target.value))}
-                                                                value={m.contributionPercentage ?? 100}
-                                                                className="px-1.5 py-1 rounded-lg text-[10px] font-semibold border border-gray-200 bg-white text-gray-600 outline-none"
-                                                            >
-                                                                <option value={100}>100%</option>
-                                                                <option value={75}>75%</option>
-                                                                <option value={50}>50%</option>
-                                                                <option value={25}>25%</option>
-                                                            </select>
+                                                            <div className="flex gap-1" onClick={e => e.stopPropagation()}>
+                                                                {[100, 75, 50, 25].map(pct => (
+                                                                    <button
+                                                                        key={pct}
+                                                                        onClick={() => updateContribution(m.employeeId, pct)}
+                                                                        className={`px-1.5 py-1 rounded-md text-[10px] font-bold border transition-colors shadow-sm ${(m.contributionPercentage ?? 100) === pct ? 'bg-blue-500 text-white border-blue-500' : 'bg-white text-gray-400 border-gray-200 hover:bg-blue-50 hover:text-blue-600'}`}
+                                                                    >
+                                                                        {pct}%
+                                                                    </button>
+                                                                ))}
+                                                            </div>
                                                             <button onClick={e => { e.stopPropagation(); toggleStacker(m.employeeId); }}
                                                                 className={`px-2 py-1 rounded-lg text-[10px] font-semibold border transition-all ${m.isStacker ? 'bg-amber-500 text-white border-amber-500' : 'border-gray-200 text-gray-400 hover:border-amber-300'}`}>
                                                                 📦 Susun
