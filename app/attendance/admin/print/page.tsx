@@ -69,7 +69,8 @@ function PrintContent() {
                             <th className="border border-gray-400 px-2 py-2 text-center w-8">No</th>
                             <th className="border border-gray-400 px-2 py-2 text-left">Nama Karyawan</th>
                             <th className="border border-gray-400 px-2 py-2 text-center text-emerald-700">Hadir</th>
-                            <th className="border border-gray-400 px-2 py-2 text-center text-amber-700">Terlambat</th>
+                            <th className="border border-gray-400 px-2 py-2 text-center text-amber-600">T.Ringan</th>
+                            <th className="border border-gray-400 px-2 py-2 text-center text-orange-700">T.Berat</th>
                             <th className="border border-gray-400 px-2 py-2 text-center text-red-700">Alpha</th>
                             <th className="border border-gray-400 px-2 py-2 text-center text-gray-600">Izin</th>
                             <th className="border border-gray-400 px-2 py-2 text-center text-purple-700">Lembur</th>
@@ -83,7 +84,8 @@ function PrintContent() {
                                 <td className="border border-gray-300 px-2 py-1.5 text-center font-medium">{i + 1}</td>
                                 <td className="border border-gray-300 px-2 py-1.5 font-bold tracking-tight">{emp.employeeName}</td>
                                 <td className="border border-gray-300 px-2 py-1.5 text-center">{emp.daysPresent}</td>
-                                <td className="border border-gray-300 px-2 py-1.5 text-center font-bold text-amber-700">{emp.daysLate > 0 ? emp.daysLate : '-'}</td>
+                                <td className="border border-gray-300 px-2 py-1.5 text-center font-bold text-amber-600">{emp.daysLateMild > 0 ? emp.daysLateMild : '-'}</td>
+                                <td className="border border-gray-300 px-2 py-1.5 text-center font-bold text-orange-700">{emp.daysLateSevere > 0 ? emp.daysLateSevere : '-'}</td>
                                 <td className="border border-gray-300 px-2 py-1.5 text-center font-bold text-red-700">{emp.daysAbsent > 0 ? emp.daysAbsent : '-'}</td>
                                 <td className="border border-gray-300 px-2 py-1.5 text-center">{emp.daysLeave > 0 ? emp.daysLeave : '-'}</td>
                                 <td className="border border-gray-300 px-2 py-1.5 text-center font-bold text-purple-700">{emp.overtimeCount > 0 ? emp.overtimeCount : '-'}</td>

@@ -3,12 +3,11 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Calendar, Download, TrendingUp, Clock, Users, AlertCircle, ChevronDown, ChevronUp, CheckCircle, Printer } from 'lucide-react';
-import type { Attendance } from '@/types/attendance';
+import type { Attendance, AttendanceStatus } from '@/types/attendance';
+import { ATTENDANCE_STATUS_LABELS } from '@/types/attendance';
 import type { Employee } from '@/types/employee';
 import {
     calculateAttendanceStats,
-    exportAttendanceToCSV,
-    getDateRange,
     type AttendanceStats
 } from '@/lib/reports-helper';
 import { getEmployeeAttendance, updateAttendanceStatus } from '@/lib/firestore-attendance';
@@ -19,7 +18,17 @@ interface AttendanceReportProps {
 
 export default function AttendanceReport({ employees }: AttendanceReportProps) {
     const router = useRouter();
-    const [preset, setPreset] = useState<'this_month' | 'last_month' | 'last_3_months'>('this_month');
+    
+    // Default 1st day of current month to today
+    const [startDate, setStartDate] = useState(() => {
+        const d = new Date();
+        d.setDate(1);
+        return d.toISOString().split('T')[0];
+    });
+    const [endDate, setEndDate] = useState(() => {
+        return new Date().toISOString().split('T')[0];
+    });
+
     const [stats, setStats] = useState<AttendanceStats | null>(null);
     const [rawAttendances, setRawAttendances] = useState<Attendance[]>([]);
     const [loading, setLoading] = useState(false);
@@ -27,14 +36,12 @@ export default function AttendanceReport({ employees }: AttendanceReportProps) {
 
     useEffect(() => {
         loadAttendanceData();
-    }, [preset, employees]);
+    }, [startDate, endDate, employees]);
 
     const loadAttendanceData = async () => {
         setLoading(true);
         try {
-            const { startDate, endDate } = getDateRange(preset);
-
-            // Fetch attendance for all employees
+            // Fetch attendance for all employees using custom date range
             const allAttendances: Attendance[] = [];
             for (const emp of employees) {
                 const empAttendances = await getEmployeeAttendance(emp.employeeId, startDate, endDate);
@@ -62,10 +69,17 @@ export default function AttendanceReport({ employees }: AttendanceReportProps) {
         }
     };
 
-    const handleTolerate = async (empId: string, date: string) => {
-        if (confirm('Anda yakin ingin menoleransi keterlambatan ini dan menganggap karyawan ini Hadir tepat waktu?')) {
+    const handleOverrideStatus = async (empId: string, date: string, newStatus: AttendanceStatus) => {
+        // Confirmation based on status
+        let confirmMsg = 'Anda yakin ingin mengubah status absensi pada tanggal ini?';
+        if (newStatus === 'present') confirmMsg = 'Tolerir keterlambatan dan anggap Hadir tepat waktu?';
+        else if (newStatus === 'late_mild') confirmMsg = 'Ubah status menjadi Telat Ringan?';
+        else if (newStatus === 'late_severe') confirmMsg = 'Ubah status menjadi Telat Berat?';
+        else if (newStatus === 'absent') confirmMsg = 'Ubah status menjadi Alpha (Tidak Hadir)?';
+
+        if (confirm(confirmMsg)) {
             try {
-                await updateAttendanceStatus(empId, date, 'present', 'Dimaafkan/Toleransi oleh Admin');
+                await updateAttendanceStatus(empId, date, newStatus, 'Diubah manual oleh Admin');
                 await loadAttendanceData(); // reload
             } catch (error) {
                 alert('Gagal memperbarui status');
@@ -104,16 +118,20 @@ export default function AttendanceReport({ employees }: AttendanceReportProps) {
                         <p className="text-sm text-gray-500">{stats.period}</p>
                     </div>
                 </div>
-                <div className="flex gap-3">
-                    <select
-                        value={preset}
-                        onChange={(e) => setPreset(e.target.value as any)}
+                <div className="flex flex-wrap gap-3">
+                    <input
+                        type="date"
+                        value={startDate}
+                        onChange={(e) => setStartDate(e.target.value)}
                         className="px-4 py-2 rounded-lg border border-gray-200 bg-white text-gray-700 focus:ring-2 focus:ring-blue-500"
-                    >
-                        <option value="this_month">Bulan Ini</option>
-                        <option value="last_month">Bulan Terakhir</option>
-                        <option value="last_3_months">3 Bulan Terakhir</option>
-                    </select>
+                    />
+                    <span className="self-center text-gray-500 font-medium text-sm">s.d</span>
+                    <input
+                        type="date"
+                        value={endDate}
+                        onChange={(e) => setEndDate(e.target.value)}
+                        className="px-4 py-2 rounded-lg border border-gray-200 bg-white text-gray-700 focus:ring-2 focus:ring-blue-500"
+                    />
                     <button
                         onClick={handlePrint}
                         className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
@@ -183,7 +201,8 @@ export default function AttendanceReport({ employees }: AttendanceReportProps) {
                             <tr>
                                 <th className="px-6 py-3 text-left text-sm font-medium text-gray-600 w-[200px]">Nama Karyawan</th>
                                 <th className="px-3 py-3 text-center text-sm font-medium text-gray-600">Hadir</th>
-                                <th className="px-3 py-3 text-center text-sm font-medium text-gray-600">Telat</th>
+                                <th className="px-3 py-3 text-center text-sm font-medium text-gray-600">Telat Ringan</th>
+                                <th className="px-3 py-3 text-center text-sm font-medium text-gray-600">Telat Berat</th>
                                 <th className="px-3 py-3 text-center text-sm font-medium text-gray-600">Alpha</th>
                                 <th className="px-3 py-3 text-center text-sm font-medium text-gray-600">Izin</th>
                                 <th className="px-3 py-3 text-center text-sm font-medium text-gray-600">Total Lembur</th>
@@ -208,8 +227,13 @@ export default function AttendanceReport({ employees }: AttendanceReportProps) {
                                             </td>
                                             <td className="px-3 py-4 text-center text-sm text-gray-700">{emp.daysPresent}</td>
                                             <td className="px-3 py-4 text-center text-sm">
-                                                <span className={emp.daysLate > 0 ? 'text-amber-600 font-bold' : 'text-gray-700'}>
-                                                    {emp.daysLate}
+                                                <span className={emp.daysLateMild > 0 ? 'text-amber-600 font-bold' : 'text-gray-700'}>
+                                                    {emp.daysLateMild}
+                                                </span>
+                                            </td>
+                                            <td className="px-3 py-4 text-center text-sm">
+                                                <span className={emp.daysLateSevere > 0 ? 'text-orange-600 font-bold' : 'text-gray-700'}>
+                                                    {emp.daysLateSevere}
                                                 </span>
                                             </td>
                                             <td className="px-3 py-4 text-center text-sm">
@@ -246,28 +270,58 @@ export default function AttendanceReport({ employees }: AttendanceReportProps) {
                                                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
                                                                 {empSpecificAttendances.map(att => {
                                                                     const dateObj = new Date(att.date + 'T00:00:00');
-                                                                    const isLate = att.status === 'late';
-                                                                    const statusLabels = { present: 'Hadir', absent: 'Alpha', late: 'Terlambat', leave: 'Izin/Cuti' };
-                                                                    const statusColors = { present: 'bg-emerald-100 text-emerald-700', absent: 'bg-red-100 text-red-700', late: 'bg-amber-100 text-amber-700', leave: 'bg-gray-200 text-gray-700' };
+                                                                    const statusColors: Record<AttendanceStatus, string> = {
+                                                                        present: 'bg-emerald-100 text-emerald-700 border-emerald-300',
+                                                                        late: 'bg-amber-100 text-amber-700 border-amber-300',
+                                                                        late_mild: 'bg-amber-100 text-amber-700 border-amber-300',
+                                                                        late_severe: 'bg-orange-100 text-orange-700 border-orange-300',
+                                                                        absent: 'bg-red-100 text-red-700 border-red-300',
+                                                                        leave: 'bg-gray-200 text-gray-700 border-gray-300'
+                                                                    };
+                                                                    
+                                                                    // Extract actual check-in time
+                                                                    let jamMasuk = '-';
+                                                                    if (att.shifts && att.shifts.length > 0) {
+                                                                       const shift = att.shifts[0];
+                                                                       if (shift.checkIn) {
+                                                                           jamMasuk = new Date(shift.checkIn).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+                                                                       }
+                                                                    }
                                                                     
                                                                     return (
-                                                                        <div key={att.id} className={`p-3 rounded-xl border ${isLate ? 'border-amber-200 bg-amber-50/30' : 'border-gray-200 bg-white'}`}>
-                                                                            <div className="flex items-center justify-between">
+                                                                        <div key={att.id} className={`p-3 rounded-xl border ${statusColors[att.status]} bg-white bg-opacity-40`}>
+                                                                            <div className="flex items-center justify-between mb-1">
                                                                                 <div className="font-medium text-sm text-gray-800">{dateObj.toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric', month: 'short' })}</div>
                                                                                 <div className={`text-[10px] px-1.5 py-0.5 rounded font-bold uppercase ${statusColors[att.status]}`}>
-                                                                                    {statusLabels[att.status]}
+                                                                                    {ATTENDANCE_STATUS_LABELS[att.status] || att.status}
                                                                                 </div>
                                                                             </div>
-                                                                            <div className="mt-1 text-xs text-gray-500 flex justify-between items-center">
-                                                                                <span>{att.totalHours > 0 ? `${att.totalHours.toFixed(1)} Jam Kerja` : '-'}</span>
-                                                                                {isLate && (
-                                                                                    <button 
-                                                                                        onClick={() => handleTolerate(emp.employeeId, att.date)}
-                                                                                        className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded-lg hover:bg-blue-100 transition-colors flex items-center gap-1"
-                                                                                    >
-                                                                                        <CheckCircle size={12} /> Tolerir (Hadir)
-                                                                                    </button>
-                                                                                )}
+                                                                            
+                                                                            <div className="flex items-center justify-between text-xs text-gray-600 mb-2">
+                                                                                <span className="flex items-center gap-1 font-medium bg-gray-100 px-1.5 py-0.5 rounded text-gray-700">
+                                                                                    <Clock size={12} /> Jam Masuk: {jamMasuk}
+                                                                                </span>
+                                                                                <span>{att.totalHours > 0 ? `${att.totalHours.toFixed(1)} Jam` : ''}</span>
+                                                                            </div>
+                                                                            
+                                                                            <div className="mt-2 pt-2 border-t border-gray-200/50 flex flex-wrap gap-1">
+                                                                                <span className="text-[9px] font-bold text-gray-400 w-full mb-0.5 uppercase tracking-wide">Ubah Status:</span>
+                                                                                <button 
+                                                                                    onClick={() => handleOverrideStatus(emp.employeeId, att.date, 'present')}
+                                                                                    className="text-[10px] font-medium bg-emerald-50 text-emerald-700 hover:bg-emerald-200 px-1.5 py-1 rounded transition-colors"
+                                                                                >Hadir</button>
+                                                                                <button 
+                                                                                    onClick={() => handleOverrideStatus(emp.employeeId, att.date, 'late_mild')}
+                                                                                    className="text-[10px] font-medium bg-amber-50 text-amber-700 hover:bg-amber-200 px-1.5 py-1 rounded transition-colors"
+                                                                                >T.Ringan</button>
+                                                                                <button 
+                                                                                    onClick={() => handleOverrideStatus(emp.employeeId, att.date, 'late_severe')}
+                                                                                    className="text-[10px] font-medium bg-orange-50 text-orange-700 hover:bg-orange-200 px-1.5 py-1 rounded transition-colors"
+                                                                                >T.Berat</button>
+                                                                                <button 
+                                                                                    onClick={() => handleOverrideStatus(emp.employeeId, att.date, 'absent')}
+                                                                                    className="text-[10px] font-medium bg-red-50 text-red-700 hover:bg-red-200 px-1.5 py-1 rounded transition-colors"
+                                                                                >Alpha</button>
                                                                             </div>
                                                                         </div>
                                                                     )

@@ -2,7 +2,7 @@ import { Timestamp } from 'firebase/firestore';
 
 // Shift Types
 export type ShiftType = 'regular' | 'overtime_loading' | 'overtime_unloading';
-export type AttendanceStatus = 'present' | 'absent' | 'late' | 'leave';
+export type AttendanceStatus = 'present' | 'absent' | 'late' | 'late_mild' | 'late_severe' | 'leave';
 
 // GPS Location
 export interface GeoLocation {
@@ -76,6 +76,8 @@ export const ATTENDANCE_STATUS_LABELS: Record<AttendanceStatus, string> = {
     'present': 'Hadir',
     'absent': 'Tidak Hadir',
     'late': 'Terlambat',
+    'late_mild': 'Telat Ringan',
+    'late_severe': 'Telat Berat',
     'leave': 'Izin/Cuti'
 };
 

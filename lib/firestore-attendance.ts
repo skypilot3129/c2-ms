@@ -411,7 +411,11 @@ export const getLateDaysBreakdown = (attendances: Attendance[]): { lateMild: num
     let lateSevere = 0;
 
     attendances.forEach(att => {
-        if (att.status === 'late') {
+        if (att.status === 'late_mild') {
+            lateMild++;
+        } else if (att.status === 'late_severe') {
+            lateSevere++;
+        } else if (att.status === 'late') {
             const regularShift = att.shifts.find(s => s.type === 'regular');
             if (regularShift) {
                 // Check in time
@@ -469,7 +473,11 @@ export const getAttendanceSummary = async (
     summary.lateSevere = breakdown.lateSevere;
 
     attendances.forEach(att => {
-        summary[att.status]++;
+        if (att.status === 'present') summary.present++;
+        else if (att.status === 'absent') summary.absent++;
+        else if (att.status === 'leave') summary.leave++;
+        else if (att.status === 'late' || att.status === 'late_mild' || att.status === 'late_severe') summary.late++;
+        
         summary.totalHours += att.totalHours;
         summary.overtimeCount += att.overtimeCount;
     });

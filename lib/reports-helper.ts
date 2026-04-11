@@ -21,6 +21,8 @@ export interface EmployeeAttendanceBreakdown {
     daysPresent: number;
     daysAbsent: number;
     daysLate: number;
+    daysLateMild: number;
+    daysLateSevere: number;
     daysLeave: number;
     overtimeCount: number;
     attendanceRate: number;
@@ -69,14 +71,18 @@ export const calculateAttendanceStats = (
         const empAttendances = attendances.filter(a => a.employeeId === emp.employeeId);
 
         const daysPresent = empAttendances.filter(a => a.status === 'present').length;
-        const daysLate = empAttendances.filter(a => a.status === 'late').length;
+        const rawLate = empAttendances.filter(a => a.status === 'late').length;
+        const daysLateMild = empAttendances.filter(a => a.status === 'late_mild').length;
+        const daysLateSevere = empAttendances.filter(a => a.status === 'late_severe').length;
+        const totalLate = rawLate + daysLateMild + daysLateSevere;
+        
         const daysAbsent = empAttendances.filter(a => a.status === 'absent').length;
         const daysLeave = empAttendances.filter(a => a.status === 'leave').length;
         const overtimeCount = empAttendances.reduce((sum, a) => sum + a.overtimeCount, 0);
         const totalHours = empAttendances.reduce((sum, a) => sum + a.totalHours, 0);
 
         const attendanceRate = workingDays > 0
-            ? ((daysPresent + daysLate) / workingDays) * 100
+            ? ((daysPresent + totalLate) / workingDays) * 100
             : 0;
 
         return {
@@ -84,7 +90,9 @@ export const calculateAttendanceStats = (
             employeeName: emp.fullName,
             daysPresent,
             daysAbsent,
-            daysLate,
+            daysLate: totalLate,
+            daysLateMild,
+            daysLateSevere,
             daysLeave,
             overtimeCount,
             attendanceRate: Math.round(attendanceRate * 10) / 10,
