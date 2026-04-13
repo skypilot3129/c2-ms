@@ -63,9 +63,10 @@ export default function AttendanceReport({ employees }: AttendanceReportProps) {
             const dataToPrint = {
                 periodTitle: stats.period,
                 stats,
+                rawAttendances, // Include raw daily data
             };
-            const encoded = encodeURIComponent(JSON.stringify(dataToPrint));
-            router.push(`/attendance/admin/print?data=${encoded}`);
+            sessionStorage.setItem('attendance_print_data', JSON.stringify(dataToPrint));
+            router.push(`/attendance/admin/print`);
         }
     };
 
