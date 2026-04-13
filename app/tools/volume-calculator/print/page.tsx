@@ -7,6 +7,7 @@ import { Package, Phone, Mail, MapPin } from 'lucide-react';
 
 interface KoliData {
     koliNumber: number;
+    itemName: string;
     length: number;
     width: number;
     height: number;
@@ -24,12 +25,14 @@ function PrintContent() {
 
     const [koliList, setKoliList] = useState<KoliData[]>([]);
     const [pricePerKg, setPricePerKg] = useState(0);
+    const [senderName, setSenderName] = useState('');
     const [printDate, setPrintDate] = useState('');
 
     useEffect(() => {
         // Get data from URL params
         const koliData = searchParams.get('data');
         const price = searchParams.get('price');
+        const sender = searchParams.get('sender');
 
         if (koliData) {
             try {
@@ -42,6 +45,10 @@ function PrintContent() {
 
         if (price) {
             setPricePerKg(parseFloat(price));
+        }
+
+        if (sender) {
+            setSenderName(decodeURIComponent(sender));
         }
 
         // Set print date
@@ -65,106 +72,102 @@ function PrintContent() {
     const totalPrice = totalWeight * pricePerKg;
 
     return (
-        <div className="min-h-screen bg-white p-8">
+        <div className="print-container bg-white">
             {/* Header - Company Info */}
-            <div className="border-b-2 border-gray-800 pb-6 mb-6">
-                <div className="flex items-start justify-between">
+            <div className="border-b-2 border-gray-800 pb-4 mb-5">
+                <div className="flex flex-row justify-between items-start">
                     <div>
-                        <h1 className="text-3xl font-bold text-gray-900 mb-2">CAHAYA CARGO EXPRESS</h1>
-                        <p className="text-sm text-gray-600 mb-1">Jasa Pengiriman Barang Terpercaya</p>
+                        <h1 className="text-3xl font-black text-gray-900 tracking-tight mb-1">CAHAYA CARGO</h1>
+                        <p className="text-sm font-bold text-gray-600">Jasa Pengiriman Barang Terpercaya</p>
                     </div>
-                    <div className="text-right text-sm">
+                    <div className="text-right text-xs text-gray-700 bg-gray-50 p-2 border border-gray-200 rounded">
                         <div className="flex items-center justify-end gap-2 mb-1">
-                            <Phone size={14} />
+                            <Phone size={12} />
                             <span>+62 xxx-xxxx-xxxx</span>
                         </div>
                         <div className="flex items-center justify-end gap-2 mb-1">
-                            <Mail size={14} />
+                            <Mail size={12} />
                             <span>info@cahayacargo.com</span>
                         </div>
                         <div className="flex items-center justify-end gap-2">
-                            <MapPin size={14} />
+                            <MapPin size={12} />
                             <span>Surabaya, Indonesia</span>
                         </div>
                     </div>
                 </div>
             </div>
 
-            {/* Document Title */}
-            <div className="text-center mb-6">
-                <h2 className="text-2xl font-bold text-gray-900 mb-2">RINCIAN PERHITUNGAN VOLUME</h2>
-                <p className="text-sm text-gray-600">Tanggal: {printDate}</p>
-            </div>
-
-            {/* Formula Info */}
-            <div className="bg-gray-50 border border-gray-300 rounded-lg p-4 mb-6">
-                <h3 className="font-bold text-gray-900 mb-2">Standar Perhitungan:</h3>
-                <p className="text-sm text-gray-700 mb-1">
-                    <strong>Berat Volume (kg)</strong> = (Panjang × Lebar × Tinggi) / 4,000
-                </p>
-                <p className="text-sm text-gray-700">
-                    <strong>Berat Tagihan</strong> = Nilai tertinggi antara Berat Aktual dan Berat Volume
-                </p>
+            {/* Document Details Grid */}
+            <div className="grid grid-cols-2 gap-4 mb-6">
+                <div>
+                    <h2 className="text-lg font-bold text-gray-900 leading-none">RINCIAN VOLUME</h2>
+                    <p className="text-xs text-gray-500 mt-1">Ref: CCE-VOL-{new Date().getTime().toString().slice(-6)}</p>
+                    <p className="text-sm font-semibold text-gray-800 mt-2">Tanggal: {printDate}</p>
+                </div>
+                <div className="text-right">
+                    <p className="text-xs text-gray-500 uppercase font-bold">Nama Pengirim</p>
+                    <p className="text-xl font-black text-gray-900 border-b border-gray-300 inline-block pb-1">{senderName || '-'}</p>
+                </div>
             </div>
 
             {/* Koli Details Table */}
             <div className="mb-6">
-                <h3 className="font-bold text-gray-900 mb-3 flex items-center gap-2">
-                    <Package size={18} />
-                    Detail Koli
-                </h3>
-                <table className="w-full border-collapse border border-gray-400">
+                <div className="bg-gray-100 px-3 py-2 border border-gray-400 border-b-0 flex items-center gap-2">
+                    <Package size={16} />
+                    <h3 className="font-bold text-gray-900 text-sm">DAFTAR KOLI BARANG</h3>
+                </div>
+                <table className="w-full border-collapse border border-gray-400 text-sm">
                     <thead>
                         <tr className="bg-gray-200">
-                            <th className="border border-gray-400 px-3 py-2 text-left text-sm">No</th>
-                            <th className="border border-gray-400 px-3 py-2 text-center text-sm">Qty</th>
-                            <th className="border border-gray-400 px-3 py-2 text-left text-sm">Dimensi (cm)</th>
-                            <th className="border border-gray-400 px-3 py-2 text-right text-sm">Total Volume (cm³)</th>
-                            <th className="border border-gray-400 px-3 py-2 text-right text-sm">Berat Aktual (kg)</th>
-                            <th className="border border-gray-400 px-3 py-2 text-right text-sm">Berat Volume (kg)</th>
-                            <th className="border border-gray-400 px-3 py-2 text-right text-sm">Berat Tagihan (kg)</th>
-                            <th className="border border-gray-400 px-3 py-2 text-center text-sm">Tipe</th>
+                            <th className="border border-gray-400 px-2 py-2 text-center w-[5%] font-bold">No</th>
+                            <th className="border border-gray-400 px-2 py-2 text-left w-[25%] font-bold">Nama Barang</th>
+                            <th className="border border-gray-400 px-2 py-2 text-center w-[8%] font-bold">Qty</th>
+                            <th className="border border-gray-400 px-2 py-2 text-center w-[15%] font-bold">Dimensi (cm)</th>
+                            <th className="border border-gray-400 px-2 py-2 text-right w-[12%] font-bold">Aktual</th>
+                            <th className="border border-gray-400 px-2 py-2 text-right w-[12%] font-bold">Volume</th>
+                            <th className="border border-gray-400 px-2 py-2 text-right w-[15%] font-bold">Tagihan</th>
+                            <th className="border border-gray-400 px-1 py-2 text-center w-[8%] font-bold">Tipe</th>
                         </tr>
                     </thead>
                     <tbody>
                         {koliList.map((koli) => (
                             <tr key={koli.koliNumber}>
-                                <td className="border border-gray-400 px-3 py-2 text-sm font-semibold">
-                                    #{koli.koliNumber}
+                                <td className="border border-gray-400 px-2 py-1.5 text-center font-bold">
+                                    {koli.koliNumber}
                                 </td>
-                                <td className="border border-gray-400 px-3 py-2 text-sm text-center">
+                                <td className="border border-gray-400 px-2 py-1.5 align-middle leading-tight">
+                                    {koli.itemName}
+                                </td>
+                                <td className="border border-gray-400 px-2 py-1.5 text-center font-medium">
                                     {koli.quantity}
                                 </td>
-                                <td className="border border-gray-400 px-3 py-2 text-sm">
-                                    {koli.length} × {koli.width} × {koli.height}
+                                <td className="border border-gray-400 px-2 py-1.5 text-center text-xs">
+                                    {koli.length}×{koli.width}×{koli.height}
                                 </td>
-                                <td className="border border-gray-400 px-3 py-2 text-sm text-right">
-                                    {formatVolume(koli.volume)}
+                                <td className="border border-gray-400 px-2 py-1.5 text-right font-medium">
+                                    {formatWeight(koli.actualWeight * koli.quantity)} kg
                                 </td>
-                                <td className="border border-gray-400 px-3 py-2 text-sm text-right">
-                                    {formatWeight(koli.actualWeight * koli.quantity)}
+                                <td className="border border-gray-400 px-2 py-1.5 text-right font-medium">
+                                    {formatWeight(koli.volumetricWeight)} kg
                                 </td>
-                                <td className="border border-gray-400 px-3 py-2 text-sm text-right">
-                                    {formatWeight(koli.volumetricWeight)}
+                                <td className="border border-gray-400 px-2 py-1.5 text-right font-bold bg-gray-50">
+                                    {formatWeight(koli.chargeableWeight)} kg
                                 </td>
-                                <td className="border border-gray-400 px-3 py-2 text-sm text-right font-bold">
-                                    {formatWeight(koli.chargeableWeight)}
-                                </td>
-                                <td className="border border-gray-400 px-3 py-2 text-sm text-center">
-                                    {koli.weightType === 'actual' ? 'Aktual' : 'Volume'}
+                                <td className="border border-gray-400 px-1 py-1.5 text-center text-[10px] font-bold uppercase w-10 overflow-hidden">
+                                    {koli.weightType === 'actual' ? 'AKT' : 'VOL'}
                                 </td>
                             </tr>
                         ))}
                     </tbody>
                     <tfoot>
-                        <tr className="bg-gray-100 font-bold">
-                            <td colSpan={6} className="border border-gray-400 px-3 py-2 text-sm text-right">
+                        <tr className="bg-gray-100 font-bold border-t-2 border-gray-600">
+                            <td colSpan={6} className="border border-gray-400 px-3 py-2 text-right tracking-tight">
                                 TOTAL BERAT TAGIHAN:
                             </td>
-                            <td className="border border-gray-400 px-3 py-2 text-sm text-right">
-                                {formatWeight(totalWeight)}
+                            <td className="border border-gray-400 px-2 py-2 text-right text-lg text-gray-900 border-b-4 border-gray-900">
+                                {formatWeight(totalWeight)} kg
                             </td>
-                            <td className="border border-gray-400 px-3 py-2"></td>
+                            <td className="border border-gray-400 px-1 py-2"></td>
                         </tr>
                     </tfoot>
                 </table>
@@ -172,84 +175,125 @@ function PrintContent() {
 
             {/* Pricing Summary */}
             {pricePerKg > 0 && (
-                <div className="mb-6">
-                    <h3 className="font-bold text-gray-900 mb-3">Rincian Biaya</h3>
-                    <div className="border-2 border-gray-800 rounded-lg p-4">
-                        <div className="flex justify-between items-center mb-2">
-                            <span className="text-sm text-gray-700">Total Berat:</span>
-                            <span className="text-sm font-semibold">{formatWeight(totalWeight)} kg</span>
+                <div className="w-full flex justify-end mb-6 shrink-0">
+                    <div className="w-[45%] border-2 border-gray-800 rounded p-4 bg-gray-50 page-break-avoid">
+                        <div className="flex justify-between items-center mb-1">
+                            <span className="text-sm font-bold text-gray-600">Total Berat:</span>
+                            <span className="text-sm font-bold text-gray-900">{formatWeight(totalWeight)} kg</span>
                         </div>
-                        <div className="flex justify-between items-center mb-2">
-                            <span className="text-sm text-gray-700">Harga per kg:</span>
-                            <span className="text-sm font-semibold">Rp {pricePerKg.toLocaleString('id-ID')}</span>
+                        <div className="flex justify-between items-center mb-1">
+                            <span className="text-sm font-bold text-gray-600">Tarif per kg:</span>
+                            <span className="text-sm font-bold text-gray-900">Rp {pricePerKg.toLocaleString('id-ID')}</span>
                         </div>
-                        <div className="border-t-2 border-gray-400 mt-3 pt-3">
-                            <div className="flex justify-between items-center">
-                                <span className="text-lg font-bold text-gray-900">TOTAL BIAYA:</span>
-                                <span className="text-2xl font-bold text-gray-900">
+                        <div className="border-t border-gray-400 mt-2 pt-2">
+                            <div className="flex justify-between items-end">
+                                <span className="text-sm font-black text-gray-900">ESTIMASI BIAYA:</span>
+                                <span className="text-xl font-black text-gray-900">
                                     Rp {totalPrice.toLocaleString('id-ID')}
                                 </span>
                             </div>
-                            <p className="text-xs text-gray-600 text-right mt-1">
-                                ({formatWeight(totalWeight)} kg × Rp {pricePerKg.toLocaleString('id-ID')})
-                            </p>
                         </div>
                     </div>
                 </div>
             )}
 
-            {/* Footer Notes */}
-            <div className="mt-8 pt-6 border-t border-gray-300">
-                <p className="text-xs text-gray-600 italic">
-                    * Dokumen ini dibuat secara otomatis oleh sistem Kalkulator Volume Cahaya Cargo Express
-                </p>
-                <p className="text-xs text-gray-600 italic">
-                    * Perhitungan menggunakan standar divisor 4,000 untuk berat volume
-                </p>
+            {/* Footer Rules */}
+            <div className="mt-auto pt-4 border-t border-dashed border-gray-400 page-break-avoid text-xs text-gray-600 flex gap-4">
+               <div className="w-2/3">
+                    <h4 className="font-bold text-gray-800 mb-1">Catatan Tagihan:</h4>
+                    <p>- Berat Tagihan ditentukan dari nilai tertinggi antara Berat Aktual dan Berat Volume.</p>
+                    <p>- Rumus Berat Volume: P(cm) × L(cm) × T(cm) / 4000.</p>
+                    <p>- Dokumen ini hanya merupakan rincian volume dan BUKAN bukti pembayaran sah.</p>
+               </div>
+               <div className="w-1/3 text-center flex flex-col justify-end pt-8">
+                    <div className="border-b border-gray-800 w-3/4 mx-auto mb-1"></div>
+                    <p className="font-bold text-gray-800">Petugas</p>
+               </div>
             </div>
 
             {/* Print Button (Hidden on Print) */}
-            <div className="no-print mt-6 flex gap-3">
-                <button
-                    onClick={() => window.print()}
-                    className="px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors"
-                >
-                    Print / Save as PDF
-                </button>
+            <div className="no-print fixed bottom-4 right-4 flex gap-3 shadow-xl bg-white p-3 rounded-lg border border-gray-200">
                 <button
                     onClick={() => router.back()}
-                    className="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
+                    className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded font-bold transition-colors"
                 >
                     Kembali
+                </button>
+                <button
+                    onClick={() => window.print()}
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded font-bold transition-colors flex items-center gap-2"
+                >
+                    <Package size={16} /> Print (A4)
                 </button>
             </div>
 
             {/* Print Styles */}
             <style jsx global>{`
-        @media print {
-          body {
-            print-color-adjust: exact;
-            -webkit-print-color-adjust: exact;
-          }
-          
-          .no-print {
-            display: none !important;
-          }
-          
-          @page {
-            size: A4;
-            margin: 1cm;
-          }
-          
-          table {
-            page-break-inside: avoid;
-          }
-          
-          tr {
-            page-break-inside: avoid;
-          }
-        }
-      `}</style>
+                @media print {
+                    body {
+                        margin: 0;
+                        padding: 0;
+                        background-color: white;
+                        print-color-adjust: exact;
+                        -webkit-print-color-adjust: exact;
+                    }
+
+                    .no-print {
+                        display: none !important;
+                    }
+
+                    @page {
+                        size: A4 portrait;
+                        margin: 10mm;
+                    }
+                    
+                    .print-container {
+                        width: 100%;
+                        max-width: 210mm;
+                        padding: 0;
+                        margin: 0 auto;
+                        box-sizing: border-box;
+                    }
+
+                    table {
+                        page-break-inside: auto;
+                    }
+
+                    tr {
+                        page-break-inside: avoid;
+                        page-break-after: auto;
+                    }
+
+                    thead {
+                        display: table-header-group;
+                    }
+
+                    tfoot {
+                        display: table-footer-group;
+                    }
+
+                    .page-break-avoid {
+                        page-break-inside: avoid;
+                    }
+                }
+                
+                /* Screen view styles for preview */
+                @media screen {
+                    body {
+                        background-color: #f3f4f6;
+                    }
+                    .print-container {
+                        max-width: 210mm;
+                        min-height: 297mm;
+                        margin: 2rem auto;
+                        padding: 20mm 15mm;
+                        background: white;
+                        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+                        display: flex;
+                        flex-direction: column;
+                    }
+                }
+            `}</style>
         </div>
     );
 }
@@ -257,8 +301,10 @@ function PrintContent() {
 export default function PrintVolumeCalculation() {
     return (
         <Suspense fallback={
-            <div className="min-h-screen bg-white p-8 flex items-center justify-center">
-                <p className="text-gray-600">Loading...</p>
+            <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+                <div className="bg-white p-6 rounded-lg shadow-sm text-center">
+                    <p className="font-bold text-gray-800">Menyiapkan Dokumen Rincian...</p>
+                </div>
             </div>
         }>
             <PrintContent />

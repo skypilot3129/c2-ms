@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Calculator, Package, Copy, RotateCcw, Info, Plus, Trash2, DollarSign, Printer } from 'lucide-react';
+import { Calculator, Package, Copy, RotateCcw, Info, Plus, Trash2, DollarSign, Printer, User, ArrowRight, Box } from 'lucide-react';
 import {
     calculateDimensions,
     formatWeight,
@@ -19,12 +19,21 @@ interface KoliItem extends VolumeCalculation {
 export default function VolumeCalculator() {
     const router = useRouter();
 
+    const [isClient, setIsClient] = useState(false);
+    useEffect(() => { setIsClient(true); }, []);
+
+    // Session State
+    const [senderName, setSenderName] = useState<string>('');
+    const [isSessionActive, setIsSessionActive] = useState<boolean>(false);
+
+    // Form State
     const [formData, setFormData] = useState<VolumeCalculatorFormData>({
         length: 0,
         width: 0,
         height: 0,
         actualWeight: 0,
-        quantity: 1
+        quantity: 1,
+        itemName: ''
     });
 
     const [koliList, setKoliList] = useState<KoliItem[]>([]);
@@ -32,7 +41,17 @@ export default function VolumeCalculator() {
     const [errors, setErrors] = useState<string[]>([]);
     const [showInfo, setShowInfo] = useState(false);
 
-    const handleInputChange = (field: keyof VolumeCalculatorFormData, value: number) => {
+    const handleStartSession = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (senderName.trim() === '') {
+            setErrors(['Nama pengirim tidak boleh kosong']);
+            return;
+        }
+        setErrors([]);
+        setIsSessionActive(true);
+    };
+
+    const handleInputChange = (field: keyof VolumeCalculatorFormData, value: number | string) => {
         setFormData(prev => ({ ...prev, [field]: value }));
         setErrors([]);
     };
@@ -45,8 +64,13 @@ export default function VolumeCalculator() {
             formData.actualWeight
         );
 
-        if (!validation.valid) {
-            setErrors(validation.errors);
+        const newErrors = [...validation.errors];
+        if (!formData.itemName || formData.itemName.trim() === '') {
+            newErrors.push('Nama/Tipe barang harus diisi');
+        }
+
+        if (newErrors.length > 0) {
+            setErrors(newErrors);
             return;
         }
 
@@ -64,7 +88,8 @@ export default function VolumeCalculator() {
             width: 0,
             height: 0,
             actualWeight: 0,
-            quantity: 1
+            quantity: 1,
+            itemName: ''
         });
         setErrors([]);
     };
@@ -72,38 +97,43 @@ export default function VolumeCalculator() {
     const handleRemoveKoli = (koliNumber: number) => {
         setKoliList(prev => {
             const filtered = prev.filter(k => k.koliNumber !== koliNumber);
-            // Renumber kolis
             return filtered.map((k, index) => ({ ...k, koliNumber: index + 1 }));
         });
     };
 
     const handleReset = () => {
-        setFormData({
-            length: 0,
-            width: 0,
-            height: 0,
-            actualWeight: 0,
-            quantity: 1
-        });
-        setKoliList([]);
-        setPricePerKg(0);
-        setErrors([]);
+        if (confirm('Apakah Anda yakin ingin mereset seluruh halaman ini?')) {
+            setSenderName('');
+            setIsSessionActive(false);
+            setFormData({
+                length: 0,
+                width: 0,
+                height: 0,
+                actualWeight: 0,
+                quantity: 1,
+                itemName: ''
+            });
+            setKoliList([]);
+            setPricePerKg(0);
+            setErrors([]);
+        }
     };
 
     const handleCopyResult = () => {
         if (koliList.length === 0) return;
 
         let text = `Hasil Perhitungan Volume - Cahaya Cargo Express\n`;
+        text += `Pengirim: ${senderName}\n`;
         text += `${'='.repeat(50)}\n\n`;
 
         koliList.forEach(koli => {
-            text += `Koli ${koli.koliNumber}:\n`;
+            text += `Koli ${koli.koliNumber} - ${koli.itemName}:\n`;
             text += `  Jumlah: ${koli.quantity} pcs\n`;
             text += `  Dimensi: ${koli.length} × ${koli.width} × ${koli.height} cm\n`;
             text += `  Total Volume: ${formatVolume(koli.volume)} cm³\n`;
             text += `  Berat Aktual (Satuan): ${formatWeight(koli.actualWeight)} kg\n`;
             text += `  Total Berat Volume: ${formatWeight(koli.volumetricWeight)} kg\n`;
-            text += `  Total Berat Tagihan: ${formatWeight(koli.chargeableWeight)} kg (${koli.weightType === 'actual' ? 'Actual' : 'Volumetric'})\n\n`;
+            text += `  Berat Tagihan: ${formatWeight(koli.chargeableWeight)} kg (${koli.weightType === 'actual' ? 'Actual' : 'Volumetric'})\n\n`;
         });
 
         text += `${'='.repeat(50)}\n`;
@@ -122,248 +152,297 @@ export default function VolumeCalculator() {
     const handlePrint = () => {
         if (koliList.length === 0) return;
 
-        // Encode data for URL
         const dataString = encodeURIComponent(JSON.stringify(koliList));
         const priceString = pricePerKg.toString();
+        const senderString = encodeURIComponent(senderName);
 
-        // Navigate to print page
-        router.push(`/tools/volume-calculator/print?data=${dataString}&price=${priceString}`);
+        router.push(`/tools/volume-calculator/print?data=${dataString}&price=${priceString}&sender=${senderString}`);
     };
 
-    // Calculate totals
     const totalWeight = koliList.reduce((sum, koli) => sum + koli.chargeableWeight, 0);
     const totalPrice = totalWeight * pricePerKg;
 
-    return (
-        <div className="space-y-6">
-            {/* Info Banner */}
-            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
-                <div className="flex items-start gap-3">
-                    <Info size={20} className="text-blue-600 mt-0.5 flex-shrink-0" />
-                    <div className="flex-1">
-                        <h3 className="font-semibold text-blue-900 mb-1">Cara Penggunaan</h3>
-                        <p className="text-sm text-blue-800 mb-2">
-                            Input data koli satu per satu, klik "Tambah Koli" untuk menyimpannya. Sistem akan otomatis memilih berat yang lebih tinggi.
-                        </p>
-                        <button
-                            onClick={() => setShowInfo(!showInfo)}
-                            className="text-sm text-blue-600 hover:text-blue-700 font-semibold underline"
-                        >
-                            {showInfo ? 'Sembunyikan' : 'Lihat'} rumus perhitungan
-                        </button>
-                        {showInfo && (
-                            <div className="mt-3 p-3 bg-white rounded-lg border border-blue-200">
-                                <p className="text-sm text-gray-700 mb-2">
-                                    <strong>Rumus Berat Volume:</strong>
-                                </p>
-                                <code className="block bg-gray-100 p-2 rounded text-sm mb-3">
-                                    Berat Volume (kg) = (Panjang × Lebar × Tinggi) / {VOLUMETRIC_DIVISOR}
-                                </code>
-                                <p className="text-sm text-gray-700">
-                                    <strong>Berat Tagihan:</strong> MAX(Berat Aktual, Berat Volume)
-                                </p>
-                            </div>
-                        )}
+    if (!isClient) return null;
+
+    // --- Modal / Start Session View ---
+    if (!isSessionActive) {
+        return (
+            <div className="flex items-center justify-center min-h-[60vh]">
+                <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-8 max-w-md w-full mx-auto transform transition-all duration-500 hover:scale-[1.02]">
+                    <div className="text-center mb-8">
+                        <div className="bg-blue-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <Box className="text-blue-600" size={32} />
+                        </div>
+                        <h2 className="text-2xl font-bold text-gray-900">Kalkulator Volume</h2>
+                        <p className="text-gray-500 mt-2 text-sm">Hitung akurat berat tagihan untuk Cahaya Cargo Express</p>
                     </div>
+
+                    <form onSubmit={handleStartSession} className="space-y-6">
+                        <div>
+                            <label className="block text-sm font-semibold text-gray-700 mb-2">Nama Pengirim</label>
+                            <div className="relative">
+                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                    <User className="text-gray-400" size={18} />
+                                </div>
+                                <input
+                                    type="text"
+                                    value={senderName}
+                                    onChange={(e) => {
+                                        setSenderName(e.target.value);
+                                        setErrors([]);
+                                    }}
+                                    className="pl-10 w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all placeholder:text-gray-400 font-medium"
+                                    placeholder="Masukkan nama pengirim / perusahaan"
+                                    autoFocus
+                                />
+                            </div>
+                            {errors.length > 0 && <p className="text-red-500 text-sm mt-2 font-medium animate-pulse">{errors[0]}</p>}
+                        </div>
+
+                        <button
+                            type="submit"
+                            className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-bold text-lg hover:from-blue-700 hover:to-indigo-700 active:scale-[0.98] transition-all shadow-lg hover:shadow-blue-500/30"
+                        >
+                            Mulai Perhitungan <ArrowRight size={20} />
+                        </button>
+                    </form>
                 </div>
             </div>
+        );
+    }
 
-            {/* Input Form */}
-            <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
-                <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-                    <Package size={20} className="text-blue-600" />
-                    Input Koli {koliList.length > 0 ? `#${koliList.length + 1}` : ''}
-                </h3>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                    <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-2">
-                            Panjang (cm) *
-                        </label>
-                        <input
-                            type="number"
-                            value={formData.length || ''}
-                            onChange={(e) => handleInputChange('length', parseFloat(e.target.value) || 0)}
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                            placeholder="0"
-                            min="0"
-                            step="0.1"
-                        />
+    // --- Main Calculator View ---
+    return (
+        <div className="space-y-6 max-w-5xl mx-auto pb-12 animate-in fade-in zoom-in duration-500">
+            {/* Header Banner */}
+            <div className="bg-gradient-to-r from-gray-900 to-blue-900 rounded-2xl p-6 text-white shadow-xl flex flex-col md:flex-row items-center justify-between gap-4">
+                <div className="flex items-center gap-4">
+                    <div className="bg-white/20 p-3 rounded-full backdrop-blur-sm">
+                        <User size={24} className="text-white" />
                     </div>
-
                     <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-2">
-                            Lebar (cm) *
-                        </label>
-                        <input
-                            type="number"
-                            value={formData.width || ''}
-                            onChange={(e) => handleInputChange('width', parseFloat(e.target.value) || 0)}
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                            placeholder="0"
-                            min="0"
-                            step="0.1"
-                        />
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-2">
-                            Tinggi (cm) *
-                        </label>
-                        <input
-                            type="number"
-                            value={formData.height || ''}
-                            onChange={(e) => handleInputChange('height', parseFloat(e.target.value) || 0)}
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                            placeholder="0"
-                            min="0"
-                            step="0.1"
-                        />
+                        <p className="text-blue-200 text-sm font-medium">Session Aktif</p>
+                        <h2 className="text-2xl font-bold tracking-tight">Pengirim: {senderName}</h2>
                     </div>
                 </div>
+                <button
+                    onClick={handleReset}
+                    className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-red-500/80 text-white rounded-lg text-sm font-medium transition-all backdrop-blur-sm"
+                >
+                    <RotateCcw size={16} /> Ganti Pengirim
+                </button>
+            </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                    <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-2">
-                            Berat Aktual Per Barang (kg) *
-                        </label>
+            {/* Input Form Card */}
+            <div className="bg-white rounded-2xl p-6 md:p-8 shadow-sm border border-gray-100 relative overflow-hidden">
+                {/* Decorative background element */}
+                <div className="absolute -top-24 -right-24 w-48 h-48 bg-blue-50 rounded-full blur-3xl pointer-events-none"></div>
+
+                <div className="flex items-center gap-3 mb-6 relative z-10">
+                    <div className="bg-blue-100 p-2 rounded-lg text-blue-600">
+                        <Package size={24} />
+                    </div>
+                    <h3 className="text-xl font-extrabold text-gray-900 tracking-tight">
+                        Input Data Koli {koliList.length > 0 ? `#${koliList.length + 1}` : 'Pertama'}
+                    </h3>
+                </div>
+
+                {/* Form Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-12 gap-6 relative z-10">
+                    
+                    {/* Row 1: Item Info & Weight */}
+                    <div className="md:col-span-6">
+                        <label className="block text-sm font-bold text-gray-700 mb-2">Nama / Tipe Barang *</label>
                         <input
-                            type="number"
-                            value={formData.actualWeight || ''}
-                            onChange={(e) => handleInputChange('actualWeight', parseFloat(e.target.value) || 0)}
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                            placeholder="0"
-                            min="0"
-                            step="0.1"
+                            type="text"
+                            value={formData.itemName}
+                            onChange={(e) => handleInputChange('itemName', e.target.value)}
+                            className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 outline-none font-medium transition-all"
+                            placeholder="Contoh: Sepatu, Buku, Mesin"
                         />
                     </div>
-                    <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-2">
-                            Jumlah Barang (Qty) *
-                        </label>
-                        <input
-                            type="number"
-                            value={formData.quantity || ''}
-                            onChange={(e) => handleInputChange('quantity', parseInt(e.target.value) || 1)}
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                            placeholder="1"
-                            min="1"
-                        />
+
+                    <div className="md:col-span-3">
+                        <label className="block text-sm font-bold text-gray-700 mb-2">Berat Aktual (kg) *</label>
+                        <div className="relative">
+                            <input
+                                type="number"
+                                value={formData.actualWeight || ''}
+                                onChange={(e) => handleInputChange('actualWeight', parseFloat(e.target.value) || 0)}
+                                className="w-full pl-4 pr-10 py-3 border-2 border-gray-200 rounded-xl focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 outline-none font-medium transition-all"
+                                placeholder="0"
+                                min="0"
+                                step="0.1"
+                            />
+                            <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 font-semibold text-sm">kg</span>
+                        </div>
+                    </div>
+
+                    <div className="md:col-span-3">
+                        <label className="block text-sm font-bold text-gray-700 mb-2">Jumlah Barang (Qty) *</label>
+                        <div className="relative">
+                            <input
+                                type="number"
+                                value={formData.quantity || ''}
+                                onChange={(e) => handleInputChange('quantity', parseInt(e.target.value) || 1)}
+                                className="w-full pl-4 pr-10 py-3 border-2 border-gray-200 rounded-xl focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 outline-none font-medium transition-all"
+                                placeholder="1"
+                                min="1"
+                            />
+                            <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 font-semibold text-sm">pcs</span>
+                        </div>
+                    </div>
+
+                    {/* Row 2: Dimensions */}
+                    <div className="md:col-span-12">
+                        <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 md:p-5">
+                            <label className="block text-sm font-bold text-gray-700 mb-3">Dimensi (P x L x T) *</label>
+                            <div className="grid grid-cols-3 gap-3 md:gap-6">
+                                <div className="relative">
+                                    <input
+                                        type="number"
+                                        value={formData.length || ''}
+                                        onChange={(e) => handleInputChange('length', parseFloat(e.target.value) || 0)}
+                                        className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none font-medium text-center bg-white"
+                                        placeholder="Panjang"
+                                        min="0"
+                                    />
+                                    <span className="absolute -right-3 md:-right-4 top-1/2 -translate-y-1/2 text-gray-400 font-bold hidden sm:block">×</span>
+                                </div>
+                                <div className="relative">
+                                    <input
+                                        type="number"
+                                        value={formData.width || ''}
+                                        onChange={(e) => handleInputChange('width', parseFloat(e.target.value) || 0)}
+                                        className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none font-medium text-center bg-white"
+                                        placeholder="Lebar"
+                                        min="0"
+                                    />
+                                    <span className="absolute -right-3 md:-right-4 top-1/2 -translate-y-1/2 text-gray-400 font-bold hidden sm:block">×</span>
+                                </div>
+                                <div>
+                                    <input
+                                        type="number"
+                                        value={formData.height || ''}
+                                        onChange={(e) => handleInputChange('height', parseFloat(e.target.value) || 0)}
+                                        className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none font-medium text-center bg-white"
+                                        placeholder="Tinggi (cm)"
+                                        min="0"
+                                    />
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
                 {/* Error Messages */}
                 {errors.length > 0 && (
-                    <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
-                        <p className="text-sm font-semibold text-red-800 mb-2">Error:</p>
-                        <ul className="list-disc list-inside space-y-1">
-                            {errors.map((error, index) => (
-                                <li key={index} className="text-sm text-red-700">{error}</li>
-                            ))}
-                        </ul>
+                    <div className="mt-6 p-4 bg-red-50 text-red-700 rounded-xl border border-red-200 flex items-start gap-3 relative z-10 animate-in slide-in-from-top-2">
+                        <Info size={20} className="shrink-0 mt-0.5" />
+                        <div>
+                            <p className="font-bold mb-1">Terjadi Kesalahan</p>
+                            <ul className="list-disc list-inside text-sm space-y-1">
+                                {errors.map((err, i) => <li key={i}>{err}</li>)}
+                            </ul>
+                        </div>
                     </div>
                 )}
 
-                {/* Action Buttons */}
-                <div className="flex gap-3">
+                {/* Submit Action */}
+                <div className="mt-8 relative z-10 flex flex-col md:flex-row items-center justify-end gap-4">
+                    <button
+                        onClick={() => setShowInfo(!showInfo)}
+                        className="text-sm text-gray-500 hover:text-blue-600 font-medium flex items-center gap-1 md:mr-auto transition-colors"
+                    >
+                        <Info size={16} /> Lihat Rumus Perhitungan
+                    </button>
+                    
                     <button
                         onClick={handleAddKoli}
-                        className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors"
+                        className="w-full md:w-auto px-8 py-3.5 bg-blue-600 text-white font-bold rounded-xl shadow-lg shadow-blue-600/20 hover:bg-blue-700 hover:shadow-blue-600/40 hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2"
                     >
-                        <Plus size={20} />
-                        Tambah Koli
-                    </button>
-                    <button
-                        onClick={handleReset}
-                        className="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
-                        title="Reset Semua"
-                    >
-                        <RotateCcw size={20} />
+                        <Plus size={20} strokeWidth={3} /> Masukkan ke Daftar Koli
                     </button>
                 </div>
+
+                {/* Formula Info Expandable */}
+                {showInfo && (
+                    <div className="mt-4 p-4 bg-gray-50 border border-gray-200 rounded-xl text-sm relative z-10 animate-in fade-in">
+                        <p className="mb-2"><strong>Berat Volume (kg)</strong> = (P × L × T) / {VOLUMETRIC_DIVISOR}</p>
+                        <p><strong>Berat Tagihan</strong> = Nilai TERTINGGI antara Berat Aktual vs Berat Volume</p>
+                    </div>
+                )}
             </div>
 
-            {/* Koli List */}
+            {/* Render Koli List if Exists */}
             {koliList.length > 0 && (
-                <div className="bg-white rounded-xl p-4 md:p-6 shadow-sm border border-gray-200">
-                    <div className="flex items-center justify-between mb-4">
-                        <h3 className="text-base md:text-lg font-bold text-gray-900 flex items-center gap-2">
-                            <Calculator size={18} className="text-green-600 md:hidden" />
-                            <Calculator size={20} className="text-green-600 hidden md:block" />
-                            <span>Daftar Koli ({koliList.length})</span>
+                <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+                    {/* Header Bar */}
+                    <div className="bg-gray-50 p-4 md:p-6 border-b border-gray-200 flex flex-col sm:flex-row items-center justify-between gap-4">
+                        <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+                            <Calculator size={20} className="text-green-600" /> Daftar Koli ({koliList.length})
                         </h3>
-                        <div className="flex gap-2">
+                        <div className="flex gap-2 w-full sm:w-auto">
                             <button
                                 onClick={handlePrint}
-                                className="flex items-center gap-1 md:gap-2 px-3 md:px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 transition-colors"
-                                title="Print / Save as PDF"
+                                className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold shadow-sm hover:bg-blue-700 active:scale-95 transition-all"
                             >
-                                <Printer size={14} className="md:hidden" />
-                                <Printer size={16} className="hidden md:block" />
-                                <span className="hidden sm:inline">Print</span>
+                                <Printer size={16} /> Print Data
                             </button>
                             <button
                                 onClick={handleCopyResult}
-                                className="flex items-center gap-1 md:gap-2 px-3 md:px-4 py-2 bg-white text-gray-700 rounded-lg text-sm font-semibold hover:bg-gray-50 transition-colors border border-gray-300"
+                                className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-white text-gray-700 border border-gray-300 rounded-lg text-sm font-bold shadow-sm hover:bg-gray-50 active:scale-95 transition-all"
                             >
-                                <Copy size={14} className="md:hidden" />
-                                <Copy size={16} className="hidden md:block" />
-                                <span className="hidden sm:inline">Salin</span>
+                                <Copy size={16} /> Salin Text
                             </button>
                         </div>
                     </div>
 
                     {/* Desktop Table View */}
-                    <div className="hidden md:block overflow-x-auto">
-                        <table className="w-full">
+                    <div className="hidden md:block overflow-x-auto p-0">
+                        <table className="w-full text-left border-collapse">
                             <thead>
-                                <tr className="border-b-2 border-gray-300">
-                                    <th className="text-left py-3 px-2 text-sm font-semibold text-gray-700">Koli</th>
-                                    <th className="text-center py-3 px-2 text-sm font-semibold text-gray-700">Jumlah</th>
-                                    <th className="text-right py-3 px-2 text-sm font-semibold text-gray-700">Dimensi</th>
-                                    <th className="text-right py-3 px-2 text-sm font-semibold text-gray-700">Total Volume</th>
-                                    <th className="text-right py-3 px-2 text-sm font-semibold text-gray-700">Berat Aktual</th>
-                                    <th className="text-right py-3 px-2 text-sm font-semibold text-gray-700">Berat Volumetrik</th>
-                                    <th className="text-right py-3 px-2 text-sm font-semibold text-gray-700">Berat Tagihan</th>
-                                    <th className="text-center py-3 px-2 text-sm font-semibold text-gray-700">Tipe</th>
-                                    <th className="text-center py-3 px-2 text-sm font-semibold text-gray-700">Aksi</th>
+                                <tr className="bg-white border-b-2 border-gray-200">
+                                    <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Koli</th>
+                                    <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider max-w-[150px]">Barang</th>
+                                    <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">Qty</th>
+                                    <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-right">Dimensi</th>
+                                    <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-right">Actual W.</th>
+                                    <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-right">Volume W.</th>
+                                    <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-right">Charge W.</th>
+                                    <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">Aksi</th>
                                 </tr>
                             </thead>
-                            <tbody>
+                            <tbody className="divide-y divide-gray-100 bg-white">
                                 {koliList.map((koli) => (
-                                    <tr key={koli.koliNumber} className="border-b border-gray-100 hover:bg-gray-50">
-                                        <td className="py-3 px-2 text-sm font-semibold text-gray-800">#{koli.koliNumber}</td>
-                                        <td className="py-3 px-2 text-sm text-center text-gray-800">{koli.quantity}</td>
-                                        <td className="py-3 px-2 text-sm text-right text-gray-700">
-                                            {koli.length}×{koli.width}×{koli.height}
+                                    <tr key={koli.koliNumber} className="hover:bg-blue-50/50 transition-colors">
+                                        <td className="py-4 px-4 text-sm font-black text-gray-800">#{koli.koliNumber}</td>
+                                        <td className="py-4 px-4 text-sm font-semibold text-gray-700 truncate max-w-[150px]" title={koli.itemName}>{koli.itemName}</td>
+                                        <td className="py-4 px-4 text-sm text-center font-medium bg-gray-50/50">{koli.quantity}</td>
+                                        <td className="py-4 px-4 text-sm text-right text-gray-600 whitespace-nowrap">
+                                            {koli.length}×{koli.width}×{koli.height} <span className="text-xs text-gray-400">cm</span>
                                         </td>
-                                        <td className="py-3 px-2 text-sm text-right text-gray-700">
-                                            {formatVolume(koli.volume)} cm³
+                                        <td className="py-4 px-4 text-sm text-right font-medium">
+                                            {formatWeight(koli.actualWeight * koli.quantity)}
                                         </td>
-                                        <td className="py-3 px-2 text-sm text-right text-gray-700">
-                                            {formatWeight(koli.actualWeight * koli.quantity)} kg
+                                        <td className="py-4 px-4 text-sm text-right font-medium">
+                                            {formatWeight(koli.volumetricWeight)}
                                         </td>
-                                        <td className="py-3 px-2 text-sm text-right text-gray-700">
-                                            {formatWeight(koli.volumetricWeight)} kg
+                                        <td className="py-4 px-4 text-sm text-right">
+                                            <div className="flex flex-col items-end">
+                                                <span className="font-bold text-green-700 text-base">{formatWeight(koli.chargeableWeight)} kg</span>
+                                                <span className={`text-[10px] px-1.5 py-0.5 rounded-sm font-bold uppercase mt-1 ${koli.weightType === 'actual' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}`}>
+                                                    {koli.weightType}
+                                                </span>
+                                            </div>
                                         </td>
-                                        <td className="py-3 px-2 text-sm text-right font-bold text-green-700">
-                                            {formatWeight(koli.chargeableWeight)} kg
-                                        </td>
-                                        <td className="py-3 px-2 text-center">
-                                            <span className={`px-2 py-1 rounded-full text-xs font-semibold ${koli.weightType === 'actual'
-                                                ? 'bg-orange-100 text-orange-700'
-                                                : 'bg-blue-100 text-blue-700'
-                                                }`}>
-                                                {koli.weightType === 'actual' ? 'Actual' : 'Volume'}
-                                            </span>
-                                        </td>
-                                        <td className="py-3 px-2 text-center">
+                                        <td className="py-4 px-4 text-center">
                                             <button
                                                 onClick={() => handleRemoveKoli(koli.koliNumber)}
-                                                className="p-1 text-red-600 hover:bg-red-50 rounded transition-colors"
-                                                title="Hapus"
+                                                className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+                                                title="Hapus Koli"
                                             >
-                                                <Trash2 size={16} />
+                                                <Trash2 size={18} />
                                             </button>
                                         </td>
                                     </tr>
@@ -373,119 +452,102 @@ export default function VolumeCalculator() {
                     </div>
 
                     {/* Mobile Card View */}
-                    <div className="md:hidden space-y-3">
+                    <div className="md:hidden divide-y divide-gray-100">
                         {koliList.map((koli) => (
-                            <div key={koli.koliNumber} className="bg-gray-50 rounded-lg p-3 border border-gray-200">
-                                <div className="flex items-center justify-between mb-2">
-                                    <span className="text-sm font-bold text-gray-800">Koli #{koli.koliNumber}</span>
+                            <div key={koli.koliNumber} className="p-4 bg-white relative">
+                                <div className="flex items-start justify-between mb-3">
+                                    <div>
+                                        <span className="inline-block bg-gray-900 text-white text-xs font-black px-2 py-1 rounded mb-1">KOLI #{koli.koliNumber}</span>
+                                        <p className="font-bold text-gray-800 text-lg">{koli.itemName}</p>
+                                    </div>
                                     <button
                                         onClick={() => handleRemoveKoli(koli.koliNumber)}
-                                        className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors"
-                                        title="Hapus"
+                                        className="p-2 text-red-500 hover:bg-red-50 rounded-lg"
                                     >
-                                        <Trash2 size={16} />
+                                        <Trash2 size={18} />
                                     </button>
                                 </div>
 
-                                <div className="grid grid-cols-2 gap-2 text-xs mb-2">
+                                <div className="grid grid-cols-2 gap-y-3 gap-x-2 text-sm bg-gray-50 p-3 rounded-lg mb-3">
                                     <div>
-                                        <span className="text-gray-600">Jumlah:</span>
-                                        <p className="font-semibold text-gray-800">{koli.quantity} pcs</p>
+                                        <p className="text-gray-500 text-xs">Jumlah</p>
+                                        <p className="font-bold text-gray-800">{koli.quantity} pcs</p>
                                     </div>
                                     <div>
-                                        <span className="text-gray-600">Dimensi:</span>
-                                        <p className="font-semibold text-gray-800">{koli.length}×{koli.width}×{koli.height} cm</p>
+                                        <p className="text-gray-500 text-xs">Dimensi (cm)</p>
+                                        <p className="font-bold text-gray-800">{koli.length}×{koli.width}×{koli.height}</p>
                                     </div>
                                     <div>
-                                        <span className="text-gray-600">Total Volume:</span>
-                                        <p className="font-semibold text-gray-800">{formatVolume(koli.volume)} cm³</p>
+                                        <p className="text-gray-500 text-xs border-t border-gray-200 mt-2 pt-2">Actual Weight</p>
+                                        <p className="font-medium">{formatWeight(koli.actualWeight * koli.quantity)} kg</p>
                                     </div>
                                     <div>
-                                        <span className="text-gray-600">Total Berat Aktual:</span>
-                                        <p className="font-semibold text-gray-800">{formatWeight(koli.actualWeight * koli.quantity)} kg</p>
-                                    </div>
-                                    <div className="col-span-2">
-                                        <span className="text-gray-600">Total Berat Volume:</span>
-                                        <p className="font-semibold text-gray-800">{formatWeight(koli.volumetricWeight)} kg</p>
+                                        <p className="text-gray-500 text-xs border-t border-gray-200 mt-2 pt-2">Volume Weight</p>
+                                        <p className="font-medium">{formatWeight(koli.volumetricWeight)} kg</p>
                                     </div>
                                 </div>
 
-                                <div className="flex items-center justify-between pt-2 border-t border-gray-300">
+                                <div className="flex items-end justify-between px-1">
                                     <div>
-                                        <span className="text-xs text-gray-600">Berat Tagihan:</span>
-                                        <p className="text-lg font-bold text-green-700">{formatWeight(koli.chargeableWeight)} kg</p>
+                                        <span className={`text-[10px] px-2 py-1 rounded font-bold uppercase ${koli.weightType === 'actual' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}`}>
+                                            Base: {koli.weightType}
+                                        </span>
                                     </div>
-                                    <span className={`px-2 py-1 rounded-full text-xs font-semibold ${koli.weightType === 'actual'
-                                        ? 'bg-orange-100 text-orange-700'
-                                        : 'bg-blue-100 text-blue-700'
-                                        }`}>
-                                        {koli.weightType === 'actual' ? 'Actual' : 'Volume'}
-                                    </span>
+                                    <div className="text-right">
+                                        <p className="text-xs text-gray-500 font-bold mb-0.5">Berat Tagihan</p>
+                                        <p className="text-xl font-black text-green-600 leading-none">{formatWeight(koli.chargeableWeight)} <span className="text-sm">kg</span></p>
+                                    </div>
                                 </div>
                             </div>
                         ))}
                     </div>
-                </div>
-            )}
 
-            {/* Total & Price Calculation */}
-            {koliList.length > 0 && (
-                <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-4 md:p-6 shadow-sm border-2 border-green-300">
-                    <h3 className="text-base md:text-lg font-bold text-gray-900 mb-3 md:mb-4 flex items-center gap-2">
-                        <DollarSign size={18} className="text-green-600 md:hidden" />
-                        <DollarSign size={20} className="text-green-600 hidden md:block" />
-                        Total & Harga
-                    </h3>
-
-                    <div className="grid grid-cols-2 gap-3 md:gap-4 mb-4">
-                        <div className="bg-white rounded-lg p-3 md:p-4 border border-gray-200">
-                            <p className="text-xs md:text-sm text-gray-600 mb-1">Total Koli</p>
-                            <p className="text-2xl md:text-3xl font-bold text-gray-900">{koliList.length}</p>
-                        </div>
-
-                        <div className="bg-white rounded-lg p-3 md:p-4 border-2 border-green-400">
-                            <p className="text-xs md:text-sm text-gray-600 mb-1">Total Berat</p>
-                            <p className="text-2xl md:text-3xl font-bold text-green-700">
-                                {formatWeight(totalWeight)} <span className="text-xs md:text-sm font-normal text-gray-600">kg</span>
-                            </p>
-                        </div>
-                    </div>
-
-                    {/* Price Input */}
-                    <div className="mb-4">
-                        <label className="block text-xs md:text-sm font-semibold text-gray-700 mb-2">
-                            Harga Satuan (per kg)
-                        </label>
-                        <div className="relative">
-                            <span className="absolute left-3 md:left-4 top-1/2 -translate-y-1/2 text-gray-500 font-semibold text-sm md:text-base">
-                                Rp
-                            </span>
-                            <input
-                                type="number"
-                                value={pricePerKg || ''}
-                                onChange={(e) => setPricePerKg(parseFloat(e.target.value) || 0)}
-                                className="w-full pl-10 md:pl-12 pr-3 md:pr-4 py-2.5 md:py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-base md:text-lg font-semibold"
-                                placeholder="0"
-                                min="0"
-                            />
-                        </div>
-                    </div>
-
-                    {/* Total Price */}
-                    {pricePerKg > 0 && (
-                        <div className="bg-gradient-to-r from-green-600 to-emerald-600 rounded-xl p-4 md:p-6 text-white">
-                            <p className="text-xs md:text-sm opacity-90 mb-2">TOTAL BIAYA TRANSAKSI</p>
-                            <div className="flex items-baseline gap-1 md:gap-2">
-                                <span className="text-lg md:text-2xl font-semibold">Rp</span>
-                                <span className="text-3xl md:text-5xl font-bold break-all">
-                                    {totalPrice.toLocaleString('id-ID')}
-                                </span>
+                    {/* Summary Bottom Bar */}
+                    <div className="bg-gradient-to-r from-green-50 to-emerald-100 p-4 md:p-6 border-t border-green-200">
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-center">
+                            
+                            {/* Summary Left */}
+                            <div className="flex flex-row items-center justify-around md:justify-start gap-8 bg-white/60 p-4 rounded-xl backdrop-blur-sm border border-white">
+                                <div className="text-center md:text-left">
+                                    <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Total Koli</p>
+                                    <p className="text-3xl font-black text-gray-900">{koliList.length}</p>
+                                </div>
+                                <div className="w-px h-12 bg-gray-300"></div>
+                                <div className="text-center md:text-left">
+                                    <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Total Berat Tagihan</p>
+                                    <p className="text-3xl font-black text-green-700">{formatWeight(totalWeight)} <span className="text-base font-bold text-green-600/60">kg</span></p>
+                                </div>
                             </div>
-                            <p className="text-xs md:text-sm opacity-75 mt-2 md:mt-3">
-                                {formatWeight(totalWeight)} kg × Rp {pricePerKg.toLocaleString('id-ID')}/kg
-                            </p>
+
+                            {/* Summary Right (Pricing Box) */}
+                            <div className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden flex flex-col md:flex-row">
+                                <div className="p-4 md:w-1/2 md:border-r border-gray-100 bg-gray-50/50">
+                                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Estimasi Tarif (per kg)</label>
+                                    <div className="relative">
+                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-bold">Rp</span>
+                                        <input
+                                            type="number"
+                                            value={pricePerKg || ''}
+                                            onChange={(e) => setPricePerKg(parseFloat(e.target.value) || 0)}
+                                            className="w-full pl-10 pr-4 py-2 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none font-bold text-lg text-gray-900 transition-all"
+                                            placeholder="0"
+                                            min="0"
+                                        />
+                                    </div>
+                                </div>
+                                <div className="p-6 md:w-1/2 bg-gradient-to-br from-green-600 to-emerald-600 text-white flex flex-col justify-center relative overflow-hidden">
+                                    <div className="absolute top-0 right-0 p-4 opacity-10">
+                                        <DollarSign size={80} />
+                                    </div>
+                                    <p className="text-xs font-bold text-green-100 uppercase tracking-wider mb-1 relative z-10">Total Biaya</p>
+                                    <div className="relative z-10 flex items-baseline gap-1">
+                                        <span className="text-lg font-bold text-green-200">Rp</span>
+                                        <span className="text-3xl sm:text-4xl font-black tracking-tight">{totalPrice.toLocaleString('id-ID')}</span>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
-                    )}
+                    </div>
                 </div>
             )}
         </div>

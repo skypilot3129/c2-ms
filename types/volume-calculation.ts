@@ -6,6 +6,7 @@ export interface VolumeCalculation {
     height: number;           // cm
     actualWeight: number;     // kg (per item)
     quantity: number;         // number of items
+    itemName: string;         // name or type of item
     volume: number;           // total cm³
     volumetricWeight: number; // total kg
     chargeableWeight: number; // total kg
@@ -18,6 +19,7 @@ export interface VolumeCalculatorFormData {
     height: number;
     actualWeight: number;
     quantity: number;
+    itemName: string;
 }
 
 export interface VolumeCalculationResult {
