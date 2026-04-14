@@ -30,19 +30,31 @@ const daysInMonth = (period: string) => {
   return new Date(y, m, 0).getDate();
 };
 
-const buildEmptyAttendance = (period: string): AttendanceDay[] => {
-  const count = daysInMonth(period);
-  const [y, m] = period.split('-');
-  return Array.from({ length: count }, (_, i) => {
-    const d = String(i + 1).padStart(2, '0');
-    const date = `${y}-${m}-${d}`;
+const buildEmptyAttendance = (period: string, cycle: string): AttendanceDay[] => {
+  const [y, m] = period.split('-').map(Number);
+  const totalDays = new Date(y, m, 0).getDate();
+  
+  let start = 1;
+  let end = totalDays;
+  
+  if (cycle === 'P1') {
+    end = 15;
+  } else if (cycle === 'P2') {
+    start = 16;
+  }
+  
+  const days: AttendanceDay[] = [];
+  for (let i = start; i <= end; i++) {
+    const d = String(i).padStart(2, '0');
+    const date = `${y}-${String(m).padStart(2, '0')}-${d}`;
     const dayOfWeek = new Date(date).getDay(); // 0=Sun 6=Sat
-    return {
+    days.push({
       date,
       type: dayOfWeek === 0 ? 'absent' : 'present', // default Sunday off
       overridden: false,
-    } as AttendanceDay;
-  });
+    } as AttendanceDay);
+  }
+  return days;
 };
 
 const TYPE_COLORS: Record<string, string> = {
@@ -89,6 +101,9 @@ export default function EmployeeSalaryPage() {
   const defaultPeriod = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 
   const [period, setPeriod] = useState(defaultPeriod);
+  const [cycle, setCycle] = useState<'P1' | 'P2' | 'FULL'>('P1');
+  const fullPeriod = useMemo(() => cycle === 'FULL' ? period : `${period}-${cycle}`, [period, cycle]);
+  
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [advances, setAdvances] = useState<EmployeeAdvance[]>([]);
   const [savedRecords, setSavedRecords] = useState<MonthlySalaryRecord[]>([]);
@@ -104,19 +119,19 @@ export default function EmployeeSalaryPage() {
   }, []);
 
   useEffect(() => {
-    const u = subscribeToMonthlySalaries(period, setSavedRecords);
+    const u = subscribeToMonthlySalaries(fullPeriod, setSavedRecords);
     return u;
-  }, [period]);
+  }, [fullPeriod]);
 
   // Init attendance per employee from saved or empty
   useEffect(() => {
     const map: Record<string, AttendanceDay[]> = {};
     employees.forEach(emp => {
       const saved = savedRecords.find(r => r.employeeId === emp.id);
-      map[emp.id] = saved ? saved.attendance : buildEmptyAttendance(period);
+      map[emp.id] = saved ? saved.attendance : buildEmptyAttendance(period, cycle);
     });
     setAttendance(map);
-  }, [employees, savedRecords, period]);
+  }, [employees, savedRecords, period, cycle]);
 
   const toggleDay = useCallback((empId: string, idx: number) => {
     setAttendance(prev => {
@@ -131,21 +146,30 @@ export default function EmployeeSalaryPage() {
   const handleSyncAttendance = async () => {
     setSyncing(true);
     try {
-      const { startDate, endDate } = getPeriodDateRange(period);
-      const startStr = startDate.toISOString().split('T')[0];
-      const endStr = endDate.toISOString().split('T')[0];
+      // Determine date range based on cycle
+      const [y, m] = period.split('-').map(Number);
+      const totalDays = new Date(y, m, 0).getDate();
+      let startDay = 1, endDay = totalDays;
+      
+      if (cycle === 'P1') endDay = 15;
+      else if (cycle === 'P2') startDay = 16;
+      
+      const startStr = `${y}-${String(m).padStart(2, '0')}-${String(startDay).padStart(2, '0')}`;
+      const endStr = `${y}-${String(m).padStart(2, '0')}-${String(endDay).padStart(2, '0')}`;
       
       const newMap = { ...attendance };
       
       for (const emp of employees) {
         const realData = await getEmployeeAttendance(emp.id, startStr, endStr);
-        const baseDays = buildEmptyAttendance(period);
+        const baseDays = buildEmptyAttendance(period, cycle);
         
         realData.forEach(real => {
            const idx = baseDays.findIndex(d => d.date === real.date);
            if (idx !== -1) {
              let mappedType: AttendanceDay['type'] = 'absent';
              if (real.status === 'present') mappedType = 'present';
+             else if (real.status === 'late_mild') mappedType = 'late_mild';
+             else if (real.status === 'late_severe') mappedType = 'late_severe';
              else if (real.status === 'late') {
                const regularShift = real.shifts.find(s => s.type === 'regular');
                if (regularShift) {
@@ -171,7 +195,7 @@ export default function EmployeeSalaryPage() {
       }
       
       setAttendance(newMap);
-      alert('Berhasil menarik data absensi karyawan.');
+      alert(`Berhasil menarik data absensi karyawan (${cycle === 'P1' ? 'Tgl 1-15' : cycle === 'P2' ? 'Tgl 16-Selesai' : 'Sebulan'}).`);
     } catch (e) {
       console.error(e);
       alert('Gagal menyinkronkan data.');
@@ -191,21 +215,21 @@ export default function EmployeeSalaryPage() {
   const empAdvances = (empId: string) => advances.filter(a => a.employeeId === empId && a.status === 'active');
 
   const handleSave = async (emp: Employee) => {
-    const att = attendance[emp.id] || buildEmptyAttendance(period);
-    const calc = computeSalary(att, empAdvances(emp.id), period);
+    const att = attendance[emp.id] || buildEmptyAttendance(period, cycle);
+    const calc = computeSalary(att, empAdvances(emp.id), fullPeriod);
     setSaving(emp.id);
     try {
       await saveMonthlySalaryRecord({
         employeeId: emp.id,
         employeeName: emp.fullName,
-        period,
+        period: fullPeriod,
         attendance: att,
         ...calc,
         notes: '',
       });
       // Mark deducted advances
       for (const id of calc.advanceIds) {
-        await updateEmployeeAdvance(id, { status: 'deducted', deductedMonth: period });
+        await updateEmployeeAdvance(id, { status: 'deducted', deductedMonth: fullPeriod });
       }
       alert(`Gaji ${emp.fullName} berhasil disimpan!`);
     } catch { alert('Gagal menyimpan'); }
@@ -214,9 +238,9 @@ export default function EmployeeSalaryPage() {
 
   const handlePrint = (emp: Employee) => {
     const att = attendance[emp.id] || [];
-    const calc = computeSalary(att, empAdvances(emp.id), period);
+    const calc = computeSalary(att, empAdvances(emp.id), fullPeriod);
     const savedRec = savedRecords.find(r => r.employeeId === emp.id);
-    const data = encodeURIComponent(JSON.stringify({ emp, att, calc, period, savedAt: savedRec?.updatedAt }));
+    const data = encodeURIComponent(JSON.stringify({ emp, att, calc, period: fullPeriod, savedAt: savedRec?.updatedAt }));
     router.push(`/payroll/employees/print?data=${data}`);
   };
 
@@ -235,9 +259,21 @@ export default function EmployeeSalaryPage() {
             <p className="text-xs text-gray-500">Input absensi & hitung gaji bulanan helper</p>
           </div>
           {/* Period selector */}
-          <div className="flex gap-2">
-            <input type="month" value={period} onChange={e => setPeriod(e.target.value)}
-              className="px-3 py-2 border border-gray-200 rounded-xl text-sm bg-gray-50 outline-none focus:ring-2 focus:ring-blue-200" />
+          <div className="flex gap-2 flex-wrap">
+            <div className="flex items-center gap-1 bg-gray-50 border border-gray-200 rounded-xl px-2">
+               <Calendar size={14} className="text-gray-400 ml-1" />
+               <input type="month" value={period} onChange={e => setPeriod(e.target.value)}
+                 className="px-2 py-2 bg-transparent text-sm outline-none font-medium" />
+            </div>
+            <select 
+              value={cycle} 
+              onChange={e => setCycle(e.target.value as any)}
+              className="px-3 py-2 border border-gray-200 rounded-xl text-sm bg-gray-50 font-bold text-gray-700 outline-none focus:ring-2 focus:ring-blue-200"
+            >
+              <option value="P1">Siklus 1 (Tgl 1-15)</option>
+              <option value="P2">Siklus 2 (Tgl 16-Akhir)</option>
+              <option value="FULL">Sebulan Penuh</option>
+            </select>
             <button onClick={handleSyncAttendance} disabled={syncing}
               className="flex items-center gap-2 px-3 py-2 bg-white border border-blue-200 text-blue-600 rounded-xl text-sm font-semibold hover:bg-blue-50 transition-colors disabled:opacity-50 shadow-sm">
               <Clock size={16} /> {syncing ? 'Menarik...' : 'Tarik Data Absensi'}
@@ -387,7 +423,7 @@ export default function EmployeeSalaryPage() {
         {/* Summary card */}
         {savedRecords.length > 0 && (
           <div className="bg-gradient-to-br from-blue-600 to-blue-700 rounded-xl p-5 text-white shadow-lg shadow-blue-600/20">
-            <p className="text-blue-100 text-xs font-medium mb-2">Total Gaji {monthName(period)} — {savedRecords.length} karyawan</p>
+            <p className="text-blue-100 text-xs font-medium mb-2">Total Gaji {monthName(period)} ({cycle}) — {savedRecords.length} karyawan</p>
             <p className="text-3xl font-bold">{formatRupiah(savedRecords.reduce((s, r) => s + r.netPay, 0))}</p>
           </div>
         )}
