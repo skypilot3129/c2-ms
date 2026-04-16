@@ -549,6 +549,53 @@ export const searchTransactions = (
 };
 
 /**
+ * Get previous prices used by a specific sender (pengirim)
+ * Returns unique {harga, tujuan, beratUnit, tipeTransaksi} combinations sorted by recency
+ */
+export const getPreviousPricesForSender = async (
+    pengirimId: string
+): Promise<Array<{ harga: number; tujuan: string; beratUnit: string; tipeTransaksi: string; count: number }>> => {
+    try {
+        const transactionsRef = collection(db, COLLECTION_NAME);
+        const q = query(transactionsRef, where('pengirimId', '==', pengirimId));
+        const snapshot = await getDocs(q);
+
+        // Build map of unique harga+tujuan combos
+        const priceMap = new Map<string, { harga: number; tujuan: string; beratUnit: string; tipeTransaksi: string; count: number; lastDate: number }>();
+
+        snapshot.docs.forEach(doc => {
+            const data = doc.data() as TransactionDoc;
+            if (data.harga && data.harga > 0 && data.tipeTransaksi === 'regular') {
+                const key = `${data.harga}-${data.tujuan}-${data.beratUnit}`;
+                const existing = priceMap.get(key);
+                const dateMs = data.tanggal?.toDate?.()?.getTime() || 0;
+                if (existing) {
+                    existing.count++;
+                    if (dateMs > existing.lastDate) existing.lastDate = dateMs;
+                } else {
+                    priceMap.set(key, {
+                        harga: data.harga,
+                        tujuan: data.tujuan || '',
+                        beratUnit: data.beratUnit || 'KG',
+                        tipeTransaksi: data.tipeTransaksi || 'regular',
+                        count: 1,
+                        lastDate: dateMs,
+                    });
+                }
+            }
+        });
+
+        // Sort by count (desc) then lastDate (desc)
+        return Array.from(priceMap.values())
+            .sort((a, b) => b.count - a.count || b.lastDate - a.lastDate)
+            .map(({ harga, tujuan, beratUnit, tipeTransaksi, count }) => ({ harga, tujuan, beratUnit, tipeTransaksi, count }));
+    } catch (error) {
+        console.error('Error fetching previous prices:', error);
+        return [];
+    }
+};
+
+/**
  * Update surat jalan data for a transaction
  */
 export const updateSuratJalanData = async (

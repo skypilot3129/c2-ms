@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
-import { addTransaction } from '@/lib/firestore-transactions';
+import { addTransaction, getPreviousPricesForSender } from '@/lib/firestore-transactions';
 import { subscribeToClients } from '@/lib/firestore';
 import { getTaxSettings } from '@/lib/firestore-settings';
 import { formatRupiah } from '@/lib/currency';
@@ -14,13 +14,15 @@ import type { Branch } from '@/types/branch';
 import { getAllBranches } from '@/types/branch';
 import CurrencyInput from '@/components/CurrencyInput';
 import ProtectedRoute from '@/components/ProtectedRoute';
-import { ArrowLeft, Save, Package, Users, FileText, CheckCircle, AlertCircle, Trash2, Plus } from 'lucide-react';
+import { ArrowLeft, Save, Package, Users, FileText, CheckCircle, AlertCircle, Trash2, Plus, History, Zap } from 'lucide-react';
 
 export default function NewTransactionPage() {
     const router = useRouter();
     const { user } = useAuth();
     const [loading, setLoading] = useState(false);
     const [clients, setClients] = useState<Client[]>([]);
+    const [previousPrices, setPreviousPrices] = useState<Array<{ harga: number; tujuan: string; beratUnit: string; tipeTransaksi: string; count: number }>>([]);
+    const [loadingPrices, setLoadingPrices] = useState(false);
 
 
     const [formData, setFormData] = useState<TransactionFormData>({
@@ -157,6 +159,19 @@ export default function NewTransactionPage() {
 
         return () => unsubscribe();
     }, [user]);
+
+    // Fetch previous prices when sender changes
+    useEffect(() => {
+        if (!formData.pengirimId) {
+            setPreviousPrices([]);
+            return;
+        }
+        setLoadingPrices(true);
+        getPreviousPricesForSender(formData.pengirimId).then(prices => {
+            setPreviousPrices(prices);
+            setLoadingPrices(false);
+        });
+    }, [formData.pengirimId]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -483,13 +498,49 @@ export default function NewTransactionPage() {
                                             </div>
 
                                             <div>
-                                                <label className="text-xs text-gray-500 mb-1 block">
-                                                    {formData.tipeTransaksi === 'regular' ? `Harga / ${penerima.beratUnit}` : 'Total Biaya'}
+                                                <label className="text-xs text-gray-500 mb-1 flex items-center justify-between">
+                                                    <span>{formData.tipeTransaksi === 'regular' ? `Harga / ${penerima.beratUnit}` : 'Total Biaya'}</span>
+                                                    {loadingPrices && formData.tipeTransaksi === 'regular' && (
+                                                        <span className="text-blue-400 text-xs flex items-center gap-1">
+                                                            <div className="w-3 h-3 border-2 border-blue-400 border-t-transparent rounded-full animate-spin"></div>
+                                                            Memuat riwayat...
+                                                        </span>
+                                                    )}
                                                 </label>
                                                 <CurrencyInput
                                                     value={formData.tipeTransaksi === 'regular' ? penerima.harga : penerima.jumlah}
                                                     onChange={(val) => updatePenerima(index, formData.tipeTransaksi === 'regular' ? 'harga' : 'jumlah', val)}
                                                 />
+                                                {/* Price History Suggestions */}
+                                                {formData.tipeTransaksi === 'regular' && previousPrices.length > 0 && (
+                                                    <div className="mt-2">
+                                                        <p className="text-xs text-gray-400 flex items-center gap-1 mb-1.5">
+                                                            <History size={11} />
+                                                            Harga sebelumnya:
+                                                        </p>
+                                                        <div className="flex flex-wrap gap-1.5">
+                                                            {previousPrices.slice(0, 6).map((p, pi) => (
+                                                                <button
+                                                                    key={pi}
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        updatePenerima(index, 'harga', p.harga);
+                                                                        if (!penerima.tujuan && p.tujuan) {
+                                                                            updatePenerima(index, 'tujuan', p.tujuan);
+                                                                        }
+                                                                    }}
+                                                                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold border transition-all hover:scale-105 active:scale-95 bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100 hover:border-blue-400 shadow-sm"
+                                                                    title={`Tujuan: ${p.tujuan || '-'} | Dipakai ${p.count}x`}
+                                                                >
+                                                                    <Zap size={10} className="text-blue-500" />
+                                                                    {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(p.harga)}
+                                                                    {p.tujuan && <span className="opacity-70">· {p.tujuan}</span>}
+                                                                    {p.count > 1 && <span className="bg-blue-200 text-blue-800 text-[10px] px-1 rounded-full">{p.count}x</span>}
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
                                             </div>
 
 
