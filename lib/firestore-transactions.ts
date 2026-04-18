@@ -385,6 +385,11 @@ export const updateTransaction = async (
         updates.noSTT = noSTT;
     }
 
+    // Update branch if provided
+    if (data.branch !== undefined) {
+        updates.branch = data.branch;
+    }
+
     // Update basic fields
     if (data.tanggal) {
         updates.tanggal = Timestamp.fromDate(new Date(data.tanggal));

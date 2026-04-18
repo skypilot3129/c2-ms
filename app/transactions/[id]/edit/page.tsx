@@ -11,6 +11,7 @@ import { formatRupiah } from '@/lib/currency';
 import type { Client } from '@/types/client';
 import type { Transaction, TransactionFormData, TipeTransaksi, MetodePembayaran, CaraPelunasan, BeratUnit, StatusTransaksi } from '@/types/transaction';
 import type { Branch } from '@/types/branch';
+import { getAllBranches } from '@/types/branch';
 import CurrencyInput from '@/components/CurrencyInput';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { ArrowLeft, Save, Package, Users, FileText, CheckCircle, Clock } from 'lucide-react';
@@ -259,6 +260,32 @@ export default function EditTransactionPage({ params }: { params: Promise<{ id: 
                                 <Package size={20} className="text-blue-600" />
                                 Informasi Dasar
                             </h2>
+
+                            {/* Cabang Selector — full width on top */}
+                            <div className="mb-6">
+                                <label className="block text-sm font-semibold text-gray-700 mb-2">Cabang</label>
+                                <div className="flex gap-3">
+                                    {getAllBranches().map(branch => (
+                                        <button
+                                            key={branch.id}
+                                            type="button"
+                                            onClick={() => handleChange('branch', branch.id as Branch)}
+                                            className={`flex-1 py-2.5 px-4 rounded-xl border-2 font-semibold text-sm transition-all ${
+                                                formData.branch === branch.id
+                                                    ? 'border-blue-600 bg-blue-600 text-white shadow-lg shadow-blue-600/20'
+                                                    : 'border-gray-200 bg-white text-gray-600 hover:border-blue-300 hover:text-blue-600'
+                                            }`}
+                                        >
+                                            {branch.displayName}
+                                        </button>
+                                    ))}
+                                </div>
+                                <p className="text-xs text-amber-600 mt-1.5 flex items-center gap-1">
+                                    <span>⚠️</span>
+                                    Mengubah cabang hanya mengubah kategori. Nomor STT tidak akan berubah otomatis.
+                                </p>
+                            </div>
+
                             <div className="grid md:grid-cols-2 gap-6">
                                 <div>
                                     <label className="block text-sm font-semibold text-gray-700 mb-2">No. STT</label>
