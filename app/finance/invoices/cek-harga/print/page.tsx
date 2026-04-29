@@ -43,8 +43,13 @@ function CekHargaPrintContent() {
                 const fetched = await Promise.all(ids.map(id => getTransactionById(id)));
                 const valid = fetched.filter((t): t is Transaction => t !== null);
                 
-                // Sort by date ascending (oldest first) so checking is chronological
-                valid.sort((a, b) => new Date(a.tanggal).getTime() - new Date(b.tanggal).getTime());
+                // Sort by date ascending (oldest first) and STT ascending so checking is chronological
+                valid.sort((a, b) => {
+                    const dateA = new Date(a.tanggal).getTime();
+                    const dateB = new Date(b.tanggal).getTime();
+                    if (dateA !== dateB) return dateA - dateB;
+                    return a.noSTT.localeCompare(b.noSTT, undefined, { numeric: true });
+                });
 
                 setTransactions(valid);
                 setLoading(false);

@@ -20,8 +20,13 @@ export default function CekHargaPage() {
     useEffect(() => {
         if (!user) return;
         const unsubscribe = subscribeToTransactions((data) => {
-            // Sort by date descending
-            const sorted = [...data].sort((a, b) => new Date(b.tanggal).getTime() - new Date(a.tanggal).getTime());
+            // Sort by date descending, then by STT ascending
+            const sorted = [...data].sort((a, b) => {
+                const dateA = new Date(a.tanggal).getTime();
+                const dateB = new Date(b.tanggal).getTime();
+                if (dateB !== dateA) return dateB - dateA;
+                return a.noSTT.localeCompare(b.noSTT, undefined, { numeric: true });
+            });
             setTransactions(sorted);
             setLoading(false);
         }, user.uid);
