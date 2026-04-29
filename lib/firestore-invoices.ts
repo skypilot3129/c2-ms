@@ -61,7 +61,7 @@ const generateInvoiceNumber = async (userId: string): Promise<string> => {
                 currentNumber = data[key] || 0;
             }
 
-            if (currentNumber === 0) {
+            if (currentNumber < 12702) {
                 currentNumber = 12702;
             }
 

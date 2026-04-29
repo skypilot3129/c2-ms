@@ -181,7 +181,7 @@ function CekHargaPrintContent() {
                             <tr key={t.id}>
                                 <td style={{ textAlign: 'center' }}>{idx + 1}.</td>
                                 <td style={{ textAlign: 'center' }}>
-                                    <div style={{ fontWeight: 'bold' }}>{t.noSTT}</div>
+                                    <div style={{ fontWeight: 'bold' }}>{t.noSTT.replace(/^STT/i, '')}</div>
                                     <div style={{ fontSize: '7.5pt', color: '#4b5563' }}>{formatTanggal(t.tanggal)}</div>
                                 </td>
                                 <td>{t.pengirimName.substring(0, 15)} - {t.tujuan}</td>

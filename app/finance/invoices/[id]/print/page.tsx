@@ -217,7 +217,7 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
                                         {keteranganPerSTT[t.id] ?? `PENGIRIMAN BARANG ${(t.pengirimCity || 'ASAL').toUpperCase()} - ${t.tujuan.toUpperCase()}`}
                                     </div>
                                 </td>
-                                <td style={{ textAlign: 'center' }}>{t.noSTT}</td>
+                                <td style={{ textAlign: 'center' }}>{t.noSTT.replace(/^STT/i, '')}</td>
                                 <td style={{ textAlign: 'center' }}>{t.koli}</td>
                                 <td style={{ textAlign: 'center' }}>{t.berat}</td>
                                 <td style={{ textAlign: 'right', paddingRight: 4 }}>

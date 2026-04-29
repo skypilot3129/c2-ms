@@ -306,7 +306,7 @@ function PrintBulkInvoiceContent() {
                                 <tr key={t.id}>
                                     <td style={{ textAlign: 'center' }}>{idx + 1}.</td>
                                     <td style={{ paddingLeft: 4 }}>{keterangan}</td>
-                                    <td style={{ textAlign: 'center' }}>{t.noSTT}</td>
+                                    <td style={{ textAlign: 'center' }}>{t.noSTT.replace(/^STT/i, '')}</td>
                                     <td style={{ textAlign: 'center' }}>{t.koli}</td>
                                     <td style={{ textAlign: 'center' }}>{t.berat}</td>
                                     <td style={{ textAlign: 'right', paddingRight: 4 }}>

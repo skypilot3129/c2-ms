@@ -130,7 +130,7 @@ export default function CekHargaPage() {
                                                 />
                                             </td>
                                             <td className="px-4 py-3 text-gray-600">{new Date(tx.tanggal).toLocaleDateString('id-ID')}</td>
-                                            <td className="px-4 py-3 font-mono font-medium text-gray-800">{tx.noSTT}</td>
+                                            <td className="px-4 py-3 font-mono font-medium text-gray-800">{tx.noSTT.replace(/^STT/i, '')}</td>
                                             <td className="px-4 py-3 font-medium text-gray-800">{tx.pengirimName}</td>
                                             <td className="px-4 py-3 text-gray-600">{tx.tujuan}</td>
                                             <td className="px-4 py-3 text-gray-600">
