@@ -2,7 +2,7 @@
 
 export const COMPANY_INFO = {
     name: 'CAHAYA CARGO EXPRESS',
-    address: 'Jl. Kalimas Baru No. 60',
+    address: 'Jalan Kemudi No 4',
     city: 'Surabaya',
     phone: '081 337 878 138',
     branchAddress: 'Jl Irian No. 245 B',
