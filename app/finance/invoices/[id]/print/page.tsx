@@ -30,6 +30,7 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
     const [invoice, setInvoice] = useState<Invoice | null>(null);
     const [transactions, setTransactions] = useState<Transaction[]>([]);
     const [loading, setLoading] = useState(true);
+    const [keteranganPerSTT, setKeteranganPerSTT] = useState<{[key: string]: string}>({});
 
     useEffect(() => {
         const loadData = async () => {
@@ -207,7 +208,14 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
                             <tr key={t.id}>
                                 <td style={{ textAlign: 'center' }}>{idx + 1}.</td>
                                 <td style={{ paddingLeft: 4 }}>
-                                    {`PENGIRIMAN BARANG ${(t.pengirimCity || 'ASAL').toUpperCase()} - ${t.tujuan.toUpperCase()}`}
+                                    <div
+                                        contentEditable
+                                        suppressContentEditableWarning
+                                        onBlur={(e) => setKeteranganPerSTT({...keteranganPerSTT, [t.id]: e.currentTarget.textContent || ''})}
+                                        style={{ outline: 'none', minWidth: '100px', cursor: 'text' }}
+                                    >
+                                        {keteranganPerSTT[t.id] ?? `PENGIRIMAN BARANG ${(t.pengirimCity || 'ASAL').toUpperCase()} - ${t.tujuan.toUpperCase()}`}
+                                    </div>
                                 </td>
                                 <td style={{ textAlign: 'center' }}>{t.noSTT}</td>
                                 <td style={{ textAlign: 'center' }}>{t.koli}</td>
@@ -250,16 +258,12 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
                             <p key={i}>{acc.bank} {acc.accountNumber}  an {acc.accountName}</p>
                         ))}
                     </div>
-                    <div style={{ textAlign: 'center', minWidth: '45mm' }}>
-                        <p style={{ fontSize: '8.5pt', marginBottom: '1mm' }}>Hormat Kami,</p>
+                    <div style={{ textAlign: 'center', minWidth: '45mm', paddingTop: '4mm' }}>
                         <img
-                            src="/logo.png"
-                            alt="Stempel"
-                            style={{ width: '22mm', height: '22mm', objectFit: 'contain', opacity: 0.3, display: 'block', margin: '0 auto' }}
+                            src="/ttd.png"
+                            alt="Tanda Tangan & Stempel"
+                            style={{ width: '45mm', height: 'auto', objectFit: 'contain', display: 'block', margin: '0 auto' }}
                         />
-                        <p style={{ fontWeight: 'bold', fontSize: '8.5pt', borderTop: '1px solid #000', paddingTop: '1mm', marginTop: '1mm', letterSpacing: '0.5px' }}>
-                            {COMPANY_INFO.signatureName}
-                        </p>
                     </div>
                 </div>
 

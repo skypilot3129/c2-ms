@@ -61,6 +61,10 @@ const generateInvoiceNumber = async (userId: string): Promise<string> => {
                 currentNumber = data[key] || 0;
             }
 
+            if (currentNumber === 0) {
+                currentNumber = 12702;
+            }
+
             const nextNumber = currentNumber + 1;
             const key = `global_${year}${month}`; // Global key
 
