@@ -4,8 +4,26 @@ import { useEffect, useState, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { getTransactionById } from '@/lib/firestore-transactions';
 import type { Transaction } from '@/types/transaction';
-import { formatRupiah, terbilang } from '@/lib/currency';
+import { terbilang } from '@/lib/currency';
 import { COMPANY_INFO } from '@/lib/company-config';
+
+// Format number dengan titik sebagai pemisah ribuan (tanpa Rp)
+function fmtAngka(num: number): string {
+    return num.toLocaleString('id-ID');
+}
+
+// Format tanggal: "20 APRIL 2026"
+function formatTanggal(dateStr: string): string {
+    const d = new Date(dateStr);
+    return d.toLocaleDateString('id-ID', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+    }).toUpperCase();
+}
+
+// Jumlah baris minimum di tabel (termasuk data)
+const MIN_ROWS = 10;
 
 function PrintBulkInvoiceContent() {
     const searchParams = useSearchParams();
@@ -14,7 +32,6 @@ function PrintBulkInvoiceContent() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
-    // Invoice form data from modal
     const [invoiceData, setInvoiceData] = useState({
         kepadaYth: '',
         nama: '',
@@ -34,7 +51,6 @@ function PrintBulkInvoiceContent() {
                 return;
             }
 
-            // Read invoice data from URL params
             const kepadaYth = searchParams.get('kepadaYth') || '';
             const nama = searchParams.get('nama') || '';
             const kota = searchParams.get('kota') || '';
@@ -45,15 +61,7 @@ function PrintBulkInvoiceContent() {
 
             try {
                 const keteranganPerSTT = JSON.parse(keteranganJSON);
-                setInvoiceData({
-                    kepadaYth,
-                    nama,
-                    kota,
-                    noNPWP,
-                    keteranganKeberangkatan,
-                    keteranganPerSTT,
-                    includePPN,
-                });
+                setInvoiceData({ kepadaYth, nama, kota, noNPWP, keteranganKeberangkatan, keteranganPerSTT, includePPN });
             } catch (e) {
                 console.error('Failed to parse keterangan:', e);
             }
@@ -66,51 +74,20 @@ function PrintBulkInvoiceContent() {
             }
 
             try {
-                // Fetch all transactions in parallel
-                const fetchedTransactions = await Promise.all(
-                    ids.map(id => getTransactionById(id))
-                );
+                const fetched = await Promise.all(ids.map(id => getTransactionById(id)));
+                const valid = fetched.filter((t): t is Transaction => t !== null);
 
-                // Filter out nulls and validate
-                const validTransactions = fetchedTransactions.filter((t): t is Transaction => t !== null);
-
-                if (validTransactions.length === 0) {
+                if (valid.length === 0) {
                     setError('Tidak ada transaksi ditemukan');
                     setLoading(false);
                     return;
                 }
 
-                // Validate all transactions have same sender
-                const firstSender = validTransactions[0].pengirimName;
-                const allSameSender = validTransactions.every(
-                    t => t.pengirimName === firstSender
-                );
-
-                if (!allSameSender) {
-                    setError('Semua transaksi harus memiliki pengirim yang sama');
-                    setLoading(false);
-                    return;
-                }
-
-                // Validate same date
-                const firstDate = new Date(validTransactions[0].tanggal).toDateString();
-                const allSameDate = validTransactions.every(
-                    t => new Date(t.tanggal).toDateString() === firstDate
-                );
-
-                if (!allSameDate) {
-                    setError('Semua transaksi harus memiliki tanggal yang sama');
-                    setLoading(false);
-                    return;
-                }
-
-                setTransactions(validTransactions);
+                setTransactions(valid);
                 setLoading(false);
-
-                // Auto print when loaded
-                setTimeout(() => window.print(), 500);
-            } catch (error) {
-                console.error('Error loading transactions:', error);
+                setTimeout(() => window.print(), 600);
+            } catch (err) {
+                console.error('Error loading transactions:', err);
                 setError('Gagal memuat transaksi');
                 setLoading(false);
             }
@@ -121,10 +98,10 @@ function PrintBulkInvoiceContent() {
 
     if (loading) {
         return (
-            <div className="flex items-center justify-center min-h-screen">
-                <div className="text-center">
-                    <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-                    <p>Memuat invoice gabungan...</p>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>
+                <div style={{ textAlign: 'center' }}>
+                    <div style={{ width: 48, height: 48, border: '4px solid #2563eb', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto 16px' }} />
+                    <p>Memuat invoice...</p>
                 </div>
             </div>
         );
@@ -132,14 +109,11 @@ function PrintBulkInvoiceContent() {
 
     if (error || transactions.length === 0) {
         return (
-            <div className="flex items-center justify-center min-h-screen">
-                <div className="text-center">
-                    <h2 className="text-2xl font-bold text-red-600 mb-2">Error</h2>
-                    <p className="text-gray-600">{error || 'Tidak ada transaksi ditemukan'}</p>
-                    <button
-                        onClick={() => window.close()}
-                        className="mt-4 bg-blue-600 text-white px-6 py-2 rounded-lg"
-                    >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>
+                <div style={{ textAlign: 'center' }}>
+                    <h2 style={{ fontSize: 24, fontWeight: 'bold', color: '#dc2626', marginBottom: 8 }}>Error</h2>
+                    <p style={{ color: '#4b5563' }}>{error || 'Tidak ada transaksi ditemukan'}</p>
+                    <button onClick={() => window.close()} style={{ marginTop: 16, background: '#2563eb', color: 'white', padding: '8px 24px', borderRadius: 8, border: 'none', cursor: 'pointer' }}>
                         Tutup
                     </button>
                 </div>
@@ -147,201 +121,290 @@ function PrintBulkInvoiceContent() {
         );
     }
 
-    // Calculate totals
-    const grandTotal = {
-        koli: transactions.reduce((sum, t) => sum + t.koli, 0),
-        berat: transactions.reduce((sum, t) => sum + parseFloat(t.berat.toString()), 0),
-        jumlah: transactions.reduce((sum, t) => sum + t.jumlah, 0),
-    };
+    // Hitung total
+    const totalJumlah = transactions.reduce((sum, t) => sum + t.jumlah, 0);
+    const ppnAmount = invoiceData.includePPN ? totalJumlah * 0.011 : 0;
+    const totalAkhir = totalJumlah + ppnAmount;
 
-    const ppnAmount = invoiceData.includePPN ? grandTotal.jumlah * 0.011 : 0;
-    const totalWithPPN = grandTotal.jumlah + ppnAmount;
+    const bulkInvoiceNo = transactions[0].noInvoice || transactions[0].noSTT;
+    const tanggalStr = formatTanggal(transactions[0].tanggal);
 
-    // Use invoice number from first transaction
-    const bulkInvoiceNo = transactions[0].noInvoice;
-
-    const tanggalFormatted = new Date(transactions[0].tanggal).toLocaleDateString('id-ID', {
-        day: 'numeric',
-        month: 'long',
-        year: 'numeric'
-    });
+    // Hitung baris kosong yang perlu ditambahkan
+    const emptyRowsCount = Math.max(0, MIN_ROWS - transactions.length);
 
     return (
         <>
-            {/* Print Styles */}
             <style dangerouslySetInnerHTML={{
                 __html: `
+                * { box-sizing: border-box; margin: 0; padding: 0; }
+                body { 
+                    font-family: Arial, sans-serif; 
+                    background: #e5e7eb;
+                }
+                .invoice-page {
+                    width: 210mm;
+                    min-height: 297mm;
+                    background: white;
+                    margin: 0 auto;
+                    padding: 12mm 14mm;
+                    font-size: 10pt;
+                    color: #000;
+                    position: relative;
+                }
                 @media print {
-                    @page { 
-                        size: A4 portrait; 
-                        margin: 5mm 8mm;
-                    }
-                    body { 
-                        print-color-adjust: exact; 
-                        -webkit-print-color-adjust: exact;
+                    @page {
+                        size: A4 portrait;
                         margin: 0;
-                        padding: 0;
+                    }
+                    body {
+                        background: white;
+                        print-color-adjust: exact;
+                        -webkit-print-color-adjust: exact;
+                    }
+                    .invoice-page {
+                        margin: 0;
+                        padding: 12mm 14mm;
+                        box-shadow: none;
+                        width: 210mm;
+                        min-height: 297mm;
                     }
                     .no-print { display: none !important; }
                 }
-                .mini-invoice { font-size: 8px; line-height: 1.2; }
-                .mini-invoice h1 { font-size: 12px; margin: 0; font-weight: bold; line-height: 1.1; }
-                .mini-invoice h2 { font-size: 14px; margin: 2px 0; letter-spacing: 3px; font-weight: bold; }
-                .mini-invoice p { margin: 0.5px 0; }
-                .mini-invoice table { font-size: 8px; border-collapse: collapse; }
-                .mini-invoice th, .mini-invoice td { padding: 1.5px 3px !important; line-height: 1.1; }
+                .invoice-table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin-bottom: 0;
+                    font-size: 9pt;
+                }
+                .invoice-table th {
+                    border: 1px solid #000;
+                    padding: 3px 5px;
+                    text-align: center;
+                    font-weight: bold;
+                    font-size: 9pt;
+                    background: #fff;
+                }
+                .invoice-table td {
+                    border: 1px solid #000;
+                    padding: 3px 5px;
+                    font-size: 9pt;
+                    vertical-align: middle;
+                }
+                @keyframes spin {
+                    to { transform: rotate(360deg); }
+                }
             `}} />
 
-            <div className="no-print fixed top-4 right-4 z-50">
-                <button onClick={() => window.print()} className="bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold shadow-lg hover:bg-blue-700">🖨️ Print</button>
-                <button onClick={() => router.back()} className="ml-2 bg-gray-600 text-white px-6 py-3 rounded-lg font-semibold shadow-lg hover:bg-gray-700">✕ Tutup</button>
+            {/* Tombol aksi layar (tidak tercetak) */}
+            <div className="no-print" style={{ position: 'fixed', top: 16, right: 16, zIndex: 9999, display: 'flex', gap: 8 }}>
+                <button
+                    onClick={() => window.print()}
+                    style={{ background: '#2563eb', color: 'white', padding: '10px 20px', borderRadius: 8, border: 'none', cursor: 'pointer', fontWeight: 'bold', fontSize: 14 }}
+                >
+                    🖨️ Cetak
+                </button>
+                <button
+                    onClick={() => router.back()}
+                    style={{ background: '#6b7280', color: 'white', padding: '10px 20px', borderRadius: 8, border: 'none', cursor: 'pointer', fontWeight: 'bold', fontSize: 14 }}
+                >
+                    ✕ Tutup
+                </button>
             </div>
 
-            <div className="mini-invoice" style={{ maxWidth: '190mm', maxHeight: '148mm', margin: '1rem auto', padding: '0', background: 'white', overflow: 'hidden' }}>
-                {/* Header */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.5mm', alignItems: 'flex-start' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '2mm' }}>
-                        <img src="/logo.png" alt="Logo" style={{ width: '16mm', height: '16mm', objectFit: 'contain' }} />
+            <div className="invoice-page">
+
+                {/* ===== HEADER ===== */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '6mm' }}>
+                    {/* Logo + Info Perusahaan */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4mm' }}>
+                        <img
+                            src="/logo.png"
+                            alt="Logo Cahaya Cargo Express"
+                            style={{ width: '22mm', height: '22mm', objectFit: 'contain' }}
+                        />
                         <div>
-                            <h1 style={{ fontWeight: 'bold' }}>{COMPANY_INFO.name}</h1>
-                            <p>{COMPANY_INFO.address}, {COMPANY_INFO.city}</p>
-                            <p>{COMPANY_INFO.branchAddress}, {COMPANY_INFO.branchCity}</p>
+                            <p style={{ fontWeight: 'bold', fontSize: '12pt', lineHeight: 1.3 }}>
+                                {COMPANY_INFO.name}
+                            </p>
+                            <p style={{ fontSize: '9pt', lineHeight: 1.5 }}>{COMPANY_INFO.address}</p>
+                            <p style={{ fontSize: '9pt', lineHeight: 1.5 }}>{COMPANY_INFO.city}</p>
                         </div>
                     </div>
-                    <div style={{ textAlign: 'right', fontSize: '7px' }}>
-                        <p><strong>No:</strong> {bulkInvoiceNo}</p>
-                        <p><strong>Tgl:</strong> {tanggalFormatted}</p>
+
+                    {/* Nomer & Tanggal */}
+                    <div style={{ fontSize: '10pt', textAlign: 'left', lineHeight: 1.8 }}>
+                        <div style={{ display: 'flex', gap: '4mm', alignItems: 'center' }}>
+                            <span style={{ minWidth: '45px' }}>Nomer</span>
+                            <span>:</span>
+                            <span style={{ fontWeight: 'bold' }}>{bulkInvoiceNo}</span>
+                        </div>
+                        <div style={{ display: 'flex', gap: '4mm', alignItems: 'center' }}>
+                            <span style={{ minWidth: '45px' }}>Tanggal</span>
+                            <span>:</span>
+                            <span style={{ fontWeight: 'bold' }}>{tanggalStr}</span>
+                        </div>
                     </div>
                 </div>
 
-                <h2 style={{ textAlign: 'center', fontWeight: 'bold', margin: '1mm 0' }}>INVOICE</h2>
-
-                <div style={{ marginBottom: '1.5mm' }}>
-                    <p style={{ fontSize: '7px' }}>Kepada Yth,</p>
-                    <p style={{ fontWeight: 'bold', fontSize: '9px' }}>{invoiceData.kepadaYth || invoiceData.nama}</p>
-                    <p style={{ fontWeight: 'bold', fontSize: '9px' }}>{invoiceData.nama}</p>
-                    {invoiceData.kota && <p style={{ fontSize: '7px' }}>{invoiceData.kota}</p>}
-                    {invoiceData.noNPWP && <p style={{ fontSize: '7px' }}>No. NPWP: {invoiceData.noNPWP}</p>}
+                {/* ===== JUDUL INVOICE ===== */}
+                <div style={{ textAlign: 'center', marginBottom: '5mm' }}>
+                    <h1 style={{
+                        fontSize: '16pt',
+                        fontWeight: 'bold',
+                        letterSpacing: '8px',
+                        textDecoration: 'underline',
+                        display: 'inline-block',
+                    }}>
+                        I N V O I C E
+                    </h1>
                 </div>
 
-                {/* Keterangan Keberangkatan Umum */}
+                {/* ===== KEPADA YTH ===== */}
+                <div style={{ marginBottom: '5mm' }}>
+                    <p style={{ fontSize: '10pt' }}>Kepada Yth,</p>
+                    <p style={{ fontWeight: 'bold', fontSize: '11pt', textTransform: 'uppercase' }}>
+                        {invoiceData.kepadaYth || invoiceData.nama}
+                    </p>
+                    {invoiceData.kota && (
+                        <p style={{ fontWeight: 'bold', fontSize: '11pt', textTransform: 'uppercase' }}>
+                            {invoiceData.kota}
+                        </p>
+                    )}
+                    {invoiceData.noNPWP && (
+                        <p style={{ fontSize: '9pt' }}>No. NPWP: {invoiceData.noNPWP}</p>
+                    )}
+                </div>
+
+                {/* Keterangan keberangkatan umum (opsional) */}
                 {invoiceData.keteranganKeberangkatan && (
-                    <div style={{ marginBottom: '1.5mm', padding: '1mm', background: '#f0f9ff', border: '1px solid #bfdbfe', borderRadius: '1px' }}>
-                        <p style={{ fontSize: '7px', fontWeight: 'bold', margin: 0 }}>{invoiceData.keteranganKeberangkatan}</p>
+                    <div style={{ marginBottom: '3mm', fontSize: '9pt' }}>
+                        <p style={{ fontStyle: 'italic' }}>{invoiceData.keteranganKeberangkatan}</p>
                     </div>
                 )}
 
-                {/* Multi-Row Table */}
-                <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '1.5mm' }}>
+                {/* ===== TABEL ===== */}
+                <table className="invoice-table">
                     <thead>
-                        <tr style={{ border: '1.5px solid black', background: '#f5f5f5' }}>
-                            <th style={{ border: '1px solid black', width: '3%' }}>NO</th>
-                            <th style={{ border: '1px solid black', width: '28%', textAlign: 'left' }}>KETERANGAN</th>
-                            <th style={{ border: '1px solid black', width: '10%' }}>STT</th>
-                            <th style={{ border: '1px solid black', width: '6%' }}>KOLI</th>
-                            <th style={{ border: '1px solid black', width: '9%' }}>KG/M3</th>
-                            <th style={{ border: '1px solid black', width: '16%', textAlign: 'right' }}>HARGA</th>
-                            <th style={{ border: '1px solid black', width: '18%', textAlign: 'right' }}>JUMLAH</th>
+                        <tr>
+                            <th style={{ width: '5%' }}>NO</th>
+                            <th style={{ width: '32%', textAlign: 'center' }}>KETERANGAN</th>
+                            <th style={{ width: '9%' }}>NO STT</th>
+                            <th style={{ width: '7%' }}>KOLI</th>
+                            <th style={{ width: '10%' }}>KG/M3</th>
+                            <th style={{ width: '14%' }}>HARGA</th>
+                            <th style={{ width: '14%' }}>JUMLAH</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {transactions.map((transaction, index) => (
-                            <tr key={transaction.id}>
-                                <td style={{ border: '1px solid black', textAlign: 'center' }}>{index + 1}</td>
-                                <td style={{ border: '1px solid black' }}>
-                                    {invoiceData.keteranganPerSTT[transaction.id] ? (
-                                        <>{invoiceData.keteranganPerSTT[transaction.id]}</>
-                                    ) : (
-                                        <>
-                                            <strong>PENGIRIMAN BARANG</strong><br />
-                                            {transaction.pengirimCity || 'ASAL'} - {transaction.tujuan}
-                                            {transaction.isiBarang && <><br />{transaction.isiBarang}</>}
-                                        </>
-                                    )}
-                                </td>
-                                <td style={{ border: '1px solid black', textAlign: 'center', fontSize: '8px' }}>{transaction.noSTT}</td>
-                                <td style={{ border: '1px solid black', textAlign: 'center' }}>{transaction.koli}</td>
-                                <td style={{ border: '1px solid black', textAlign: 'center' }}>{transaction.berat}</td>
-                                <td style={{ border: '1px solid black', textAlign: 'right' }}>
-                                    {transaction.tipeTransaksi === 'regular' ? formatRupiah(transaction.harga).replace('Rp', '').trim() : '-'}
-                                </td>
-                                <td style={{ border: '1px solid black', textAlign: 'right' }}>
-                                    {formatRupiah(transaction.jumlah).replace('Rp', '').trim()}
-                                </td>
+                        {/* Baris transaksi */}
+                        {transactions.map((t, idx) => {
+                            const keterangan = invoiceData.keteranganPerSTT[t.id]
+                                ? invoiceData.keteranganPerSTT[t.id]
+                                : `PENGIRIMAN BARANG ${(t.pengirimCity || 'ASAL').toUpperCase()} - ${t.tujuan.toUpperCase()}`;
+
+                            return (
+                                <tr key={t.id}>
+                                    <td style={{ textAlign: 'center' }}>{idx + 1}.</td>
+                                    <td style={{ paddingLeft: 4 }}>{keterangan}</td>
+                                    <td style={{ textAlign: 'center' }}>{t.noSTT}</td>
+                                    <td style={{ textAlign: 'center' }}>{t.koli}</td>
+                                    <td style={{ textAlign: 'center' }}>{t.berat}</td>
+                                    <td style={{ textAlign: 'right', paddingRight: 4 }}>
+                                        {t.tipeTransaksi === 'regular' ? fmtAngka(t.harga) : '-'}
+                                    </td>
+                                    <td style={{ textAlign: 'right', paddingRight: 4 }}>
+                                        {fmtAngka(t.jumlah)}
+                                    </td>
+                                </tr>
+                            );
+                        })}
+
+                        {/* Baris kosong pengisi */}
+                        {Array.from({ length: emptyRowsCount }).map((_, i) => (
+                            <tr key={`empty-${i}`} style={{ height: '8mm' }}>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td style={{ textAlign: 'right', paddingRight: 4, color: '#000' }}>-</td>
                             </tr>
                         ))}
-                        {/* TOTAL TAGIHAN Row */}
-                        <tr>
-                            <td colSpan={6} style={{ border: '1px solid black', textAlign: 'right', fontWeight: 'bold' }}>
-                                TOTAL TAGIHAN:
-                            </td>
-                            <td style={{ border: '1px solid black', textAlign: 'right', fontWeight: 'bold', background: '#f0f0f0' }}>
-                                {formatRupiah(grandTotal.jumlah).replace('Rp', '').trim()}
-                            </td>
-                        </tr>
-                        {/* PPN Row if enabled */}
+
+                        {/* Baris PPN (jika ada) */}
                         {invoiceData.includePPN && (
                             <tr>
-                                <td colSpan={6} style={{ border: '1px solid black', textAlign: 'right', fontWeight: 'bold' }}>
-                                    PPN 1.1%:
-                                </td>
-                                <td style={{ border: '1px solid black', textAlign: 'right', fontWeight: 'bold', background: '#fff9e6' }}>
-                                    {formatRupiah(ppnAmount).replace('Rp', '').trim()}
-                                </td>
+                                <td colSpan={5} style={{ border: '1px solid #000' }}></td>
+                                <td style={{ textAlign: 'right', fontWeight: 'bold', paddingRight: 4 }}>PPN 1.1%</td>
+                                <td style={{ textAlign: 'right', paddingRight: 4 }}>{fmtAngka(ppnAmount)}</td>
                             </tr>
                         )}
-                        {/* Grand Total Row with PPN */}
-                        {invoiceData.includePPN && (
-                            <tr>
-                                <td colSpan={6} style={{ border: '2px solid black', textAlign: 'right', fontWeight: 'bold', fontSize: '10px' }}>
-                                    <strong>TOTAL:</strong>
-                                </td>
-                                <td style={{ border: '2px solid black', textAlign: 'right', fontWeight: 'bold', background: '#ffe6e6', fontSize: '10px' }}>
-                                    {formatRupiah(totalWithPPN).replace('Rp', '').trim()}
-                                </td>
-                            </tr>
-                        )}
+
+                        {/* Baris Terbilang + TOTAL */}
                         <tr>
-                            <td colSpan={7} style={{ border: '1px solid black' }}>
-                                <em style={{ fontSize: '7px' }}>Terbilang: {terbilang(invoiceData.includePPN ? totalWithPPN : grandTotal.jumlah)}</em>
+                            <td
+                                colSpan={5}
+                                style={{ border: '1px solid #000', fontSize: '8.5pt', fontStyle: 'italic', paddingLeft: 4 }}
+                            >
+                                Terbilang : # {terbilang(totalAkhir)} #
+                            </td>
+                            <td style={{ textAlign: 'center', fontWeight: 'bold', letterSpacing: '2px' }}>
+                                T O T A L
+                            </td>
+                            <td style={{ textAlign: 'right', fontWeight: 'bold', paddingRight: 4 }}>
+                                {fmtAngka(totalAkhir)}
                             </td>
                         </tr>
                     </tbody>
                 </table>
 
-                {/* Footer */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '1.5mm' }}>
-                    <div style={{ fontSize: '7px' }}>
-                        <p style={{ fontWeight: 'bold', marginBottom: '0.5mm' }}>TRANSFER:</p>
+                {/* ===== FOOTER ===== */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginTop: '6mm' }}>
+
+                    {/* Info Transfer (kiri) */}
+                    <div style={{ fontSize: '10pt', lineHeight: 1.8 }}>
+                        <p style={{ fontWeight: 'bold', textDecoration: 'underline', marginBottom: '2mm' }}>
+                            TRANSFER :
+                        </p>
                         {invoiceData.includePPN ? (
                             <>
-                                <p style={{ color: '#dc2626', fontWeight: 'bold', fontSize: '7px' }}>⚠️ Transfer hanya ke Rekening BCA</p>
-                                <p style={{ fontWeight: 'bold' }}>BCA 1870444342 a/n CAHAYA CARGO EXPRESS CV</p>
+                                <p style={{ color: '#dc2626', fontWeight: 'bold', fontSize: '9pt' }}>
+                                    ⚠️ Transfer hanya ke Rekening BCA
+                                </p>
+                                <p>BCA <strong>1870444342</strong> an <strong>CAHAYA CARGO EXPRESS CV</strong></p>
                             </>
                         ) : (
                             COMPANY_INFO.bankAccounts.map((acc, i) => (
-                                <p key={i}>{acc.bank} {acc.accountNumber} a/n {acc.accountName}</p>
+                                <p key={i}>{acc.bank} {acc.accountNumber}  an {acc.accountName}</p>
                             ))
                         )}
                     </div>
-                    <div style={{ textAlign: 'center', width: '80px' }}>
-                        <p style={{ fontSize: '7px', marginBottom: '10mm' }}>{COMPANY_INFO.signatureTitle},</p>
-                        <p style={{ fontWeight: 'bold', borderTop: '1px solid black', paddingTop: '0.5mm', fontSize: '7px' }}>
+
+                    {/* Tanda Tangan (kanan) */}
+                    <div style={{ textAlign: 'center', minWidth: '50mm' }}>
+                        <p style={{ fontSize: '10pt', marginBottom: '2mm' }}>Hormat Kami,</p>
+                        {/* Area logo stempel + tanda tangan */}
+                        <div style={{ position: 'relative', display: 'inline-block', marginBottom: '0' }}>
+                            <img
+                                src="/logo.png"
+                                alt="Stempel"
+                                style={{
+                                    width: '28mm',
+                                    height: '28mm',
+                                    objectFit: 'contain',
+                                    opacity: 0.35,
+                                    display: 'block',
+                                    margin: '0 auto',
+                                }}
+                            />
+                        </div>
+                        <p style={{ fontWeight: 'bold', fontSize: '10pt', borderTop: '1px solid #000', paddingTop: '1mm', marginTop: '1mm', letterSpacing: '1px' }}>
                             {COMPANY_INFO.signatureName}
                         </p>
                     </div>
                 </div>
 
-                <div style={{ marginTop: '4mm', fontSize: '7px', padding: '2mm', background: '#f0f9ff', border: '1px solid #93c5fd', borderRadius: '4px' }}>
-                    <p><strong>📋 Invoice ini menggabungkan {transactions.length} transaksi:</strong></p>
-                    <p style={{ marginTop: '1mm' }}>
-                        {transactions.map(t => t.noSTT).join(', ')}
-                    </p>
-                </div>
-
-                <div style={{ marginTop: '6mm', textAlign: 'center', fontSize: '8px', color: '#999', borderTop: '2px dashed #ccc', paddingTop: '2mm' }}>
-                    <em>--- Desain compact di bagian atas (full A4) ---</em>
-                </div>
             </div>
         </>
     );
@@ -349,7 +412,7 @@ function PrintBulkInvoiceContent() {
 
 export default function PrintBulkInvoicePage() {
     return (
-        <Suspense fallback={<div className="p-8 text-center">Loading...</div>}>
+        <Suspense fallback={<div style={{ padding: 32, textAlign: 'center' }}>Loading...</div>}>
             <PrintBulkInvoiceContent />
         </Suspense>
     );
