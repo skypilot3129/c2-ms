@@ -6,7 +6,7 @@ import { useAuth } from '@/context/AuthContext';
 import { subscribeToInvoices, deleteInvoice, updateInvoiceStatus } from '@/lib/firestore-invoices';
 import type { Invoice } from '@/types/invoice';
 import { formatRupiah } from '@/lib/currency';
-import { Plus, Search, FileText, Trash2, CheckCircle2, XCircle, Printer, Eye } from 'lucide-react';
+import { Plus, Search, FileText, Trash2, CheckCircle2, XCircle, Printer, Eye, CheckSquare } from 'lucide-react';
 import ProtectedRoute from '@/components/ProtectedRoute';
 
 export default function InvoicesPage() {
@@ -59,13 +59,22 @@ export default function InvoicesPage() {
                         <h1 className="text-xl sm:text-2xl font-bold text-gray-800">Daftar Invoice</h1>
                         <p className="text-gray-500 text-sm">Kelola tagihan pelanggan (Consolidated Invoices)</p>
                     </div>
-                    <Link
-                        href="/finance/invoices/new"
-                        className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl font-medium flex items-center justify-center gap-2 shadow-lg shadow-blue-600/20 transition-all active:scale-95"
-                    >
-                        <Plus size={18} />
-                        Buat Invoice Baru
-                    </Link>
+                    <div className="flex gap-2">
+                        <Link
+                            href="/finance/invoices/cek-harga"
+                            className="bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 px-4 py-2.5 rounded-xl font-medium flex items-center justify-center gap-2 transition-all active:scale-95"
+                        >
+                            <CheckSquare size={18} className="text-blue-600" />
+                            Cek Harga Barang
+                        </Link>
+                        <Link
+                            href="/finance/invoices/new"
+                            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl font-medium flex items-center justify-center gap-2 shadow-lg shadow-blue-600/20 transition-all active:scale-95"
+                        >
+                            <Plus size={18} />
+                            Buat Invoice Baru
+                        </Link>
+                    </div>
                 </div>
 
                 <div className="bg-white rounded-xl sm:rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
