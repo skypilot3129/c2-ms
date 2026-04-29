@@ -9,21 +9,20 @@ import type { Transaction } from '@/types/transaction';
 import { terbilang } from '@/lib/currency';
 import { COMPANY_INFO } from '@/lib/company-config';
 
-// Format angka dengan titik ribuan tanpa Rp
 function fmtAngka(num: number): string {
     return num.toLocaleString('id-ID');
 }
 
-// Format tanggal: "20 APRIL 2026"
-function formatTanggal(date: Date): string {
-    return date.toLocaleDateString('id-ID', {
+function formatTanggal(date: Date | string): string {
+    const d = typeof date === 'string' ? new Date(date) : date;
+    return d.toLocaleDateString('id-ID', {
         day: 'numeric',
         month: 'long',
         year: 'numeric',
     }).toUpperCase();
 }
 
-// Jumlah baris minimum di tabel (termasuk data)
+// Setengah A4 = 10 baris total minimum
 const MIN_ROWS = 10;
 
 function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
@@ -57,8 +56,8 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
         return (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>
                 <div style={{ textAlign: 'center' }}>
-                    <div style={{ width: 48, height: 48, border: '4px solid #2563eb', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto 16px' }} />
-                    <p>Memuat invoice...</p>
+                    <div style={{ width: 40, height: 40, border: '4px solid #2563eb', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto 12px' }} />
+                    <p style={{ fontFamily: 'Arial, sans-serif' }}>Memuat invoice...</p>
                 </div>
             </div>
         );
@@ -67,27 +66,66 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
     const totalAkhir = invoice.totalAmount;
     const emptyRowsCount = Math.max(0, MIN_ROWS - transactions.length);
 
-    // Nomor invoice: ambil angka di belakang saja jika format INV/xxx/xxx/XXXXX
-    const nomorDisplay = invoice.invoiceNumber;
-
     return (
         <>
             <style dangerouslySetInnerHTML={{
                 __html: `
                 * { box-sizing: border-box; margin: 0; padding: 0; }
+
                 body {
                     font-family: Arial, sans-serif;
-                    background: #e5e7eb;
+                    background: #d1d5db;
                 }
-                .invoice-page {
+
+                /* Kertas A4 penuh */
+                .a4-page {
                     width: 210mm;
-                    min-height: 297mm;
+                    height: 297mm;
                     background: white;
                     margin: 0 auto;
-                    padding: 12mm 14mm;
-                    font-size: 10pt;
+                    position: relative;
+                    overflow: hidden;
+                }
+
+                /* Konten invoice dibatasi di setengah atas halaman (148mm) */
+                .invoice-content {
+                    width: 210mm;
+                    padding: 8mm 12mm 6mm 12mm;
+                    font-size: 8.5pt;
                     color: #000;
                 }
+
+                .invoice-table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    font-size: 8pt;
+                }
+                .invoice-table th {
+                    border: 1px solid #000;
+                    padding: 2px 4px;
+                    text-align: center;
+                    font-weight: bold;
+                    font-size: 8pt;
+                    background: #fff;
+                }
+                .invoice-table td {
+                    border: 1px solid #000;
+                    padding: 2px 4px;
+                    font-size: 8pt;
+                    vertical-align: middle;
+                }
+
+                /* Garis putus-putus pemisah di tengah halaman */
+                .half-divider {
+                    border: none;
+                    border-top: 1.5px dashed #aaa;
+                    margin: 0 12mm;
+                    position: absolute;
+                    top: 148mm;
+                    left: 0;
+                    right: 0;
+                }
+
                 @media print {
                     @page {
                         size: A4 portrait;
@@ -98,34 +136,13 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
                         print-color-adjust: exact;
                         -webkit-print-color-adjust: exact;
                     }
-                    .invoice-page {
+                    .a4-page {
                         margin: 0;
-                        padding: 12mm 14mm;
                         box-shadow: none;
-                        width: 210mm;
-                        min-height: 297mm;
                     }
                     .no-print { display: none !important; }
                 }
-                .invoice-table {
-                    width: 100%;
-                    border-collapse: collapse;
-                    font-size: 9pt;
-                }
-                .invoice-table th {
-                    border: 1px solid #000;
-                    padding: 3px 5px;
-                    text-align: center;
-                    font-weight: bold;
-                    font-size: 9pt;
-                    background: #fff;
-                }
-                .invoice-table td {
-                    border: 1px solid #000;
-                    padding: 3px 5px;
-                    font-size: 9pt;
-                    vertical-align: middle;
-                }
+
                 @keyframes spin {
                     to { transform: rotate(360deg); }
                 }
@@ -147,170 +164,251 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
                 </button>
             </div>
 
-            <div className="invoice-page">
+            <div className="a4-page">
+                {/* ===== INVOICE (setengah A4 atas) ===== */}
+                <div className="invoice-content">
 
-                {/* ===== HEADER ===== */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '6mm' }}>
-                    {/* Logo + Info Perusahaan */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '4mm' }}>
-                        <img
-                            src="/logo.png"
-                            alt="Logo Cahaya Cargo Express"
-                            style={{ width: '22mm', height: '22mm', objectFit: 'contain' }}
-                        />
-                        <div>
-                            <p style={{ fontWeight: 'bold', fontSize: '12pt', lineHeight: 1.3 }}>
-                                {COMPANY_INFO.name}
-                            </p>
-                            <p style={{ fontSize: '9pt', lineHeight: 1.5 }}>{COMPANY_INFO.address}</p>
-                            <p style={{ fontSize: '9pt', lineHeight: 1.5 }}>{COMPANY_INFO.city}</p>
+                    {/* HEADER */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '4mm' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '3mm' }}>
+                            <img src="/logo.png" alt="Logo" style={{ width: '18mm', height: '18mm', objectFit: 'contain' }} />
+                            <div>
+                                <p style={{ fontWeight: 'bold', fontSize: '11pt', lineHeight: 1.3 }}>{COMPANY_INFO.name}</p>
+                                <p style={{ fontSize: '8pt', lineHeight: 1.5 }}>{COMPANY_INFO.address}</p>
+                                <p style={{ fontSize: '8pt', lineHeight: 1.5 }}>{COMPANY_INFO.city}</p>
+                            </div>
+                        </div>
+                        <div style={{ fontSize: '8.5pt', lineHeight: 1.8 }}>
+                            <div style={{ display: 'flex', gap: '3mm' }}>
+                                <span style={{ minWidth: '40px' }}>Nomer</span>
+                                <span>:</span>
+                                <span style={{ fontWeight: 'bold' }}>{invoice.invoiceNumber}</span>
+                            </div>
+                            <div style={{ display: 'flex', gap: '3mm' }}>
+                                <span style={{ minWidth: '40px' }}>Tanggal</span>
+                                <span>:</span>
+                                <span style={{ fontWeight: 'bold' }}>{formatTanggal(invoice.issueDate)}</span>
+                            </div>
                         </div>
                     </div>
 
-                    {/* Nomer & Tanggal */}
-                    <div style={{ fontSize: '10pt', textAlign: 'left', lineHeight: 1.8 }}>
-                        <div style={{ display: 'flex', gap: '4mm', alignItems: 'center' }}>
-                            <span style={{ minWidth: '45px' }}>Nomer</span>
-                            <span>:</span>
-                            <span style={{ fontWeight: 'bold' }}>{nomorDisplay}</span>
-                        </div>
-                        <div style={{ display: 'flex', gap: '4mm', alignItems: 'center' }}>
-                            <span style={{ minWidth: '45px' }}>Tanggal</span>
-                            <span>:</span>
-                            <span style={{ fontWeight: 'bold' }}>{formatTanggal(invoice.issueDate)}</span>
-                        </div>
+                    {/* JUDUL */}
+                    <div style={{ textAlign: 'center', marginBottom: '3mm' }}>
+                        <span style={{ fontSize: '13pt', fontWeight: 'bold', letterSpacing: '8px', textDecoration: 'underline' }}>
+                            I N V O I C E
+                        </span>
                     </div>
-                </div>
 
-                {/* ===== JUDUL INVOICE ===== */}
-                <div style={{ textAlign: 'center', marginBottom: '5mm' }}>
-                    <h1 style={{
-                        fontSize: '16pt',
-                        fontWeight: 'bold',
-                        letterSpacing: '8px',
-                        textDecoration: 'underline',
-                        display: 'inline-block',
-                    }}>
-                        I N V O I C E
-                    </h1>
-                </div>
+                    {/* KEPADA YTH */}
+                    <div style={{ marginBottom: '3mm' }}>
+                        <p style={{ fontSize: '8.5pt' }}>Kepada Yth,</p>
+                        <p style={{ fontWeight: 'bold', fontSize: '9.5pt', textTransform: 'uppercase' }}>{invoice.clientName}</p>
+                        {invoice.clientAddress && (
+                            <p style={{ fontWeight: 'bold', fontSize: '9.5pt', textTransform: 'uppercase' }}>{invoice.clientAddress}</p>
+                        )}
+                        {invoice.notes && (
+                            <p style={{ fontSize: '7.5pt', fontStyle: 'italic', marginTop: '0.5mm' }}>{invoice.notes}</p>
+                        )}
+                    </div>
 
-                {/* ===== KEPADA YTH ===== */}
-                <div style={{ marginBottom: '5mm' }}>
-                    <p style={{ fontSize: '10pt' }}>Kepada Yth,</p>
-                    <p style={{ fontWeight: 'bold', fontSize: '11pt', textTransform: 'uppercase' }}>
-                        {invoice.clientName}
-                    </p>
-                    {invoice.clientAddress && (
-                        <p style={{ fontWeight: 'bold', fontSize: '11pt', textTransform: 'uppercase' }}>
-                            {invoice.clientAddress}
-                        </p>
-                    )}
-                    {invoice.notes && (
-                        <p style={{ fontSize: '9pt', fontStyle: 'italic', marginTop: '1mm' }}>{invoice.notes}</p>
-                    )}
-                </div>
+                    {/* TABEL */}
+                    <table className="invoice-table">
+                        <thead>
+                            <tr>
+                                <th style={{ width: '5%' }}>NO</th>
+                                <th style={{ width: '34%' }}>KETERANGAN</th>
+                                <th style={{ width: '9%' }}>NO STT</th>
+                                <th style={{ width: '7%' }}>KOLI</th>
+                                <th style={{ width: '10%' }}>KG/M3</th>
+                                <th style={{ width: '14%' }}>HARGA</th>
+                                <th style={{ width: '14%' }}>JUMLAH</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {transactions.map((t, idx) => (
+                                <tr key={t.id}>
+                                    <td style={{ textAlign: 'center' }}>{idx + 1}.</td>
+                                    <td style={{ paddingLeft: 4 }}>
+                                        {`PENGIRIMAN BARANG ${(t.pengirimCity || 'ASAL').toUpperCase()} - ${t.tujuan.toUpperCase()}`}
+                                    </td>
+                                    <td style={{ textAlign: 'center' }}>{t.noSTT}</td>
+                                    <td style={{ textAlign: 'center' }}>{t.koli}</td>
+                                    <td style={{ textAlign: 'center' }}>{t.berat}</td>
+                                    <td style={{ textAlign: 'right', paddingRight: 4 }}>
+                                        {t.tipeTransaksi === 'regular' ? fmtAngka(t.harga) : '-'}
+                                    </td>
+                                    <td style={{ textAlign: 'right', paddingRight: 4 }}>{fmtAngka(t.jumlah)}</td>
+                                </tr>
+                            ))}
 
-                {/* ===== TABEL ===== */}
-                <table className="invoice-table">
-                    <thead>
-                        <tr>
-                            <th style={{ width: '5%' }}>NO</th>
-                            <th style={{ width: '34%', textAlign: 'center' }}>KETERANGAN</th>
-                            <th style={{ width: '9%' }}>NO STT</th>
-                            <th style={{ width: '7%' }}>KOLI</th>
-                            <th style={{ width: '10%' }}>KG/M3</th>
-                            <th style={{ width: '14%' }}>HARGA</th>
-                            <th style={{ width: '14%' }}>JUMLAH</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {/* Baris transaksi */}
-                        {transactions.map((t, idx) => (
-                            <tr key={t.id}>
-                                <td style={{ textAlign: 'center' }}>{idx + 1}.</td>
-                                <td style={{ paddingLeft: 4 }}>
-                                    {`PENGIRIMAN BARANG ${(t.pengirimCity || 'ASAL').toUpperCase()} - ${t.tujuan.toUpperCase()}`}
+                            {/* Baris kosong */}
+                            {Array.from({ length: emptyRowsCount }).map((_, i) => (
+                                <tr key={`empty-${i}`} style={{ height: '6mm' }}>
+                                    <td></td><td></td><td></td><td></td><td></td><td></td>
+                                    <td style={{ textAlign: 'right', paddingRight: 4 }}>-</td>
+                                </tr>
+                            ))}
+
+                            {/* Terbilang + TOTAL */}
+                            <tr>
+                                <td colSpan={5} style={{ fontSize: '7.5pt', fontStyle: 'italic', paddingLeft: 4 }}>
+                                    Terbilang : # {terbilang(totalAkhir)} #
                                 </td>
-                                <td style={{ textAlign: 'center' }}>{t.noSTT}</td>
-                                <td style={{ textAlign: 'center' }}>{t.koli}</td>
-                                <td style={{ textAlign: 'center' }}>{t.berat}</td>
-                                <td style={{ textAlign: 'right', paddingRight: 4 }}>
-                                    {t.tipeTransaksi === 'regular' ? fmtAngka(t.harga) : '-'}
+                                <td style={{ textAlign: 'center', fontWeight: 'bold', letterSpacing: '2px', fontSize: '8pt' }}>
+                                    T O T A L
                                 </td>
-                                <td style={{ textAlign: 'right', paddingRight: 4 }}>
-                                    {fmtAngka(t.jumlah)}
+                                <td style={{ textAlign: 'right', fontWeight: 'bold', paddingRight: 4 }}>
+                                    {fmtAngka(totalAkhir)}
                                 </td>
                             </tr>
-                        ))}
+                        </tbody>
+                    </table>
 
-                        {/* Baris kosong pengisi */}
-                        {Array.from({ length: emptyRowsCount }).map((_, i) => (
-                            <tr key={`empty-${i}`} style={{ height: '8mm' }}>
-                                <td></td>
-                                <td></td>
-                                <td></td>
-                                <td></td>
-                                <td></td>
-                                <td></td>
-                                <td style={{ textAlign: 'right', paddingRight: 4 }}>-</td>
-                            </tr>
-                        ))}
-
-                        {/* Baris Terbilang + TOTAL */}
-                        <tr>
-                            <td
-                                colSpan={5}
-                                style={{ border: '1px solid #000', fontSize: '8.5pt', fontStyle: 'italic', paddingLeft: 4 }}
-                            >
-                                Terbilang : # {terbilang(totalAkhir)} #
-                            </td>
-                            <td style={{ textAlign: 'center', fontWeight: 'bold', letterSpacing: '2px' }}>
-                                T O T A L
-                            </td>
-                            <td style={{ textAlign: 'right', fontWeight: 'bold', paddingRight: 4 }}>
-                                {fmtAngka(totalAkhir)}
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
-
-                {/* ===== FOOTER ===== */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginTop: '6mm' }}>
-
-                    {/* Info Transfer (kiri) */}
-                    <div style={{ fontSize: '10pt', lineHeight: 1.8 }}>
-                        <p style={{ fontWeight: 'bold', textDecoration: 'underline', marginBottom: '2mm' }}>
-                            TRANSFER :
-                        </p>
-                        {COMPANY_INFO.bankAccounts.map((acc, i) => (
-                            <p key={i}>{acc.bank} {acc.accountNumber}  an {acc.accountName}</p>
-                        ))}
-                    </div>
-
-                    {/* Tanda Tangan (kanan) */}
-                    <div style={{ textAlign: 'center', minWidth: '50mm' }}>
-                        <p style={{ fontSize: '10pt', marginBottom: '2mm' }}>Hormat Kami,</p>
-                        <div style={{ position: 'relative', display: 'inline-block' }}>
+                    {/* FOOTER */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginTop: '4mm' }}>
+                        <div style={{ fontSize: '8.5pt', lineHeight: 1.8 }}>
+                            <p style={{ fontWeight: 'bold', textDecoration: 'underline', marginBottom: '1mm' }}>TRANSFER :</p>
+                            {COMPANY_INFO.bankAccounts.map((acc, i) => (
+                                <p key={i}>{acc.bank} {acc.accountNumber}  an {acc.accountName}</p>
+                            ))}
+                        </div>
+                        <div style={{ textAlign: 'center', minWidth: '45mm' }}>
+                            <p style={{ fontSize: '8.5pt', marginBottom: '1mm' }}>Hormat Kami,</p>
                             <img
                                 src="/logo.png"
                                 alt="Stempel"
-                                style={{
-                                    width: '28mm',
-                                    height: '28mm',
-                                    objectFit: 'contain',
-                                    opacity: 0.35,
-                                    display: 'block',
-                                    margin: '0 auto',
-                                }}
+                                style={{ width: '22mm', height: '22mm', objectFit: 'contain', opacity: 0.3, display: 'block', margin: '0 auto' }}
                             />
+                            <p style={{ fontWeight: 'bold', fontSize: '8.5pt', borderTop: '1px solid #000', paddingTop: '1mm', marginTop: '1mm', letterSpacing: '0.5px' }}>
+                                {COMPANY_INFO.signatureName}
+                            </p>
                         </div>
-                        <p style={{ fontWeight: 'bold', fontSize: '10pt', borderTop: '1px solid #000', paddingTop: '1mm', marginTop: '1mm', letterSpacing: '1px' }}>
-                            {COMPANY_INFO.signatureName}
-                        </p>
                     </div>
                 </div>
 
+                {/* ── Garis putus-putus pemisah setengah halaman ── */}
+                <div className="half-divider" />
+
+                {/* ===== SALINAN INVOICE (setengah A4 bawah) ===== */}
+                <div className="invoice-content" style={{ marginTop: '148mm', position: 'absolute', top: 0, left: 0, right: 0 }}>
+
+                    {/* HEADER */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '4mm' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '3mm' }}>
+                            <img src="/logo.png" alt="Logo" style={{ width: '18mm', height: '18mm', objectFit: 'contain' }} />
+                            <div>
+                                <p style={{ fontWeight: 'bold', fontSize: '11pt', lineHeight: 1.3 }}>{COMPANY_INFO.name}</p>
+                                <p style={{ fontSize: '8pt', lineHeight: 1.5 }}>{COMPANY_INFO.address}</p>
+                                <p style={{ fontSize: '8pt', lineHeight: 1.5 }}>{COMPANY_INFO.city}</p>
+                            </div>
+                        </div>
+                        <div style={{ fontSize: '8.5pt', lineHeight: 1.8 }}>
+                            <div style={{ display: 'flex', gap: '3mm' }}>
+                                <span style={{ minWidth: '40px' }}>Nomer</span>
+                                <span>:</span>
+                                <span style={{ fontWeight: 'bold' }}>{invoice.invoiceNumber}</span>
+                            </div>
+                            <div style={{ display: 'flex', gap: '3mm' }}>
+                                <span style={{ minWidth: '40px' }}>Tanggal</span>
+                                <span>:</span>
+                                <span style={{ fontWeight: 'bold' }}>{formatTanggal(invoice.issueDate)}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* JUDUL */}
+                    <div style={{ textAlign: 'center', marginBottom: '3mm' }}>
+                        <span style={{ fontSize: '13pt', fontWeight: 'bold', letterSpacing: '8px', textDecoration: 'underline' }}>
+                            I N V O I C E
+                        </span>
+                    </div>
+
+                    {/* KEPADA YTH */}
+                    <div style={{ marginBottom: '3mm' }}>
+                        <p style={{ fontSize: '8.5pt' }}>Kepada Yth,</p>
+                        <p style={{ fontWeight: 'bold', fontSize: '9.5pt', textTransform: 'uppercase' }}>{invoice.clientName}</p>
+                        {invoice.clientAddress && (
+                            <p style={{ fontWeight: 'bold', fontSize: '9.5pt', textTransform: 'uppercase' }}>{invoice.clientAddress}</p>
+                        )}
+                        {invoice.notes && (
+                            <p style={{ fontSize: '7.5pt', fontStyle: 'italic', marginTop: '0.5mm' }}>{invoice.notes}</p>
+                        )}
+                    </div>
+
+                    {/* TABEL */}
+                    <table className="invoice-table">
+                        <thead>
+                            <tr>
+                                <th style={{ width: '5%' }}>NO</th>
+                                <th style={{ width: '34%' }}>KETERANGAN</th>
+                                <th style={{ width: '9%' }}>NO STT</th>
+                                <th style={{ width: '7%' }}>KOLI</th>
+                                <th style={{ width: '10%' }}>KG/M3</th>
+                                <th style={{ width: '14%' }}>HARGA</th>
+                                <th style={{ width: '14%' }}>JUMLAH</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {transactions.map((t, idx) => (
+                                <tr key={`copy-${t.id}`}>
+                                    <td style={{ textAlign: 'center' }}>{idx + 1}.</td>
+                                    <td style={{ paddingLeft: 4 }}>
+                                        {`PENGIRIMAN BARANG ${(t.pengirimCity || 'ASAL').toUpperCase()} - ${t.tujuan.toUpperCase()}`}
+                                    </td>
+                                    <td style={{ textAlign: 'center' }}>{t.noSTT}</td>
+                                    <td style={{ textAlign: 'center' }}>{t.koli}</td>
+                                    <td style={{ textAlign: 'center' }}>{t.berat}</td>
+                                    <td style={{ textAlign: 'right', paddingRight: 4 }}>
+                                        {t.tipeTransaksi === 'regular' ? fmtAngka(t.harga) : '-'}
+                                    </td>
+                                    <td style={{ textAlign: 'right', paddingRight: 4 }}>{fmtAngka(t.jumlah)}</td>
+                                </tr>
+                            ))}
+
+                            {/* Baris kosong */}
+                            {Array.from({ length: emptyRowsCount }).map((_, i) => (
+                                <tr key={`copy-empty-${i}`} style={{ height: '6mm' }}>
+                                    <td></td><td></td><td></td><td></td><td></td><td></td>
+                                    <td style={{ textAlign: 'right', paddingRight: 4 }}>-</td>
+                                </tr>
+                            ))}
+
+                            {/* Terbilang + TOTAL */}
+                            <tr>
+                                <td colSpan={5} style={{ fontSize: '7.5pt', fontStyle: 'italic', paddingLeft: 4 }}>
+                                    Terbilang : # {terbilang(totalAkhir)} #
+                                </td>
+                                <td style={{ textAlign: 'center', fontWeight: 'bold', letterSpacing: '2px', fontSize: '8pt' }}>
+                                    T O T A L
+                                </td>
+                                <td style={{ textAlign: 'right', fontWeight: 'bold', paddingRight: 4 }}>
+                                    {fmtAngka(totalAkhir)}
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    {/* FOOTER */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginTop: '4mm' }}>
+                        <div style={{ fontSize: '8.5pt', lineHeight: 1.8 }}>
+                            <p style={{ fontWeight: 'bold', textDecoration: 'underline', marginBottom: '1mm' }}>TRANSFER :</p>
+                            {COMPANY_INFO.bankAccounts.map((acc, i) => (
+                                <p key={`copy-bank-${i}`}>{acc.bank} {acc.accountNumber}  an {acc.accountName}</p>
+                            ))}
+                        </div>
+                        <div style={{ textAlign: 'center', minWidth: '45mm' }}>
+                            <p style={{ fontSize: '8.5pt', marginBottom: '1mm' }}>Hormat Kami,</p>
+                            <img
+                                src="/logo.png"
+                                alt="Stempel"
+                                style={{ width: '22mm', height: '22mm', objectFit: 'contain', opacity: 0.3, display: 'block', margin: '0 auto' }}
+                            />
+                            <p style={{ fontWeight: 'bold', fontSize: '8.5pt', borderTop: '1px solid #000', paddingTop: '1mm', marginTop: '1mm', letterSpacing: '0.5px' }}>
+                                {COMPANY_INFO.signatureName}
+                            </p>
+                        </div>
+                    </div>
+                </div>
             </div>
         </>
     );
@@ -318,7 +416,7 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
 
 export default function PrintInvoicePage(props: { params: Promise<{ id: string }> }) {
     return (
-        <Suspense fallback={<div style={{ padding: 32, textAlign: 'center' }}>Loading...</div>}>
+        <Suspense fallback={<div style={{ padding: 32, textAlign: 'center', fontFamily: 'Arial' }}>Loading...</div>}>
             <PrintInvoiceContent params={props.params} />
         </Suspense>
     );

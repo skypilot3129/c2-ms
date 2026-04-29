@@ -10,6 +10,11 @@ export default function FinanceLayout({ children }: { children: ReactNode }) {
     const pathname = usePathname();
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
+    // Halaman cetak tidak memerlukan layout (sidebar / header)
+    if (pathname.includes('/print')) {
+        return <>{children}</>;
+    }
+
     const navLinks = [
         {
             label: 'Piutang & Penagihan',
