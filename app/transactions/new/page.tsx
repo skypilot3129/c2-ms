@@ -479,7 +479,7 @@ export default function NewTransactionPage() {
                                                     <div className="flex">
                                                         <input
                                                             type="number"
-                                                            step="0.01"
+                                                            step="any"
                                                             min="0"
                                                             value={penerima.berat || ''}
                                                             onChange={(e) => updatePenerima(index, 'berat', e.target.value === '' ? '' : parseFloat(e.target.value) || 0)}

@@ -434,7 +434,7 @@ export default function EditTransactionPage({ params }: { params: Promise<{ id: 
                                     <div className="flex">
                                         <input
                                             type="number"
-                                            step="0.01"
+                                            step="any"
                                             min="0"
                                             value={formData.berat || ''}
                                             onChange={(e) => handleChange('berat', e.target.value === '' ? '' : parseFloat(e.target.value) || 0)}
