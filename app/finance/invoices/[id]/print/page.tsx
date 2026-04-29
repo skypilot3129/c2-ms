@@ -63,17 +63,16 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
         );
     }
 
-    const totalAkhir = invoice.totalAmount;
     const emptyRowsCount = Math.max(0, MIN_ROWS - transactions.length);
     const isTaxableInvoice = transactions.some(t => t.isTaxable || (t.ppn && t.ppn > 0));
 
-    // Calculate totals for tax layout
-    const totalPPN = transactions.reduce((acc, t) => acc + (t.ppn || 0), 0);
-    const subtotalTagihan = totalAkhir - totalPPN;
+    // Calculate totals for tax layout dynamically to enforce 1.1% PPN rule on all invoices (including historical)
+    const subtotalTagihan = transactions.reduce((acc, t) => acc + t.jumlah, 0);
+    const totalPPN = isTaxableInvoice ? Math.round(subtotalTagihan * 0.011) : 0;
+    const totalAkhirDisplay = subtotalTagihan + totalPPN;
+    
     const totalKoli = transactions.reduce((acc, t) => acc + (t.koli || 0), 0);
     const totalBerat = transactions.reduce((acc, t) => acc + (t.berat || 0), 0);
-    const ppnRate = transactions.find(t => t.ppnRate && t.ppnRate > 0)?.ppnRate || 0.011;
-    const ppnRateString = `${Number((ppnRate * 100).toFixed(2)).toLocaleString('id-ID')}%`;
 
     return (
         <>
@@ -291,10 +290,10 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
                                 {/* Terbilang + TOTAL AKHIR */}
                                 <tr>
                                     <td colSpan={5} style={{ fontSize: '7.5pt', fontStyle: 'italic', paddingLeft: 4 }}>
-                                        Terbilang : # {terbilang(totalAkhir)} #
+                                        Terbilang : # {terbilang(totalAkhirDisplay)} #
                                     </td>
                                     <td style={{ textAlign: 'right', fontWeight: 'bold', paddingRight: 4 }}>
-                                        {fmtAngka(totalAkhir)}
+                                        {fmtAngka(totalAkhirDisplay)}
                                     </td>
                                 </tr>
                             </tbody>
@@ -418,13 +417,13 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
                                 {/* Terbilang + TOTAL */}
                                 <tr>
                                     <td colSpan={5} style={{ fontSize: '7.5pt', fontStyle: 'italic', paddingLeft: 4 }}>
-                                        Terbilang : # {terbilang(totalAkhir)} #
+                                        Terbilang : # {terbilang(totalAkhirDisplay)} #
                                     </td>
                                     <td style={{ textAlign: 'center', fontWeight: 'bold', letterSpacing: '2px', fontSize: '8pt' }}>
                                         T O T A L
                                     </td>
                                     <td style={{ textAlign: 'right', fontWeight: 'bold', paddingRight: 4 }}>
-                                        {fmtAngka(totalAkhir)}
+                                        {fmtAngka(totalAkhirDisplay)}
                                     </td>
                                 </tr>
                             </tbody>
