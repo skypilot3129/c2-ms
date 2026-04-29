@@ -174,7 +174,7 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
                                 <div style={{ display: 'flex', gap: '3mm' }}>
                                     <span style={{ minWidth: '50px' }}>Nomer</span>
                                     <span>:</span>
-                                    <span style={{ fontWeight: 'bold' }}>{invoice.invoiceNumber}</span>
+                                    <span contentEditable suppressContentEditableWarning style={{ fontWeight: 'bold', outline: 'none' }}>{invoice.invoiceNumber}</span>
                                 </div>
                                 <div style={{ display: 'flex', gap: '3mm' }}>
                                     <span style={{ minWidth: '50px' }}>Tanggal</span>
@@ -205,9 +205,9 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
                         {/* KEPADA YTH */}
                         <div style={{ marginBottom: '3mm' }}>
                             <p style={{ fontSize: '8.5pt' }}>Kepada Yth,</p>
-                            <p style={{ fontWeight: 'bold', fontSize: '9.5pt', textTransform: 'uppercase' }}>{invoice.clientName}</p>
+                            <p contentEditable suppressContentEditableWarning style={{ fontWeight: 'bold', fontSize: '9.5pt', textTransform: 'uppercase', outline: 'none' }}>{invoice.clientName}</p>
                             {invoice.clientAddress && (
-                                <p style={{ fontWeight: 'bold', fontSize: '9.5pt', textTransform: 'uppercase' }}>{invoice.clientAddress}</p>
+                                <p contentEditable suppressContentEditableWarning style={{ fontWeight: 'bold', fontSize: '9.5pt', textTransform: 'uppercase', outline: 'none' }}>{invoice.clientAddress}</p>
                             )}
                         </div>
 
@@ -275,7 +275,7 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
                                 <tr>
                                     <td style={{ textAlign: 'center' }}>{transactions.length + 1}.</td>
                                     <td colSpan={4} style={{ paddingLeft: 4 }}>
-                                        PPN {ppnRateString}
+                                        <span contentEditable suppressContentEditableWarning style={{ outline: 'none' }}>PPN 1.1%</span>
                                     </td>
                                     <td style={{ textAlign: 'right', paddingRight: 4 }}>{fmtAngka(totalPPN)}</td>
                                 </tr>
@@ -317,11 +317,8 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
                             </div>
                             <div style={{ textAlign: 'center', minWidth: '45mm', paddingTop: '2mm' }}>
                                 <p style={{ fontSize: '8.5pt', marginBottom: '1mm' }}>Hormat Kami,</p>
-                                <img
-                                    src="/ttd.png"
-                                    alt="Tanda Tangan & Stempel"
-                                    style={{ width: '45mm', height: 'auto', objectFit: 'contain', display: 'block', margin: '0 auto' }}
-                                />
+                                <div style={{ height: '30mm' }}></div>
+                                <p style={{ fontSize: '8.5pt', fontWeight: 'bold', borderTop: '1px solid black', display: 'inline-block', paddingTop: '2mm' }}>{COMPANY_INFO.signatureName}</p>
                             </div>
                         </div>
                     </>
@@ -344,7 +341,7 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
                                 <div style={{ display: 'flex', gap: '3mm' }}>
                                     <span style={{ minWidth: '40px' }}>Nomer</span>
                                     <span>:</span>
-                                    <span style={{ fontWeight: 'bold' }}>{invoice.invoiceNumber}</span>
+                                    <span contentEditable suppressContentEditableWarning style={{ fontWeight: 'bold', outline: 'none' }}>{invoice.invoiceNumber}</span>
                                 </div>
                                 <div style={{ display: 'flex', gap: '3mm' }}>
                                     <span style={{ minWidth: '40px' }}>Tanggal</span>
@@ -364,9 +361,9 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
                         {/* KEPADA YTH */}
                         <div style={{ marginBottom: '3mm' }}>
                             <p style={{ fontSize: '8.5pt' }}>Kepada Yth,</p>
-                            <p style={{ fontWeight: 'bold', fontSize: '9.5pt', textTransform: 'uppercase' }}>{invoice.clientName}</p>
+                            <p contentEditable suppressContentEditableWarning style={{ fontWeight: 'bold', fontSize: '9.5pt', textTransform: 'uppercase', outline: 'none' }}>{invoice.clientName}</p>
                             {invoice.clientAddress && (
-                                <p style={{ fontWeight: 'bold', fontSize: '9.5pt', textTransform: 'uppercase' }}>{invoice.clientAddress}</p>
+                                <p contentEditable suppressContentEditableWarning style={{ fontWeight: 'bold', fontSize: '9.5pt', textTransform: 'uppercase', outline: 'none' }}>{invoice.clientAddress}</p>
                             )}
                             {invoice.notes && (
                                 <p style={{ fontSize: '7.5pt', fontStyle: 'italic', marginTop: '0.5mm' }}>{invoice.notes}</p>
