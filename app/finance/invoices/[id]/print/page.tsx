@@ -22,7 +22,7 @@ function formatTanggal(date: Date | string): string {
     }).toUpperCase();
 }
 
-const MIN_ROWS = 10;
+const MIN_ROWS = 2;
 
 function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
     const { id } = use(params);

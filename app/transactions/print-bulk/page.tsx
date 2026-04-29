@@ -23,7 +23,7 @@ function formatTanggal(date: Date | string): string {
 }
 
 // Jumlah baris minimum di tabel (termasuk data)
-const MIN_ROWS = 10;
+const MIN_ROWS = 2;
 
 function PrintBulkInvoiceContent() {
     const searchParams = useSearchParams();
