@@ -97,7 +97,7 @@ export default function NewTransactionPage() {
         }
     };
 
-    const [taxSettings, setTaxSettings] = useState({ isPKP: false, defaultPPNRate: 0.11 });
+    const [taxSettings, setTaxSettings] = useState({ isPKP: false, defaultPPNRate: 0.011 });
 
     const updatePenerima = (index: number, field: string, value: any) => {
         const updated = [...penerimaList];

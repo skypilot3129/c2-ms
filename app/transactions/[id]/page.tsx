@@ -216,7 +216,7 @@ export default function TransactionDetailPage() {
                                                     <label className="text-xs text-blue-600 font-medium uppercase tracking-wider mb-1 block">Status Pajak</label>
                                                     <div className="font-bold text-blue-800 flex items-center gap-2">
                                                         <div className="w-2 h-2 bg-blue-600 rounded-full"></div>
-                                                        PKP ({(transaction.ppnRate || 0.11) * 100}%)
+                                                        PKP ({(transaction.ppnRate || 0.011) * 100}%)
                                                     </div>
                                                 </div>
                                                 <div className="text-right">

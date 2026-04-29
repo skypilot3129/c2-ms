@@ -18,7 +18,7 @@ export default function TaxPage() {
     // Settings State
     const [settings, setSettings] = useState<TaxSettings>({
         isPKP: false,
-        defaultPPNRate: 0.11,
+        defaultPPNRate: 0.011,
         companyName: '',
         companyNPWP: '',
         companyAddress: ''

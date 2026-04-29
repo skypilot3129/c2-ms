@@ -184,7 +184,13 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
                                 <div style={{ display: 'flex', gap: '3mm' }}>
                                     <span style={{ minWidth: '50px' }}>No. NPWP</span>
                                     <span>:</span>
-                                    <span style={{ fontWeight: 'bold' }}>031.509.910.1-615.000</span>
+                                    <span 
+                                        contentEditable 
+                                        suppressContentEditableWarning 
+                                        style={{ fontWeight: 'bold', outline: 'none' }}
+                                    >
+                                        031.509.910.1-615.000
+                                    </span>
                                 </div>
                             </div>
                         </div>
@@ -299,7 +305,14 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
                             <div style={{ fontSize: '8.5pt', lineHeight: 1.8 }}>
                                 <p style={{ fontWeight: 'bold', textDecoration: 'underline', marginBottom: '1mm' }}>TRANSFER :</p>
                                 {COMPANY_INFO.bankAccounts.map((acc, i) => (
-                                    <p key={i}>{acc.bank} {acc.accountNumber}  a/n {acc.accountName} CV</p>
+                                    <p 
+                                        key={i}
+                                        contentEditable
+                                        suppressContentEditableWarning
+                                        style={{ outline: 'none' }}
+                                    >
+                                        {acc.bank} {acc.accountNumber}  a/n {acc.accountName} CV
+                                    </p>
                                 ))}
                             </div>
                             <div style={{ textAlign: 'center', minWidth: '45mm', paddingTop: '2mm' }}>
@@ -425,7 +438,14 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
                             <div style={{ fontSize: '8.5pt', lineHeight: 1.8 }}>
                                 <p style={{ fontWeight: 'bold', textDecoration: 'underline', marginBottom: '1mm' }}>TRANSFER :</p>
                                 {COMPANY_INFO.bankAccounts.map((acc, i) => (
-                                    <p key={i}>{acc.bank} {acc.accountNumber}  an {acc.accountName}</p>
+                                    <p 
+                                        key={i}
+                                        contentEditable
+                                        suppressContentEditableWarning
+                                        style={{ outline: 'none' }}
+                                    >
+                                        {acc.bank} {acc.accountNumber}  an {acc.accountName}
+                                    </p>
                                 ))}
                             </div>
                             <div style={{ textAlign: 'center', minWidth: '45mm', paddingTop: '4mm' }}>

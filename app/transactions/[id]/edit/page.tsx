@@ -30,7 +30,7 @@ export default function EditTransactionPage({ params }: { params: Promise<{ id: 
     const [clients, setClients] = useState<Client[]>([]);
 
     // Tax Settings State
-    const [taxSettings, setTaxSettings] = useState({ isPKP: false, defaultPPNRate: 0.11 });
+    const [taxSettings, setTaxSettings] = useState({ isPKP: false, defaultPPNRate: 0.011 });
 
     const [formData, setFormData] = useState<TransactionFormData>({
         branch: 'surabaya',  // Default, will be set from transaction

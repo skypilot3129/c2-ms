@@ -148,7 +148,7 @@ export default function PrintInvoicePage() {
                                 <td colSpan={6} style={{ border: '1px solid black' }}></td>
                                 <td style={{ border: '1px solid black', textAlign: 'right' }}>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '8px' }}>
-                                        <span>PPN ({(transaction.ppnRate || 0.11) * 100}%)</span>
+                                        <span>PPN ({(transaction.ppnRate || 0.011) * 100}%)</span>
                                         <span>{formatRupiah(transaction.ppn).replace('Rp', '').trim()}</span>
                                     </div>
                                 </td>

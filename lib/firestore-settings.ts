@@ -7,7 +7,7 @@ const TAX_SETTINGS_DOC = 'tax_settings';
 
 export interface TaxSettings {
     isPKP: boolean;
-    defaultPPNRate: number; // e.g. 0.11
+    defaultPPNRate: number; // e.g. 0.011
     companyName?: string;
     companyNPWP?: string;
     companyAddress?: string;
@@ -56,7 +56,7 @@ export const getTaxSettings = async (userId: string): Promise<TaxSettings> => {
     // Defaults
     return {
         isPKP: false,
-        defaultPPNRate: 0.11, // 11%
+        defaultPPNRate: 0.011, // 1.1%
     };
 };
 
