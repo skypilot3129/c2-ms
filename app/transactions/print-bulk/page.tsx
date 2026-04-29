@@ -13,8 +13,8 @@ function fmtAngka(num: number): string {
 }
 
 // Format tanggal: "20 APRIL 2026"
-function formatTanggal(dateStr: string): string {
-    const d = new Date(dateStr);
+function formatTanggal(date: Date | string): string {
+    const d = typeof date === 'string' ? new Date(date) : date;
     return d.toLocaleDateString('id-ID', {
         day: 'numeric',
         month: 'long',
