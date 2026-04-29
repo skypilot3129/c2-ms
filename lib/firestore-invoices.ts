@@ -39,13 +39,9 @@ const docToInvoice = (id: string, data: InvoiceDoc): Invoice => ({
     updatedAt: data.updatedAt.toDate(),
 });
 
-// Generate proper Invoice Number (INV/YYYY/MM/XXXX)
+// Generate continuous Invoice Number (e.g. 12703)
 const generateInvoiceNumber = async (userId: string): Promise<string> => {
     const counterRef = doc(db, METADATA_COLLECTION, 'invoice_gen_counters');
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const prefix = `INV/${year}/${month}`;
 
     try {
         const newNumber = await runTransaction(db, async (transaction) => {
@@ -54,10 +50,8 @@ const generateInvoiceNumber = async (userId: string): Promise<string> => {
 
             if (counterDoc.exists()) {
                 const data = counterDoc.data();
-                // Check if we are in the same month/year group
-                // Implementation simplification: Global counter for user or month-based?
-                // Let's do month-based for cleaner reset.
-                const key = `global_${year}${month}`; // Global key
+                // Continuous global counter
+                const key = 'global_invoice_number';
                 currentNumber = data[key] || 0;
             }
 
@@ -66,7 +60,7 @@ const generateInvoiceNumber = async (userId: string): Promise<string> => {
             }
 
             const nextNumber = currentNumber + 1;
-            const key = `global_${year}${month}`; // Global key
+            const key = 'global_invoice_number';
 
             transaction.set(counterRef, {
                 [key]: nextNumber,
@@ -76,10 +70,10 @@ const generateInvoiceNumber = async (userId: string): Promise<string> => {
             return nextNumber;
         });
 
-        return `${prefix}/${String(newNumber).padStart(4, '0')}`;
+        return String(newNumber);
     } catch (error) {
         console.error('Error generating invoice number:', error);
-        return `${prefix}/${Date.now().toString().slice(-4)}`;
+        return String(12702 + Math.floor(Math.random() * 1000));
     }
 };
 
