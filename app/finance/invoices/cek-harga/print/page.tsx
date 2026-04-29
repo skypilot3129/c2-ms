@@ -166,27 +166,34 @@ function CekHargaPrintContent() {
                     <thead>
                         <tr>
                             <th style={{ width: '4%' }}>NO</th>
-                            <th style={{ width: '12%' }}>TANGGAL</th>
-                            <th style={{ width: '13%' }}>NO STT</th>
-                            <th style={{ width: '22%' }}>PENGIRIM - TUJUAN</th>
-                            <th style={{ width: '10%' }}>KOLI/KG</th>
-                            <th style={{ width: '13%' }}>HARGA SISTEM</th>
-                            <th style={{ width: '18%' }}>KOREKSI HARGA</th>
-                            <th style={{ width: '8%' }}>CEK</th>
+                            <th style={{ width: '15%' }}>STT & TANGGAL</th>
+                            <th style={{ width: '18%' }}>PENGIRIM - TUJUAN</th>
+                            <th style={{ width: '8%' }}>KOLI/KG</th>
+                            <th style={{ width: '11%' }}>HRG SATUAN</th>
+                            <th style={{ width: '13%' }}>TOTAL HRG</th>
+                            <th style={{ width: '12%' }}>KOREKSI SATUAN</th>
+                            <th style={{ width: '13%' }}>KOREKSI TOTAL</th>
+                            <th style={{ width: '6%' }}>CEK</th>
                         </tr>
                     </thead>
                     <tbody>
                         {transactions.map((t, idx) => (
                             <tr key={t.id}>
                                 <td style={{ textAlign: 'center' }}>{idx + 1}.</td>
-                                <td style={{ textAlign: 'center' }}>{formatTanggal(t.tanggal)}</td>
-                                <td style={{ textAlign: 'center', fontWeight: 'bold' }}>{t.noSTT}</td>
+                                <td style={{ textAlign: 'center' }}>
+                                    <div style={{ fontWeight: 'bold' }}>{t.noSTT}</div>
+                                    <div style={{ fontSize: '7.5pt', color: '#4b5563' }}>{formatTanggal(t.tanggal)}</div>
+                                </td>
                                 <td>{t.pengirimName.substring(0, 15)} - {t.tujuan}</td>
                                 <td style={{ textAlign: 'center' }}>{t.koli} / {t.berat}</td>
-                                <td style={{ textAlign: 'right', fontWeight: 'bold', paddingRight: 6 }}>
+                                <td style={{ textAlign: 'right', fontWeight: 'bold', paddingRight: 4 }}>
+                                    {t.tipeTransaksi === 'regular' ? fmtAngka(t.harga) : '-'}
+                                </td>
+                                <td style={{ textAlign: 'right', fontWeight: 'bold', paddingRight: 4 }}>
                                     {fmtAngka(t.jumlah)}
                                 </td>
-                                <td>{/* Kolom kosong untuk coretan koreksi */}</td>
+                                <td></td>
+                                <td></td>
                                 <td>
                                     <div className="checkbox-box"></div>
                                 </td>
@@ -196,7 +203,7 @@ function CekHargaPrintContent() {
                         {/* Baris Kosong */}
                         {Array.from({ length: emptyRowsCount }).map((_, i) => (
                             <tr key={`empty-${i}`}>
-                                <td>&nbsp;</td><td></td><td></td><td></td><td></td><td></td><td></td>
+                                <td>&nbsp;</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td>
                                 <td><div className="checkbox-box" style={{ borderColor: 'transparent' }}></div></td>
                             </tr>
                         ))}
