@@ -156,14 +156,14 @@ export default function PrintInvoicePage() {
                         )}
                         <tr>
                             <td colSpan={6} style={{ border: '1px solid black' }}>
-                                <em style={{ fontSize: '7px' }}>Terbilang: {terbilang(transaction.jumlah)}</em>
+                                <em style={{ fontSize: '7px' }}>Terbilang: {terbilang(transaction.jumlah + (transaction.ppn || 0))}</em>
                             </td>
                             <td style={{ border: '1px solid black', textAlign: 'right' }}><strong>TOTAL</strong></td>
                         </tr>
                         <tr>
                             <td colSpan={6} style={{ border: '1px solid black', padding: '1px' }}></td>
                             <td style={{ border: '2px solid black', textAlign: 'right', fontWeight: 'bold' }}>
-                                {formatRupiah(transaction.jumlah).replace('Rp', '').trim()}
+                                {formatRupiah(transaction.jumlah + (transaction.ppn || 0)).replace('Rp', '').trim()}
                             </td>
                         </tr>
                     </tbody>

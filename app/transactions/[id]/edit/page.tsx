@@ -163,7 +163,7 @@ export default function EditTransactionPage({ params }: { params: Promise<{ id: 
             const rate = transaction?.ppnRate || taxSettings.defaultPPNRate;
 
             const ppn = isPKP ? subtotal * rate : 0;
-            setJumlah(Math.round(subtotal + ppn));
+            setJumlah(Math.round(subtotal));
         }
     }, [formData.harga, formData.berat, formData.tipeTransaksi, isPKP, transaction?.ppnRate, taxSettings.defaultPPNRate]);
 
@@ -189,9 +189,7 @@ export default function EditTransactionPage({ params }: { params: Promise<{ id: 
                 tujuan: penerimaData.tujuan,
                 isTaxable: isPKP,
                 ppnRate: isPKP ? (transaction?.ppnRate || taxSettings.defaultPPNRate) : 0,
-                // Note: ppn will be calculated in backend if we don't pass it, 
-                // but since we track `jumlah` (Total), let's ensure consistency.
-                ppn: isPKP ? Math.round(jumlah - (jumlah / (1 + (transaction?.ppnRate || taxSettings.defaultPPNRate)))) : 0
+                ppn: isPKP ? Math.round(jumlah * (transaction?.ppnRate || taxSettings.defaultPPNRate)) : 0
             };
 
             await updateTransaction(

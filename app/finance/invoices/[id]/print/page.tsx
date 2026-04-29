@@ -236,7 +236,7 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
 
                                 {/* Data Rows */}
                                 {transactions.map((t, idx) => {
-                                    const baseAmount = t.jumlah - (t.ppn || 0);
+                                    const baseAmount = t.jumlah;
                                     return (
                                         <tr key={t.id}>
                                             <td style={{ textAlign: 'center' }}>{idx + 1}.</td>

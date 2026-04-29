@@ -173,7 +173,7 @@ export default function TaxPage() {
                                             />
                                             <span className="text-gray-500 font-medium">%</span>
                                         </div>
-                                        <p className="text-xs text-gray-400 mt-1">Tarif resmi saat ini: 11% (akan naik jadi 12% di 2025)</p>
+                                        <p className="text-xs text-gray-400 mt-1">Tarif pajak pengiriman: 1.1%</p>
                                     </div>
 
                                     <div className="grid grid-cols-1 gap-4">

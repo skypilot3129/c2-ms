@@ -324,10 +324,10 @@ export default function TransactionDetailPage() {
                                 {/* Summary Card */}
                                 <div className="bg-gradient-to-br from-blue-600 to-purple-700 rounded-2xl p-6 text-white shadow-lg">
                                     <h3 className="text-blue-100 text-sm font-semibold uppercase tracking-wider mb-1">Total Biaya</h3>
-                                    <div className="text-3xl font-bold mb-1">{formatRupiah(transaction.jumlah)}</div>
+                                    <div className="text-3xl font-bold mb-1">{formatRupiah(transaction.jumlah + (transaction.ppn || 0))}</div>
                                     {transaction.ppn && transaction.ppn > 0 ? (
                                         <div className="mb-4 text-xs text-blue-200">
-                                            (DPP: {formatRupiah((transaction.jumlah || 0) - transaction.ppn)} + PPN: {formatRupiah(transaction.ppn)})
+                                            (DPP: {formatRupiah(transaction.jumlah)} + PPN: {formatRupiah(transaction.ppn)})
                                         </div>
                                     ) : (
                                         <div className="mb-4"></div>

@@ -58,7 +58,7 @@ export default function NewInvoicePage() {
 
     const selectedTotal = clientTransactions
         .filter(t => selectedTransactionIds.includes(t.id))
-        .reduce((sum, t) => sum + t.jumlah, 0);
+        .reduce((sum, t) => sum + t.jumlah + (t.ppn || 0), 0);
 
     const handleSubmit = async () => {
         if (!user || !selectedClient) return;

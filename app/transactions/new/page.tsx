@@ -109,7 +109,7 @@ export default function NewTransactionPage() {
                 // Use settings rate if isPKP is checked
                 const rate = updated[index].isPKP ? taxSettings.defaultPPNRate : 0;
                 const ppn = Math.round(subtotal * rate);
-                updated[index].jumlah = subtotal + ppn;
+                updated[index].jumlah = subtotal; // PPN is NOT added to the transaction base amount
                 (updated[index] as any).ppnAmount = ppn; // temp store for submit
                 (updated[index] as any).ppnRate = rate;
             } else {
@@ -133,7 +133,7 @@ export default function NewTransactionPage() {
                         // Let's assume Inclusive for Borongan manual entry convenience?
                         // "Total Deal".
                         const total = updated[index].jumlah || 0;
-                        const ppn = Math.round(total - (total / (1 + rate)));
+                        const ppn = Math.round(total * rate);
                         (updated[index] as any).ppnAmount = ppn;
                         (updated[index] as any).ppnRate = rate;
                     } else {
