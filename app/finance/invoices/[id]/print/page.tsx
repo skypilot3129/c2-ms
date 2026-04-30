@@ -333,7 +333,7 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
                             </div>
                             <div style={{ textAlign: 'center', minWidth: '45mm', paddingTop: '2mm' }}>
                                 <p style={{ fontSize: '8.5pt', marginBottom: '1mm' }}>Hormat Kami,</p>
-                                <div style={{ height: '30mm' }}></div>
+                                <div style={{ height: '20mm' }}></div>
                                 <p style={{ fontSize: '8.5pt', fontWeight: 'bold', display: 'inline-block', paddingTop: '2mm' }}>{COMPANY_INFO.signatureName}</p>
                             </div>
                         </div>
