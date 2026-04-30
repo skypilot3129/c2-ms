@@ -171,17 +171,17 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
                             </div>
                             <div style={{ fontSize: '8.5pt', lineHeight: 1.8 }}>
                                 <div style={{ display: 'flex', gap: '3mm' }}>
-                                    <span style={{ minWidth: '50px' }}>Nomer</span>
+                                    <span style={{ minWidth: '75px' }}>Nomer</span>
                                     <span>:</span>
                                     <span contentEditable suppressContentEditableWarning style={{ fontWeight: 'bold', outline: 'none' }}>{invoice.invoiceNumber}</span>
                                 </div>
                                 <div style={{ display: 'flex', gap: '3mm' }}>
-                                    <span style={{ minWidth: '50px' }}>Tanggal</span>
+                                    <span style={{ minWidth: '75px' }}>Tanggal</span>
                                     <span>:</span>
                                     <span style={{ fontWeight: 'bold' }}>{formatTanggal(invoice.issueDate)}</span>
                                 </div>
                                 <div style={{ display: 'flex', gap: '3mm' }}>
-                                    <span style={{ minWidth: '50px' }}>No. NPWP</span>
+                                    <span style={{ minWidth: '75px' }}>No. NPWP</span>
                                     <span>:</span>
                                     <span 
                                         contentEditable 
@@ -355,12 +355,12 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
                             </div>
                             <div style={{ fontSize: '8.5pt', lineHeight: 1.8 }}>
                                 <div style={{ display: 'flex', gap: '3mm' }}>
-                                    <span style={{ minWidth: '40px' }}>Nomer</span>
+                                    <span style={{ minWidth: '75px' }}>Nomer</span>
                                     <span>:</span>
                                     <span contentEditable suppressContentEditableWarning style={{ fontWeight: 'bold', outline: 'none' }}>{invoice.invoiceNumber}</span>
                                 </div>
                                 <div style={{ display: 'flex', gap: '3mm' }}>
-                                    <span style={{ minWidth: '40px' }}>Tanggal</span>
+                                    <span style={{ minWidth: '75px' }}>Tanggal</span>
                                     <span>:</span>
                                     <span style={{ fontWeight: 'bold' }}>{formatTanggal(invoice.issueDate)}</span>
                                 </div>
