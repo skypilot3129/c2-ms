@@ -104,7 +104,7 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
                     border: 1px solid #000;
                     padding: 3px 4px;
                     text-align: center;
-                    font-weight: 900;
+                    font-weight: bold;
                     font-size: 9.5pt;
                     background: #fff;
                 }
@@ -319,7 +319,7 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
                         {/* FOOTER FAKTUR */}
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginTop: '6mm' }}>
                             <div style={{ fontSize: '8.5pt', lineHeight: 1.8 }}>
-                                <p style={{ fontWeight: 'bold', textDecoration: 'underline', marginBottom: '1mm' }}>TRANSFER :</p>
+                                <p style={{ fontWeight: 'bold', textDecoration: 'underline', marginBottom: '1mm', fontSize: '10.5pt' }}>TRANSFER :</p>
                                 {COMPANY_INFO.bankAccounts.map((acc, i) => (
                                     <p 
                                         key={i}
@@ -449,7 +449,7 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
                         {/* FOOTER STANDAR */}
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginTop: '4mm' }}>
                             <div style={{ fontSize: '8.5pt', lineHeight: 1.8 }}>
-                                <p style={{ fontWeight: 'bold', textDecoration: 'underline', marginBottom: '1mm' }}>TRANSFER :</p>
+                                <p style={{ fontWeight: 'bold', textDecoration: 'underline', marginBottom: '1mm', fontSize: '10.5pt' }}>TRANSFER :</p>
                                 {COMPANY_INFO.bankAccounts.map((acc, i) => (
                                     <p 
                                         key={i}
