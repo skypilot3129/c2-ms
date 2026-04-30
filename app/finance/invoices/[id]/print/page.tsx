@@ -306,8 +306,11 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
 
                                 {/* Terbilang + TOTAL AKHIR */}
                                 <tr>
-                                    <td colSpan={5} style={{ fontSize: '7.5pt', fontStyle: 'italic', paddingLeft: 4 }}>
+                                    <td colSpan={3} style={{ fontSize: '7.5pt', fontStyle: 'italic', paddingLeft: 4 }}>
                                         Terbilang : # {terbilang(totalAkhirDisplay)} #
+                                    </td>
+                                    <td colSpan={2} style={{ textAlign: 'center', fontWeight: 'bold', letterSpacing: '2px', fontSize: '9pt' }}>
+                                        T O T A L
                                     </td>
                                     <td style={{ textAlign: 'right', fontWeight: 'bold', paddingRight: 4 }}>
                                         {fmtAngka(totalAkhirDisplay)}
@@ -433,10 +436,10 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
 
                                 {/* Terbilang + TOTAL */}
                                 <tr>
-                                    <td colSpan={5} style={{ fontSize: '7.5pt', fontStyle: 'italic', paddingLeft: 4 }}>
+                                    <td colSpan={4} style={{ fontSize: '7.5pt', fontStyle: 'italic', paddingLeft: 4 }}>
                                         Terbilang : # {terbilang(totalAkhirDisplay)} #
                                     </td>
-                                    <td style={{ textAlign: 'center', fontWeight: 'bold', letterSpacing: '2px', fontSize: '8pt' }}>
+                                    <td colSpan={2} style={{ textAlign: 'center', fontWeight: 'bold', letterSpacing: '2px', fontSize: '9pt' }}>
                                         T O T A L
                                     </td>
                                     <td style={{ textAlign: 'right', fontWeight: 'bold', paddingRight: 4 }}>
