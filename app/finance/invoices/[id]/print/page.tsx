@@ -215,10 +215,10 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
                             <thead>
                                 <tr>
                                     <th style={{ width: '5%' }}>NO</th>
-                                    <th style={{ width: '45%' }}>KETERANGAN</th>
+                                    <th style={{ width: '48%' }}>KETERANGAN</th>
                                     <th style={{ width: '7%' }}>KOLI</th>
                                     <th style={{ width: '13%' }}>KG/M3</th>
-                                    <th style={{ width: '15%' }}>HARGA</th>
+                                    <th style={{ width: '12%' }}>HARGA</th>
                                     <th style={{ width: '15%' }}>JUMLAH</th>
                                 </tr>
                             </thead>
@@ -250,7 +250,7 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
                                                 </div>
                                             </td>
                                             <td style={{ textAlign: 'center' }}>{fmtAngka(t.koli)}</td>
-                                            <td style={{ textAlign: 'center' }}>{fmtAngka(t.berat)}</td>
+                                            <td style={{ textAlign: 'right', paddingRight: 4 }}>{fmtAngka(t.berat)}</td>
                                             <td style={{ textAlign: 'right', paddingRight: 4 }}>
                                                 {t.tipeTransaksi === 'regular' ? fmtAngka(t.harga) : '-'}
                                             </td>
@@ -265,7 +265,7 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
                                         TOTAL TAGIHAN
                                     </td>
                                     <td style={{ textAlign: 'center', fontWeight: 'bold' }}>{fmtAngka(totalKoli)}</td>
-                                    <td style={{ textAlign: 'center', fontWeight: 'bold' }}>{fmtAngka(totalBerat)}</td>
+                                    <td style={{ textAlign: 'right', fontWeight: 'bold', paddingRight: 4 }}>{fmtAngka(totalBerat)}</td>
                                     <td></td>
                                     <td style={{ textAlign: 'right', fontWeight: 'bold', paddingRight: 4 }}>{fmtAngka(subtotalTagihan)}</td>
                                 </tr>
@@ -374,12 +374,12 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
                             <thead>
                                 <tr>
                                     <th style={{ width: '5%' }}>NO</th>
-                                    <th style={{ width: '34%' }}>KETERANGAN</th>
+                                    <th style={{ width: '40%' }}>KETERANGAN</th>
                                     <th style={{ width: '9%' }}>NO STT</th>
                                     <th style={{ width: '7%' }}>KOLI</th>
-                                    <th style={{ width: '10%' }}>KG/M3</th>
-                                    <th style={{ width: '14%' }}>HARGA</th>
-                                    <th style={{ width: '14%' }}>JUMLAH</th>
+                                    <th style={{ width: '12%' }}>KG/M3</th>
+                                    <th style={{ width: '11%' }}>HARGA</th>
+                                    <th style={{ width: '16%' }}>JUMLAH</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -398,7 +398,7 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
                                         </td>
                                         <td style={{ textAlign: 'center' }}>{t.noSTT.replace(/^STT/i, '')}</td>
                                         <td style={{ textAlign: 'center' }}>{t.koli}</td>
-                                        <td style={{ textAlign: 'center' }}>{t.berat}</td>
+                                        <td style={{ textAlign: 'right', paddingRight: 4 }}>{t.berat}</td>
                                         <td style={{ textAlign: 'right', paddingRight: 4 }}>
                                             {t.tipeTransaksi === 'regular' ? fmtAngka(t.harga) : '-'}
                                         </td>
