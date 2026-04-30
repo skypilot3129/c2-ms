@@ -17,12 +17,10 @@ export default function AdminCountersPage() {
     // Current counters
     const [currentSTT, setCurrentSTT] = useState(0);
     const [currentInvoice, setCurrentInvoice] = useState(0);
-    const [currentInvoicePKP, setCurrentInvoicePKP] = useState(0);
 
     // New values to set
     const [newSTT, setNewSTT] = useState('');
     const [newInvoice, setNewInvoice] = useState('');
-    const [newInvoicePKP, setNewInvoicePKP] = useState('');
 
     // Cleanup state
     const [cleaningUp, setCleaningUp] = useState(false);
@@ -44,13 +42,14 @@ export default function AdminCountersPage() {
                 setCurrentSTT(data[user.uid]?.currentNumber || 0);
             }
 
-            // Load Invoice counters
-            const invRef = doc(db, 'metadata', 'invoice_counters');
+            // Load Invoice counters (New global continuous number)
+            const invRef = doc(db, 'metadata', 'invoice_gen_counters');
             const invDoc = await getDoc(invRef);
             if (invDoc.exists()) {
                 const data = invDoc.data();
-                setCurrentInvoice(data[user.uid]?.currentNumber || 0);
-                setCurrentInvoicePKP(data[`${user.uid}_pkp`]?.currentNumber || 0);
+                setCurrentInvoice(data['global_invoice_number'] || 12702);
+            } else {
+                setCurrentInvoice(12702); // Fallback default
             }
         } catch (error) {
             console.error('Error loading counters:', error);
@@ -101,62 +100,25 @@ export default function AdminCountersPage() {
             return alert('Masukkan angka yang valid');
         }
 
-        if (!confirm(`Reset Invoice counter ke ${num}?\nNomor Invoice berikutnya akan: INV${String(num + 1).padStart(6, '0')}`)) {
+        if (!confirm(`Reset Invoice counter ke ${num}?\nNomor Invoice berikutnya akan: ${num + 1}`)) {
             return;
         }
 
         setSaving(true);
         try {
-            const counterRef = doc(db, 'metadata', 'invoice_counters');
+            const counterRef = doc(db, 'metadata', 'invoice_gen_counters');
             await setDoc(counterRef, {
-                [user.uid]: {
-                    currentNumber: num,
-                    prefix: 'INV',
-                    lastUpdated: Timestamp.now(),
-                }
+                global_invoice_number: num,
+                lastUpdated: Timestamp.now(),
             }, { merge: true });
 
             setCurrentInvoice(num);
             setNewInvoice('');
-            alert(`✅ Berhasil! Invoice counter saat ini: ${num}\nInvoice berikutnya: INV${String(num + 1).padStart(6, '0')}`);
+            alert(`✅ Berhasil! Invoice counter saat ini: ${num}\nInvoice berikutnya: ${num + 1}`);
             loadCounters();
         } catch (error) {
             console.error('Error resetting Invoice:', error);
             alert('Gagal mereset Invoice counter');
-        } finally {
-            setSaving(false);
-        }
-    };
-
-    const handleResetInvoicePKP = async () => {
-        if (!user || !newInvoicePKP) return;
-        const num = parseInt(newInvoicePKP);
-        if (isNaN(num) || num < 0) {
-            return alert('Masukkan angka yang valid');
-        }
-
-        if (!confirm(`Reset Invoice PKP counter ke ${num}?\nNomor Invoice PKP berikutnya akan: INV-PKP${String(num + 1).padStart(5, '0')}`)) {
-            return;
-        }
-
-        setSaving(true);
-        try {
-            const counterRef = doc(db, 'metadata', 'invoice_counters');
-            await setDoc(counterRef, {
-                [`${user.uid}_pkp`]: {
-                    currentNumber: num,
-                    prefix: 'INV-PKP',
-                    lastUpdated: Timestamp.now(),
-                }
-            }, { merge: true });
-
-            setCurrentInvoicePKP(num);
-            setNewInvoicePKP('');
-            alert(`✅ Berhasil! Invoice PKP counter saat ini: ${num}\nInvoice PKP berikutnya: INV-PKP${String(num + 1).padStart(5, '0')}`);
-            loadCounters();
-        } catch (error) {
-            console.error('Error resetting Invoice PKP:', error);
-            alert('Gagal mereset Invoice PKP counter');
         } finally {
             setSaving(false);
         }
@@ -284,11 +246,11 @@ export default function AdminCountersPage() {
                                 </div>
                             </div>
 
-                            {/* Invoice Regular Counter */}
+                            {/* Invoice Counter */}
                             <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
                                 <h2 className="text-lg font-bold text-gray-800 mb-6 flex items-center gap-2 border-b pb-2">
                                     <Hash className="text-purple-600" size={20} />
-                                    Counter Invoice (Regular)
+                                    Counter Invoice
                                 </h2>
                                 <div className="grid md:grid-cols-2 gap-6">
                                     <div>
@@ -298,7 +260,7 @@ export default function AdminCountersPage() {
                                                 {currentInvoice}
                                             </div>
                                             <div className="text-xs text-gray-500 mt-1">
-                                                Format: INV{String(currentInvoice).padStart(6, '0')}
+                                                Format angka langsung
                                             </div>
                                         </div>
                                     </div>
@@ -306,7 +268,7 @@ export default function AdminCountersPage() {
                                         <label className="block text-sm font-semibold text-gray-700 mb-2">Nomor Berikutnya</label>
                                         <div className="px-4 py-3 rounded-xl border-2 border-purple-200 bg-purple-50">
                                             <div className="text-2xl font-bold text-purple-800 font-mono">
-                                                INV{String(currentInvoice + 1).padStart(6, '0')}
+                                                {currentInvoice + 1}
                                             </div>
                                             <div className="text-xs text-purple-600 mt-1">
                                                 Preview nomor berikutnya
@@ -322,7 +284,7 @@ export default function AdminCountersPage() {
                                             type="number"
                                             value={newInvoice}
                                             onChange={(e) => setNewInvoice(e.target.value)}
-                                            placeholder="Contoh: 12365"
+                                            placeholder="Contoh: 12712"
                                             className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 focus:border-purple-500 focus:ring-2 focus:ring-purple-100 outline-none font-mono"
                                         />
                                         <button
@@ -335,63 +297,7 @@ export default function AdminCountersPage() {
                                         </button>
                                     </div>
                                     <p className="text-xs text-gray-500 mt-2 ml-1">
-                                        Jika diset ke 12365, maka Invoice berikutnya akan: INV012366
-                                    </p>
-                                </div>
-                            </div>
-
-                            {/* Invoice PKP Counter */}
-                            <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-                                <h2 className="text-lg font-bold text-gray-800 mb-6 flex items-center gap-2 border-b pb-2">
-                                    <Hash className="text-orange-600" size={20} />
-                                    Counter Invoice PKP (Kena Pajak)
-                                </h2>
-                                <div className="grid md:grid-cols-2 gap-6">
-                                    <div>
-                                        <label className="block text-sm font-semibold text-gray-700 mb-2">Counter Saat Ini</label>
-                                        <div className="px-4 py-3 rounded-xl border-2 border-gray-200 bg-gray-50">
-                                            <div className="text-2xl font-bold text-gray-800 font-mono">
-                                                {currentInvoicePKP}
-                                            </div>
-                                            <div className="text-xs text-gray-500 mt-1">
-                                                Format: INV-PKP{String(currentInvoicePKP).padStart(5, '0')}
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-semibold text-gray-700 mb-2">Nomor Berikutnya</label>
-                                        <div className="px-4 py-3 rounded-xl border-2 border-orange-200 bg-orange-50">
-                                            <div className="text-2xl font-bold text-orange-800 font-mono">
-                                                INV-PKP{String(currentInvoicePKP + 1).padStart(5, '0')}
-                                            </div>
-                                            <div className="text-xs text-orange-600 mt-1">
-                                                Preview nomor berikutnya
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div className="mt-6 pt-6 border-t border-gray-200">
-                                    <label className="block text-sm font-semibold text-gray-700 mb-2">Reset Counter Ke:</label>
-                                    <div className="flex gap-3">
-                                        <input
-                                            type="number"
-                                            value={newInvoicePKP}
-                                            onChange={(e) => setNewInvoicePKP(e.target.value)}
-                                            placeholder="Contoh: 5176"
-                                            className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 focus:border-orange-500 focus:ring-2 focus:ring-orange-100 outline-none font-mono"
-                                        />
-                                        <button
-                                            onClick={handleResetInvoicePKP}
-                                            disabled={saving || !newInvoicePKP}
-                                            className="bg-orange-600 text-white px-6 py-2.5 rounded-xl font-semibold hover:bg-orange-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                                        >
-                                            <Save size={18} />
-                                            Reset
-                                        </button>
-                                    </div>
-                                    <p className="text-xs text-gray-500 mt-2 ml-1">
-                                        Jika diset ke 5176, maka Invoice PKP berikutnya akan: INV-PKP05177
+                                        Jika diset ke 12712, maka Invoice berikutnya akan: 12713
                                     </p>
                                 </div>
                             </div>
