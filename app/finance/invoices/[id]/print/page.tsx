@@ -223,6 +223,23 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
                                 </tr>
                             </thead>
                             <tbody>
+                                {/* Baris info keberangkatan (Editable) */}
+                                <tr>
+                                    <td></td>
+                                    <td style={{ paddingLeft: 4 }}>
+                                        <div 
+                                            contentEditable 
+                                            suppressContentEditableWarning 
+                                            style={{ outline: 'none', fontWeight: 'bold' }}
+                                        >
+                                            BERANGKAT TGL ... KM. ...
+                                        </div>
+                                    </td>
+                                    <td></td>
+                                    <td></td>
+                                    <td></td>
+                                    <td style={{ textAlign: 'right', paddingRight: 4 }}>-</td>
+                                </tr>
                                 {/* Optional: Notes Row Spanning Columns */}
                                 {invoice.notes && (
                                     <tr>
@@ -317,7 +334,7 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
                             <div style={{ textAlign: 'center', minWidth: '45mm', paddingTop: '2mm' }}>
                                 <p style={{ fontSize: '8.5pt', marginBottom: '1mm' }}>Hormat Kami,</p>
                                 <div style={{ height: '30mm' }}></div>
-                                <p style={{ fontSize: '8.5pt', fontWeight: 'bold', borderTop: '1px solid black', display: 'inline-block', paddingTop: '2mm' }}>{COMPANY_INFO.signatureName}</p>
+                                <p style={{ fontSize: '8.5pt', fontWeight: 'bold', display: 'inline-block', paddingTop: '2mm' }}>{COMPANY_INFO.signatureName}</p>
                             </div>
                         </div>
                     </>

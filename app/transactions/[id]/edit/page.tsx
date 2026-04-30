@@ -158,14 +158,13 @@ export default function EditTransactionPage({ params }: { params: Promise<{ id: 
         if (formData.tipeTransaksi === 'regular') {
             const subtotal = formData.harga * formData.berat;
 
-            // Use stored rate if exists, otherwise fallback to global tax settings
-            // This ensures we don't accidentally check "PKP" and get a wrong 11% vs 1.1% mismatch based on old code
-            const rate = transaction?.ppnRate || taxSettings.defaultPPNRate;
+            // Force use the current global tax rate (1.1%) to correct old 11% records
+            const rate = taxSettings.defaultPPNRate;
 
             const ppn = isPKP ? subtotal * rate : 0;
             setJumlah(Math.round(subtotal));
         }
-    }, [formData.harga, formData.berat, formData.tipeTransaksi, isPKP, transaction?.ppnRate, taxSettings.defaultPPNRate]);
+    }, [formData.harga, formData.berat, formData.tipeTransaksi, isPKP, taxSettings.defaultPPNRate]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -188,8 +187,8 @@ export default function EditTransactionPage({ params }: { params: Promise<{ id: 
                 ...formData,
                 tujuan: penerimaData.tujuan,
                 isTaxable: isPKP,
-                ppnRate: isPKP ? (transaction?.ppnRate || taxSettings.defaultPPNRate) : 0,
-                ppn: isPKP ? Math.round(jumlah * (transaction?.ppnRate || taxSettings.defaultPPNRate)) : 0
+                ppnRate: isPKP ? taxSettings.defaultPPNRate : 0,
+                ppn: isPKP ? Math.round(jumlah * taxSettings.defaultPPNRate) : 0
             };
 
             await updateTransaction(
@@ -476,7 +475,7 @@ export default function EditTransactionPage({ params }: { params: Promise<{ id: 
                                             className="w-5 h-5 text-blue-600 rounded focus:ring-2 focus:ring-blue-500 cursor-pointer"
                                         />
                                         <label htmlFor="pkp" className="text-sm font-medium text-gray-700 cursor-pointer select-none">
-                                            Jasa Kena Pajak (PPN)
+                                            Jasa Kena Pajak (PPN 1,1%)
                                         </label>
                                     </div>
                                 </div>
@@ -493,7 +492,7 @@ export default function EditTransactionPage({ params }: { params: Promise<{ id: 
                                     helperText={formData.tipeTransaksi === 'regular'
                                         ? (() => {
                                             const subtotal = formData.harga * formData.berat;
-                                            const rate = transaction?.ppnRate || taxSettings.defaultPPNRate;
+                                            const rate = taxSettings.defaultPPNRate;
                                             const ppn = isPKP ? subtotal * rate : 0;
                                             return `${formatRupiah(formData.harga)} × ${formData.berat} ${formData.beratUnit}${isPKP ? ` + PPN (${(rate * 100).toLocaleString('id-ID')}%)` : ''} = ${formatRupiah(jumlah)}`;
                                         })()

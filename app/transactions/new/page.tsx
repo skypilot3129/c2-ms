@@ -560,7 +560,7 @@ export default function NewTransactionPage() {
                                         <div className="flex gap-4">
                                             <div className="flex items-center gap-2 bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-200">
                                                 <label htmlFor={`pkp-${index}`} className="text-sm font-medium text-gray-700 cursor-pointer select-none">
-                                                    Jasa Kena Pajak (PPN)
+                                                    Jasa Kena Pajak (PPN 1,1%)
                                                 </label>
                                                 <input
                                                     type="checkbox"
