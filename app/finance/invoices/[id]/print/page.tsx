@@ -98,20 +98,20 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
                 .invoice-table {
                     width: 100%;
                     border-collapse: collapse;
-                    font-size: 8pt;
+                    font-size: 9.5pt;
                 }
                 .invoice-table th {
                     border: 1px solid #000;
-                    padding: 2px 4px;
+                    padding: 3px 4px;
                     text-align: center;
-                    font-weight: bold;
-                    font-size: 8pt;
+                    font-weight: 900;
+                    font-size: 9.5pt;
                     background: #fff;
                 }
                 .invoice-table td {
                     border: 1px solid #000;
-                    padding: 2px 4px;
-                    font-size: 8pt;
+                    padding: 3px 4px;
+                    font-size: 9.5pt;
                     vertical-align: middle;
                 }
 
@@ -215,11 +215,11 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
                             <thead>
                                 <tr>
                                     <th style={{ width: '5%' }}>NO</th>
-                                    <th style={{ width: '48%' }}>KETERANGAN</th>
-                                    <th style={{ width: '7%' }}>KOLI</th>
-                                    <th style={{ width: '13%' }}>KG/M3</th>
-                                    <th style={{ width: '12%' }}>HARGA</th>
-                                    <th style={{ width: '15%' }}>JUMLAH</th>
+                                    <th style={{ width: '53%' }}>KETERANGAN</th>
+                                    <th style={{ width: '6%' }}>KOLI</th>
+                                    <th style={{ width: '12%' }}>KG/M3</th>
+                                    <th style={{ width: '10%' }}>HARGA</th>
+                                    <th style={{ width: '14%' }}>JUMLAH</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -325,7 +325,7 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
                                         key={i}
                                         contentEditable
                                         suppressContentEditableWarning
-                                        style={{ outline: 'none' }}
+                                        style={{ outline: 'none', fontSize: '10.5pt', fontWeight: 'bold' }}
                                     >
                                         {acc.bank} {acc.accountNumber}  a/n {acc.accountName} CV
                                     </p>
@@ -391,12 +391,12 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
                             <thead>
                                 <tr>
                                     <th style={{ width: '5%' }}>NO</th>
-                                    <th style={{ width: '40%' }}>KETERANGAN</th>
+                                    <th style={{ width: '45%' }}>KETERANGAN</th>
                                     <th style={{ width: '9%' }}>NO STT</th>
-                                    <th style={{ width: '7%' }}>KOLI</th>
-                                    <th style={{ width: '12%' }}>KG/M3</th>
-                                    <th style={{ width: '11%' }}>HARGA</th>
-                                    <th style={{ width: '16%' }}>JUMLAH</th>
+                                    <th style={{ width: '6%' }}>KOLI</th>
+                                    <th style={{ width: '11%' }}>KG/M3</th>
+                                    <th style={{ width: '10%' }}>HARGA</th>
+                                    <th style={{ width: '14%' }}>JUMLAH</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -455,7 +455,7 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
                                         key={i}
                                         contentEditable
                                         suppressContentEditableWarning
-                                        style={{ outline: 'none' }}
+                                        style={{ outline: 'none', fontSize: '10.5pt', fontWeight: 'bold' }}
                                     >
                                         {acc.bank} {acc.accountNumber}  an {acc.accountName}
                                     </p>
