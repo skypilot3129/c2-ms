@@ -143,7 +143,7 @@ export const updateInvoiceStatus = async (id: string, status: 'Paid' | 'Unpaid',
 
     await runTransaction(db, async (transaction) => {
         const invoiceDoc = await transaction.get(invoiceRef);
-        if (!invoiceDoc.exists()) throw new Error("Invoice not found");
+        if (!invoiceDoc.exists()) throw new Error("Invoice tidak ditemukan");
 
         const invoiceData = invoiceDoc.data() as InvoiceDoc;
         const updates: any = {
@@ -157,19 +157,27 @@ export const updateInvoiceStatus = async (id: string, status: 'Paid' | 'Unpaid',
             updates.paymentRef = paymentDetails.ref;
         }
 
-        // Update Invoice
+        // 1. Update Invoice status
         transaction.update(invoiceRef, updates);
 
         // 2. Update all linked transactions if MARKED AS PAID
         if (status === 'Paid') {
-            const method = paymentDetails?.method === 'Transfer' ? 'TF' : 'Cash'; // Map to CaraPelunasan
+            const method = paymentDetails?.method === 'Transfer' ? 'TF' : 'Cash';
 
+            // We use Promise.all with transaction.get to check existence of all transactions first
+            // to avoid "no document to update" error which would fail the entire transaction.
             for (const txId of invoiceData.transactionIds) {
                 const txRef = doc(db, 'transactions', txId);
-                transaction.update(txRef, {
-                    pelunasan: method, // Mark transaction as paid
-                    updatedAt: Timestamp.now()
-                });
+                const txSnap = await transaction.get(txRef);
+                
+                if (txSnap.exists()) {
+                    transaction.update(txRef, {
+                        pelunasan: method,
+                        updatedAt: Timestamp.now()
+                    });
+                } else {
+                    console.warn(`Transaction ${txId} referenced in invoice ${id} was not found. Skipping update.`);
+                }
             }
         }
     });

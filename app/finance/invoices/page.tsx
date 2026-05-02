@@ -40,12 +40,23 @@ export default function InvoicesPage() {
         }
     };
 
+    const [processingId, setProcessingId] = useState<string | null>(null);
+
     const handleMarkPaid = async (inv: Invoice) => {
         if (confirm(`Tandai invoice ${inv.invoiceNumber} sebagai LUNAS?`)) {
-            await updateInvoiceStatus(inv.id, 'Paid', {
-                date: new Date(),
-                method: 'Cash', // Default simple
-            });
+            setProcessingId(inv.id);
+            try {
+                await updateInvoiceStatus(inv.id, 'Paid', {
+                    date: new Date(),
+                    method: 'Cash', // Default simple
+                });
+                alert(`Invoice ${inv.invoiceNumber} berhasil ditandai LUNAS.`);
+            } catch (error: any) {
+                console.error("Error marking paid:", error);
+                alert(`Gagal menandai lunas: ${error.message}`);
+            } finally {
+                setProcessingId(null);
+            }
         }
     };
 
@@ -154,10 +165,15 @@ export default function InvoicesPage() {
                                                 {inv.status !== 'Paid' ? (
                                                     <button
                                                         onClick={() => handleMarkPaid(inv)}
-                                                        className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors border border-gray-200"
+                                                        disabled={processingId === inv.id}
+                                                        className={`p-2 rounded-lg transition-colors border border-gray-200 ${processingId === inv.id ? 'opacity-50 cursor-not-allowed text-gray-400' : 'text-green-600 hover:bg-green-50'}`}
                                                         title="Tandai Sudah Bayar"
                                                     >
-                                                        <CheckCircle2 size={16} />
+                                                        {processingId === inv.id ? (
+                                                            <div className="w-4 h-4 border-2 border-green-600 border-t-transparent rounded-full animate-spin"></div>
+                                                        ) : (
+                                                            <CheckCircle2 size={16} />
+                                                        )}
                                                     </button>
                                                 ) : (
                                                     <span title="Sudah Lunas" className="p-2 text-green-600">
@@ -212,9 +228,15 @@ export default function InvoicesPage() {
                                     {inv.status !== 'Paid' && (
                                         <button
                                             onClick={() => handleMarkPaid(inv)}
-                                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-green-700 bg-green-50 border border-green-200 rounded-lg active:scale-95 transition-transform"
+                                            disabled={processingId === inv.id}
+                                            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border rounded-lg active:scale-95 transition-all ${processingId === inv.id ? 'opacity-50 text-gray-400 bg-gray-50 border-gray-100' : 'text-green-700 bg-green-50 border-green-200'}`}
                                         >
-                                            <CheckCircle2 size={14} /> Lunas
+                                            {processingId === inv.id ? (
+                                                <div className="w-3.5 h-3.5 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>
+                                            ) : (
+                                                <CheckCircle2 size={14} />
+                                            )} 
+                                            {processingId === inv.id ? 'Memproses...' : 'Lunas'}
                                         </button>
                                     )}
                                     <button
