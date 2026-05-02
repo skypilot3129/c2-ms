@@ -142,10 +142,23 @@ export const updateInvoiceStatus = async (id: string, status: 'Paid' | 'Unpaid',
     const invoiceRef = doc(db, COLLECTION_NAME, id);
 
     await runTransaction(db, async (transaction) => {
+        // ===== PHASE 1: ALL READS FIRST =====
         const invoiceDoc = await transaction.get(invoiceRef);
         if (!invoiceDoc.exists()) throw new Error("Invoice tidak ditemukan");
 
         const invoiceData = invoiceDoc.data() as InvoiceDoc;
+
+        // Pre-read all linked transaction docs before any writes
+        const txRefs: { ref: ReturnType<typeof doc>, snap: any }[] = [];
+        if (status === 'Paid') {
+            for (const txId of invoiceData.transactionIds) {
+                const txRef = doc(db, 'transactions', txId);
+                const txSnap = await transaction.get(txRef);
+                txRefs.push({ ref: txRef, snap: txSnap });
+            }
+        }
+
+        // ===== PHASE 2: ALL WRITES AFTER =====
         const updates: any = {
             status,
             updatedAt: Timestamp.now()
@@ -159,26 +172,20 @@ export const updateInvoiceStatus = async (id: string, status: 'Paid' | 'Unpaid',
             }
         }
 
-        // 1. Update Invoice status
+        // Write 1: Update invoice status
         transaction.update(invoiceRef, updates);
 
-        // 2. Update all linked transactions if MARKED AS PAID
+        // Write 2: Update all linked transactions
         if (status === 'Paid') {
             const method = paymentDetails?.method === 'Transfer' ? 'TF' : 'Cash';
-
-            // We use Promise.all with transaction.get to check existence of all transactions first
-            // to avoid "no document to update" error which would fail the entire transaction.
-            for (const txId of invoiceData.transactionIds) {
-                const txRef = doc(db, 'transactions', txId);
-                const txSnap = await transaction.get(txRef);
-                
+            for (const { ref: txRef, snap: txSnap } of txRefs) {
                 if (txSnap.exists()) {
                     transaction.update(txRef, {
                         pelunasan: method,
                         updatedAt: Timestamp.now()
                     });
                 } else {
-                    console.warn(`Transaction ${txId} referenced in invoice ${id} was not found. Skipping update.`);
+                    console.warn(`Transaction doc not found, skipping.`);
                 }
             }
         }
