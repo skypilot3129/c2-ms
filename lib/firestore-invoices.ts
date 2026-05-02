@@ -154,7 +154,9 @@ export const updateInvoiceStatus = async (id: string, status: 'Paid' | 'Unpaid',
         if (status === 'Paid' && paymentDetails) {
             updates.paymentDate = Timestamp.fromDate(paymentDetails.date);
             updates.paymentMethod = paymentDetails.method;
-            updates.paymentRef = paymentDetails.ref;
+            if (paymentDetails.ref !== undefined) {
+                updates.paymentRef = paymentDetails.ref;
+            }
         }
 
         // 1. Update Invoice status
