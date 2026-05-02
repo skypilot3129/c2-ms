@@ -195,12 +195,12 @@ export default function LoadingPayPage() {
                 <div className="grid grid-cols-2 gap-3">
                     <div className="bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl p-4 text-white shadow-lg shadow-green-500/20">
                         <p className="text-green-100 text-xs font-medium">Fuso</p>
-                        <p className="text-2xl font-bold">Rp 650.000</p>
+                        <p className="text-2xl font-bold">Rp 750.000</p>
                         <p className="text-green-200 text-xs">dibagi rata hadir</p>
                     </div>
                     <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-4 text-white shadow-lg shadow-blue-500/20">
                         <p className="text-blue-100 text-xs font-medium">Tronton</p>
-                        <p className="text-2xl font-bold">Rp 850.000</p>
+                        <p className="text-2xl font-bold">Rp 950.000</p>
                         <p className="text-blue-200 text-xs">dibagi rata hadir + bonus susun</p>
                     </div>
                 </div>
@@ -310,8 +310,8 @@ export default function LoadingPayPage() {
                                         <label className="text-xs font-semibold text-gray-500 block mb-1">Jenis Truk</label>
                                         <select value={formTruck} onChange={e => setFormTruck(e.target.value as any)}
                                             className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm bg-gray-50 outline-none focus:ring-2 focus:ring-green-200">
-                                            <option value="fuso">Fuso (Rp 650.000)</option>
-                                            <option value="tronton">Tronton (Rp 850.000)</option>
+                                            <option value="fuso">Fuso (Rp 750.000)</option>
+                                            <option value="tronton">Tronton (Rp 950.000)</option>
                                         </select>
                                     </div>
                                 </div>

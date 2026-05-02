@@ -86,7 +86,7 @@ export interface LoadingSession {
     truckType: TruckType;
     truckLabel?: string;    // e.g. "Fuso B 1234 XY"
 
-    pool: number;           // 650_000 (fuso) | 850_000 (tronton)
+    pool: number;           // 750_000 (fuso) | 950_000 (tronton)
     members: LoadingMember[];
     notes?: string;
 
@@ -103,8 +103,8 @@ export interface LoadingSessionFormData {
 }
 
 export const TRUCK_POOL: Record<TruckType, number> = {
-    fuso: 650_000,
-    tronton: 850_000,
+    fuso: 750_000,
+    tronton: 950_000,
 };
 
 export const TRUCK_LABELS: Record<TruckType, string> = {
