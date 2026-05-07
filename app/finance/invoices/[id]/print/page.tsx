@@ -185,7 +185,7 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
                                 <div style={{ display: 'flex', gap: '3mm' }}>
                                     <span style={{ minWidth: '75px' }}>Tanggal</span>
                                     <span>:</span>
-                                    <span style={{ fontWeight: 'bold' }}>{formatTanggal(invoice.issueDate)}</span>
+                                    <span contentEditable suppressContentEditableWarning style={{ fontWeight: 'bold', outline: 'none' }}>{formatTanggal(invoice.issueDate)}</span>
                                 </div>
                                 <div style={{ display: 'flex', gap: '3mm' }}>
                                     <span style={{ minWidth: '75px' }}>No. NPWP</span>
@@ -372,7 +372,7 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
                                 <div style={{ display: 'flex', gap: '3mm' }}>
                                     <span style={{ minWidth: '75px' }}>Tanggal</span>
                                     <span>:</span>
-                                    <span style={{ fontWeight: 'bold' }}>{formatTanggal(invoice.issueDate)}</span>
+                                    <span contentEditable suppressContentEditableWarning style={{ fontWeight: 'bold', outline: 'none' }}>{formatTanggal(invoice.issueDate)}</span>
                                 </div>
                             </div>
                         </div>
