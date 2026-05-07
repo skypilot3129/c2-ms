@@ -39,7 +39,14 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
             if (inv) {
                 setInvoice(inv);
                 const txItems = await Promise.all(inv.transactionIds.map(tid => getTransactionById(tid)));
-                setTransactions(txItems.filter((t): t is Transaction => t !== null));
+                const loaded = txItems.filter((t): t is Transaction => t !== null);
+                // Sort by noSTT numerically (strip non-numeric prefix if any)
+                loaded.sort((a, b) => {
+                    const numA = parseInt(a.noSTT.replace(/\D/g, ''), 10) || 0;
+                    const numB = parseInt(b.noSTT.replace(/\D/g, ''), 10) || 0;
+                    return numA - numB;
+                });
+                setTransactions(loaded);
             }
             setLoading(false);
         };
@@ -263,7 +270,7 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
                                                     onBlur={(e) => setKeteranganPerSTT({ ...keteranganPerSTT, [t.id]: e.currentTarget.textContent || '' })}
                                                     style={{ outline: 'none', minWidth: '100px', cursor: 'text' }}
                                                 >
-                                                    {keteranganPerSTT[t.id] ?? `SPX ${(t.tujuan || '').toUpperCase()}`}
+                                                    {keteranganPerSTT[t.id] ?? `${(t.penerimaName || '').toUpperCase()} - ${(t.tujuan || '').toUpperCase()}`}
                                                 </div>
                                             </td>
                                             <td style={{ textAlign: 'center' }}>{fmtAngka(t.koli)}</td>
@@ -413,7 +420,7 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
                                                 onBlur={(e) => setKeteranganPerSTT({ ...keteranganPerSTT, [t.id]: e.currentTarget.textContent || '' })}
                                                 style={{ outline: 'none', minWidth: '100px', cursor: 'text' }}
                                             >
-                                                {keteranganPerSTT[t.id] ?? `PENGIRIMAN BARANG ${(t.pengirimCity || 'ASAL').toUpperCase()} - ${t.tujuan.toUpperCase()}`}
+                                                {keteranganPerSTT[t.id] ?? `${(t.penerimaName || '').toUpperCase()} - ${(t.tujuan || '').toUpperCase()}`}
                                             </div>
                                         </td>
                                         <td style={{ textAlign: 'center' }}>{t.noSTT.replace(/^STT/i, '')}</td>
