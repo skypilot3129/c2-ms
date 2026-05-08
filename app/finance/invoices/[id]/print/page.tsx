@@ -275,8 +275,12 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
                                                     {keteranganPerSTT[t.id] ?? `${(t.penerimaName || '').toUpperCase()} - ${(t.tujuan || '').toUpperCase()}`}
                                                 </div>
                                             </td>
-                                            <td style={{ textAlign: 'center' }}>{fmtAngka(t.koli)}</td>
-                                            <td style={{ textAlign: 'right', paddingRight: 4 }}>{fmtAngka(t.berat)}</td>
+                                            <td style={{ textAlign: 'center' }}>
+                                                <span contentEditable suppressContentEditableWarning style={{ outline: 'none', display: 'block', textAlign: 'center', cursor: 'text' }}>{fmtAngka(t.koli)}</span>
+                                            </td>
+                                            <td style={{ textAlign: 'right', paddingRight: 4 }}>
+                                                <span contentEditable suppressContentEditableWarning style={{ outline: 'none', display: 'block', textAlign: 'right', cursor: 'text' }}>{fmtAngka(t.berat)}</span>
+                                            </td>
                                             <td style={{ textAlign: 'right', paddingRight: 4 }}>
                                                 {t.tipeTransaksi === 'regular' ? fmtAngka(t.harga) : '-'}
                                             </td>
@@ -426,8 +430,12 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
                                             </div>
                                         </td>
                                         <td style={{ textAlign: 'center' }}>{t.noSTT.replace(/^STT/i, '')}</td>
-                                        <td style={{ textAlign: 'center' }}>{t.koli}</td>
-                                        <td style={{ textAlign: 'right', paddingRight: 4 }}>{t.berat}</td>
+                                        <td style={{ textAlign: 'center' }}>
+                                            <span contentEditable suppressContentEditableWarning style={{ outline: 'none', display: 'block', textAlign: 'center', cursor: 'text' }}>{t.koli}</span>
+                                        </td>
+                                        <td style={{ textAlign: 'right', paddingRight: 4 }}>
+                                            <span contentEditable suppressContentEditableWarning style={{ outline: 'none', display: 'block', textAlign: 'right', cursor: 'text' }}>{t.berat}</span>
+                                        </td>
                                         <td style={{ textAlign: 'right', paddingRight: 4 }}>
                                             {t.tipeTransaksi === 'regular' ? fmtAngka(t.harga) : '-'}
                                         </td>
