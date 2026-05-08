@@ -294,8 +294,12 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
                                     <td colSpan={2} style={{ textAlign: 'center', fontWeight: 'bold', fontSize: '8.5pt' }}>
                                         TOTAL TAGIHAN
                                     </td>
-                                    <td style={{ textAlign: 'center', fontWeight: 'bold' }}>{fmtAngka(totalKoli)}</td>
-                                    <td style={{ textAlign: 'right', fontWeight: 'bold', paddingRight: 4 }}>{fmtAngka(totalBerat)}</td>
+                                    <td style={{ textAlign: 'center', fontWeight: 'bold' }}>
+                                        <span contentEditable suppressContentEditableWarning style={{ outline: 'none', display: 'block', textAlign: 'center', cursor: 'text' }}>{fmtAngka(totalKoli)}</span>
+                                    </td>
+                                    <td style={{ textAlign: 'right', fontWeight: 'bold', paddingRight: 4 }}>
+                                        <span contentEditable suppressContentEditableWarning style={{ outline: 'none', display: 'block', textAlign: 'right', cursor: 'text' }}>{fmtAngka(totalBerat)}</span>
+                                    </td>
                                     <td></td>
                                     <td style={{ textAlign: 'right', fontWeight: 'bold', paddingRight: 4 }}>{fmtAngka(subtotalTagihan)}</td>
                                 </tr>
@@ -335,7 +339,7 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
                         {/* FOOTER FAKTUR */}
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginTop: '6mm' }}>
                             <div style={{ fontSize: '8.5pt', lineHeight: 1.8 }}>
-                                <p style={{ fontWeight: 'bold', textDecoration: 'underline', marginBottom: '1mm', fontSize: '10.5pt' }}>TRANSFER :</p>
+                                <p contentEditable suppressContentEditableWarning style={{ fontWeight: 'bold', textDecoration: 'underline', marginBottom: '1mm', fontSize: '10.5pt', outline: 'none' }}>TRANSFER :</p>
                                 {COMPANY_INFO.bankAccounts.map((acc, i) => (
                                     <p 
                                         key={i}
@@ -469,7 +473,7 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
                         {/* FOOTER STANDAR */}
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginTop: '4mm' }}>
                             <div style={{ fontSize: '8.5pt', lineHeight: 1.8 }}>
-                                <p style={{ fontWeight: 'bold', textDecoration: 'underline', marginBottom: '1mm', fontSize: '10.5pt' }}>TRANSFER :</p>
+                                <p contentEditable suppressContentEditableWarning style={{ fontWeight: 'bold', textDecoration: 'underline', marginBottom: '1mm', fontSize: '10.5pt', outline: 'none' }}>TRANSFER :</p>
                                 {COMPANY_INFO.bankAccounts.map((acc, i) => (
                                     <p 
                                         key={i}
