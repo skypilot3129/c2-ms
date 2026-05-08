@@ -2,7 +2,7 @@
  * Branch definitions for multi-branch support
  */
 
-export type Branch = 'surabaya' | 'bandung';
+export type Branch = 'surabaya' | 'bandung' | 'makassar';
 
 export interface BranchInfo {
     id: Branch;
@@ -23,6 +23,12 @@ export const BRANCHES: Record<Branch, BranchInfo> = {
         name: 'Bandung',
         displayName: 'Bandung',
         initialCounter: 1032   // Next will be 1033
+    },
+    makassar: {
+        id: 'makassar',
+        name: 'Makassar',
+        displayName: 'Makassar',
+        initialCounter: 550    // Next will be 00551
     }
 };
 
