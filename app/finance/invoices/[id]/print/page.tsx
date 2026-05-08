@@ -252,7 +252,9 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
                                     <tr>
                                         <td></td>
                                         <td colSpan={5} style={{ fontWeight: 'bold', paddingLeft: 4 }}>
-                                            {invoice.notes.toUpperCase()}
+                                            <span contentEditable suppressContentEditableWarning style={{ outline: 'none' }}>
+                                                {invoice.notes.toUpperCase()}
+                                            </span>
                                         </td>
                                     </tr>
                                 )}

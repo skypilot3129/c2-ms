@@ -185,7 +185,6 @@ export default function NewTransactionPage() {
             const p = penerimaList[i];
             if (!p.name.trim()) return alert(`Nama penerima #${i + 1} harus diisi`);
             if (!p.tujuan.trim()) return alert(`Tujuan penerima #${i + 1} harus diisi`);
-            if (p.koli <= 0) return alert(`Koli penerima #${i + 1} harus lebih dari 0`);
             if (formData.tipeTransaksi === 'regular' && p.harga <= 0) return alert(`Harga penerima #${i + 1} harus diisi untuk transaksi regular`);
             if (formData.tipeTransaksi === 'borongan' && p.jumlah <= 0) return alert(`Jumlah penerima #${i + 1} harus diisi untuk transaksi borongan`);
         }
