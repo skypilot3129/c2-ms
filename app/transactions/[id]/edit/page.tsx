@@ -419,10 +419,9 @@ export default function EditTransactionPage({ params }: { params: Promise<{ id: 
                                     <label className="block text-sm font-semibold text-gray-700 mb-2">Koli</label>
                                     <input
                                         type="number"
-                                        min="1"
+                                        min="0"
                                         value={formData.koli || ''}
-                                        onChange={(e) => handleChange('koli', e.target.value === '' ? '' : parseInt(e.target.value) || 1)}
-                                        required
+                                        onChange={(e) => handleChange('koli', e.target.value === '' ? '' : parseInt(e.target.value) || 0)}
                                         className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:border-blue-500 outline-none text-center font-bold"
                                     />
                                 </div>
@@ -435,7 +434,6 @@ export default function EditTransactionPage({ params }: { params: Promise<{ id: 
                                             min="0"
                                             value={formData.berat || ''}
                                             onChange={(e) => handleChange('berat', e.target.value === '' ? '' : parseFloat(e.target.value) || 0)}
-                                            required
                                             className="w-full px-4 py-2.5 rounded-l-xl border border-gray-200 focus:border-blue-500 outline-none"
                                         />
                                         <select
