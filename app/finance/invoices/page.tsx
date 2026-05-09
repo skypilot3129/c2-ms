@@ -72,11 +72,19 @@ export default function InvoicesPage() {
                     </div>
                     <div className="flex gap-2">
                         <Link
+                            href="/finance/invoices/print-unpaid"
+                            target="_blank"
+                            className="bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 px-4 py-2.5 rounded-xl font-medium flex items-center justify-center gap-2 transition-all active:scale-95"
+                        >
+                            <Printer size={18} className="text-red-500" />
+                            <span className="hidden sm:inline">Cetak Belum Lunas</span>
+                        </Link>
+                        <Link
                             href="/finance/invoices/cek-harga"
                             className="bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 px-4 py-2.5 rounded-xl font-medium flex items-center justify-center gap-2 transition-all active:scale-95"
                         >
                             <CheckSquare size={18} className="text-blue-600" />
-                            Cek Harga Barang
+                            <span className="hidden sm:inline">Cek Harga Barang</span>
                         </Link>
                         <Link
                             href="/finance/invoices/new"
