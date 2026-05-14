@@ -40,8 +40,13 @@ export default function ManifestPage({ params }: { params: Promise<{ id: string 
     if (loading) return <div className="p-8 text-center">Memuat Manifest...</div>;
     if (!voyage) return <div className="p-8 text-center">Data tidak ditemukan</div>;
 
-    const totalKoli = transactions.reduce((sum, t) => sum + t.koli, 0);
-    const totalBerat = transactions.reduce((sum, t) => sum + t.berat, 0);
+    // Sort transactions by STT number ascending
+    const sortedTransactions = [...transactions].sort((a, b) =>
+        a.noSTT.localeCompare(b.noSTT, 'id', { numeric: true, sensitivity: 'base' })
+    );
+
+    const totalKoli = sortedTransactions.reduce((sum, t) => sum + t.koli, 0);
+    const totalBerat = sortedTransactions.reduce((sum, t) => sum + t.berat, 0);
 
     // Resolve vehicle numbers: prefer vehicleNumbers array, fallback to deprecated vehicleNumber string
     const vehicleNumbers: string[] =
@@ -157,7 +162,7 @@ export default function ManifestPage({ params }: { params: Promise<{ id: string 
                             </tr>
                         </thead>
                         <tbody>
-                            {transactions.map((tx, index) => (
+                            {sortedTransactions.map((tx, index) => (
                                 <tr key={tx.id} className={index % 2 === 0 ? '' : 'bg-gray-50'}>
                                     <td className="border border-black p-2 text-center align-top">{index + 1}</td>
                                     <td className="border border-black p-2 font-mono align-top text-[10px]">{tx.noSTT}</td>
@@ -199,7 +204,7 @@ export default function ManifestPage({ params }: { params: Promise<{ id: string 
 
                     {/* Summary Row */}
                     <div className="flex gap-8 text-sm mb-6 border border-gray-300 rounded p-3 bg-gray-50">
-                        <div><span className="font-bold">Total Resi:</span> {transactions.length} STT</div>
+                        <div><span className="font-bold">Total Resi:</span> {sortedTransactions.length} STT</div>
                         <div><span className="font-bold">Total Koli:</span> {totalKoli} Koli</div>
                         <div><span className="font-bold">Total Berat:</span> {totalBerat} Kg</div>
                         <div className="ml-auto text-xs text-gray-500">Dicetak: {printDate}</div>
