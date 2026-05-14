@@ -238,9 +238,11 @@ function ManifestContent({
                         <th style={thStyle({ width: '18px', textAlign: 'center' })}>No</th>
                         <th style={thStyle({ textAlign: 'left', width: '70px' })}>No. STT</th>
                         <th style={thStyle({ textAlign: 'left', width: '90px' })}>Pengirim</th>
+                        <th style={thStyle({ textAlign: 'left', width: '80px' })}>Penerima</th>
+                        <th style={thStyle({ textAlign: 'left', width: '60px' })}>Tujuan</th>
                         <th style={thStyle({ textAlign: 'left' })}>
-                            Penerima
-                            <div style={{ fontWeight: 'normal', fontSize: '7px', color: '#555' }}>Tujuan / Alamat / Telp</div>
+                            Alamat
+                            <div style={{ fontWeight: 'normal', fontSize: '7px', color: '#555' }}>& No. Telp</div>
                         </th>
                         <th style={thStyle({ width: '26px', textAlign: 'center' })}>Koli</th>
                         <th style={thStyle({ width: '36px', textAlign: 'center' })}>Berat<br/>(Kg)</th>
@@ -259,11 +261,11 @@ function ManifestContent({
                                     <div style={{ fontSize: '7px', color: '#555' }}>☎ {tx.pengirimPhone}</div>
                                 )}
                             </td>
+                            <td style={tdStyle({ fontWeight: 600 })}>{tx.penerimaName}</td>
+                            <td style={tdStyle({})}>{tx.tujuan}</td>
                             <td style={tdStyle({})}>
-                                <div style={{ fontWeight: 600 }}>{tx.penerimaName}</div>
-                                <div style={{ fontSize: '7px', color: '#444', marginTop: '1px' }}>📍 {tx.tujuan}</div>
                                 {tx.penerimaAddress && (
-                                    <div style={{ fontSize: '7px', color: '#555', marginTop: '1px' }}>
+                                    <div style={{ fontSize: '7px', color: '#555' }}>
                                         {tx.penerimaAddress}
                                         {tx.penerimaCity && tx.penerimaCity !== tx.tujuan ? `, ${tx.penerimaCity}` : ''}
                                     </div>
@@ -280,7 +282,7 @@ function ManifestContent({
                     ))}
                     {/* Totals */}
                     <tr style={{ background: '#e5e7eb', fontWeight: 700 }}>
-                        <td colSpan={4} style={{ ...tdStyle({}), textAlign: 'right' }}>TOTAL</td>
+                        <td colSpan={6} style={{ ...tdStyle({}), textAlign: 'right' }}>TOTAL</td>
                         <td style={tdStyle({ textAlign: 'center' })}>{totalKoli}</td>
                         <td style={tdStyle({ textAlign: 'center' })}>{totalBerat}</td>
                         <td style={tdStyle({})}></td>
