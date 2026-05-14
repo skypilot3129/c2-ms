@@ -16,11 +16,14 @@ import {
     Banknote, TrendingDown, ArrowDownRight, CalendarDays,
     ArrowUpRight, CheckCircle2, XCircle, Clock, BarChart3,
     Target, ChevronDown, ChevronUp, Image as ImageIcon,
+    Search, Filter, ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronRight
 } from 'lucide-react';
 import ProtectedRoute from '@/components/ProtectedRoute';
 
 // ─────────────────────────────────────
 type FilterMode = 'month' | 'date' | 'range';
+type SortField = 'date' | 'description' | 'in' | 'out';
+type SortDir = 'asc' | 'desc';
 
 type LedgerEntry =
     | (Expense & { entryType: 'expense' })
@@ -52,7 +55,7 @@ export default function GeneralExpensesPage() {
         date: new Date().toISOString().split('T')[0],
         receiptFile: null as File | null,
     });
-    const [groupOpen, setGroupOpen] = useState(0); // which category group is open
+    const [groupOpen, setGroupOpen] = useState(0);
 
     // ── Add Top-Up Modal ──
     const [isTopupModalOpen, setIsTopupModalOpen] = useState(false);
@@ -67,7 +70,7 @@ export default function GeneralExpensesPage() {
     const [isSettingModal, setIsSettingModal] = useState(false);
     const [tempModalAwal, setTempModalAwal] = useState(0);
 
-    // ── Filter ──
+    // ── Time Period Filter ──
     const [filterMode, setFilterMode] = useState<FilterMode>('month');
     const [filterMonth, setFilterMonth] = useState(() => {
         const now = new Date();
@@ -76,6 +79,14 @@ export default function GeneralExpensesPage() {
     const [filterDate, setFilterDate] = useState(() => new Date().toISOString().split('T')[0]);
     const [filterStart, setFilterStart] = useState(() => new Date().toISOString().split('T')[0]);
     const [filterEnd, setFilterEnd] = useState(() => new Date().toISOString().split('T')[0]);
+
+    // ── Content Filter, Sorting, Pagination ──
+    const [searchTerm, setSearchTerm] = useState('');
+    const [categoryFilter, setCategoryFilter] = useState('');
+    const [sortField, setSortField] = useState<SortField>('date');
+    const [sortDir, setSortDir] = useState<SortDir>('asc');
+    const [currentPage, setCurrentPage] = useState(1);
+    const [pageSize, setPageSize] = useState(10);
 
     // ── Load modal awal ──
     useEffect(() => {
@@ -94,8 +105,12 @@ export default function GeneralExpensesPage() {
         return () => { unsub1(); unsub2(); };
     }, [user]);
 
-    // ── Filter logic ──
+    // Reset page to 1 when filters change
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [filterMode, filterMonth, filterDate, filterStart, filterEnd, searchTerm, categoryFilter, pageSize]);
 
+    // ── Logic: Period Filter ──
     const inRange = (date: Date) => {
         const ds = date.toISOString().split('T')[0];
         if (filterMode === 'month') {
@@ -119,7 +134,7 @@ export default function GeneralExpensesPage() {
         [topups, filterMode, filterMonth, filterDate, filterStart, filterEnd]
     );
 
-    // ── Merged ledger sorted by date then input time ──
+    // ── Merged ledger sorted strictly by date/time (Base Logic) ──
     const ledger: LedgerEntry[] = useMemo(() => {
         const exp = filteredExpenses.map(e => ({ ...e, entryType: 'expense' as const }));
         const top = filteredTopups.map(t => ({ ...t, entryType: 'topup' as const }));
@@ -133,18 +148,17 @@ export default function GeneralExpensesPage() {
         });
     }, [filteredExpenses, filteredTopups]);
 
-    // ── Calculations ──
+    // ── Calculations for Summary Cards ──
     const totalExpenses = filteredExpenses
         .filter(e => e.status === 'approved' || e.status === 'draft' || !e.status)
         .reduce((s, e) => s + e.amount, 0);
     const totalTopUps = filteredTopups.reduce((s, t) => s + t.amount, 0);
     const pendingCount = filteredExpenses.filter(e => e.status === 'pending').length;
 
-    // ── Starting balance = modal awal + topups - expenses (from start of the month to before the selected period) ──
+    // ── Starting balance = modal awal + topups - expenses (from start of month to before period) ──
     const balanceBeforePeriod = useMemo(() => {
         if (filterMode === 'month') return modalAwal;
 
-        // Start from the 1st of the month of the selected filter
         const startOfMonth = filterMode === 'date' ? filterDate.substring(0, 8) + '01' : filterStart.substring(0, 8) + '01';
         const endDate = filterMode === 'date' ? filterDate : filterStart;
 
@@ -167,7 +181,7 @@ export default function GeneralExpensesPage() {
         return modalAwal + topupSum - expenseSum;
     }, [topups, expenses, filterMode, filterDate, filterStart, modalAwal]);
 
-    // Running balance for each ledger row (starts from balance before the period)
+    // Running balance calculation (Base Logic)
     const ledgerWithBalance = useMemo(() => {
         let running = balanceBeforePeriod;
         return ledger.map(entry => {
@@ -175,7 +189,6 @@ export default function GeneralExpensesPage() {
                 running += entry.amount;
             } else {
                 const e = entry as Expense;
-                // Only approved or draft expenses deduct from balance
                 if (e.status === 'approved' || e.status === 'draft' || !e.status) {
                     running -= entry.amount;
                 }
@@ -184,8 +197,54 @@ export default function GeneralExpensesPage() {
         });
     }, [ledger, balanceBeforePeriod]);
 
-    // Final saldo = balance before period + topups in period - expenses in period
     const saldoAkhir = balanceBeforePeriod + totalTopUps - totalExpenses;
+
+    // ── Data Processing for Display (Search, Filter Kategori, Sorting, Pagination) ──
+    const isCustomView = searchTerm !== '' || categoryFilter !== '' || sortField !== 'date' || sortDir !== 'asc';
+
+    const processedLedger = useMemo(() => {
+        // 1. Filter by Search & Category
+        let data = ledgerWithBalance.filter(entry => {
+            const matchesSearch = entry.description.toLowerCase().includes(searchTerm.toLowerCase());
+            
+            let matchesCategory = true;
+            if (categoryFilter) {
+                if (categoryFilter === 'topup' && entry.entryType !== 'topup') matchesCategory = false;
+                if (categoryFilter !== 'topup' && (entry.entryType === 'topup' || (entry as Expense).category !== categoryFilter)) matchesCategory = false;
+            }
+            
+            return matchesSearch && matchesCategory;
+        });
+
+        // 2. Sort Data
+        if (isCustomView) {
+            data.sort((a, b) => {
+                let valA: any, valB: any;
+                
+                if (sortField === 'date') {
+                    valA = new Date(a.date).getTime();
+                    valB = new Date(b.date).getTime();
+                } else if (sortField === 'description') {
+                    valA = a.description.toLowerCase();
+                    valB = b.description.toLowerCase();
+                } else if (sortField === 'in') {
+                    valA = a.entryType === 'topup' ? a.amount : 0;
+                    valB = b.entryType === 'topup' ? b.amount : 0;
+                } else if (sortField === 'out') {
+                    valA = a.entryType === 'expense' ? a.amount : 0;
+                    valB = b.entryType === 'expense' ? b.amount : 0;
+                }
+
+                if (valA < valB) return sortDir === 'asc' ? -1 : 1;
+                if (valA > valB) return sortDir === 'asc' ? 1 : -1;
+                return 0;
+            });
+        }
+        return data;
+    }, [ledgerWithBalance, searchTerm, categoryFilter, sortField, sortDir, isCustomView]);
+
+    const totalPages = Math.ceil(processedLedger.length / pageSize);
+    const paginatedLedger = processedLedger.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
     // ── Period label ──
     const periodLabel = useMemo(() => {
@@ -202,6 +261,20 @@ export default function GeneralExpensesPage() {
     }, [filterMode, filterMonth, filterDate, filterStart, filterEnd]);
 
     // ── Handlers ──
+    const toggleSort = (field: SortField) => {
+        if (sortField === field) {
+            setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
+        } else {
+            setSortField(field);
+            setSortDir('asc');
+        }
+    };
+
+    const SortIcon = ({ field }: { field: SortField }) => {
+        if (sortField !== field) return <ArrowUpDown size={14} className="text-gray-400" />;
+        return sortDir === 'asc' ? <ArrowUp size={14} className="text-emerald-600" /> : <ArrowDown size={14} className="text-emerald-600" />;
+    };
+
     const handleSaveExpense = async () => {
         if (!user || !expenseForm.description.trim() || expenseForm.amount <= 0) return;
         try {
@@ -282,6 +355,18 @@ export default function GeneralExpensesPage() {
         router.push(`/finance/expenses/print?data=${dataStr}&label=${labelStr}&modal=${balanceBeforePeriod}&expenses=${totalExpenses}&topups=${totalTopUps}&saldo=${saldoAkhir}`);
     };
 
+    // Prepare category options array from groups
+    const flatCategories = useMemo(() => {
+        let cats: { value: string, label: string }[] = [];
+        EXPENSE_CATEGORY_GROUPS.forEach(g => {
+            g.categories.forEach(c => {
+                cats.push({ value: c, label: EXPENSE_CATEGORY_LABELS[c] || c });
+            });
+        });
+        cats.sort((a, b) => a.label.localeCompare(b.label));
+        return cats;
+    }, []);
+
     if (loading) return <div className="p-8 text-center text-gray-500">Memuat data...</div>;
 
     return (
@@ -313,43 +398,76 @@ export default function GeneralExpensesPage() {
                 </div>
 
                 {/* ── Filter Row ── */}
-                <div className="flex flex-col gap-3">
-                    <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1 w-fit">
-                        {(['month', 'date', 'range'] as FilterMode[]).map(mode => (
-                            <button key={mode} onClick={() => setFilterMode(mode)}
-                                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${filterMode === mode ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
-                                {mode === 'month' ? 'Bulanan' : mode === 'date' ? 'Harian' : 'Rentang'}
-                            </button>
-                        ))}
+                <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3 bg-white p-3 rounded-xl border border-gray-100 shadow-sm">
+                    {/* Period Filters */}
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                        <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1 w-fit shrink-0">
+                            {(['month', 'date', 'range'] as FilterMode[]).map(mode => (
+                                <button key={mode} onClick={() => setFilterMode(mode)}
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${filterMode === mode ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+                                    {mode === 'month' ? 'Bulanan' : mode === 'date' ? 'Harian' : 'Rentang'}
+                                </button>
+                            ))}
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                            {filterMode === 'month' && (
+                                <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2">
+                                    <CalendarDays size={16} className="text-blue-500" />
+                                    <input type="month" value={filterMonth} onChange={e => setFilterMonth(e.target.value)} className="border-none outline-none text-sm font-medium bg-transparent" />
+                                </div>
+                            )}
+                            {filterMode === 'date' && (
+                                <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2">
+                                    <CalendarDays size={16} className="text-blue-500" />
+                                    <input type="date" value={filterDate} onChange={e => setFilterDate(e.target.value)} className="border-none outline-none text-sm font-medium bg-transparent" />
+                                </div>
+                            )}
+                            {filterMode === 'range' && (
+                                <div className="flex items-center gap-2 flex-wrap">
+                                    <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2">
+                                        <span className="text-xs text-gray-400 font-medium">Dari</span>
+                                        <input type="date" value={filterStart} onChange={e => setFilterStart(e.target.value)} className="border-none outline-none text-sm font-medium bg-transparent w-full sm:w-auto" />
+                                    </div>
+                                    <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2">
+                                        <span className="text-xs text-gray-400 font-medium">Sampai</span>
+                                        <input type="date" value={filterEnd} onChange={e => setFilterEnd(e.target.value)} className="border-none outline-none text-sm font-medium bg-transparent w-full sm:w-auto" />
+                                    </div>
+                                </div>
+                            )}
+                        </div>
                     </div>
-                    <div className="flex flex-wrap items-center gap-3">
-                        {filterMode === 'month' && (
-                            <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-3 py-2 shadow-sm">
-                                <CalendarDays size={16} className="text-blue-500" />
-                                <input type="month" value={filterMonth} onChange={e => setFilterMonth(e.target.value)} className="border-none outline-none text-sm font-medium bg-transparent" />
-                            </div>
-                        )}
-                        {filterMode === 'date' && (
-                            <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-3 py-2 shadow-sm">
-                                <CalendarDays size={16} className="text-blue-500" />
-                                <input type="date" value={filterDate} onChange={e => setFilterDate(e.target.value)} className="border-none outline-none text-sm font-medium bg-transparent" />
-                            </div>
-                        )}
-                        {filterMode === 'range' && (
-                            <div className="flex items-center gap-2 flex-wrap">
-                                <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-3 py-2 shadow-sm">
-                                    <span className="text-xs text-gray-400 font-medium">Dari</span>
-                                    <input type="date" value={filterStart} onChange={e => setFilterStart(e.target.value)} className="border-none outline-none text-sm font-medium bg-transparent" />
-                                </div>
-                                <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-3 py-2 shadow-sm">
-                                    <span className="text-xs text-gray-400 font-medium">Sampai</span>
-                                    <input type="date" value={filterEnd} onChange={e => setFilterEnd(e.target.value)} className="border-none outline-none text-sm font-medium bg-transparent" />
-                                </div>
-                            </div>
-                        )}
+                    
+                    {/* Data Filters */}
+                    <div className="flex flex-col sm:flex-row items-center gap-2 w-full xl:w-auto">
+                        <div className="relative w-full sm:w-64">
+                            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                            <input
+                                type="text"
+                                placeholder="Cari keterangan..."
+                                className="pl-9 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm w-full focus:ring-2 focus:ring-blue-100 transition-all outline-none"
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                            />
+                        </div>
+                        <div className="relative w-full sm:w-48 shrink-0">
+                            <Filter size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                            <select
+                                value={categoryFilter}
+                                onChange={(e) => setCategoryFilter(e.target.value)}
+                                className="pl-9 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm w-full focus:ring-2 focus:ring-blue-100 transition-all outline-none appearance-none"
+                            >
+                                <option value="">Semua Kategori</option>
+                                <option value="topup" className="font-bold text-emerald-600">Pemasukan (Top-Up)</option>
+                                <optgroup label="Kategori Pengeluaran">
+                                    {flatCategories.map(cat => (
+                                        <option key={cat.value} value={cat.value}>{cat.label}</option>
+                                    ))}
+                                </optgroup>
+                            </select>
+                        </div>
                         <button onClick={() => { setTempModalAwal(modalAwal); setIsSettingModal(true); }}
-                            className="flex items-center gap-1.5 bg-white border border-gray-200 rounded-xl px-3 py-2 shadow-sm hover:bg-gray-50 text-sm font-medium text-gray-700 transition-colors">
-                            <Banknote size={16} className="text-emerald-500" /> Modal Awal
+                            className="w-full sm:w-auto flex justify-center items-center gap-1.5 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 hover:bg-gray-100 text-sm font-medium text-gray-700 transition-colors">
+                            <Banknote size={16} className="text-emerald-500 shrink-0" /> <span className="whitespace-nowrap">Modal Awal</span>
                         </button>
                     </div>
                 </div>
@@ -381,6 +499,12 @@ export default function GeneralExpensesPage() {
                         <span>{pendingCount} pengeluaran menunggu persetujuan Anda</span>
                     </div>
                 )}
+                
+                {isCustomView && processedLedger.length > 0 && (
+                    <div className="bg-blue-50 text-blue-700 p-2.5 rounded-lg text-xs flex items-center justify-center border border-blue-100">
+                        Memfilter / mengurutkan data. Kolom Saldo disembunyikan.
+                    </div>
+                )}
 
                 {/* ── Ledger Table ── */}
                 <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
@@ -389,13 +513,13 @@ export default function GeneralExpensesPage() {
                             <ArrowDownRight size={16} className="text-red-500" />
                             Buku Kas – {periodLabel}
                         </h3>
-                        <span className="text-xs text-gray-400 font-medium">{ledger.length} entri</span>
+                        <span className="text-xs text-gray-400 font-medium">{processedLedger.length} entri</span>
                     </div>
 
-                    {ledger.length === 0 ? (
+                    {processedLedger.length === 0 ? (
                         <div className="text-center py-12 px-4 text-gray-400">
                             <Wallet size={32} className="mx-auto mb-2 opacity-20" />
-                            <p className="text-sm">Belum ada transaksi di periode ini.</p>
+                            <p className="text-sm">Belum ada transaksi sesuai kriteria pencarian di periode ini.</p>
                         </div>
                     ) : (
                         <>
@@ -405,43 +529,54 @@ export default function GeneralExpensesPage() {
                                     <thead className="bg-gray-50 text-gray-500 font-medium border-b">
                                         <tr>
                                             <th className="px-4 py-3 text-left">No</th>
-                                            <th className="px-4 py-3 text-left">Tanggal</th>
-                                            <th className="px-4 py-3 text-left">Keterangan</th>
+                                            <th className="px-4 py-3 text-left cursor-pointer hover:bg-gray-100 transition-colors" onClick={() => toggleSort('date')}>
+                                                <div className="flex items-center gap-1">Tanggal <SortIcon field="date" /></div>
+                                            </th>
+                                            <th className="px-4 py-3 text-left cursor-pointer hover:bg-gray-100 transition-colors" onClick={() => toggleSort('description')}>
+                                                <div className="flex items-center gap-1">Keterangan <SortIcon field="description" /></div>
+                                            </th>
                                             <th className="px-4 py-3 text-left">Kategori</th>
-                                            <th className="px-4 py-3 text-right text-emerald-600">Masuk</th>
-                                            <th className="px-4 py-3 text-right text-red-600">Keluar</th>
+                                            <th className="px-4 py-3 text-right text-emerald-600 cursor-pointer hover:bg-gray-100 transition-colors" onClick={() => toggleSort('in')}>
+                                                <div className="flex items-center justify-end gap-1"><SortIcon field="in" /> Masuk</div>
+                                            </th>
+                                            <th className="px-4 py-3 text-right text-red-600 cursor-pointer hover:bg-gray-100 transition-colors" onClick={() => toggleSort('out')}>
+                                                <div className="flex items-center justify-end gap-1"><SortIcon field="out" /> Keluar</div>
+                                            </th>
                                             <th className="px-4 py-3 text-right">Saldo</th>
                                             <th className="px-4 py-3 text-center">Status</th>
                                             <th className="px-4 py-3 text-center">Aksi</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-gray-50">
-                                        {/* Starting balance row */}
-                                        <tr className="bg-emerald-50">
-                                            <td colSpan={4} className="px-4 py-2 text-xs text-emerald-700 font-bold">Saldo Awal Kas Kecil</td>
-                                            <td className="px-4 py-2 text-right text-xs text-emerald-700 font-bold">{formatRupiah(modalAwal)}</td>
-                                            <td></td>
-                                            <td className="px-4 py-2 text-right text-xs text-emerald-700 font-bold">{formatRupiah(modalAwal)}</td>
-                                            <td></td>
-                                            <td></td>
-                                        </tr>
-                                        {ledgerWithBalance.map((entry, idx) => {
+                                        {/* Starting balance row (only show on page 1 and no custom view) */}
+                                        {currentPage === 1 && !isCustomView && (
+                                            <tr className="bg-emerald-50">
+                                                <td colSpan={4} className="px-4 py-2 text-xs text-emerald-700 font-bold">Saldo Awal Kas Kecil</td>
+                                                <td className="px-4 py-2 text-right text-xs text-emerald-700 font-bold">{formatRupiah(modalAwal)}</td>
+                                                <td></td>
+                                                <td className="px-4 py-2 text-right text-xs text-emerald-700 font-bold">{formatRupiah(modalAwal)}</td>
+                                                <td></td>
+                                                <td></td>
+                                            </tr>
+                                        )}
+                                        {paginatedLedger.map((entry, idx) => {
                                             const isTopup = entry.entryType === 'topup';
                                             const expense = !isTopup ? entry as Expense & { runningBalance: number } : null;
                                             const topup = isTopup ? entry as PettyCashTopUp & { runningBalance: number } : null;
                                             const isRejected = expense?.status === 'rejected';
+                                            const rowNo = (currentPage - 1) * pageSize + idx + 1;
                                             return (
                                                 <tr key={entry.id} className={`hover:bg-gray-50 transition-colors ${isRejected ? 'opacity-50 line-through' : ''}`}>
-                                                    <td className="px-4 py-3 text-gray-400 text-xs">{idx + 1}</td>
+                                                    <td className="px-4 py-3 text-gray-400 text-xs">{rowNo}</td>
                                                     <td className="px-4 py-3 text-gray-600 whitespace-nowrap text-xs">
                                                         {new Date(entry.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
                                                     </td>
-                                                    <td className="px-4 py-3 text-gray-800 font-medium max-w-xs truncate">{entry.description}</td>
+                                                    <td className="px-4 py-3 text-gray-800 font-medium max-w-xs truncate" title={entry.description}>{entry.description}</td>
                                                     <td className="px-4 py-3">
                                                         {isTopup ? (
                                                             <span className="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded text-xs font-medium">Top-Up Kas</span>
                                                         ) : (
-                                                            <span className="bg-gray-100 text-gray-700 px-2 py-0.5 rounded text-xs font-medium border border-gray-200">
+                                                            <span className="bg-gray-100 text-gray-700 px-2 py-0.5 rounded text-xs font-medium border border-gray-200 whitespace-nowrap">
                                                                 {EXPENSE_CATEGORY_LABELS[(entry as Expense).category] || (entry as Expense).category}
                                                             </span>
                                                         )}
@@ -452,12 +587,12 @@ export default function GeneralExpensesPage() {
                                                     <td className="px-4 py-3 text-right font-semibold text-red-600 text-sm">
                                                         {!isTopup ? formatRupiah(expense!.amount) : '—'}
                                                     </td>
-                                                    <td className={`px-4 py-3 text-right font-semibold text-sm ${(entry as any).runningBalance >= 0 ? 'text-blue-600' : 'text-orange-600'}`}>
-                                                        {formatRupiah((entry as any).runningBalance)}
+                                                    <td className={`px-4 py-3 text-right font-semibold text-sm ${isCustomView ? 'text-gray-400' : ((entry as any).runningBalance >= 0 ? 'text-blue-600' : 'text-orange-600')}`}>
+                                                        {isCustomView ? '—' : formatRupiah((entry as any).runningBalance)}
                                                     </td>
                                                     <td className="px-4 py-3 text-center">
                                                         {isTopup ? null : (
-                                                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_CONFIG[expense!.status || 'approved'].color}`}>
+                                                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-medium whitespace-nowrap ${STATUS_CONFIG[expense!.status || 'approved'].color}`}>
                                                                 {STATUS_CONFIG[expense!.status || 'approved'].icon}
                                                                 {STATUS_CONFIG[expense!.status || 'approved'].label}
                                                             </span>
@@ -466,7 +601,7 @@ export default function GeneralExpensesPage() {
                                                     <td className="px-4 py-3">
                                                         <div className="flex items-center justify-center gap-1">
                                                             {isTopup ? (
-                                                                isManager && <button onClick={() => handleDeleteTopUp(topup!.id)} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg"><Trash2 size={14} /></button>
+                                                                isManager && <button onClick={() => handleDeleteTopUp(topup!.id)} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg" title="Hapus"><Trash2 size={14} /></button>
                                                             ) : (
                                                                 <>
                                                                     {isManager && expense!.status === 'pending' && (
@@ -475,8 +610,8 @@ export default function GeneralExpensesPage() {
                                                                             <button onClick={() => { setRejectTarget(expense!.id); }} className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg" title="Tolak"><XCircle size={14} /></button>
                                                                         </>
                                                                     )}
-                                                                    <button onClick={() => openEditExpense(entry as Expense)} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg"><Edit2 size={14} /></button>
-                                                                    {isManager && <button onClick={() => handleDelete(expense!.id)} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg"><Trash2 size={14} /></button>}
+                                                                    <button onClick={() => openEditExpense(entry as Expense)} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg" title="Edit"><Edit2 size={14} /></button>
+                                                                    {isManager && <button onClick={() => handleDelete(expense!.id)} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg" title="Hapus"><Trash2 size={14} /></button>}
                                                                 </>
                                                             )}
                                                         </div>
@@ -485,21 +620,24 @@ export default function GeneralExpensesPage() {
                                             );
                                         })}
                                     </tbody>
-                                    <tfoot>
-                                        <tr className="bg-gray-50 font-bold border-t-2 border-gray-200 text-sm">
-                                            <td colSpan={4} className="px-4 py-3 text-right text-gray-700">TOTAL:</td>
-                                            <td className="px-4 py-3 text-right text-emerald-600">{formatRupiah(totalTopUps)}</td>
-                                            <td className="px-4 py-3 text-right text-red-600">{formatRupiah(totalExpenses)}</td>
-                                            <td className={`px-4 py-3 text-right ${saldoAkhir >= 0 ? 'text-blue-600' : 'text-orange-600'}`}>{formatRupiah(saldoAkhir)}</td>
-                                            <td colSpan={2}></td>
-                                        </tr>
-                                    </tfoot>
+                                    {/* Footer only on last page or no pagination context needed */}
+                                    {(!isCustomView && currentPage === totalPages) && (
+                                        <tfoot>
+                                            <tr className="bg-gray-50 font-bold border-t-2 border-gray-200 text-sm">
+                                                <td colSpan={4} className="px-4 py-3 text-right text-gray-700">TOTAL PERIODE:</td>
+                                                <td className="px-4 py-3 text-right text-emerald-600">{formatRupiah(totalTopUps)}</td>
+                                                <td className="px-4 py-3 text-right text-red-600">{formatRupiah(totalExpenses)}</td>
+                                                <td className={`px-4 py-3 text-right ${saldoAkhir >= 0 ? 'text-blue-600' : 'text-orange-600'}`}>{formatRupiah(saldoAkhir)}</td>
+                                                <td colSpan={2}></td>
+                                            </tr>
+                                        </tfoot>
+                                    )}
                                 </table>
                             </div>
 
                             {/* Mobile Cards */}
                             <div className="md:hidden divide-y divide-gray-100">
-                                {ledgerWithBalance.map((entry, idx) => {
+                                {paginatedLedger.map((entry, idx) => {
                                     const isTopup = entry.entryType === 'topup';
                                     const expense = !isTopup ? entry as Expense & { runningBalance: number } : null;
                                     const topup = isTopup ? entry as PettyCashTopUp & { runningBalance: number } : null;
@@ -514,16 +652,18 @@ export default function GeneralExpensesPage() {
                                                             {EXPENSE_CATEGORY_LABELS[(entry as Expense).category]}
                                                         </span>
                                                     )}
-                                                    <p className="font-medium text-gray-800 text-sm truncate">{entry.description}</p>
+                                                    <p className="font-medium text-gray-800 text-sm line-clamp-2">{entry.description}</p>
                                                     <p className="text-[10px] text-gray-400 mt-0.5">{new Date(entry.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
                                                 </div>
                                                 <div className="text-right shrink-0 ml-3">
                                                     <p className={`font-bold text-base ${isTopup ? 'text-emerald-600' : 'text-red-600'}`}>
                                                         {isTopup ? '+' : '-'}{formatRupiah(entry.amount)}
                                                     </p>
-                                                    <p className={`text-[11px] font-semibold mt-0.5 ${(entry as any).runningBalance >= 0 ? 'text-blue-600' : 'text-orange-600'}`}>
-                                                        Saldo: {formatRupiah((entry as any).runningBalance)}
-                                                    </p>
+                                                    {!isCustomView && (
+                                                        <p className={`text-[11px] font-semibold mt-0.5 ${(entry as any).runningBalance >= 0 ? 'text-blue-600' : 'text-orange-600'}`}>
+                                                            Saldo: {formatRupiah((entry as any).runningBalance)}
+                                                        </p>
+                                                    )}
                                                 </div>
                                             </div>
                                             <div className="flex items-center justify-between pt-1.5 border-t border-dashed border-gray-100">
@@ -553,21 +693,63 @@ export default function GeneralExpensesPage() {
                                         </div>
                                     );
                                 })}
-                                <div className="px-4 py-3 bg-gray-50 border-t-2 border-gray-200 space-y-1">
-                                    <div className="flex justify-between text-sm font-bold">
-                                        <span className="text-gray-700">Total Pemasukan</span>
-                                        <span className="text-emerald-600">{formatRupiah(totalTopUps)}</span>
+                                {(!isCustomView && currentPage === totalPages) && (
+                                    <div className="px-4 py-3 bg-gray-50 border-t-2 border-gray-200 space-y-1">
+                                        <div className="flex justify-between text-sm font-bold">
+                                            <span className="text-gray-700">Total Pemasukan</span>
+                                            <span className="text-emerald-600">{formatRupiah(totalTopUps)}</span>
+                                        </div>
+                                        <div className="flex justify-between text-sm font-bold">
+                                            <span className="text-gray-700">Total Pengeluaran</span>
+                                            <span className="text-red-600">{formatRupiah(totalExpenses)}</span>
+                                        </div>
+                                        <div className="flex justify-between text-sm font-bold">
+                                            <span className="text-gray-700">Sisa Saldo</span>
+                                            <span className={saldoAkhir >= 0 ? 'text-blue-600' : 'text-orange-600'}>{formatRupiah(saldoAkhir)}</span>
+                                        </div>
                                     </div>
-                                    <div className="flex justify-between text-sm font-bold">
-                                        <span className="text-gray-700">Total Pengeluaran</span>
-                                        <span className="text-red-600">{formatRupiah(totalExpenses)}</span>
+                                )}
+                            </div>
+
+                            {/* Pagination Controls */}
+                            {totalPages > 0 && (
+                                <div className="p-4 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-4 bg-gray-50/50">
+                                    <div className="flex items-center gap-2 text-sm text-gray-500">
+                                        <span>Tampilkan</span>
+                                        <select
+                                            value={pageSize}
+                                            onChange={(e) => setPageSize(Number(e.target.value))}
+                                            className="border border-gray-200 rounded px-2 py-1 bg-white focus:outline-none focus:border-blue-500"
+                                        >
+                                            <option value={10}>10</option>
+                                            <option value={25}>25</option>
+                                            <option value={50}>50</option>
+                                            <option value={100}>100</option>
+                                        </select>
+                                        <span>data dari {processedLedger.length}</span>
                                     </div>
-                                    <div className="flex justify-between text-sm font-bold">
-                                        <span className="text-gray-700">Sisa Saldo</span>
-                                        <span className={saldoAkhir >= 0 ? 'text-blue-600' : 'text-orange-600'}>{formatRupiah(saldoAkhir)}</span>
+                                    
+                                    <div className="flex items-center gap-1">
+                                        <button
+                                            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                            disabled={currentPage === 1}
+                                            className="p-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed bg-white"
+                                        >
+                                            <ChevronLeft size={18} />
+                                        </button>
+                                        <div className="px-3 py-1 text-sm font-medium text-gray-700">
+                                            Halaman {currentPage} dari {totalPages}
+                                        </div>
+                                        <button
+                                            onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                            disabled={currentPage === totalPages}
+                                            className="p-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed bg-white"
+                                        >
+                                            <ChevronRight size={18} />
+                                        </button>
                                     </div>
                                 </div>
-                            </div>
+                            )}
                         </>
                     )}
                 </div>
