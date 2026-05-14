@@ -332,3 +332,16 @@ function tdStyle(extra: React.CSSProperties = {}): React.CSSProperties {
         ...extra,
     };
 }
+
+function InfoRow({ label, value, bold }: { label: string; value: string; bold?: boolean }) {
+    return (
+        <tr>
+            <td style={{ fontWeight: 700, paddingRight: '4px', paddingTop: '1px', paddingBottom: '1px', whiteSpace: 'nowrap', verticalAlign: 'top', width: '90px' }}>
+                {label}
+            </td>
+            <td style={{ paddingTop: '1px', paddingBottom: '1px', verticalAlign: 'top', fontWeight: bold ? 700 : 400 }}>
+                : {value}
+            </td>
+        </tr>
+    );
+}
