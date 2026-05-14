@@ -152,9 +152,8 @@ export default function ManifestPage({ params }: { params: Promise<{ id: string 
                                 <th className="border border-black p-2 text-left w-32">Pengirim</th>
                                 <th className="border border-black p-2 text-left">
                                     <div>Penerima</div>
-                                    <div className="font-normal text-[10px] text-gray-600">Alamat / No. Telp</div>
+                                    <div className="font-normal text-[10px] text-gray-600">Tujuan / Alamat Lengkap / No. Telp</div>
                                 </th>
-                                <th className="border border-black p-2 text-left w-24">Tujuan</th>
                                 <th className="border border-black p-2 text-center w-12">Koli</th>
                                 <th className="border border-black p-2 text-center w-16">Berat (Kg)</th>
                                 <th className="border border-black p-2 text-left">Isi Barang</th>
@@ -174,17 +173,17 @@ export default function ManifestPage({ params }: { params: Promise<{ id: string 
                                     </td>
                                     <td className="border border-black p-2 align-top">
                                         <div className="font-semibold">{tx.penerimaName}</div>
+                                        <div className="text-[10px] text-gray-600 mt-0.5 font-medium">🏙️ {tx.tujuan}</div>
                                         {tx.penerimaAddress && (
                                             <div className="text-[10px] text-gray-600 mt-0.5">
                                                 📍 {tx.penerimaAddress}
-                                                {tx.penerimaCity ? `, ${tx.penerimaCity}` : ''}
+                                                {tx.penerimaCity && tx.penerimaCity !== tx.tujuan ? `, ${tx.penerimaCity}` : ''}
                                             </div>
                                         )}
                                         {tx.penerimaPhone && (
                                             <div className="text-[10px] text-gray-600 mt-0.5">📞 {tx.penerimaPhone}</div>
                                         )}
                                     </td>
-                                    <td className="border border-black p-2 align-top">{tx.tujuan}</td>
                                     <td className="border border-black p-2 text-center align-top font-semibold">{tx.koli}</td>
                                     <td className="border border-black p-2 text-center align-top font-semibold">{tx.berat}</td>
                                     <td className="border border-black p-2 align-top">{tx.isiBarang || '-'}</td>
@@ -193,7 +192,7 @@ export default function ManifestPage({ params }: { params: Promise<{ id: string 
                             ))}
                             {/* Totals Row */}
                             <tr className="bg-gray-200 font-bold">
-                                <td colSpan={5} className="border border-black p-2 text-right">TOTAL</td>
+                                <td colSpan={4} className="border border-black p-2 text-right">TOTAL</td>
                                 <td className="border border-black p-2 text-center">{totalKoli}</td>
                                 <td className="border border-black p-2 text-center">{totalBerat}</td>
                                 <td className="border border-black p-2"></td>
