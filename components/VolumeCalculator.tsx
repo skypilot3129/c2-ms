@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Calculator, Package, Copy, RotateCcw, Info, Plus, Trash2, DollarSign, Printer, User, ArrowRight, Box } from 'lucide-react';
+import { Calculator, Package, Copy, RotateCcw, Info, Plus, Trash2, DollarSign, Printer, User, ArrowRight, Box, Pencil, X } from 'lucide-react';
 import {
     calculateDimensions,
     formatWeight,
@@ -40,6 +40,7 @@ export default function VolumeCalculator() {
     const [pricePerKg, setPricePerKg] = useState<number>(0);
     const [errors, setErrors] = useState<string[]>([]);
     const [showInfo, setShowInfo] = useState(false);
+    const [editingKoliNumber, setEditingKoliNumber] = useState<number | null>(null);
 
     const handleStartSession = (e: React.FormEvent) => {
         e.preventDefault();
@@ -82,15 +83,45 @@ export default function VolumeCalculator() {
 
         setKoliList(prev => [...prev, newKoli]);
 
-        // Reset form for next koli
+        setFormData({ length: 0, width: 0, height: 0, actualWeight: 0, quantity: 1, itemName: '' });
+        setErrors([]);
+    };
+
+    const handleEditKoli = (koliNumber: number) => {
+        const koli = koliList.find(k => k.koliNumber === koliNumber);
+        if (!koli) return;
+        setEditingKoliNumber(koliNumber);
         setFormData({
-            length: 0,
-            width: 0,
-            height: 0,
-            actualWeight: 0,
-            quantity: 1,
-            itemName: ''
+            length: koli.length,
+            width: koli.width,
+            height: koli.height,
+            actualWeight: koli.actualWeight,
+            quantity: koli.quantity,
+            itemName: koli.itemName
         });
+        setErrors([]);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    const handleUpdateKoli = () => {
+        if (editingKoliNumber === null) return;
+        const validation = validateDimensions(formData.length, formData.width, formData.height, formData.actualWeight);
+        const newErrors = [...validation.errors];
+        if (!formData.itemName || formData.itemName.trim() === '') newErrors.push('Nama/Tipe barang harus diisi');
+        if (newErrors.length > 0) { setErrors(newErrors); return; }
+
+        const calculation = calculateDimensions(formData);
+        setKoliList(prev => prev.map(k =>
+            k.koliNumber === editingKoliNumber ? { ...calculation, koliNumber: editingKoliNumber } : k
+        ));
+        setEditingKoliNumber(null);
+        setFormData({ length: 0, width: 0, height: 0, actualWeight: 0, quantity: 1, itemName: '' });
+        setErrors([]);
+    };
+
+    const handleCancelEdit = () => {
+        setEditingKoliNumber(null);
+        setFormData({ length: 0, width: 0, height: 0, actualWeight: 0, quantity: 1, itemName: '' });
         setErrors([]);
     };
 
@@ -239,12 +270,15 @@ export default function VolumeCalculator() {
                 <div className="absolute -top-24 -right-24 w-48 h-48 bg-blue-50 rounded-full blur-3xl pointer-events-none"></div>
 
                 <div className="flex items-center gap-3 mb-6 relative z-10">
-                    <div className="bg-blue-100 p-2 rounded-lg text-blue-600">
-                        <Package size={24} />
+                    <div className={`p-2 rounded-lg ${editingKoliNumber !== null ? 'bg-amber-100 text-amber-600' : 'bg-blue-100 text-blue-600'}`}>
+                        {editingKoliNumber !== null ? <Pencil size={24} /> : <Package size={24} />}
                     </div>
-                    <h3 className="text-xl font-extrabold text-gray-900 tracking-tight">
-                        Input Data Koli {koliList.length > 0 ? `#${koliList.length + 1}` : 'Pertama'}
-                    </h3>
+                    <div>
+                        <h3 className="text-xl font-extrabold text-gray-900 tracking-tight">
+                            {editingKoliNumber !== null ? `Edit Koli #${editingKoliNumber}` : `Input Data Koli ${koliList.length > 0 ? `#${koliList.length + 1}` : 'Pertama'}`}
+                        </h3>
+                        {editingKoliNumber !== null && <p className="text-xs text-amber-600 font-medium mt-0.5">Mode edit aktif — ubah data lalu simpan</p>}
+                    </div>
                 </div>
 
                 {/* Form Grid */}
@@ -356,13 +390,30 @@ export default function VolumeCalculator() {
                     >
                         <Info size={16} /> Lihat Rumus Perhitungan
                     </button>
-                    
-                    <button
-                        onClick={handleAddKoli}
-                        className="w-full md:w-auto px-8 py-3.5 bg-blue-600 text-white font-bold rounded-xl shadow-lg shadow-blue-600/20 hover:bg-blue-700 hover:shadow-blue-600/40 hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2"
-                    >
-                        <Plus size={20} strokeWidth={3} /> Masukkan ke Daftar Koli
-                    </button>
+
+                    {editingKoliNumber !== null ? (
+                        <>
+                            <button
+                                onClick={handleCancelEdit}
+                                className="w-full md:w-auto px-6 py-3.5 bg-gray-100 text-gray-700 font-bold rounded-xl hover:bg-gray-200 transition-all flex items-center justify-center gap-2"
+                            >
+                                <X size={18} /> Batal Edit
+                            </button>
+                            <button
+                                onClick={handleUpdateKoli}
+                                className="w-full md:w-auto px-8 py-3.5 bg-amber-500 text-white font-bold rounded-xl shadow-lg shadow-amber-500/20 hover:bg-amber-600 hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2"
+                            >
+                                <Pencil size={18} /> Simpan Perubahan
+                            </button>
+                        </>
+                    ) : (
+                        <button
+                            onClick={handleAddKoli}
+                            className="w-full md:w-auto px-8 py-3.5 bg-blue-600 text-white font-bold rounded-xl shadow-lg shadow-blue-600/20 hover:bg-blue-700 hover:shadow-blue-600/40 hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2"
+                        >
+                            <Plus size={20} strokeWidth={3} /> Masukkan ke Daftar Koli
+                        </button>
+                    )}
                 </div>
 
                 {/* Formula Info Expandable */}
@@ -437,13 +488,22 @@ export default function VolumeCalculator() {
                                             </div>
                                         </td>
                                         <td className="py-4 px-4 text-center">
-                                            <button
-                                                onClick={() => handleRemoveKoli(koli.koliNumber)}
-                                                className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
-                                                title="Hapus Koli"
-                                            >
-                                                <Trash2 size={18} />
-                                            </button>
+                                            <div className="flex items-center justify-center gap-1">
+                                                <button
+                                                    onClick={() => handleEditKoli(koli.koliNumber)}
+                                                    className="p-2 text-amber-500 hover:text-amber-700 hover:bg-amber-50 rounded-lg transition-colors"
+                                                    title="Edit Koli"
+                                                >
+                                                    <Pencil size={16} />
+                                                </button>
+                                                <button
+                                                    onClick={() => handleRemoveKoli(koli.koliNumber)}
+                                                    className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+                                                    title="Hapus Koli"
+                                                >
+                                                    <Trash2 size={18} />
+                                                </button>
+                                            </div>
                                         </td>
                                     </tr>
                                 ))}
@@ -460,12 +520,21 @@ export default function VolumeCalculator() {
                                         <span className="inline-block bg-gray-900 text-white text-xs font-black px-2 py-1 rounded mb-1">KOLI #{koli.koliNumber}</span>
                                         <p className="font-bold text-gray-800 text-lg">{koli.itemName}</p>
                                     </div>
-                                    <button
-                                        onClick={() => handleRemoveKoli(koli.koliNumber)}
-                                        className="p-2 text-red-500 hover:bg-red-50 rounded-lg"
-                                    >
-                                        <Trash2 size={18} />
-                                    </button>
+                                    <div className="flex items-center gap-1">
+                                        <button
+                                            onClick={() => handleEditKoli(koli.koliNumber)}
+                                            className="p-2 text-amber-500 hover:bg-amber-50 rounded-lg"
+                                            title="Edit Koli"
+                                        >
+                                            <Pencil size={16} />
+                                        </button>
+                                        <button
+                                            onClick={() => handleRemoveKoli(koli.koliNumber)}
+                                            className="p-2 text-red-500 hover:bg-red-50 rounded-lg"
+                                        >
+                                            <Trash2 size={18} />
+                                        </button>
+                                    </div>
                                 </div>
 
                                 <div className="grid grid-cols-2 gap-y-3 gap-x-2 text-sm bg-gray-50 p-3 rounded-lg mb-3">
