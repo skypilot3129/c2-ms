@@ -235,26 +235,28 @@ function ManifestContent({
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '8.5px', marginBottom: '4px' }}>
                 <thead>
                     <tr style={{ background: '#e5e7eb' }}>
-                        <th style={thStyle({ width: '18px', textAlign: 'center' })}>No</th>
-                        <th style={thStyle({ textAlign: 'left', width: '70px' })}>No. STT</th>
-                        <th style={thStyle({ textAlign: 'left', width: '90px' })}>Pengirim</th>
-                        <th style={thStyle({ textAlign: 'left', width: '80px' })}>Penerima</th>
-                        <th style={thStyle({ textAlign: 'left', width: '60px' })}>Tujuan</th>
+                        <th style={thStyle({ width: '16px', textAlign: 'center' })}>No</th>
+                        <th style={thStyle({ textAlign: 'center', width: '36px' })}>No. STT</th>
+                        <th style={thStyle({ textAlign: 'left', width: '85px' })}>Pengirim</th>
+                        <th style={thStyle({ textAlign: 'left', width: '75px' })}>Penerima</th>
+                        <th style={thStyle({ textAlign: 'left', width: '55px' })}>Tujuan</th>
+                        <th style={thStyle({ width: '24px', textAlign: 'center' })}>Koli</th>
+                        <th style={thStyle({ width: '34px', textAlign: 'center' })}>Berat<br/>(Kg)</th>
                         <th style={thStyle({ textAlign: 'left' })}>
                             Alamat
                             <div style={{ fontWeight: 'normal', fontSize: '7px', color: '#555' }}>& No. Telp</div>
                         </th>
-                        <th style={thStyle({ width: '26px', textAlign: 'center' })}>Koli</th>
-                        <th style={thStyle({ width: '36px', textAlign: 'center' })}>Berat<br/>(Kg)</th>
-                        <th style={thStyle({ textAlign: 'left', width: '80px' })}>Isi Barang</th>
-                        <th style={thStyle({ width: '28px', textAlign: 'center' })}>Ket.</th>
+                        <th style={thStyle({ textAlign: 'left', width: '75px' })}>Isi Barang</th>
+                        <th style={thStyle({ width: '26px', textAlign: 'center' })}>Ket.</th>
                     </tr>
                 </thead>
                 <tbody>
                     {sortedTransactions.map((tx, index) => (
                         <tr key={tx.id} style={{ background: index % 2 === 0 ? '#fff' : '#f9fafb' }}>
                             <td style={tdStyle({ textAlign: 'center' })}>{index + 1}</td>
-                            <td style={tdStyle({ fontFamily: 'monospace', fontSize: '7.5px' })}>{tx.noSTT}</td>
+                            <td style={tdStyle({ textAlign: 'center', fontFamily: 'monospace', fontSize: '7.5px' })}>
+                                {tx.noSTT.replace(/^STT0*/i, '')}
+                            </td>
                             <td style={tdStyle({})}>
                                 <div style={{ fontWeight: 600 }}>{tx.pengirimName}</div>
                                 {tx.pengirimPhone && (
@@ -263,6 +265,8 @@ function ManifestContent({
                             </td>
                             <td style={tdStyle({ fontWeight: 600 })}>{tx.penerimaName}</td>
                             <td style={tdStyle({})}>{tx.tujuan}</td>
+                            <td style={tdStyle({ textAlign: 'center', fontWeight: 600 })}>{tx.koli}</td>
+                            <td style={tdStyle({ textAlign: 'center', fontWeight: 600 })}>{tx.berat}</td>
                             <td style={tdStyle({})}>
                                 {tx.penerimaAddress && (
                                     <div style={{ fontSize: '7px', color: '#555' }}>
@@ -274,17 +278,16 @@ function ManifestContent({
                                     <div style={{ fontSize: '7px', color: '#555', marginTop: '1px' }}>☎ {tx.penerimaPhone}</div>
                                 )}
                             </td>
-                            <td style={tdStyle({ textAlign: 'center', fontWeight: 600 })}>{tx.koli}</td>
-                            <td style={tdStyle({ textAlign: 'center', fontWeight: 600 })}>{tx.berat}</td>
                             <td style={tdStyle({})}>{tx.isiBarang || '-'}</td>
                             <td style={tdStyle({ textAlign: 'center' })}>{tx.keterangan || ''}</td>
                         </tr>
                     ))}
                     {/* Totals */}
                     <tr style={{ background: '#e5e7eb', fontWeight: 700 }}>
-                        <td colSpan={6} style={{ ...tdStyle({}), textAlign: 'right' }}>TOTAL</td>
+                        <td colSpan={5} style={{ ...tdStyle({}), textAlign: 'right' }}>TOTAL</td>
                         <td style={tdStyle({ textAlign: 'center' })}>{totalKoli}</td>
                         <td style={tdStyle({ textAlign: 'center' })}>{totalBerat}</td>
+                        <td style={tdStyle({})}></td>
                         <td style={tdStyle({})}></td>
                         <td style={tdStyle({})}></td>
                     </tr>
