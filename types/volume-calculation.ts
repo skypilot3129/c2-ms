@@ -30,5 +30,25 @@ export interface VolumeCalculationResult {
     totalChargeableWeight: number;
 }
 
+// Koli item with sequence number (used in sessions)
+export interface KoliItem extends VolumeCalculation {
+    koliNumber: number;
+}
+
+// A saved calculator session stored in Firestore
+export interface VolumeSession {
+    id: string;
+    senderName: string;
+    pricePerKg: number;
+    koliList: KoliItem[];
+    totalWeight: number;
+    totalPrice: number;
+    notes?: string;
+    createdBy: string;        // userId
+    createdByName?: string;   // display name
+    createdAt: Date;
+    updatedAt: Date;
+}
+
 // Constants
 export const VOLUMETRIC_DIVISOR = 4000; // Standard for Cahaya Cargo Express

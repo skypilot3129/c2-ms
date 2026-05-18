@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, Suspense } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -51,7 +51,13 @@ export default function VolumeCalculatorPage() {
                 </div>
 
                 {/* Calculator Component */}
-                <VolumeCalculator />
+                <Suspense fallback={
+                    <div className="flex items-center justify-center py-20">
+                        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600" />
+                    </div>
+                }>
+                    <VolumeCalculator />
+                </Suspense>
 
                 {/* Help Section */}
                 <div className="mt-8 bg-white rounded-xl p-6 shadow-sm border border-gray-200">

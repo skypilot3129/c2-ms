@@ -1,23 +1,23 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { Calculator, Package, Copy, RotateCcw, Info, Plus, Trash2, DollarSign, Printer, User, ArrowRight, Box, Pencil, X } from 'lucide-react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useAuth } from '@/context/AuthContext';
+import { Calculator, Package, Copy, RotateCcw, Info, Plus, Trash2, DollarSign, Printer, User, ArrowRight, Box, Pencil, X, Save, History, CheckCircle } from 'lucide-react';
 import {
     calculateDimensions,
     formatWeight,
     formatVolume,
     validateDimensions
 } from '@/lib/volume-calculator';
-import type { VolumeCalculatorFormData, VolumeCalculation } from '@/types/volume-calculation';
+import { saveVolumeSession, updateVolumeSession, getVolumeSessionById } from '@/lib/firestore-volume-sessions';
+import type { VolumeCalculatorFormData, VolumeCalculation, KoliItem } from '@/types/volume-calculation';
 import { VOLUMETRIC_DIVISOR } from '@/types/volume-calculation';
-
-interface KoliItem extends VolumeCalculation {
-    koliNumber: number;
-}
 
 export default function VolumeCalculator() {
     const router = useRouter();
+    const searchParams = useSearchParams();
+    const { user } = useAuth();
 
     const [isClient, setIsClient] = useState(false);
     useEffect(() => { setIsClient(true); }, []);
@@ -25,6 +25,9 @@ export default function VolumeCalculator() {
     // Session State
     const [senderName, setSenderName] = useState<string>('');
     const [isSessionActive, setIsSessionActive] = useState<boolean>(false);
+    const [savedSessionId, setSavedSessionId] = useState<string | null>(null);
+    const [isSaving, setIsSaving] = useState(false);
+    const [saveSuccess, setSaveSuccess] = useState(false);
 
     // Form State
     const [formData, setFormData] = useState<VolumeCalculatorFormData>({
@@ -182,13 +185,54 @@ export default function VolumeCalculator() {
 
     const handlePrint = () => {
         if (koliList.length === 0) return;
-
         const dataString = encodeURIComponent(JSON.stringify(koliList));
         const priceString = pricePerKg.toString();
         const senderString = encodeURIComponent(senderName);
-
         router.push(`/tools/volume-calculator/print?data=${dataString}&price=${priceString}&sender=${senderString}`);
     };
+
+    const handleSaveSession = async () => {
+        if (koliList.length === 0 || !user) return;
+        setIsSaving(true);
+        try {
+            const sessionData = {
+                senderName,
+                pricePerKg,
+                koliList,
+                totalWeight,
+                totalPrice,
+                createdBy: user.uid,
+                createdByName: user.displayName || user.email || '',
+            };
+            if (savedSessionId) {
+                await updateVolumeSession(savedSessionId, sessionData);
+            } else {
+                const newId = await saveVolumeSession(user.uid, sessionData);
+                setSavedSessionId(newId);
+            }
+            setSaveSuccess(true);
+            setTimeout(() => setSaveSuccess(false), 3000);
+        } catch (e) {
+            console.error(e);
+            alert('Gagal menyimpan sesi. Coba lagi.');
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    // Load session from URL param ?session=<id>
+    useEffect(() => {
+        const sessionId = searchParams.get('session');
+        if (!sessionId || !isClient) return;
+        getVolumeSessionById(sessionId).then(session => {
+            if (!session) return;
+            setSenderName(session.senderName);
+            setPricePerKg(session.pricePerKg);
+            setKoliList(session.koliList);
+            setSavedSessionId(session.id);
+            setIsSessionActive(true);
+        }).catch(console.error);
+    }, [isClient, searchParams]);
 
     const totalWeight = koliList.reduce((sum, koli) => sum + koli.chargeableWeight, 0);
     const totalPrice = totalWeight * pricePerKg;
@@ -200,7 +244,7 @@ export default function VolumeCalculator() {
         return (
             <div className="flex items-center justify-center min-h-[60vh]">
                 <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-8 max-w-md w-full mx-auto transform transition-all duration-500 hover:scale-[1.02]">
-                    <div className="text-center mb-8">
+                <div className="text-center mb-6">
                         <div className="bg-blue-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
                             <Box className="text-blue-600" size={32} />
                         </div>
@@ -237,6 +281,16 @@ export default function VolumeCalculator() {
                             Mulai Perhitungan <ArrowRight size={20} />
                         </button>
                     </form>
+
+                    {/* Link ke riwayat */}
+                    <div className="mt-6 pt-5 border-t border-gray-100 text-center">
+                        <button
+                            onClick={() => router.push('/tools/volume-calculator/history')}
+                            className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-blue-600 font-medium transition-colors"
+                        >
+                            <History size={16} /> Lihat Riwayat Perhitungan
+                        </button>
+                    </div>
                 </div>
             </div>
         );
@@ -430,21 +484,47 @@ export default function VolumeCalculator() {
                 <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
                     {/* Header Bar */}
                     <div className="bg-gray-50 p-4 md:p-6 border-b border-gray-200 flex flex-col sm:flex-row items-center justify-between gap-4">
-                        <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
-                            <Calculator size={20} className="text-green-600" /> Daftar Koli ({koliList.length})
-                        </h3>
-                        <div className="flex gap-2 w-full sm:w-auto">
+                        <div>
+                            <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+                                <Calculator size={20} className="text-green-600" /> Daftar Koli ({koliList.length})
+                            </h3>
+                            {savedSessionId && (
+                                <p className="text-xs text-green-600 font-medium mt-0.5 flex items-center gap-1">
+                                    <CheckCircle size={12} /> Tersimpan — ID: {savedSessionId.slice(-6)}
+                                </p>
+                            )}
+                        </div>
+                        <div className="flex flex-wrap gap-2 w-full sm:w-auto justify-end">
+                            {saveSuccess && (
+                                <span className="flex items-center gap-1 text-sm font-bold text-green-600 bg-green-50 border border-green-200 px-3 py-2 rounded-lg">
+                                    <CheckCircle size={15} /> Tersimpan!
+                                </span>
+                            )}
+                            <button
+                                onClick={handleSaveSession}
+                                disabled={isSaving || koliList.length === 0}
+                                className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-bold shadow-sm hover:bg-emerald-700 active:scale-95 transition-all disabled:opacity-50"
+                            >
+                                <Save size={16} /> {isSaving ? 'Menyimpan...' : (savedSessionId ? 'Update Sesi' : 'Simpan Sesi')}
+                            </button>
                             <button
                                 onClick={handlePrint}
                                 className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold shadow-sm hover:bg-blue-700 active:scale-95 transition-all"
                             >
-                                <Printer size={16} /> Print Data
+                                <Printer size={16} /> Print
                             </button>
                             <button
                                 onClick={handleCopyResult}
                                 className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-white text-gray-700 border border-gray-300 rounded-lg text-sm font-bold shadow-sm hover:bg-gray-50 active:scale-95 transition-all"
                             >
-                                <Copy size={16} /> Salin Text
+                                <Copy size={16} /> Salin
+                            </button>
+                            <button
+                                onClick={() => router.push('/tools/volume-calculator/history')}
+                                className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-white text-gray-700 border border-gray-300 rounded-lg text-sm font-bold shadow-sm hover:bg-gray-50 active:scale-95 transition-all"
+                                title="Lihat riwayat"
+                            >
+                                <History size={16} /> Riwayat
                             </button>
                         </div>
                     </div>
