@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, Suspense } from 'react';
+import React, { useEffect, useState, Suspense, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { formatWeight } from '@/lib/volume-calculator';
 import { COMPANY_INFO } from '@/lib/company-config';
@@ -50,6 +50,22 @@ function PrintContent() {
         const timer = setTimeout(() => window.print(), 500);
         return () => clearTimeout(timer);
     }, [searchParams]);
+
+    const groupedKoliList = useMemo(() => {
+        const groups: Record<string, KoliData[]> = {};
+        koliList.forEach(koli => {
+            const key = koli.itemName.toUpperCase();
+            if (!groups[key]) groups[key] = [];
+            groups[key].push({ ...koli, itemName: key });
+        });
+        return Object.keys(groups).sort().map(itemName => ({
+            itemName,
+            items: groups[itemName].sort((a, b) => a.koliNumber - b.koliNumber),
+            totalChargeableWeight: groups[itemName].reduce((sum, item) => sum + item.chargeableWeight, 0),
+            totalActualWeight: groups[itemName].reduce((sum, item) => sum + (item.actualWeight * item.quantity), 0),
+            totalVolumetricWeight: groups[itemName].reduce((sum, item) => sum + item.volumetricWeight, 0)
+        }));
+    }, [koliList]);
 
     const totalWeight = koliList.reduce((sum, koli) => sum + koli.chargeableWeight, 0);
     const totalActual = koliList.reduce((sum, koli) => sum + (koli.actualWeight * koli.quantity), 0);
@@ -181,19 +197,44 @@ function PrintContent() {
                         </tr>
                     </thead>
                     <tbody>
-                        {koliList.map((koli) => (
-                            <tr key={koli.koliNumber}>
-                                <td style={{ textAlign: 'center', fontWeight: 'bold' }}>{koli.koliNumber}</td>
-                                <td style={{ paddingLeft: 5 }}>{koli.itemName}</td>
-                                <td style={{ textAlign: 'center' }}>{koli.quantity}</td>
-                                <td style={{ textAlign: 'center', fontSize: '8.5pt' }}>{koli.length} × {koli.width} × {koli.height}</td>
-                                <td style={{ textAlign: 'right', paddingRight: 5 }}>{formatWeight(koli.actualWeight * koli.quantity)}</td>
-                                <td style={{ textAlign: 'right', paddingRight: 5 }}>{formatWeight(koli.volumetricWeight)}</td>
-                                <td style={{ textAlign: 'right', paddingRight: 5, fontWeight: 'bold', background: '#f9fafb' }}>{formatWeight(koli.chargeableWeight)}</td>
-                                <td style={{ textAlign: 'center', fontSize: '7.5pt', fontWeight: 'bold' }}>
-                                    {koli.weightType === 'actual' ? 'AKT' : 'VOL'}
-                                </td>
-                            </tr>
+                        {groupedKoliList.map((group, gIndex) => (
+                            <React.Fragment key={group.itemName}>
+                                {/* Separator / Group Header */}
+                                {groupedKoliList.length > 1 && (
+                                    <tr style={{ background: '#f3f4f6', fontWeight: 'bold' }}>
+                                        <td colSpan={8} style={{ padding: '3px 5px', fontSize: '8.5pt' }}>
+                                            {group.itemName} <span style={{ fontWeight: 'normal', color: '#4b5563' }}>({group.items.length} item)</span>
+                                        </td>
+                                    </tr>
+                                )}
+
+                                {/* Items in group */}
+                                {group.items.map((koli) => (
+                                    <tr key={koli.koliNumber}>
+                                        <td style={{ textAlign: 'center', fontWeight: 'bold' }}>{koli.koliNumber}</td>
+                                        <td style={{ paddingLeft: groupedKoliList.length > 1 ? 15 : 5 }}>{groupedKoliList.length === 1 ? koli.itemName : '-'}</td>
+                                        <td style={{ textAlign: 'center' }}>{koli.quantity}</td>
+                                        <td style={{ textAlign: 'center', fontSize: '8.5pt' }}>{koli.length} × {koli.width} × {koli.height}</td>
+                                        <td style={{ textAlign: 'right', paddingRight: 5 }}>{formatWeight(koli.actualWeight * koli.quantity)}</td>
+                                        <td style={{ textAlign: 'right', paddingRight: 5 }}>{formatWeight(koli.volumetricWeight)}</td>
+                                        <td style={{ textAlign: 'right', paddingRight: 5, fontWeight: 'bold', background: '#f9fafb' }}>{formatWeight(koli.chargeableWeight)}</td>
+                                        <td style={{ textAlign: 'center', fontSize: '7.5pt', fontWeight: 'bold' }}>
+                                            {koli.weightType === 'actual' ? 'AKT' : 'VOL'}
+                                        </td>
+                                    </tr>
+                                ))}
+                                
+                                {/* Subtotal per group (only if multiple groups) */}
+                                {groupedKoliList.length > 1 && (
+                                    <tr style={{ background: '#f9fafb', fontSize: '8pt', color: '#374151' }}>
+                                        <td colSpan={4} style={{ textAlign: 'right', paddingRight: 5, fontStyle: 'italic' }}>Subtotal {group.itemName} :</td>
+                                        <td style={{ textAlign: 'right', paddingRight: 5 }}>{formatWeight(group.totalActualWeight)}</td>
+                                        <td style={{ textAlign: 'right', paddingRight: 5 }}>{formatWeight(group.totalVolumetricWeight)}</td>
+                                        <td style={{ textAlign: 'right', paddingRight: 5, fontWeight: 'bold', color: '#000' }}>{formatWeight(group.totalChargeableWeight)}</td>
+                                        <td />
+                                    </tr>
+                                )}
+                            </React.Fragment>
                         ))}
 
                         {/* Baris kosong minimal */}

@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
-import { Calculator, Package, Copy, RotateCcw, Info, Plus, Trash2, DollarSign, Printer, User, ArrowRight, Box, Pencil, X, Save, History, CheckCircle } from 'lucide-react';
+import { Calculator, Package, Copy, RotateCcw, Info, Plus, Trash2, DollarSign, Printer, User, ArrowRight, Box, Pencil, X, Save, History, CheckCircle, CopyPlus } from 'lucide-react';
 import {
     calculateDimensions,
     formatWeight,
@@ -45,6 +45,17 @@ export default function VolumeCalculator() {
     const [showInfo, setShowInfo] = useState(false);
     const [editingKoliNumber, setEditingKoliNumber] = useState<number | null>(null);
 
+    // Live Calculation
+    const liveCalculation = useMemo(() => {
+        if (formData.length > 0 && formData.width > 0 && formData.height > 0) {
+            return calculateDimensions(formData);
+        }
+        return null;
+    }, [formData]);
+
+    // Focus ref for itemName
+    const itemNameInputRef = useRef<HTMLInputElement>(null);
+
     const handleStartSession = (e: React.FormEvent) => {
         e.preventDefault();
         if (senderName.trim() === '') {
@@ -81,12 +92,26 @@ export default function VolumeCalculator() {
         const calculation = calculateDimensions(formData);
         const newKoli: KoliItem = {
             ...calculation,
-            koliNumber: koliList.length + 1
+            koliNumber: koliList.length > 0 ? Math.max(...koliList.map(k => k.koliNumber)) + 1 : 1
         };
 
         setKoliList(prev => [...prev, newKoli]);
 
-        setFormData({ length: 0, width: 0, height: 0, actualWeight: 0, quantity: 1, itemName: '' });
+        setFormData(prev => ({ length: 0, width: 0, height: 0, actualWeight: 0, quantity: 1, itemName: prev.itemName })); // Keep item name
+        setErrors([]);
+        if (itemNameInputRef.current) itemNameInputRef.current.focus();
+    };
+
+    const handleCopyPreviousDimensions = () => {
+        if (koliList.length === 0) return;
+        const lastKoli = koliList[koliList.length - 1];
+        setFormData(prev => ({
+            ...prev,
+            length: lastKoli.length,
+            width: lastKoli.width,
+            height: lastKoli.height,
+            itemName: lastKoli.itemName, // Copy item name too
+        }));
         setErrors([]);
     };
 
@@ -234,6 +259,20 @@ export default function VolumeCalculator() {
         }).catch(console.error);
     }, [isClient, searchParams]);
 
+    const groupedKoliList = useMemo(() => {
+        const groups: Record<string, KoliItem[]> = {};
+        koliList.forEach(koli => {
+            const key = koli.itemName.toUpperCase(); // Group case-insensitively
+            if (!groups[key]) groups[key] = [];
+            groups[key].push({ ...koli, itemName: key }); // Ensure display is consistent
+        });
+        return Object.keys(groups).sort().map(itemName => ({
+            itemName,
+            items: groups[itemName].sort((a, b) => a.koliNumber - b.koliNumber),
+            totalChargeableWeight: groups[itemName].reduce((sum, item) => sum + item.chargeableWeight, 0)
+        }));
+    }, [koliList]);
+
     const totalWeight = koliList.reduce((sum, koli) => sum + koli.chargeableWeight, 0);
     const totalPrice = totalWeight * pricePerKg;
 
@@ -342,6 +381,7 @@ export default function VolumeCalculator() {
                     <div className="md:col-span-6">
                         <label className="block text-sm font-bold text-gray-700 mb-2">Nama / Tipe Barang *</label>
                         <input
+                            ref={itemNameInputRef}
                             type="text"
                             value={formData.itemName}
                             onChange={(e) => handleInputChange('itemName', e.target.value)}
@@ -367,7 +407,8 @@ export default function VolumeCalculator() {
                     </div>
 
                     <div className="md:col-span-3">
-                        <label className="block text-sm font-bold text-gray-700 mb-2">Jumlah Barang (Qty) *</label>
+                        <label className="block text-sm font-bold text-gray-700 mb-0.5">Jumlah Koli *</label>
+                        <p className="text-[10px] text-gray-500 mb-1.5 leading-tight">1 Koli = 1 paket dng dimensi sama</p>
                         <div className="relative">
                             <input
                                 type="number"
@@ -384,7 +425,18 @@ export default function VolumeCalculator() {
                     {/* Row 2: Dimensions */}
                     <div className="md:col-span-12">
                         <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 md:p-5">
-                            <label className="block text-sm font-bold text-gray-700 mb-3">Dimensi (P x L x T) *</label>
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-3 gap-2">
+                                <label className="block text-sm font-bold text-gray-700">Dimensi (P x L x T) *</label>
+                                {koliList.length > 0 && editingKoliNumber === null && (
+                                    <button
+                                        type="button"
+                                        onClick={handleCopyPreviousDimensions}
+                                        className="text-xs font-semibold flex items-center gap-1.5 text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2 py-1 rounded transition-colors self-start sm:self-auto"
+                                    >
+                                        <CopyPlus size={14} /> Salin dari koli sebelumnya
+                                    </button>
+                                )}
+                            </div>
                             <div className="grid grid-cols-3 gap-3 md:gap-6">
                                 <div className="relative">
                                     <input
@@ -432,6 +484,37 @@ export default function VolumeCalculator() {
                             <ul className="list-disc list-inside text-sm space-y-1">
                                 {errors.map((err, i) => <li key={i}>{err}</li>)}
                             </ul>
+                        </div>
+                    </div>
+                )}
+
+                {/* Live Preview Panel */}
+                {liveCalculation && (
+                    <div className="mt-6 border border-blue-100 bg-gradient-to-r from-blue-50/50 to-indigo-50/50 rounded-xl p-4 md:p-5 relative z-10 animate-in fade-in slide-in-from-bottom-2">
+                        <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-8">
+                            <div className="flex-1 w-full">
+                                <p className="text-xs font-bold text-blue-600/70 uppercase tracking-wider mb-1">Preview Perhitungan</p>
+                                <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
+                                    <div className="flex flex-col">
+                                        <span className="text-gray-500">Berat Aktual</span>
+                                        <span className="font-bold text-gray-900">{formatWeight(liveCalculation.actualWeight * liveCalculation.quantity)} kg</span>
+                                    </div>
+                                    <div className="flex flex-col">
+                                        <span className="text-gray-500">Berat Volume <span className="text-gray-400 text-xs">(/4000)</span></span>
+                                        <span className="font-bold text-gray-900">{formatWeight(liveCalculation.volumetricWeight)} kg</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="w-full sm:w-auto bg-white rounded-lg p-3 sm:px-6 sm:py-3 shadow-sm border border-blue-100 flex flex-col items-center justify-center min-w-[140px]">
+                                <span className="text-[10px] font-black uppercase text-gray-400 tracking-wider mb-0.5">Berat Tagihan</span>
+                                <div className="flex items-end gap-1 leading-none">
+                                    <span className="text-2xl font-black text-blue-600">{formatWeight(liveCalculation.chargeableWeight)}</span>
+                                    <span className="text-sm font-bold text-blue-600/60 mb-0.5">kg</span>
+                                </div>
+                                <span className={`mt-1.5 text-[9px] px-2 py-0.5 rounded-sm font-bold uppercase ${liveCalculation.weightType === 'actual' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}`}>
+                                    Base: {liveCalculation.weightType}
+                                </span>
+                            </div>
                         </div>
                     </div>
                 )}
@@ -545,107 +628,133 @@ export default function VolumeCalculator() {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100 bg-white">
-                                {koliList.map((koli) => (
-                                    <tr key={koli.koliNumber} className="hover:bg-blue-50/50 transition-colors">
-                                        <td className="py-4 px-4 text-sm font-black text-gray-800">#{koli.koliNumber}</td>
-                                        <td className="py-4 px-4 text-sm font-semibold text-gray-700 truncate max-w-[150px]" title={koli.itemName}>{koli.itemName}</td>
-                                        <td className="py-4 px-4 text-sm text-center font-medium bg-gray-50/50">{koli.quantity}</td>
-                                        <td className="py-4 px-4 text-sm text-right text-gray-600 whitespace-nowrap">
-                                            {koli.length}×{koli.width}×{koli.height} <span className="text-xs text-gray-400">cm</span>
-                                        </td>
-                                        <td className="py-4 px-4 text-sm text-right font-medium">
-                                            {formatWeight(koli.actualWeight * koli.quantity)}
-                                        </td>
-                                        <td className="py-4 px-4 text-sm text-right font-medium">
-                                            {formatWeight(koli.volumetricWeight)}
-                                        </td>
-                                        <td className="py-4 px-4 text-sm text-right">
-                                            <div className="flex flex-col items-end">
-                                                <span className="font-bold text-green-700 text-base">{formatWeight(koli.chargeableWeight)} kg</span>
-                                                <span className={`text-[10px] px-1.5 py-0.5 rounded-sm font-bold uppercase mt-1 ${koli.weightType === 'actual' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}`}>
-                                                    {koli.weightType}
-                                                </span>
-                                            </div>
-                                        </td>
-                                        <td className="py-4 px-4 text-center">
-                                            <div className="flex items-center justify-center gap-1">
-                                                <button
-                                                    onClick={() => handleEditKoli(koli.koliNumber)}
-                                                    className="p-2 text-amber-500 hover:text-amber-700 hover:bg-amber-50 rounded-lg transition-colors"
-                                                    title="Edit Koli"
-                                                >
-                                                    <Pencil size={16} />
-                                                </button>
-                                                <button
-                                                    onClick={() => handleRemoveKoli(koli.koliNumber)}
-                                                    className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
-                                                    title="Hapus Koli"
-                                                >
-                                                    <Trash2 size={18} />
-                                                </button>
-                                            </div>
-                                        </td>
-                                    </tr>
+                                {groupedKoliList.map((group) => (
+                                    <React.Fragment key={group.itemName}>
+                                        {/* Group Header */}
+                                        <tr className="bg-gray-100/80 border-y border-gray-200/60">
+                                            <td colSpan={6} className="py-2.5 px-4 text-sm font-bold text-gray-800 uppercase tracking-wide">
+                                                {group.itemName} <span className="text-gray-400 font-medium text-xs ml-2">({group.items.length} item)</span>
+                                            </td>
+                                            <td className="py-2.5 px-4 text-sm font-black text-blue-700 text-right">
+                                                {formatWeight(group.totalChargeableWeight)} kg
+                                            </td>
+                                            <td></td>
+                                        </tr>
+                                        {/* Group Items */}
+                                        {group.items.map((koli) => (
+                                            <tr key={koli.koliNumber} className="hover:bg-blue-50/50 transition-colors">
+                                                <td className="py-3 px-4 text-sm font-black text-gray-500 pl-6">#{koli.koliNumber}</td>
+                                                <td className="py-3 px-4 text-sm font-medium text-gray-500">-</td>
+                                                <td className="py-3 px-4 text-sm text-center font-medium bg-gray-50/50">{koli.quantity}</td>
+                                                <td className="py-3 px-4 text-sm text-right text-gray-600 whitespace-nowrap">
+                                                    {koli.length}×{koli.width}×{koli.height} <span className="text-xs text-gray-400">cm</span>
+                                                </td>
+                                                <td className="py-3 px-4 text-sm text-right font-medium">
+                                                    {formatWeight(koli.actualWeight * koli.quantity)}
+                                                </td>
+                                                <td className="py-3 px-4 text-sm text-right font-medium">
+                                                    {formatWeight(koli.volumetricWeight)}
+                                                </td>
+                                                <td className="py-3 px-4 text-sm text-right">
+                                                    <div className="flex flex-col items-end">
+                                                        <span className="font-bold text-green-700 text-base">{formatWeight(koli.chargeableWeight)} kg</span>
+                                                        <span className={`text-[10px] px-1.5 py-0.5 rounded-sm font-bold uppercase mt-1 ${koli.weightType === 'actual' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}`}>
+                                                            {koli.weightType}
+                                                        </span>
+                                                    </div>
+                                                </td>
+                                                <td className="py-3 px-4 text-center">
+                                                    <div className="flex items-center justify-center gap-1">
+                                                        <button
+                                                            onClick={() => handleEditKoli(koli.koliNumber)}
+                                                            className="p-2 text-amber-500 hover:text-amber-700 hover:bg-amber-50 rounded-lg transition-colors"
+                                                            title="Edit Koli"
+                                                        >
+                                                            <Pencil size={16} />
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleRemoveKoli(koli.koliNumber)}
+                                                            className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+                                                            title="Hapus Koli"
+                                                        >
+                                                            <Trash2 size={18} />
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </React.Fragment>
                                 ))}
                             </tbody>
                         </table>
                     </div>
 
                     {/* Mobile Card View */}
-                    <div className="md:hidden divide-y divide-gray-100">
-                        {koliList.map((koli) => (
-                            <div key={koli.koliNumber} className="p-4 bg-white relative">
-                                <div className="flex items-start justify-between mb-3">
-                                    <div>
-                                        <span className="inline-block bg-gray-900 text-white text-xs font-black px-2 py-1 rounded mb-1">KOLI #{koli.koliNumber}</span>
-                                        <p className="font-bold text-gray-800 text-lg">{koli.itemName}</p>
-                                    </div>
-                                    <div className="flex items-center gap-1">
-                                        <button
-                                            onClick={() => handleEditKoli(koli.koliNumber)}
-                                            className="p-2 text-amber-500 hover:bg-amber-50 rounded-lg"
-                                            title="Edit Koli"
-                                        >
-                                            <Pencil size={16} />
-                                        </button>
-                                        <button
-                                            onClick={() => handleRemoveKoli(koli.koliNumber)}
-                                            className="p-2 text-red-500 hover:bg-red-50 rounded-lg"
-                                        >
-                                            <Trash2 size={18} />
-                                        </button>
-                                    </div>
+                    <div className="md:hidden">
+                        {groupedKoliList.map((group) => (
+                            <div key={group.itemName} className="mb-4">
+                                {/* Group Header Mobile */}
+                                <div className="bg-gray-100 px-4 py-2 flex items-center justify-between sticky top-0 z-10 border-y border-gray-200">
+                                    <span className="font-bold text-gray-800 uppercase text-sm">{group.itemName}</span>
+                                    <span className="font-black text-blue-700 text-sm">{formatWeight(group.totalChargeableWeight)} kg</span>
                                 </div>
+                                
+                                <div className="divide-y divide-gray-100">
+                                    {group.items.map((koli) => (
+                                        <div key={koli.koliNumber} className="p-4 bg-white relative">
+                                            <div className="flex items-start justify-between mb-3">
+                                                <div>
+                                                    <span className="inline-block bg-gray-900 text-white text-xs font-black px-2 py-1 rounded mb-1">KOLI #{koli.koliNumber}</span>
+                                                </div>
+                                                <div className="flex items-center gap-1">
+                                                    <button
+                                                        onClick={() => handleEditKoli(koli.koliNumber)}
+                                                        className="p-2 text-amber-500 hover:bg-amber-50 rounded-lg"
+                                                        title="Edit Koli"
+                                                    >
+                                                        <Pencil size={16} />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleRemoveKoli(koli.koliNumber)}
+                                                        className="p-2 text-red-500 hover:bg-red-50 rounded-lg"
+                                                    >
+                                                        <Trash2 size={18} />
+                                                    </button>
+                                                </div>
+                                            </div>
 
-                                <div className="grid grid-cols-2 gap-y-3 gap-x-2 text-sm bg-gray-50 p-3 rounded-lg mb-3">
-                                    <div>
-                                        <p className="text-gray-500 text-xs">Jumlah</p>
-                                        <p className="font-bold text-gray-800">{koli.quantity} pcs</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-gray-500 text-xs">Dimensi (cm)</p>
-                                        <p className="font-bold text-gray-800">{koli.length}×{koli.width}×{koli.height}</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-gray-500 text-xs border-t border-gray-200 mt-2 pt-2">Actual Weight</p>
-                                        <p className="font-medium">{formatWeight(koli.actualWeight * koli.quantity)} kg</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-gray-500 text-xs border-t border-gray-200 mt-2 pt-2">Volume Weight</p>
-                                        <p className="font-medium">{formatWeight(koli.volumetricWeight)} kg</p>
-                                    </div>
-                                </div>
+                                            <div className="grid grid-cols-2 gap-y-3 gap-x-2 text-sm bg-gray-50 p-3 rounded-lg mb-3">
+                                                <div>
+                                                    <p className="text-gray-500 text-xs">Jumlah</p>
+                                                    <p className="font-bold text-gray-800">{koli.quantity} pcs</p>
+                                                </div>
+                                                <div>
+                                                    <p className="text-gray-500 text-xs">Dimensi (cm)</p>
+                                                    <p className="font-bold text-gray-800">{koli.length}×{koli.width}×{koli.height}</p>
+                                                </div>
+                                                <div>
+                                                    <p className="text-gray-500 text-xs border-t border-gray-200 mt-2 pt-2">Actual Weight</p>
+                                                    <p className="font-medium">{formatWeight(koli.actualWeight * koli.quantity)} kg</p>
+                                                </div>
+                                                <div>
+                                                    <p className="text-gray-500 text-xs border-t border-gray-200 mt-2 pt-2">Volume Weight</p>
+                                                    <p className="font-medium">{formatWeight(koli.volumetricWeight)} kg</p>
+                                                </div>
+                                            </div>
 
-                                <div className="flex items-end justify-between px-1">
-                                    <div>
-                                        <span className={`text-[10px] px-2 py-1 rounded font-bold uppercase ${koli.weightType === 'actual' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}`}>
-                                            Base: {koli.weightType}
-                                        </span>
-                                    </div>
-                                    <div className="text-right">
-                                        <p className="text-xs text-gray-500 font-bold mb-0.5">Berat Tagihan</p>
-                                        <p className="text-xl font-black text-green-600 leading-none">{formatWeight(koli.chargeableWeight)} <span className="text-sm">kg</span></p>
-                                    </div>
+                                            <div className="flex items-end justify-between px-1">
+                                                <div>
+                                                    <span className={`text-[10px] px-2 py-1 rounded font-bold uppercase ${koli.weightType === 'actual' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}`}>
+                                                        Base: {koli.weightType}
+                                                    </span>
+                                                </div>
+                                                <div className="text-right">
+                                                    <p className="text-xs text-gray-500 font-bold mb-0.5">Berat Tagihan</p>
+                                                    <p className="text-xl font-black text-green-600 leading-none">{formatWeight(koli.chargeableWeight)} <span className="text-sm">kg</span></p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
                                 </div>
                             </div>
                         ))}
