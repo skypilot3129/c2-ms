@@ -343,10 +343,14 @@ export default function VolumeCalculator() {
 
     const handlePrint = () => {
         if (koliList.length === 0) return;
-        const dataString = encodeURIComponent(JSON.stringify(koliList));
-        const priceString = pricePerKg.toString();
-        const senderString = encodeURIComponent(senderName);
-        router.push(`/tools/volume-calculator/print?data=${dataString}&price=${priceString}&sender=${senderString}`);
+        try {
+            sessionStorage.setItem('cce_print_koliList', JSON.stringify(koliList));
+            sessionStorage.setItem('cce_print_pricePerKg', pricePerKg.toString());
+            sessionStorage.setItem('cce_print_senderName', senderName);
+        } catch (e) {
+            console.error('Failed to save print session to sessionStorage:', e);
+        }
+        router.push('/tools/volume-calculator/print?source=session');
     };
 
     const handleSaveSession = async () => {

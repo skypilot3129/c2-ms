@@ -29,20 +29,46 @@ function PrintContent() {
     const [printDate, setPrintDate] = useState('');
 
     useEffect(() => {
-        const koliData = searchParams.get('data');
-        const price = searchParams.get('price');
-        const sender = searchParams.get('sender');
+        let koliListParsed: KoliData[] = [];
+        let priceParsed = 0;
+        let senderParsed = '';
 
-        if (koliData) {
+        const source = searchParams.get('source');
+        if (source === 'session') {
             try {
-                const parsed = JSON.parse(decodeURIComponent(koliData));
-                setKoliList(parsed);
+                const koliData = sessionStorage.getItem('cce_print_koliList');
+                const price = sessionStorage.getItem('cce_print_pricePerKg');
+                const sender = sessionStorage.getItem('cce_print_senderName');
+
+                if (koliData) koliListParsed = JSON.parse(koliData);
+                if (price) priceParsed = parseFloat(price);
+                if (sender) senderParsed = sender || '';
             } catch (error) {
-                console.error('Failed to parse koli data:', error);
+                console.error('Failed to parse from sessionStorage:', error);
             }
         }
-        if (price) setPricePerKg(parseFloat(price));
-        if (sender) setSenderName(decodeURIComponent(sender));
+
+        // Fallback to query parameters
+        if (koliListParsed.length === 0) {
+            const koliData = searchParams.get('data');
+            const price = searchParams.get('price');
+            const sender = searchParams.get('sender');
+
+            if (koliData) {
+                try {
+                    const parsed = JSON.parse(decodeURIComponent(koliData));
+                    koliListParsed = parsed;
+                } catch (error) {
+                    console.error('Failed to parse koli data:', error);
+                }
+            }
+            if (price) priceParsed = parseFloat(price);
+            if (sender) senderParsed = decodeURIComponent(sender);
+        }
+
+        setKoliList(koliListParsed);
+        setPricePerKg(priceParsed);
+        setSenderName(senderParsed);
 
         const now = new Date();
         setPrintDate(now.toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' }));
