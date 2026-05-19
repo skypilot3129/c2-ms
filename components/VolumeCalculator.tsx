@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
-import { Calculator, Package, Copy, RotateCcw, Info, Plus, Trash2, DollarSign, Printer, User, ArrowRight, Box, Pencil, X, Save, History, CheckCircle, CopyPlus } from 'lucide-react';
+import { Calculator, Package, Copy, RotateCcw, Info, Plus, Trash2, DollarSign, Printer, User, ArrowRight, Box, Pencil, X, Save, History, CheckCircle, CopyPlus, Upload } from 'lucide-react';
 import {
     calculateDimensions,
     formatWeight,
@@ -14,6 +14,109 @@ import { saveVolumeSession, updateVolumeSession, getVolumeSessionById } from '@/
 import type { VolumeCalculatorFormData, VolumeCalculation, KoliItem } from '@/types/volume-calculation';
 import { VOLUMETRIC_DIVISOR } from '@/types/volume-calculation';
 
+function parseImportedTxt(text: string): { senderName: string; koliList: KoliItem[] } | null {
+    const lines = text.split(/\r?\n/);
+    let senderName = '';
+    const koliList: KoliItem[] = [];
+    
+    let currentKoliNum: number | null = null;
+    let currentKoliName = '';
+    let currentQty = 1;
+    let currentLength = 0;
+    let currentWidth = 0;
+    let currentHeight = 0;
+    let currentActualWeight = 0;
+    let inKoliBlock = false;
+    
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].trim();
+        
+        if (line.startsWith('Pengirim:')) {
+            senderName = line.replace('Pengirim:', '').trim();
+            continue;
+        }
+        
+        const koliMatch = line.match(/^Koli\s+(\d+)\s*-\s*(.+):$/i);
+        if (koliMatch) {
+            if (inKoliBlock && currentKoliNum !== null) {
+                const calc = calculateDimensions({
+                    length: currentLength,
+                    width: currentWidth,
+                    height: currentHeight,
+                    actualWeight: currentActualWeight,
+                    quantity: currentQty,
+                    itemName: currentKoliName
+                });
+                koliList.push({
+                    ...calc,
+                    koliNumber: currentKoliNum
+                });
+            }
+            
+            currentKoliNum = parseInt(koliMatch[1]);
+            currentKoliName = koliMatch[2].trim();
+            currentQty = 1;
+            currentLength = 0;
+            currentWidth = 0;
+            currentHeight = 0;
+            currentActualWeight = 0;
+            inKoliBlock = true;
+            continue;
+        }
+        
+        if (inKoliBlock) {
+            if (line.startsWith('Jumlah:')) {
+                const qtyMatch = line.match(/Jumlah:\s*(\d+)/i);
+                if (qtyMatch) currentQty = parseInt(qtyMatch[1]);
+            } else if (line.startsWith('Dimensi:')) {
+                const dimMatch = line.replace('Dimensi:', '').match(/(\d+(?:\.\d+)?)\s*[\u00d7xX*]\s*(\d+(?:\.\d+)?)\s*[\u00d7xX*]\s*(\d+(?:\.\d+)?)/);
+                if (dimMatch) {
+                    currentLength = parseFloat(dimMatch[1]);
+                    currentWidth = parseFloat(dimMatch[2]);
+                    currentHeight = parseFloat(dimMatch[3]);
+                }
+            } else if (line.startsWith('Berat Aktual (Satuan):')) {
+                const weightMatch = line.match(/Berat Aktual \(Satuan\):\s*(\d+(?:\.\d+)?)/i);
+                if (weightMatch) currentActualWeight = parseFloat(weightMatch[1]);
+            } else if (line.startsWith('==================================================') || line.startsWith('Total Koli:')) {
+                if (currentKoliNum !== null) {
+                    const calc = calculateDimensions({
+                        length: currentLength,
+                        width: currentWidth,
+                        height: currentHeight,
+                        actualWeight: currentActualWeight,
+                        quantity: currentQty,
+                        itemName: currentKoliName
+                    });
+                    koliList.push({
+                        ...calc,
+                        koliNumber: currentKoliNum
+                    });
+                    currentKoliNum = null;
+                }
+                inKoliBlock = false;
+            }
+        }
+    }
+    
+    if (inKoliBlock && currentKoliNum !== null) {
+        const calc = calculateDimensions({
+            length: currentLength,
+            width: currentWidth,
+            height: currentHeight,
+            actualWeight: currentActualWeight,
+            quantity: currentQty,
+            itemName: currentKoliName
+        });
+        koliList.push({
+            ...calc,
+            koliNumber: currentKoliNum
+        });
+    }
+    
+    return koliList.length > 0 ? { senderName, koliList } : null;
+}
+
 export default function VolumeCalculator() {
     const router = useRouter();
     const searchParams = useSearchParams();
@@ -21,6 +124,36 @@ export default function VolumeCalculator() {
 
     const [isClient, setIsClient] = useState(false);
     useEffect(() => { setIsClient(true); }, []);
+ 
+    const handleImportTxt = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            const text = event.target?.result as string;
+            if (!text) return;
+
+            const result = parseImportedTxt(text);
+            if (result) {
+                if (result.senderName) {
+                    setSenderName(result.senderName);
+                }
+                setKoliList(result.koliList);
+                setIsSessionActive(true);
+                setSavedSessionId(null);
+                setErrors([]);
+                alert(`Berhasil mengimport ${result.koliList.length} koli untuk pengirim "${result.senderName || senderName}"!`);
+            } else {
+                alert('Format file TXT tidak dikenali. Pastikan file sesuai dengan format perhitungan volume Cahaya Cargo Express.');
+            }
+        };
+        reader.onerror = () => {
+            alert('Gagal membaca file.');
+        };
+        reader.readAsText(file);
+        e.target.value = '';
+    };
 
     // Session State
     const [senderName, setSenderName] = useState<string>('');
@@ -319,6 +452,22 @@ export default function VolumeCalculator() {
                         >
                             Mulai Perhitungan <ArrowRight size={20} />
                         </button>
+
+                        <div className="relative flex items-center justify-center py-2">
+                            <div className="border-t border-gray-200 w-full absolute"></div>
+                            <span className="bg-white px-3 text-xs text-gray-400 uppercase font-semibold relative z-10">Atau</span>
+                        </div>
+
+                        <label className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 rounded-xl font-bold text-base active:scale-[0.98] transition-all cursor-pointer shadow-sm">
+                            <Upload size={20} className="text-gray-500" />
+                            Import File Txt Perhitungan
+                            <input
+                                type="file"
+                                accept=".txt"
+                                onChange={handleImportTxt}
+                                className="hidden"
+                            />
+                        </label>
                     </form>
 
                     {/* Link ke riwayat */}
@@ -349,12 +498,23 @@ export default function VolumeCalculator() {
                         <h2 className="text-2xl font-bold tracking-tight">Pengirim: {senderName}</h2>
                     </div>
                 </div>
-                <button
-                    onClick={handleReset}
-                    className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-red-500/80 text-white rounded-lg text-sm font-medium transition-all backdrop-blur-sm"
-                >
-                    <RotateCcw size={16} /> Ganti Pengirim
-                </button>
+                <div className="flex flex-wrap gap-2 w-full md:w-auto justify-end">
+                    <label className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg text-sm font-medium transition-all backdrop-blur-sm cursor-pointer">
+                        <Upload size={16} /> Import TXT
+                        <input
+                            type="file"
+                            accept=".txt"
+                            onChange={handleImportTxt}
+                            className="hidden"
+                        />
+                    </label>
+                    <button
+                        onClick={handleReset}
+                        className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-red-500/80 text-white rounded-lg text-sm font-medium transition-all backdrop-blur-sm"
+                    >
+                        <RotateCcw size={16} /> Ganti Pengirim
+                    </button>
+                </div>
             </div>
 
             {/* Input Form Card */}

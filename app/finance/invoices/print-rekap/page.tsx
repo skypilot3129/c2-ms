@@ -211,12 +211,9 @@ function PrintRekapContent() {
                             </p>
                         </div>
                         <div className="text-center w-48">
-                            <p className="mb-1">Hormat Kami,</p>
-                            <div className="h-24">
+                            <div className="h-28 mt-4">
                                 <img src="/ttd.png" alt="Tanda Tangan & Stempel" className="w-full h-full object-contain" />
                             </div>
-                            <p className="font-bold underline">{COMPANY_INFO.signatureName}</p>
-                            <p className="text-xs text-gray-600">{COMPANY_INFO.signatureTitle}</p>
                         </div>
                     </div>
                 </div>
