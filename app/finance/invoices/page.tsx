@@ -194,6 +194,14 @@ export default function InvoicesPage() {
                             <span className="hidden sm:inline">Cetak Belum Lunas</span>
                         </Link>
                         <Link
+                            href="/finance/invoices/print-rekap"
+                            target="_blank"
+                            className="bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 px-4 py-2.5 rounded-xl font-medium flex items-center justify-center gap-2 transition-all active:scale-95"
+                        >
+                            <FileText size={18} className="text-emerald-600" />
+                            <span className="hidden sm:inline">Cetak Rekap</span>
+                        </Link>
+                        <Link
                             href="/finance/invoices/cek-harga"
                             className="bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 px-4 py-2.5 rounded-xl font-medium flex items-center justify-center gap-2 transition-all active:scale-95"
                         >
