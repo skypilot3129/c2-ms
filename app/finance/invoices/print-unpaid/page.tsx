@@ -3,6 +3,7 @@
 import { useEffect, useState, Suspense } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { subscribeToInvoices } from '@/lib/firestore-invoices';
+import { getTransactionById } from '@/lib/firestore-transactions';
 import type { Invoice } from '@/types/invoice';
 import { formatRupiah } from '@/lib/currency';
 
@@ -10,6 +11,7 @@ function PrintUnpaidInvoicesContent() {
     const { user } = useAuth();
     const [invoices, setInvoices] = useState<Invoice[]>([]);
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+    const [sttNumbers, setSttNumbers] = useState<Record<string, string>>({});
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -27,7 +29,24 @@ function PrintUnpaidInvoicesContent() {
             // Only initialize selectedIds once when first loaded
             if (loading) {
                 setSelectedIds(new Set(unpaidInvoices.map(inv => inv.id)));
-                setLoading(false);
+                
+                // Fetch STT numbers for all unpaid invoices
+                const loadSttNumbers = async () => {
+                    const mapping: Record<string, string> = {};
+                    for (const inv of unpaidInvoices) {
+                        if (inv.transactionIds && inv.transactionIds.length > 0) {
+                            try {
+                                const txs = await Promise.all(inv.transactionIds.map(tid => getTransactionById(tid)));
+                                mapping[inv.id] = txs.filter(t => t !== null).map(t => t!.noSTT.replace(/^STT/i, '')).join(', ');
+                            } catch (error) {
+                                console.error('Failed to load STT for invoice', inv.id, error);
+                            }
+                        }
+                    }
+                    setSttNumbers(mapping);
+                    setLoading(false);
+                };
+                loadSttNumbers();
             }
         });
 
@@ -98,7 +117,7 @@ function PrintUnpaidInvoicesContent() {
                         </th>
                         <th className="py-3 font-bold uppercase text-xs tracking-wider w-12 text-center">No</th>
                         <th className="py-3 font-bold uppercase text-xs tracking-wider">No. Invoice</th>
-                        <th className="py-3 font-bold uppercase text-xs tracking-wider">Tgl Terbit</th>
+                        <th className="py-3 font-bold uppercase text-xs tracking-wider">No. STT</th>
                         <th className="py-3 font-bold uppercase text-xs tracking-wider">Tgl Jatuh Tempo</th>
                         <th className="py-3 font-bold uppercase text-xs tracking-wider">Klien (Penagihan)</th>
                         <th className="py-3 font-bold uppercase text-xs tracking-wider text-center">Status</th>
@@ -128,7 +147,7 @@ function PrintUnpaidInvoicesContent() {
                                     </td>
                                     <td className="py-3 text-gray-500 text-center">{index + 1}</td>
                                     <td className="py-3 font-mono font-bold text-blue-600">{inv.invoiceNumber}</td>
-                                    <td className="py-3">{new Date(inv.issueDate).toLocaleDateString('id-ID')}</td>
+                                    <td className="py-3 max-w-[200px] break-words text-xs font-mono">{sttNumbers[inv.id] || '-'}</td>
                                     <td className={`py-3 ${isOverdue && isSelected ? 'text-red-600 font-bold' : ''}`}>
                                         {new Date(inv.dueDate).toLocaleDateString('id-ID')}
                                     </td>
