@@ -439,6 +439,27 @@ export default function Home() {
                             </Link>
                         )}
 
+                        {/* Manifest Cargo - All authenticated users */}
+                        {user && (
+                            <Link href="/tools/manifest" className="group">
+                                <div className="bg-white rounded-3xl p-8 shadow-xl shadow-gray-200/50 border border-gray-100 hover:border-blue-300 hover:shadow-2xl hover:shadow-blue-500/10 transition-all duration-300 relative overflow-hidden group-hover:-translate-y-1">
+                                    <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-blue-50 to-transparent rounded-bl-full opacity-50 group-hover:scale-110 transition-transform origin-top-right"></div>
+                                    <div className="relative">
+                                        <div className="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center text-blue-600 mb-6 group-hover:rotate-6 transition-transform">
+                                            <Ship size={32} />
+                                        </div>
+                                        <h2 className="text-2xl font-bold text-gray-800 mb-2 group-hover:text-blue-600 transition-colors">Manifest Cargo</h2>
+                                        <p className="text-gray-500 mb-6 leading-relaxed">
+                                            Buat, kelola, dan cetak manifest cargo keberangkatan (Daftar Cargo Manifes) secara cepat.
+                                        </p>
+                                        <div className="flex items-center text-blue-600 font-semibold gap-2">
+                                            Buka Manifest <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
+                                        </div>
+                                    </div>
+                                </div>
+                            </Link>
+                        )}
+
                         {/* Pemberangkatan - Owner & Admin only */}
                         {user && isAdmin && (
                             <Link href="/voyages" className="group">

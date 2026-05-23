@@ -12,6 +12,7 @@ import {
     Timestamp,
     setDoc,
     runTransaction,
+    limit,
 } from 'firebase/firestore';
 import { db } from './firebase';
 import type { Transaction, TransactionFormData, TransactionDoc, StatusTransaksi, SuratJalanData } from '@/types/transaction';
@@ -288,6 +289,45 @@ export const getTransactionById = async (id: string): Promise<Transaction | null
         return docToTransaction(docSnap.id, docSnap.data() as TransactionDoc);
     }
     return null;
+};
+
+/**
+ * Get single transaction by STT number (with padding support)
+ */
+export const getTransactionBySTT = async (noSTT: string): Promise<Transaction | null> => {
+    try {
+        const cleanSTT = noSTT.trim().toUpperCase();
+        let searchQuery = cleanSTT;
+        if (/^\d+$/.test(cleanSTT)) {
+            // It's just numbers, e.g. "18412". Pad to 6 digits like STT018412
+            searchQuery = `STT${cleanSTT.padStart(6, '0')}`;
+        }
+
+        const q = query(
+            collection(db, COLLECTION_NAME),
+            where('noSTT', '==', searchQuery),
+            limit(1)
+        );
+        const querySnapshot = await getDocs(q);
+        if (querySnapshot.empty) {
+            // Fallback: search exactly as entered
+            const qFallback = query(
+                collection(db, COLLECTION_NAME),
+                where('noSTT', '==', noSTT.trim()),
+                limit(1)
+            );
+            const fallbackSnapshot = await getDocs(qFallback);
+            if (fallbackSnapshot.empty) return null;
+            const docSnap = fallbackSnapshot.docs[0];
+            return docToTransaction(docSnap.id, docSnap.data() as TransactionDoc);
+        }
+
+        const docSnap = querySnapshot.docs[0];
+        return docToTransaction(docSnap.id, docSnap.data() as TransactionDoc);
+    } catch (error) {
+        console.error('Error getting transaction by STT:', error);
+        return null;
+    }
 };
 
 /**
