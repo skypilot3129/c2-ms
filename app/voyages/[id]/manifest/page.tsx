@@ -9,6 +9,7 @@ import type { Voyage } from '@/types/voyage';
 import type { Transaction } from '@/types/transaction';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { ArrowLeft, Printer } from 'lucide-react';
+import { COMPANY_INFO } from '@/lib/company-config';
 
 // A4 Portrait usable height at 96dpi with 8mm margins each side
 // A4 = 297mm. Total margin = 16mm. Usable = 281mm ≈ 1062px at 96dpi (1mm = 3.7795px)
@@ -124,7 +125,7 @@ export default function ManifestPage({ params }: { params: Promise<{ id: string 
                             className="bg-blue-600 text-white px-5 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-blue-700 shadow-md shadow-blue-600/20 text-sm"
                         >
                             <Printer size={16} />
-                            Cetak Manifest
+                            Cetak PDF
                         </button>
                     </div>
                 </div>
@@ -204,7 +205,7 @@ function ManifestContent({
                     MANIFEST MUATAN KAPAL
                 </div>
                 <div style={{ fontSize: '10px', fontWeight: 700, marginTop: '1px' }}>CAHAYA CARGO EXPRESS</div>
-                <div style={{ fontSize: '8px', color: '#555', marginTop: '1px' }}>Jl. Pelabuhan No. 1 — Cargo & Shipping Services</div>
+                <div style={{ fontSize: '8px', color: '#555', marginTop: '1px' }}>{COMPANY_INFO.address.replace('Jalan', 'Jl.')} {COMPANY_INFO.city} — Cargo & Shipping Services</div>
             </div>
 
             {/* Voyage Info: 2-column compact table */}

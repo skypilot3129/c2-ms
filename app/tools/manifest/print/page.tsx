@@ -189,7 +189,7 @@ function PrintContent() {
                     onClick={() => window.print()}
                     style={{ background: '#2563eb', color: 'white', padding: '10px 20px', borderRadius: 8, border: 'none', cursor: 'pointer', fontWeight: 'bold', fontSize: 14 }}
                 >
-                    🖨️ Cetak Manifest
+                    🖨️ Cetak PDF
                 </button>
             </div>
 
@@ -236,10 +236,10 @@ function PrintContent() {
                             EKSPEDISI FERRY CEPAT
                         </h2>
                         <p style={{ fontSize: '7.5pt', color: '#333', marginTop: '2mm', lineHeight: '1.4' }}>
-                            Jl. Kalimas Baru (Pelabuhan Kalimas) No. 60 - SURABAYA
+                            {COMPANY_INFO.address.replace('Jalan', 'Jl.')} {COMPANY_INFO.city}
                         </p>
                         <p style={{ fontSize: '7.5pt', color: '#333', lineHeight: '1.4' }}>
-                            Telp: 081 357 979 159 &bull; E-mail: c2express@yahoo.com
+                            Telp: {COMPANY_INFO.phone} {COMPANY_INFO.email || 'c2express@yahoo.com' ? `&bull; E-mail: ${COMPANY_INFO.email || 'c2express@yahoo.com'}` : ''}
                         </p>
                     </div>
 

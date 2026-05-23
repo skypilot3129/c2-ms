@@ -434,13 +434,39 @@ export default function ManifestCargoPage() {
                                                 {manifest.items?.reduce((sum, item) => sum + (item.koli || 0), 0) || 0}
                                             </td>
                                             <td className="py-3 px-4 text-center" onClick={e => e.stopPropagation()}>
-                                                <button
-                                                    onClick={(e) => handleDeleteManifest(manifest.id!, e)}
-                                                    className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
-                                                    title="Hapus manifest"
-                                                >
-                                                    <Trash2 size={16} />
-                                                </button>
+                                                <div className="flex items-center justify-center gap-2">
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            try {
+                                                                const printData = {
+                                                                    tanggal: manifest.tanggal,
+                                                                    kapal: manifest.kapal,
+                                                                    nopol: manifest.nopol || '',
+                                                                    sopir: manifest.sopir || '',
+                                                                    kepadaYth: manifest.kepadaYth || DEFAULT_KEPADA,
+                                                                    items: manifest.items || []
+                                                                };
+                                                                sessionStorage.setItem('cce_print_manifest', JSON.stringify(printData));
+                                                                window.open('/tools/manifest/print', '_blank');
+                                                            } catch (err) {
+                                                                console.error(err);
+                                                                alert('Gagal mencetak manifest.');
+                                                            }
+                                                        }}
+                                                        className="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-colors"
+                                                        title="Cetak PDF"
+                                                    >
+                                                        <Printer size={16} />
+                                                    </button>
+                                                    <button
+                                                        onClick={(e) => handleDeleteManifest(manifest.id!, e)}
+                                                        className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+                                                        title="Hapus manifest"
+                                                    >
+                                                        <Trash2 size={16} />
+                                                    </button>
+                                                </div>
                                             </td>
                                         </tr>
                                     ))}
@@ -593,7 +619,7 @@ export default function ManifestCargoPage() {
                             onClick={handlePrint}
                             className="w-full flex items-center justify-center gap-2 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-sm transition-all shadow-md active:scale-95"
                         >
-                            <Printer size={16} /> Cetak Daftar Manifes
+                            <Printer size={16} /> Cetak PDF
                         </button>
 
                         <button
