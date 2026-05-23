@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
-import { Calculator, Package, Copy, RotateCcw, Info, Plus, Trash2, DollarSign, Printer, User, ArrowRight, Box, Pencil, X, Save, History, CheckCircle, CopyPlus, Upload } from 'lucide-react';
+import { Calculator, Package, Copy, RotateCcw, Info, Plus, Trash2, DollarSign, Printer, User, ArrowRight, Box, Pencil, X, Save, History, CheckCircle, CopyPlus, Upload, Barcode, Scan, Camera } from 'lucide-react';
 import {
     calculateDimensions,
     formatWeight,
@@ -169,8 +169,15 @@ export default function VolumeCalculator() {
         height: 0,
         actualWeight: 0,
         quantity: 1,
-        itemName: ''
+        itemName: '',
+        barcode: ''
     });
+
+    // Barcode Scanner States
+    const [scanInputVal, setScanInputVal] = useState<string>('');
+    const [isScannerOpen, setIsScannerOpen] = useState<boolean>(false);
+    const [barcodeSuccess, setBarcodeSuccess] = useState<string | null>(null);
+    const [scannerError, setScannerError] = useState<string | null>(null);
 
     const [koliList, setKoliList] = useState<KoliItem[]>([]);
     const [pricePerKg, setPricePerKg] = useState<number>(0);
@@ -188,6 +195,109 @@ export default function VolumeCalculator() {
 
     // Focus ref for itemName
     const itemNameInputRef = useRef<HTMLInputElement>(null);
+
+    // Sound Feedback using Web Audio API
+    const playBeep = () => {
+        try {
+            const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(800, ctx.currentTime); // 800Hz beep sound
+            gain.gain.setValueAtTime(0.15, ctx.currentTime);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start();
+            osc.stop(ctx.currentTime + 0.12);
+        } catch (e) {
+            console.error('Audio play failed:', e);
+        }
+    };
+
+    const handleBarcodeScan = (scannedCode: string) => {
+        if (!scannedCode || scannedCode.trim() === '') return;
+        const code = scannedCode.trim();
+        playBeep();
+
+        // Check if there is an item in the koliList with this barcode
+        const match = koliList.find(k => k.barcode === code);
+
+        if (match) {
+            setFormData({
+                length: match.length,
+                width: match.width,
+                height: match.height,
+                actualWeight: match.actualWeight,
+                quantity: match.quantity || 1,
+                itemName: match.itemName,
+                barcode: code
+            });
+            setBarcodeSuccess(`Barcode dikenali! Menyalin data dari koli #${match.koliNumber} (${match.itemName}).`);
+            setTimeout(() => setBarcodeSuccess(null), 4000);
+        } else {
+            setFormData(prev => ({
+                ...prev,
+                barcode: code
+            }));
+            setBarcodeSuccess(`Barcode "${code}" terbaca! Silakan lengkapi nama barang & dimensinya.`);
+            setTimeout(() => setBarcodeSuccess(null), 4000);
+            if (itemNameInputRef.current) {
+                setTimeout(() => itemNameInputRef.current?.focus(), 100);
+            }
+        }
+        setScanInputVal('');
+    };
+
+    useEffect(() => {
+        if (!isScannerOpen) return;
+        let html5QrCode: any = null;
+        let isMounted = true;
+
+        import('html5-qrcode').then((module) => {
+            if (!isMounted) return;
+            const Html5QrcodeClass = module.Html5Qrcode;
+            html5QrCode = new Html5QrcodeClass("camera-scanner-reader");
+
+            const config = {
+                fps: 10,
+                qrbox: (width: number, height: number) => {
+                    const size = Math.min(width, height) * 0.7;
+                    return { width: size, height: size };
+                }
+            };
+
+            html5QrCode.start(
+                { facingMode: "environment" },
+                config,
+                (decodedText: string) => {
+                    handleBarcodeScan(decodedText);
+                    setIsScannerOpen(false);
+                },
+                (errorMessage: string) => {
+                    // Ignore verbose scanning noise logs
+                }
+            ).catch((err: any) => {
+                console.error("Camera scanner start failed:", err);
+                setScannerError("Gagal mengakses kamera. Berikan izin akses kamera.");
+            });
+        }).catch(err => {
+            console.error("Failed to load html5-qrcode module:", err);
+            setScannerError("Modul scanner gagal dimuat.");
+        });
+
+        return () => {
+            isMounted = false;
+            if (html5QrCode) {
+                if (html5QrCode.isScanning) {
+                    html5QrCode.stop().then(() => {
+                        html5QrCode.clear();
+                    }).catch((err: any) => {
+                        console.error("Failed to stop scanner on clean:", err);
+                    });
+                }
+            }
+        };
+    }, [isScannerOpen, koliList]);
 
     const handleStartSession = (e: React.FormEvent) => {
         e.preventDefault();
@@ -230,7 +340,7 @@ export default function VolumeCalculator() {
 
         setKoliList(prev => [...prev, newKoli]);
 
-        setFormData(prev => ({ length: 0, width: 0, height: 0, actualWeight: 0, quantity: 1, itemName: prev.itemName })); // Keep item name
+        setFormData(prev => ({ length: 0, width: 0, height: 0, actualWeight: 0, quantity: 1, itemName: prev.itemName, barcode: '' })); // Keep item name, clear barcode
         setErrors([]);
         if (itemNameInputRef.current) itemNameInputRef.current.focus();
     };
@@ -244,6 +354,7 @@ export default function VolumeCalculator() {
             width: lastKoli.width,
             height: lastKoli.height,
             itemName: lastKoli.itemName, // Copy item name too
+            barcode: '' // Reset barcode for new item
         }));
         setErrors([]);
     };
@@ -258,7 +369,8 @@ export default function VolumeCalculator() {
             height: koli.height,
             actualWeight: koli.actualWeight,
             quantity: koli.quantity,
-            itemName: koli.itemName
+            itemName: koli.itemName,
+            barcode: koli.barcode || ''
         });
         setErrors([]);
         window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -276,13 +388,13 @@ export default function VolumeCalculator() {
             k.koliNumber === editingKoliNumber ? { ...calculation, koliNumber: editingKoliNumber } : k
         ));
         setEditingKoliNumber(null);
-        setFormData({ length: 0, width: 0, height: 0, actualWeight: 0, quantity: 1, itemName: '' });
+        setFormData({ length: 0, width: 0, height: 0, actualWeight: 0, quantity: 1, itemName: '', barcode: '' });
         setErrors([]);
     };
 
     const handleCancelEdit = () => {
         setEditingKoliNumber(null);
-        setFormData({ length: 0, width: 0, height: 0, actualWeight: 0, quantity: 1, itemName: '' });
+        setFormData({ length: 0, width: 0, height: 0, actualWeight: 0, quantity: 1, itemName: '', barcode: '' });
         setErrors([]);
     };
 
@@ -303,7 +415,8 @@ export default function VolumeCalculator() {
                 height: 0,
                 actualWeight: 0,
                 quantity: 1,
-                itemName: ''
+                itemName: '',
+                barcode: ''
             });
             setKoliList([]);
             setPricePerKg(0);
@@ -319,7 +432,7 @@ export default function VolumeCalculator() {
         text += `${'='.repeat(50)}\n\n`;
 
         koliList.forEach(koli => {
-            text += `Koli ${koli.koliNumber} - ${koli.itemName}:\n`;
+            text += `Koli ${koli.koliNumber} - ${koli.itemName}${koli.barcode ? ` (Barcode: ${koli.barcode})` : ''}:\n`;
             text += `  Jumlah: ${koli.quantity} pcs\n`;
             text += `  Dimensi: ${koli.length} × ${koli.width} × ${koli.height} cm\n`;
             text += `  Total Volume: ${formatVolume(koli.volume)} cm³\n`;
@@ -538,11 +651,74 @@ export default function VolumeCalculator() {
                     </div>
                 </div>
 
+                {/* Barcode Scanner Section */}
+                <div className="mb-6 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 rounded-xl p-4 flex flex-col md:flex-row items-center gap-4 relative z-10">
+                    <div className="flex items-center gap-3 w-full md:w-auto shrink-0">
+                        <div className="p-2 bg-blue-600 text-white rounded-lg">
+                            <Scan size={20} />
+                        </div>
+                        <div>
+                            <h4 className="text-sm font-bold text-gray-800">Scan Barcode Barang</h4>
+                            <p className="text-[11px] text-gray-500">Scan kode untuk auto-fill jika ada koli yang sama</p>
+                        </div>
+                    </div>
+                    
+                    <div className="flex items-center gap-2 w-full">
+                        <div className="relative flex-1">
+                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
+                                <Barcode size={18} />
+                            </div>
+                            <input
+                                type="text"
+                                value={scanInputVal}
+                                onChange={(e) => setScanInputVal(e.target.value)}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                        e.preventDefault();
+                                        handleBarcodeScan(scanInputVal);
+                                    }
+                                }}
+                                className="pl-10 pr-24 w-full px-4 py-2.5 border-2 border-blue-200 rounded-lg focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 outline-none font-medium transition-all text-sm bg-white"
+                                placeholder="Fokuskan & scan barcode / ketik manual..."
+                            />
+                            <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1.5">
+                                <button
+                                    type="button"
+                                    onClick={() => handleBarcodeScan(scanInputVal)}
+                                    className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded transition-colors"
+                                >
+                                    Cari
+                                </button>
+                            </div>
+                        </div>
+
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setScannerError(null);
+                                setIsScannerOpen(true);
+                            }}
+                            className="flex items-center gap-1.5 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-lg transition-colors shrink-0 shadow-sm"
+                        >
+                            <Camera size={16} />
+                            <span className="hidden sm:inline">Kamera</span>
+                        </button>
+                    </div>
+                </div>
+
+                {/* Barcode Success Notification */}
+                {barcodeSuccess && (
+                    <div className="mb-6 p-3 bg-green-50 border border-green-200 text-green-800 rounded-lg flex items-center gap-2 text-sm font-medium animate-in slide-in-from-top-2 relative z-10">
+                        <CheckCircle className="text-green-600 shrink-0" size={18} />
+                        <span>{barcodeSuccess}</span>
+                    </div>
+                )}
+
                 {/* Form Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-12 gap-6 relative z-10">
                     
                     {/* Row 1: Item Info & Weight */}
-                    <div className="md:col-span-6">
+                    <div className="md:col-span-4">
                         <label className="block text-sm font-bold text-gray-700 mb-2">Nama / Tipe Barang *</label>
                         <input
                             ref={itemNameInputRef}
@@ -551,6 +727,18 @@ export default function VolumeCalculator() {
                             onChange={(e) => handleInputChange('itemName', e.target.value)}
                             className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 outline-none font-medium transition-all"
                             placeholder="Contoh: Sepatu, Buku, Mesin"
+                        />
+                    </div>
+
+                    <div className="md:col-span-2">
+                        <label className="block text-sm font-bold text-gray-700 mb-2">Barcode</label>
+                        <input
+                            type="text"
+                            value={formData.barcode || ''}
+                            onChange={(e) => handleInputChange('barcode', e.target.value)}
+                            className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 outline-none font-medium transition-all bg-gray-50 text-gray-600"
+                            placeholder="Belum di-scan"
+                            readOnly
                         />
                     </div>
 
@@ -808,7 +996,16 @@ export default function VolumeCalculator() {
                                         {group.items.map((koli) => (
                                             <tr key={koli.koliNumber} className="hover:bg-blue-50/50 transition-colors">
                                                 <td className="py-3 px-4 text-sm font-black text-gray-500 pl-6">#{koli.koliNumber}</td>
-                                                <td className="py-3 px-4 text-sm font-medium text-gray-500">-</td>
+                                                <td className="py-3 px-4 text-sm font-medium text-gray-500">
+                                                    {koli.barcode ? (
+                                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-blue-50 text-blue-700 text-xs font-semibold border border-blue-100 whitespace-nowrap">
+                                                            <Barcode size={12} className="shrink-0" />
+                                                            {koli.barcode}
+                                                        </span>
+                                                    ) : (
+                                                        <span className="text-gray-400">-</span>
+                                                    )}
+                                                </td>
                                                 <td className="py-3 px-4 text-sm text-center font-medium bg-gray-50/50">{koli.quantity}</td>
                                                 <td className="py-3 px-4 text-sm text-right text-gray-600 whitespace-nowrap">
                                                     {koli.length}×{koli.width}×{koli.height} <span className="text-xs text-gray-400">cm</span>
@@ -867,9 +1064,15 @@ export default function VolumeCalculator() {
                                     {group.items.map((koli) => (
                                         <div key={koli.koliNumber} className="p-4 bg-white relative">
                                             <div className="flex items-start justify-between mb-3">
-                                                <div>
-                                                    <span className="inline-block bg-gray-900 text-white text-xs font-black px-2 py-1 rounded mb-1">KOLI #{koli.koliNumber}</span>
-                                                </div>
+                                                 <div className="flex flex-wrap gap-1.5 items-center">
+                                                     <span className="inline-block bg-gray-900 text-white text-xs font-black px-2 py-1 rounded">KOLI #{koli.koliNumber}</span>
+                                                     {koli.barcode && (
+                                                         <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 text-xs font-semibold border border-blue-100 whitespace-nowrap">
+                                                             <Barcode size={12} className="shrink-0" />
+                                                             {koli.barcode}
+                                                         </span>
+                                                     )}
+                                                 </div>
                                                 <div className="flex items-center gap-1">
                                                     <button
                                                         onClick={() => handleEditKoli(koli.koliNumber)}
@@ -968,6 +1171,72 @@ export default function VolumeCalculator() {
                                     </div>
                                 </div>
                             </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Custom Scan Keyframe animation stylesheet */}
+            <style dangerouslySetInnerHTML={{ __html: `
+                @keyframes scan {
+                    0%, 100% { top: 0%; }
+                    50% { top: 100%; }
+                }
+            ` }} />
+
+            {/* Camera Barcode Scanner Modal */}
+            {isScannerOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+                    <div className="bg-gray-900 border border-gray-800 text-white rounded-2xl w-full max-w-md overflow-hidden relative shadow-2xl flex flex-col animate-in zoom-in-95 duration-200">
+                        {/* Modal Header */}
+                        <div className="p-4 border-b border-gray-800 flex items-center justify-between bg-gray-950">
+                            <div className="flex items-center gap-2">
+                                <Camera className="text-blue-500 animate-pulse" size={20} />
+                                <span className="font-bold text-sm">Camera Barcode Scanner</span>
+                            </div>
+                            <button
+                                onClick={() => setIsScannerOpen(false)}
+                                className="p-1.5 hover:bg-gray-800 rounded-lg text-gray-400 hover:text-white transition-colors"
+                            >
+                                <X size={18} />
+                            </button>
+                        </div>
+
+                        {/* Camera Scanner View */}
+                        <div className="p-6 flex flex-col items-center justify-center relative min-h-[300px] bg-black">
+                            {scannerError ? (
+                                <div className="text-center p-4">
+                                    <p className="text-red-500 text-sm font-bold mb-2">Terjadi Kesalahan</p>
+                                    <p className="text-xs text-gray-400">{scannerError}</p>
+                                </div>
+                            ) : (
+                                <>
+                                    {/* Scanning window frame */}
+                                    <div className="relative w-full max-w-[280px] aspect-square rounded-xl overflow-hidden border-2 border-blue-500/50 shadow-inner bg-gray-950">
+                                        {/* Scan laser line animation */}
+                                        <div className="absolute left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-blue-500 to-transparent top-0 animate-[scan_2s_ease-in-out_infinite] z-10 shadow-[0_0_8px_rgba(59,130,246,0.8)]"></div>
+                                        
+                                        {/* Container for html5-qrcode reader */}
+                                        <div id="camera-scanner-reader" className="w-full h-full object-cover"></div>
+                                    </div>
+                                    <p className="text-[11px] text-gray-400 mt-4 text-center">
+                                        Posisikan barcode atau QR code di dalam kotak pemindaian
+                                    </p>
+                                </>
+                            )}
+                        </div>
+
+                        {/* Modal Footer */}
+                        <div className="p-4 border-t border-gray-800 flex items-center justify-center bg-gray-950">
+                            <button
+                                onClick={() => {
+                                    setIsScannerOpen(false);
+                                    setScannerError(null);
+                                }}
+                                className="px-6 py-2.5 bg-gray-800 hover:bg-gray-700 text-gray-300 font-bold rounded-xl text-sm transition-colors"
+                            >
+                                Tutup
+                            </button>
                         </div>
                     </div>
                 </div>

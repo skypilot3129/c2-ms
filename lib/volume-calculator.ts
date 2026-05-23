@@ -45,7 +45,7 @@ export function calculateChargeableWeight(actualWeight: number, volumetricWeight
  * @returns Complete calculation result
  */
 export function calculateDimensions(formData: VolumeCalculatorFormData): VolumeCalculation {
-    const { length, width, height, actualWeight, quantity = 1, itemName } = formData;
+    const { length, width, height, actualWeight, quantity = 1, itemName, barcode } = formData;
 
     // Calculate volume for one item
     const singleVolume = calculateVolume(length, width, height);
@@ -75,7 +75,8 @@ export function calculateDimensions(formData: VolumeCalculatorFormData): VolumeC
         volume,
         volumetricWeight,
         chargeableWeight,
-        weightType
+        weightType,
+        barcode
     };
 }
 

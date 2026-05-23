@@ -17,6 +17,7 @@ interface KoliData {
     volumetricWeight: number;
     chargeableWeight: number;
     weightType: 'actual' | 'volumetric';
+    barcode?: string;
 }
 
 function PrintContent() {
@@ -238,7 +239,14 @@ function PrintContent() {
                                 {group.items.map((koli) => (
                                     <tr key={koli.koliNumber}>
                                         <td style={{ textAlign: 'center', fontWeight: 'bold' }}>{koli.koliNumber}</td>
-                                        <td style={{ paddingLeft: groupedKoliList.length > 1 ? 15 : 5 }}>{groupedKoliList.length === 1 ? koli.itemName : '-'}</td>
+                                        <td style={{ paddingLeft: groupedKoliList.length > 1 ? 15 : 5 }}>
+                                            {groupedKoliList.length === 1 ? koli.itemName : '-'}
+                                            {koli.barcode && (
+                                                <span style={{ fontSize: '7.5pt', color: '#4b5563', display: 'block', marginTop: '0.5mm' }}>
+                                                    Barcode: {koli.barcode}
+                                                </span>
+                                            )}
+                                        </td>
                                         <td style={{ textAlign: 'center' }}>{koli.quantity}</td>
                                         <td style={{ textAlign: 'center', fontSize: '8.5pt' }}>{koli.length} × {koli.width} × {koli.height}</td>
                                         <td style={{ textAlign: 'right', paddingRight: 5 }}>{formatWeight(koli.actualWeight * koli.quantity)}</td>

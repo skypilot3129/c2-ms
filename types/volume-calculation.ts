@@ -11,6 +11,7 @@ export interface VolumeCalculation {
     volumetricWeight: number; // total kg
     chargeableWeight: number; // total kg
     weightType: 'actual' | 'volumetric';
+    barcode?: string;         // optional barcode scanner code
 }
 
 export interface VolumeCalculatorFormData {
@@ -20,6 +21,7 @@ export interface VolumeCalculatorFormData {
     actualWeight: number;
     quantity: number;
     itemName: string;
+    barcode?: string;
 }
 
 export interface VolumeCalculationResult {
