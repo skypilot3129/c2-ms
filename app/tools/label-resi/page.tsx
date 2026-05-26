@@ -317,7 +317,7 @@ export default function LabelResiPage() {
                                                         
                                                         {/* Small Barcode Component */}
                                                         <div className="w-[80%] max-w-[200px] h-[36px] bg-white p-1 rounded-sm border border-gray-150">
-                                                            <Code39Barcode value={selectedTx.noSTT} height={32} />
+                                                            <Code39Barcode value={selectedTx.noSTT} height={32} narrowWidth={1.5} wideWidth={3.8} />
                                                         </div>
                                                     </div>
 
@@ -364,28 +364,11 @@ export default function LabelResiPage() {
                         return (
                             <div key={koliNum} className="print-page">
                                 
-                                {/* Watermark Background */}
-                                <div style={{
-                                    position: 'absolute',
-                                    top: 0,
-                                    left: 0,
-                                    right: 0,
-                                    bottom: 0,
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    pointerEvents: 'none',
-                                    opacity: 0.05,
-                                    zIndex: 0
-                                }}>
-                                    <span style={{ fontFamily: 'Arial, sans-serif', fontWeight: 900, fontSize: '100pt', letterSpacing: '2px' }}>CCE</span>
-                                </div>
-
                                 {/* Header */}
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '2px solid black', paddingBottom: '8px', zIndex: 10 }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '3px solid black', paddingBottom: '8px', zIndex: 10 }}>
                                     <div>
                                         <h3 style={{ margin: 0, fontWeight: 900, fontSize: '12pt', color: 'black' }}>CAHAYA CARGO EXPRESS</h3>
-                                        <p style={{ margin: '1px 0 0 0', fontSize: '7.5pt', color: '#555', fontWeight: 700, textTransform: 'uppercase' }}>Jasa Pengiriman Terpercaya</p>
+                                        <p style={{ margin: '1px 0 0 0', fontSize: '7.5pt', color: 'black', fontWeight: 700, textTransform: 'uppercase' }}>Jasa Pengiriman Terpercaya</p>
                                     </div>
                                     <span style={{ fontWeight: 900, fontSize: '18pt', color: 'black', letterSpacing: '1px' }}>CCE</span>
                                 </div>
@@ -393,27 +376,27 @@ export default function LabelResiPage() {
                                 {/* Middle: Massive STT and small barcode */}
                                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', margin: '20px 0', zIndex: 10 }}>
                                     <div style={{ textAlign: 'center', marginBottom: '16px' }}>
-                                        <p style={{ margin: 0, fontSize: '8pt', color: '#888', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px' }}>No. STT / Resi</p>
+                                        <p style={{ margin: 0, fontSize: '8pt', color: 'black', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px' }}>No. STT / Resi</p>
                                         <h2 style={{ margin: '4px 0 0 0', fontFamily: 'monospace', fontWeight: 900, fontSize: '30pt', color: 'black', letterSpacing: '2px' }}>
                                             {selectedTx.noSTT}
                                         </h2>
                                     </div>
                                     
-                                    {/* Barcode component */}
+                                    {/* Barcode component with thick bars for high density thermal printing */}
                                     <div style={{ width: '180px', height: '34px', background: 'white' }}>
-                                        <Code39Barcode value={selectedTx.noSTT} height={32} />
+                                        <Code39Barcode value={selectedTx.noSTT} height={32} narrowWidth={1.5} wideWidth={3.8} />
                                     </div>
                                 </div>
 
                                 {/* Footer & Paging details */}
-                                <div style={{ borderTop: '2px solid black', paddingTop: '10px', display: 'flex', flexDirection: 'column', gap: '8px', zIndex: 10 }}>
+                                <div style={{ borderTop: '3px solid black', paddingTop: '10px', display: 'flex', flexDirection: 'column', gap: '8px', zIndex: 10 }}>
                                     
                                     {/* Small Sender info */}
                                     <div style={{ fontSize: '8pt', color: '#000', lineHeight: 1.3 }}>
-                                        <span style={{ fontWeight: 'bold', color: '#888', fontSize: '7pt', textTransform: 'uppercase', display: 'block', marginBottom: '2px' }}>Pengirim</span>
+                                        <span style={{ fontWeight: 'bold', color: 'black', fontSize: '7pt', textTransform: 'uppercase', display: 'block', marginBottom: '2px' }}>Pengirim</span>
                                         <p style={{ margin: 0, fontWeight: 'bold' }}>{selectedTx.pengirimName}</p>
                                         {selectedTx.pengirimPhone && (
-                                            <p style={{ margin: '1px 0 0 0', color: '#555' }}>Telp: {selectedTx.pengirimPhone}</p>
+                                            <p style={{ margin: '1px 0 0 0', color: 'black' }}>Telp: {selectedTx.pengirimPhone}</p>
                                         )}
                                         <p style={{ margin: '3px 0 0 0', color: '#111', textTransform: 'uppercase', fontWeight: 'bold', fontSize: '7.5pt' }}>Tujuan: {selectedTx.tujuan}</p>
                                     </div>
