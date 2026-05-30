@@ -14,7 +14,21 @@ function fmtAngka(num: number): string {
 }
 
 function formatTanggal(date: Date | string): string {
-    const d = typeof date === 'string' ? new Date(date) : date;
+    let d: Date;
+    if (typeof date === 'string') {
+        if (date.includes('-')) {
+            const parts = date.split('-');
+            if (parts.length === 3) {
+                d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+            } else {
+                d = new Date(date);
+            }
+        } else {
+            d = new Date(date);
+        }
+    } else {
+        d = date;
+    }
     return d.toLocaleDateString('id-ID', {
         day: 'numeric',
         month: 'long',
@@ -31,6 +45,11 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
     const [transactions, setTransactions] = useState<Transaction[]>([]);
     const [loading, setLoading] = useState(true);
     const [keteranganPerSTT, setKeteranganPerSTT] = useState<{[key: string]: string}>({});
+    
+    // States for custom edit date and additional manual fee
+    const [issueDate, setIssueDate] = useState<string>('');
+    const [additionalFee, setAdditionalFee] = useState<number>(0);
+    const [feeLabel, setFeeLabel] = useState<string>('BIAYA TAMBAHAN');
 
     useEffect(() => {
         const loadData = async () => {
@@ -38,6 +57,8 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
             const inv = await getInvoiceById(id);
             if (inv) {
                 setInvoice(inv);
+                const dateObj = inv.issueDate instanceof Date ? inv.issueDate : new Date(inv.issueDate);
+                setIssueDate(dateObj.toISOString().substring(0, 10));
                 const txItems = await Promise.all(inv.transactionIds.map(tid => getTransactionById(tid)));
                 const loaded = txItems.filter((t): t is Transaction => t !== null);
                 // Sort by noSTT numerically (strip non-numeric prefix if any)
@@ -52,12 +73,6 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
         };
         loadData();
     }, [id, user]);
-
-    useEffect(() => {
-        if (!loading && invoice) {
-            setTimeout(() => window.print(), 800);
-        }
-    }, [loading, invoice]);
 
     if (loading || !invoice) {
         return (
@@ -75,8 +90,9 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
 
     // Calculate totals for tax layout dynamically to enforce 1.1% PPN rule on all invoices (including historical)
     const subtotalTagihan = transactions.reduce((acc, t) => acc + t.jumlah, 0);
-    const totalPPN = isTaxableInvoice ? Math.round(subtotalTagihan * 0.011) : 0;
-    const totalAkhirDisplay = subtotalTagihan + totalPPN;
+    const subtotalWithFee = subtotalTagihan + additionalFee;
+    const totalPPN = isTaxableInvoice ? Math.round(subtotalWithFee * 0.011) : 0;
+    const totalAkhirDisplay = subtotalWithFee + totalPPN;
     
     const totalKoli = transactions.reduce((acc, t) => acc + (t.koli || 0), 0);
     const totalBerat = transactions.reduce((acc, t) => acc + (t.berat || 0), 0);
@@ -122,6 +138,12 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
                     vertical-align: middle;
                 }
 
+                @media screen {
+                    body {
+                        padding-top: 75px;
+                    }
+                }
+
                 @media print {
                     @page {
                         size: A4 portrait;
@@ -144,20 +166,72 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
                 }
             `}} />
 
-            {/* Tombol aksi (tidak tercetak) */}
-            <div className="no-print" style={{ position: 'fixed', top: 16, right: 16, zIndex: 9999, display: 'flex', gap: 8 }}>
-                <button
-                    onClick={() => window.print()}
-                    style={{ background: '#2563eb', color: 'white', padding: '10px 20px', borderRadius: 8, border: 'none', cursor: 'pointer', fontWeight: 'bold', fontSize: 14 }}
-                >
-                    🖨️ Cetak
-                </button>
-                <button
-                    onClick={() => window.close()}
-                    style={{ background: '#6b7280', color: 'white', padding: '10px 20px', borderRadius: 8, border: 'none', cursor: 'pointer', fontWeight: 'bold', fontSize: 14 }}
-                >
-                    ✕ Tutup
-                </button>
+            {/* Control Panel (tidak tercetak) */}
+            <div className="no-print" style={{ 
+                position: 'fixed', 
+                top: 0, 
+                left: 0, 
+                right: 0, 
+                background: '#1e293b', 
+                color: 'white', 
+                padding: '12px 24px', 
+                zIndex: 9999, 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'space-between',
+                boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
+                fontFamily: 'system-ui, -apple-system, sans-serif',
+                fontSize: '13px'
+            }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontWeight: 'bold', color: '#94a3b8' }}>Tanggal Cetak:</span>
+                        <input 
+                            type="date" 
+                            value={issueDate} 
+                            onChange={e => setIssueDate(e.target.value)}
+                            style={{ background: '#334155', color: 'white', border: '1px solid #475569', padding: '6px 12px', borderRadius: '6px', outline: 'none' }}
+                        />
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontWeight: 'bold', color: '#94a3b8' }}>Keterangan Biaya Tambahan:</span>
+                        <input 
+                            type="text" 
+                            placeholder="Mis: Biaya Packing / Penerusan" 
+                            value={feeLabel} 
+                            onChange={e => setFeeLabel(e.target.value)}
+                            style={{ background: '#334155', color: 'white', border: '1px solid #475569', padding: '6px 12px', borderRadius: '6px', outline: 'none', width: '200px' }}
+                        />
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontWeight: 'bold', color: '#94a3b8' }}>Nominal Biaya:</span>
+                        <div style={{ position: 'relative' }}>
+                            <span style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }}>Rp</span>
+                            <input 
+                                type="number" 
+                                placeholder="0" 
+                                value={additionalFee || ''} 
+                                onChange={e => setAdditionalFee(Math.max(0, Number(e.target.value) || 0))}
+                                style={{ background: '#334155', color: 'white', border: '1px solid #475569', padding: '6px 12px 6px 25px', borderRadius: '6px', outline: 'none', width: '120px' }}
+                            />
+                        </div>
+                    </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: '8px' }}>
+                    <button
+                        onClick={() => window.print()}
+                        style={{ background: '#2563eb', color: 'white', padding: '8px 16px', borderRadius: '6px', border: 'none', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px' }}
+                    >
+                        🖨️ Cetak
+                    </button>
+                    <button
+                        onClick={() => window.close()}
+                        style={{ background: '#475569', color: 'white', padding: '8px 16px', borderRadius: '6px', border: 'none', cursor: 'pointer', fontWeight: 'bold' }}
+                    >
+                        ✕ Tutup
+                    </button>
+                </div>
             </div>
 
             <div className="a4-page">
@@ -185,7 +259,7 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
                                 <div style={{ display: 'flex', gap: '3mm' }}>
                                     <span style={{ minWidth: '75px' }}>Tanggal</span>
                                     <span>:</span>
-                                    <span contentEditable suppressContentEditableWarning style={{ fontWeight: 'bold', outline: 'none' }}>{formatTanggal(invoice.issueDate)}</span>
+                                    <span contentEditable suppressContentEditableWarning style={{ fontWeight: 'bold', outline: 'none' }}>{formatTanggal(issueDate)}</span>
                                 </div>
                                 <div style={{ display: 'flex', gap: '3mm' }}>
                                     <span style={{ minWidth: '75px' }}>No. NPWP</span>
@@ -289,6 +363,19 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
                                     );
                                 })}
 
+                                {/* Additional Manual Fee Row */}
+                                {additionalFee > 0 && (
+                                    <tr>
+                                        <td style={{ textAlign: 'center' }}>{transactions.length + 1}.</td>
+                                        <td colSpan={4} style={{ paddingLeft: 4, textTransform: 'uppercase', fontWeight: 'bold' }}>
+                                            <span contentEditable suppressContentEditableWarning style={{ outline: 'none' }}>
+                                                {feeLabel.toUpperCase()}
+                                            </span>
+                                        </td>
+                                        <td style={{ textAlign: 'right', paddingRight: 4, fontWeight: 'bold' }}>{fmtAngka(additionalFee)}</td>
+                                    </tr>
+                                )}
+
                                 {/* TOTAL TAGIHAN Row */}
                                 <tr>
                                     <td colSpan={2} style={{ textAlign: 'center', fontWeight: 'bold', fontSize: '8.5pt' }}>
@@ -306,7 +393,7 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
 
                                 {/* PPN Row */}
                                 <tr>
-                                    <td style={{ textAlign: 'center' }}>{transactions.length + 1}.</td>
+                                    <td style={{ textAlign: 'center' }}>{transactions.length + (additionalFee > 0 ? 2 : 1)}.</td>
                                     <td colSpan={4} style={{ paddingLeft: 4 }}>
                                         <span contentEditable suppressContentEditableWarning style={{ outline: 'none' }}>PPN 1.1%</span>
                                     </td>
@@ -382,7 +469,7 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
                                 <div style={{ display: 'flex', gap: '3mm' }}>
                                     <span style={{ minWidth: '75px' }}>Tanggal</span>
                                     <span>:</span>
-                                    <span contentEditable suppressContentEditableWarning style={{ fontWeight: 'bold', outline: 'none' }}>{formatTanggal(invoice.issueDate)}</span>
+                                    <span contentEditable suppressContentEditableWarning style={{ fontWeight: 'bold', outline: 'none' }}>{formatTanggal(issueDate)}</span>
                                 </div>
                             </div>
                         </div>
@@ -446,6 +533,19 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
                                         <td style={{ textAlign: 'right', paddingRight: 4 }}>{fmtAngka(t.jumlah)}</td>
                                     </tr>
                                 ))}
+
+                                {/* Additional Manual Fee Row */}
+                                {additionalFee > 0 && (
+                                    <tr>
+                                        <td style={{ textAlign: 'center' }}>{transactions.length + 1}.</td>
+                                        <td colSpan={5} style={{ paddingLeft: 4, textTransform: 'uppercase', fontWeight: 'bold' }}>
+                                            <span contentEditable suppressContentEditableWarning style={{ outline: 'none' }}>
+                                                {feeLabel.toUpperCase()}
+                                            </span>
+                                        </td>
+                                        <td style={{ textAlign: 'right', paddingRight: 4, fontWeight: 'bold' }}>{fmtAngka(additionalFee)}</td>
+                                    </tr>
+                                )}
 
                                 {/* Baris kosong */}
                                 {Array.from({ length: emptyRowsCount }).map((_, i) => (
