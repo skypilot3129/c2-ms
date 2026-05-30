@@ -244,6 +244,25 @@ export default function EmployeeSalaryPage() {
     router.push(`/payroll/employees/print?data=${data}`);
   };
 
+  const handlePrintLabel = (emp: Employee) => {
+    const att = attendance[emp.id] || [];
+    const calc = computeSalary(att, empAdvances(emp.id), fullPeriod);
+    const savedRec = savedRecords.find(r => r.employeeId === emp.id);
+    const data = encodeURIComponent(JSON.stringify({ emp, att, calc, period: fullPeriod, savedAt: savedRec?.updatedAt }));
+    router.push(`/payroll/employees/print-label?data=${data}`);
+  };
+
+  const handlePrintAllLabels = () => {
+    const list = employees.map(emp => {
+      const att = attendance[emp.id] || [];
+      const calc = computeSalary(att, empAdvances(emp.id), fullPeriod);
+      const savedRec = savedRecords.find(r => r.employeeId === emp.id);
+      return { emp, att, calc, period: fullPeriod, savedAt: savedRec?.updatedAt };
+    });
+    const data = encodeURIComponent(JSON.stringify({ list }));
+    router.push(`/payroll/employees/print-label?data=${data}`);
+  };
+
   return (
     <ProtectedRoute>
       <div className="space-y-5 pb-24">
@@ -278,6 +297,12 @@ export default function EmployeeSalaryPage() {
               className="flex items-center gap-2 px-3 py-2 bg-white border border-blue-200 text-blue-600 rounded-xl text-sm font-semibold hover:bg-blue-50 transition-colors disabled:opacity-50 shadow-sm">
               <Clock size={16} /> {syncing ? 'Menarik...' : 'Tarik Data Absensi'}
             </button>
+            {savedRecords.length > 0 && (
+              <button onClick={handlePrintAllLabels}
+                className="flex items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 transition-colors shadow-sm">
+                <Printer size={16} /> Cetak Semua Label A6
+              </button>
+            )}
           </div>
         </div>
 
@@ -404,13 +429,17 @@ export default function EmployeeSalaryPage() {
                   )}
 
                   {/* Actions */}
-                  <div className="flex gap-2 pt-2">
+                  <div className="flex gap-2 pt-2 flex-wrap">
                     <button onClick={() => handlePrint(emp)}
-                      className="flex items-center gap-2 px-4 py-2.5 border border-gray-200 text-gray-700 rounded-xl text-sm hover:bg-gray-50 transition-colors">
+                      className="flex items-center gap-2 px-3 py-2.5 border border-gray-200 text-gray-700 rounded-xl text-xs hover:bg-gray-50 transition-colors">
                       <Printer size={14} /> Cetak PDF
                     </button>
+                    <button onClick={() => handlePrintLabel(emp)}
+                      className="flex items-center gap-2 px-3 py-2.5 border border-gray-200 text-gray-700 rounded-xl text-xs hover:bg-gray-50 transition-colors">
+                      <Printer size={14} /> Cetak Label A6
+                    </button>
                     <button onClick={() => handleSave(emp)} disabled={saving === emp.id}
-                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold shadow-lg shadow-blue-600/20 disabled:opacity-50 transition-all">
+                      className="flex-1 min-w-[120px] flex items-center justify-center gap-2 px-3 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold shadow-lg shadow-blue-600/20 disabled:opacity-50 transition-all">
                       <Save size={14} /> {saving === emp.id ? 'Menyimpan...' : isSaved ? 'Perbarui' : 'Simpan Gaji'}
                     </button>
                   </div>
@@ -422,9 +451,15 @@ export default function EmployeeSalaryPage() {
 
         {/* Summary card */}
         {savedRecords.length > 0 && (
-          <div className="bg-gradient-to-br from-blue-600 to-blue-700 rounded-xl p-5 text-white shadow-lg shadow-blue-600/20">
-            <p className="text-blue-100 text-xs font-medium mb-2">Total Gaji {monthName(period)} ({cycle}) — {savedRecords.length} karyawan</p>
-            <p className="text-3xl font-bold">{formatRupiah(savedRecords.reduce((s, r) => s + r.netPay, 0))}</p>
+          <div className="bg-gradient-to-br from-blue-600 to-blue-700 rounded-xl p-5 text-white shadow-lg shadow-blue-600/20 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <p className="text-blue-100 text-xs font-medium mb-2">Total Gaji {monthName(period)} ({cycle}) — {savedRecords.length} karyawan</p>
+              <p className="text-3xl font-bold">{formatRupiah(savedRecords.reduce((s, r) => s + r.netPay, 0))}</p>
+            </div>
+            <button onClick={handlePrintAllLabels}
+              className="flex items-center justify-center gap-2 px-5 py-3 bg-white text-blue-700 rounded-xl text-sm font-bold hover:bg-blue-50 transition-colors shadow-sm shrink-0">
+              <Printer size={16} /> Cetak Semua Label A6
+            </button>
           </div>
         )}
       </div>
