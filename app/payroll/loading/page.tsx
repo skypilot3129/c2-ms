@@ -157,6 +157,41 @@ export default function LoadingPayPage() {
         router.push(`/payroll/loading/print?data=${data}`);
     };
 
+    const handlePrintLabel = (member: any) => {
+        const data = encodeURIComponent(JSON.stringify({
+            emp: {
+                fullName: member.name.toUpperCase(),
+                role: 'helper'
+            },
+            calc: {
+                sessionsCount: member.sessions,
+                totalShare: member.totalShare,
+                totalBonus: member.totalBonus,
+                total: member.total
+            },
+            period
+        }));
+        router.push(`/payroll/loading/print-label?data=${data}`);
+    };
+
+    const handlePrintAllLabels = () => {
+        const list = memberSummary.map(([empId, data]: any) => ({
+            emp: {
+                fullName: data.name.toUpperCase(),
+                role: 'helper'
+            },
+            calc: {
+                sessionsCount: data.sessions,
+                totalShare: data.totalShare,
+                totalBonus: data.totalBonus,
+                total: data.total
+            },
+            period
+        }));
+        const data = encodeURIComponent(JSON.stringify({ list }));
+        router.push(`/payroll/loading/print-label?data=${data}`);
+    };
+
     return (
         <ProtectedRoute>
             <div className="space-y-5 pb-24">
@@ -272,20 +307,36 @@ export default function LoadingPayPage() {
                         )}
                         <div className="divide-y divide-gray-50">
                             {memberSummary.map(([empId, data], idx) => (
-                                <div key={empId} className="px-4 py-4 flex items-center gap-3">
-                                    <div className="w-7 h-7 rounded-full bg-green-100 flex items-center justify-center text-green-600 text-xs font-bold shrink-0">{idx + 1}</div>
-                                    <div className="flex-1 min-w-0">
-                                        <p className="font-bold text-sm text-gray-800">{data.name}</p>
-                                        <p className="text-xs text-gray-500">{data.sessions} operasi · Bagi rata: {formatRupiah(data.totalShare)}{data.totalBonus > 0 ? ` + Bonus susun: ${formatRupiah(data.totalBonus)}` : ''}</p>
+                                <div key={empId} className="px-4 py-4 flex items-center justify-between gap-3 hover:bg-gray-50/50 transition-colors">
+                                    <div className="flex items-center gap-3 min-w-0">
+                                        <div className="w-7 h-7 rounded-full bg-green-100 flex items-center justify-center text-green-600 text-xs font-bold shrink-0">{idx + 1}</div>
+                                        <div className="min-w-0">
+                                            <p className="font-bold text-sm text-gray-800">{data.name}</p>
+                                            <p className="text-xs text-gray-500 truncate">{data.sessions} operasi · Bagi rata: {formatRupiah(data.totalShare)}{data.totalBonus > 0 ? ` + Bonus susun: ${formatRupiah(data.totalBonus)}` : ''}</p>
+                                        </div>
                                     </div>
-                                    <p className="font-bold text-green-700 text-base shrink-0">{formatRupiah(data.total)}</p>
+                                    <div className="flex items-center gap-2 shrink-0">
+                                        <p className="font-bold text-green-700 text-base">{formatRupiah(data.total)}</p>
+                                        <button 
+                                            onClick={() => handlePrintLabel(data)}
+                                            className="flex items-center gap-1 px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg text-xs font-bold transition-all shrink-0"
+                                        >
+                                            <Printer size={13} /> Cetak A6
+                                        </button>
+                                    </div>
                                 </div>
                             ))}
                         </div>
                         {memberSummary.length > 0 && (
-                            <div className="px-4 py-3 bg-green-50 flex justify-between items-center border-t border-green-100">
-                                <span className="text-sm font-bold text-green-800">Total Uang Muat</span>
-                                <span className="text-base font-bold text-green-800">{formatRupiah(memberSummary.reduce((s, [, d]) => s + d.total, 0))}</span>
+                            <div className="px-4 py-4 bg-green-50 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-t border-green-100">
+                                <div>
+                                    <span className="text-xs font-bold text-green-700 block uppercase">Total Uang Muat ({memberSummary.length} Anggota)</span>
+                                    <span className="text-lg font-black text-green-800">{formatRupiah(memberSummary.reduce((s, [, d]) => s + d.total, 0))}</span>
+                                </div>
+                                <button onClick={handlePrintAllLabels}
+                                    className="flex items-center justify-center gap-2 px-5 py-2.5 bg-green-755 bg-green-700 text-white rounded-xl text-sm font-bold hover:bg-green-800 transition-colors shadow-sm shrink-0">
+                                    <Printer size={16} /> Cetak Semua Label A6
+                                </button>
                             </div>
                         )}
                     </div>
