@@ -41,6 +41,15 @@ function LabelSlipContent() {
         return `${n[+m - 1] || ''} ${y || ''}`;
     };
 
+    const formatDateShort = (dateStr: string) => {
+        try {
+            const d = new Date(dateStr + 'T00:00:00');
+            return d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short' });
+        } catch {
+            return dateStr;
+        }
+    };
+
     if (records.length === 0) {
         return (
             <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
@@ -170,6 +179,35 @@ function LabelSlipContent() {
                                         </div>
                                     </div>
 
+                                    {/* Breakdown of Sessions (Truk) */}
+                                    {calc.sessionList && calc.sessionList.length > 0 && (
+                                        <div className="my-1.5 border-t border-b border-black py-1 overflow-y-auto max-h-[120px]">
+                                            <table className="w-full text-[8px] leading-tight border-collapse">
+                                                <thead>
+                                                    <tr className="bg-gray-100 text-black font-bold border-b border-black">
+                                                        <th className="py-0.5 text-left">Tanggal & Truk</th>
+                                                        <th className="py-0.5 text-right">Bagi Rata</th>
+                                                        <th className="py-0.5 text-right">Bonus</th>
+                                                        <th className="py-0.5 text-right font-black">Total</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-black/10">
+                                                    {calc.sessionList.map((s: any, sIdx: number) => (
+                                                        <tr key={sIdx}>
+                                                            <td className="py-1">
+                                                                <div className="font-bold">{formatDateShort(s.date)}</div>
+                                                                <div className="text-[7px] text-gray-600 uppercase font-semibold">{s.truckType} {s.truckLabel ? `(${s.truckLabel})` : ''}</div>
+                                                            </td>
+                                                            <td className="py-1 text-right">{formatRupiah(s.shareAmount)}</td>
+                                                            <td className="py-1 text-right text-amber-700">{s.stackingBonus > 0 ? formatRupiah(s.stackingBonus) : '-'}</td>
+                                                            <td className="py-1 text-right font-bold">{formatRupiah(s.total)}</td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    )}
+
                                     {/* Work Details Summary */}
                                     <div className="my-1 border border-black rounded-md p-2 flex flex-col gap-1 text-[10px]">
                                         <div className="flex justify-between font-bold border-b border-black/10 pb-0.5">
@@ -244,6 +282,35 @@ function LabelSlipContent() {
                                     </tbody>
                                 </table>
                             </div>
+
+                            {/* Breakdown of Sessions (Truk) */}
+                            {calc.sessionList && calc.sessionList.length > 0 && (
+                                <div style={{ margin: '4px 0', borderTop: '2px solid black', borderBottom: '2px solid black', paddingTop: '3px', paddingBottom: '3px' }}>
+                                    <table style={{ width: '100%', fontSize: '7.5pt', borderCollapse: 'collapse', lineHeight: 1.2 }}>
+                                        <thead>
+                                            <tr style={{ borderBottom: '1px solid black', fontWeight: 'bold', background: '#f5f5f5' }}>
+                                                <th style={{ textAlign: 'left', padding: '2px' }}>Tanggal & Truk</th>
+                                                <th style={{ textAlign: 'right', padding: '2px' }}>Bagi Rata</th>
+                                                <th style={{ textAlign: 'right', padding: '2px' }}>Bonus</th>
+                                                <th style={{ textAlign: 'right', padding: '2px', fontWeight: 900 }}>Total</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {calc.sessionList.map((s: any, sIdx: number) => (
+                                                <tr key={sIdx} style={{ borderBottom: '1px dashed #ccc' }}>
+                                                    <td style={{ padding: '2px 0' }}>
+                                                        <span style={{ fontWeight: 'bold', display: 'block' }}>{formatDateShort(s.date)}</span>
+                                                        <span style={{ fontSize: '6.5pt', color: '#111', textTransform: 'uppercase', fontWeight: 'bold' }}>{s.truckType} {s.truckLabel ? `(${s.truckLabel})` : ''}</span>
+                                                    </td>
+                                                    <td style={{ textAlign: 'right', padding: '2px 0', verticalAlign: 'middle' }}>{formatRupiah(s.shareAmount)}</td>
+                                                    <td style={{ textAlign: 'right', padding: '2px 0', verticalAlign: 'middle', color: '#000' }}>{s.stackingBonus > 0 ? formatRupiah(s.stackingBonus) : '-'}</td>
+                                                    <td style={{ textAlign: 'right', padding: '2px 0', verticalAlign: 'middle', fontWeight: 'bold' }}>{formatRupiah(s.total)}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
 
                             {/* Work Details Summary */}
                             <div style={{ border: '2px solid black', padding: '8px 10px', margin: '10px 0', borderRadius: '6px', fontSize: '10pt', display: 'flex', flexDirection: 'column', gap: '4px' }}>

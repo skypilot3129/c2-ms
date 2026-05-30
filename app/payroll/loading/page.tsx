@@ -138,15 +138,46 @@ export default function LoadingPayPage() {
 
     // Per-member summary for the period
     const memberSummary = useMemo(() => {
-        const map: Record<string, { name: string; sessions: number; totalShare: number; totalBonus: number; total: number }> = {};
+        const map: Record<string, { 
+            name: string; 
+            sessions: number; 
+            totalShare: number; 
+            totalBonus: number; 
+            total: number;
+            sessionList: Array<{
+                date: string;
+                truckType: string;
+                truckLabel?: string;
+                shareAmount: number;
+                stackingBonus: number;
+                total: number;
+            }>;
+        }> = {};
         sessions.forEach(s => {
             s.members.forEach(m => {
                 if (!m.present) return;
-                if (!map[m.employeeId]) map[m.employeeId] = { name: m.employeeName, sessions: 0, totalShare: 0, totalBonus: 0, total: 0 };
+                if (!map[m.employeeId]) {
+                    map[m.employeeId] = { 
+                        name: m.employeeName, 
+                        sessions: 0, 
+                        totalShare: 0, 
+                        totalBonus: 0, 
+                        total: 0,
+                        sessionList: []
+                    };
+                }
                 map[m.employeeId].sessions++;
                 map[m.employeeId].totalShare += m.shareAmount;
                 map[m.employeeId].totalBonus += m.stackingBonus;
                 map[m.employeeId].total += m.total;
+                map[m.employeeId].sessionList.push({
+                    date: s.date,
+                    truckType: s.truckType,
+                    truckLabel: s.truckLabel,
+                    shareAmount: m.shareAmount,
+                    stackingBonus: m.stackingBonus,
+                    total: m.total
+                });
             });
         });
         return Object.entries(map).sort(([, a], [, b]) => b.total - a.total);
@@ -167,7 +198,8 @@ export default function LoadingPayPage() {
                 sessionsCount: member.sessions,
                 totalShare: member.totalShare,
                 totalBonus: member.totalBonus,
-                total: member.total
+                total: member.total,
+                sessionList: member.sessionList
             },
             period
         }));
@@ -184,7 +216,8 @@ export default function LoadingPayPage() {
                 sessionsCount: data.sessions,
                 totalShare: data.totalShare,
                 totalBonus: data.totalBonus,
-                total: data.total
+                total: data.total,
+                sessionList: data.sessionList
             },
             period
         }));
