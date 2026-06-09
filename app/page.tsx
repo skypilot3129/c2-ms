@@ -481,6 +481,27 @@ export default function Home() {
                             </Link>
                         )}
 
+                        {/* Cetak Dokumen Legal - All authenticated users */}
+                        {user && (
+                            <Link href="/tools/dokumen-legal" className="group">
+                                <div className="bg-white rounded-3xl p-8 shadow-xl shadow-gray-200/50 border border-gray-100 hover:border-emerald-300 hover:shadow-2xl hover:shadow-emerald-500/10 transition-all duration-300 relative overflow-hidden group-hover:-translate-y-1">
+                                    <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-emerald-50 to-transparent rounded-bl-full opacity-50 group-hover:scale-110 transition-transform origin-top-right"></div>
+                                    <div className="relative">
+                                        <div className="w-16 h-16 bg-emerald-100 rounded-2xl flex items-center justify-center text-emerald-600 mb-6 group-hover:rotate-6 transition-transform">
+                                            <FileText size={32} />
+                                        </div>
+                                        <h2 className="text-2xl font-bold text-gray-800 mb-2 group-hover:text-emerald-600 transition-colors">Cetak Dokumen Legal</h2>
+                                        <p className="text-gray-500 mb-6 leading-relaxed">
+                                            Buat, sesuaikan, dan cetak laporan investigasi, surat jalan khusus, dan surat resmi dengan kop Cahaya Cargo.
+                                        </p>
+                                        <div className="flex items-center text-emerald-600 font-semibold gap-2">
+                                            Buka Dokumen Legal <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
+                                        </div>
+                                    </div>
+                                </div>
+                            </Link>
+                        )}
+
                         {/* Pemberangkatan - Owner & Admin only */}
                         {user && isAdmin && (
                             <Link href="/voyages" className="group">
