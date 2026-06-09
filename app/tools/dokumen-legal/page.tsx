@@ -386,7 +386,7 @@ export default function DokumenLegalPage() {
                         margin: 0 !important;
                         box-shadow: none !important;
                         border: none !important;
-                        padding: ${paddingSize} !important;
+                        padding: 0 !important; /* Reset padding to use native browser page margins */
                         width: 100% !important;
                         height: auto !important;
                         min-height: 0 !important;
@@ -397,7 +397,7 @@ export default function DokumenLegalPage() {
                     }
                     @page {
                         size: A4 portrait;
-                        margin: 0;
+                        margin: ${paddingSize}; /* Dynamically sets browser print margins matching selected padding */
                     }
                 }
                 `
