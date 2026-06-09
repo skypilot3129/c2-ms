@@ -10,10 +10,8 @@ import {
     EyeOff, 
     Plus, 
     Trash2, 
-    RotateCcw, 
-    FileText, 
-    Layout, 
     Type,
+    Layout,
     FileSpreadsheet,
     FileSignature
 } from 'lucide-react';
@@ -33,117 +31,85 @@ export default function DokumenLegalPage() {
     const [lineHeight, setLineHeight] = useState<string>('1.5');
     const [fontFamily, setFontFamily] = useState<string>('sans');
 
-    // Document Metadata states
-    const [documentDate, setDocumentDate] = useState<string>('09 Juni 2026');
-    const [refNumber, setRefNumber] = useState<string>('024/CCE-INV/VI/2026');
-    const [documentTitle, setDocumentTitle] = useState<string>('LAPORAN INVESTIGASI & KRONOLOGI KEHILANGAN BARANG');
+    // Document Header Title state
+    const [documentTitle, setDocumentTitle] = useState<string>('SURAT PERNYATAAN KOMITMEN BERSAMA');
     
     // Signatory states
     const [signatoryName, setSignatoryName] = useState<string>('HILAL BAFAGIH');
     const [signatoryRole, setSignatoryRole] = useState<string>('Operational Manager');
 
     // Lost items table state
-    const [lostItems, setLostItems] = useState<LostItem[]>([
-        { resi: 'SPXID065039708555', order: 'TO202605293D9ZG', notes: '-' },
-        { resi: 'SPXID068337159165', order: 'TO202605293EGRI', notes: '-' },
-        { resi: 'SPXID064487229745', order: 'TO202605293EI4A', notes: '-' },
-        { resi: 'SPXID066533886485', order: 'TO202605293D9ZG', notes: '-' },
-        { resi: 'SPXID069867400215', order: 'TO202605293D9ZG', notes: '-' },
-        { resi: 'SPXID066094989675', order: 'TO202605293ENSI', notes: '-' },
-        { resi: 'SPXID061571645185', order: 'TO202605293EDKC', notes: '-' }
-    ]);
+    const [lostItems, setLostItems] = useState<LostItem[]>([]);
 
-    // Section text contents states (HTML strings)
-    const [executiveSummary, setExecutiveSummary] = useState<string>(
-        `<p>Laporan ini disusun berdasarkan adanya laporan kehilangan barang (Data LT) yang diterima oleh PT Duta Hantaran Surabaya (DHS) pada tanggal 08 Juni 2026. Kehilangan ini merujuk pada proses pemuatan barang yang dilakukan pada tanggal 29 Mei 2026 dari CCE Surabaya dengan tujuan akhir Maros DC melalui Cabang Makassar.</p>
-        <p class="mt-2">Laporan ini bertujuan untuk memetakan alur perjalanan barang, mengidentifikasi pihak-pihak yang terlibat, serta menganalisis beberapa kejanggalan administratif dan operasional yang ditemukan di lapangan guna menentukan titik terjadinya selisih barang.</p>`
-    );
-
-    const [shippingDetails, setShippingDetails] = useState<string>(
-        `<div>
-            <h4 class="font-bold underline text-gray-800">1. Armada Transportasi</h4>
-            <div class="ml-4 mt-2 grid grid-cols-2 gap-4">
-                <div>
-                    <p class="font-semibold text-gray-700">Unit Pemuatan Awal (Fuso):</p>
-                    <p>Nama Driver: Riswan</p>
-                    <p>No. Polisi (Plat): DD 8250 LQ</p>
-                </div>
-                <div>
-                    <p class="font-semibold text-gray-700">Unit Langsir / Pindah Tempat:</p>
-                    <p>Nama Driver: Alvian</p>
-                    <p>No. Polisi (Plat): B 9521 GO</p>
-                </div>
-            </div>
+    // Document Metadata state (HTML string)
+    const [documentMetadata, setDocumentMetadata] = useState<string>(
+        `<div class="grid grid-cols-12 gap-1 text-[10.5pt]">
+            <div class="col-span-2 font-semibold">No. Surat</div>
+            <div class="col-span-6">: CCE/DIR-OPS/SPK/VI/2026</div>
+            <div class="col-span-4 text-right font-semibold text-[10pt]">Surabaya, 09 Juni 2026</div>
+            
+            <div class="col-span-2 font-semibold">Sifat</div>
+            <div class="col-span-10">: Penting / Segera</div>
+            
+            <div class="col-span-2 font-semibold">Lampiran</div>
+            <div class="col-span-10">: -</div>
+            
+            <div class="col-span-2 font-semibold">Hal</div>
+            <div class="col-span-10 font-bold">: Pernyataan Komitmen Evaluasi Operasional dan Peningkatan Sistem Keamanan Area Kerja</div>
         </div>
-        <div class="mt-4">
-            <h4 class="font-bold underline text-gray-800">2. Personel Pengawas (Proses Pemuatan - 29 Mei 2026)</h4>
-            <div class="ml-4 mt-2 grid grid-cols-2 gap-4">
-                <div>
-                    <p class="font-semibold text-gray-700">Pengawas DHS (Surabaya):</p>
-                    <p>• Pak Aan</p>
-                    <p>• Pak Fauzan</p>
-                </div>
-                <div>
-                    <p class="font-semibold text-gray-700">Pengawas CCE (Surabaya):</p>
-                    <p>• Pak Indar</p>
-                    <p>• Pak Ali</p>
-                </div>
-            </div>
+        <div class="mt-5 text-[10.5pt]">
+            <p>Kepada Yth.</p>
+            <p class="font-bold">Pimpinan Manajemen PT DUTA HANTARAN SURABAYA (DHS)</p>
+            <p>Di Tempat</p>
         </div>`
     );
 
-    const [chronologyText, setChronologyText] = useState<string>(
-        `<ul class="list-disc pl-5 space-y-2">
-            <li><strong>29 Mei 2026 (Proses Pemuatan di CCE Surabaya):</strong>
-                <ul class="list-circle pl-5 mt-1 space-y-1">
-                    <li>Proses pemuatan barang dilakukan dengan pengawasan ketat secara langsung oleh 4 (empat) orang pengawas dari DHS dan CCE.</li>
-                    <li>Dilakukan pengemasan khusus untuk Barang Mahal (Barhal) ke dalam 2 (dua) karung khusus yang masing-masing berisi 8 TO (Total 16 TO).</li>
-                    <li><strong>Bukti Pengawasan:</strong> Pengawas DHS dan CCE bekerja sama mendokumentasikan proses pengisian Barhal ke dalam karung melalui rekaman video.</li>
-                    <li>Barang dimuat ke unit pertama (Fuso DD 8250 LQ - Driver: Riswan) dan kemudian dilansir/dipindahkan ke unit kedua (B 9521 GO - Driver: Alvian).</li>
-                </ul>
+    // Document main body content state (HTML string)
+    const [documentBody, setDocumentBody] = useState<string>(
+        `<p class="mt-4">Dengan hormat,</p>
+        <p class="mt-2">Sehubungan dengan hasil evaluasi bersama terkait dinamika operasional logistik dan sebagai bentuk komitmen nyata dari Cahaya Cargo (CCE) dalam menjaga kualitas layanan, keamanan barang, serta kelangsungan kerja sama strategis dengan PT Duta Hantaran Surabaya (DHS), kami selaku manajemen Cahaya Cargo (CCE) dengan ini menyatakan kesanggupan, komitmen, dan rencana aksi nyata untuk melakukan evaluasi operasional serta peningkatan sistem keamanan di seluruh area kerja kami, khususnya pada Cabang Surabaya dan Cabang Makassar.</p>
+        <p class="mt-2">Adapun langkah-langkah strategis dan taktis yang akan segera kami terapkan adalah sebagai berikut:</p>
+        
+        <ol class="list-decimal pl-5 space-y-4 mt-4">
+            <li>
+                <strong>Peningkatan Sistem Pemantauan Visual (Instalasi &amp; Optimalisasi CCTV)</strong>
+                <p class="mt-1"><strong>Komitmen:</strong> Cahaya Cargo (CCE) akan melakukan penambahan unit kamera CCTV (Closed-Circuit Television) berspesifikasi tinggi (high-definition) di berbagai sudut krusial yang memerlukan pemantauan lebih ketat (blind spots), baik di Cabang Surabaya maupun Cabang Makassar.</p>
+                <p class="mt-1"><strong>Area Fokus:</strong> Area pemuatan (loading), pembongkaran (unloading), penempatan sementara (staging area), serta jalur keluar-masuk armada truk pengangkut.</p>
+                <p class="mt-1"><strong>Sistem Manajemen Data:</strong> Kami juga berkomitmen meningkatkan kapasitas penyimpanan data rekaman (storage backup) serta melakukan pemeliharaan berkala secara rutin guna memastikan fungsi pengawasan visual berjalan tanpa kendala 24/7.</p>
             </li>
-            <li class="mt-3"><strong>Perjalanan & Pembongkaran di Cabang Makassar:</strong>
-                <ul class="list-circle pl-5 mt-1 space-y-1">
-                    <li>Unit tiba di Cabang Makassar untuk proses pembongkaran.</li>
-                    <li>Saat pembongkaran, karung berisi Barhal diverifikasi masih dalam keadaan tersegel rapi.</li>
-                    <li><strong>Bukti Pembongkaran:</strong> Proses ini didokumentasikan melalui rekaman video pembongkaran.</li>
-                    <li><strong>Catatan Hitung Koli:</strong> Pernyataan awal dari Cabang Makassar menyebutkan bahwa jumlah koli yang dihitung saat pembongkaran menunjukkan status lebih koli (kelebihan jumlah fisik koli dibanding manifes awal dari Surabaya).</li>
-                </ul>
-            </li>
-            <li class="mt-3"><strong>Penerimaan di Maros DC:</strong>
-                <ul class="list-circle pl-5 mt-1 space-y-1">
-                    <li>Saat barang tiba dan dihitung kembali di Maros DC, dilaporkan terjadi pengurangan koli (kurang koli) sebanyak 7 resi.</li>
-                </ul>
-            </li>
-            <li class="mt-3"><strong>08 Juni 2026 (Laporan Kehilangan DHS):</strong>
-                <ul class="list-circle pl-5 mt-1 space-y-1">
-                    <li>Pihak DHS menerima laporan resmi mengenai adanya kehilangan barang (Data LT) sebanyak 7 resi.</li>
-                </ul>
-            </li>
-        </ul>`
-    );
-
-    const [analysisText, setAnalysisText] = useState<string>(
-        `<ol class="list-decimal pl-5 space-y-4">
-            <li><strong>Status Validitas "Barang Mahal" (Barhal)</strong>
-                <p class="mt-1"><strong>Temuan:</strong> Data resi/TO yang dilaporkan hilang di atas tidak sama dengan data TO Barhal yang disiapkan dan dimasukkan ke dalam 2 karung segel di CCE Surabaya.</p>
-                <p class="mt-1"><strong>Pertanyaan:</strong> Apakah 7 barang yang dilaporkan hilang tersebut memang dikategorikan sebagai Barang Mahal? Jika benar Barhal, mengapa nomor TO-nya tidak cocok dengan daftar Barhal yang dikoordinasikan saat pemuatan? Mengingat 2 karung Barhal tiba di Makassar dalam kondisi segel utuh, maka besar kemungkinan barang yang hilang ini berada di luar karung segel tersebut (karung reguler).</p>
-            </li>
-            <li class="mt-3"><strong>Karakteristik Fisik Barang & Pengawasan Lapangan</strong>
-                <p class="mt-1"><strong>Temuan:</strong> Kehilangan berjumlah 7 koli/paket. Jika ini merupakan barang ukuran besar (bulky) atau karung biasa di luar segel Barhal, pemindahannya secara ilegal (tindakan kriminal atau kelalaian) di lokasi asal seharusnya sangat sulit terjadi.</p>
-                <p class="mt-1"><strong>Pertanyaan:</strong> Apakah barang tersebut merupakan barang bulky atau karung biasa? Selama proses pemuatan di CCE Surabaya, terdapat 4 (empat) orang pengawas fisik yang siaga (Pak Aan, Pak Fauzan, Pak Indar, dan Pak Ali). Jika terjadi kejanggalan atau tindakan mencurigakan pada fase pemuatan, bagaimana hal tersebut bisa lolos dari pengawasan langsung empat orang personel tersebut?</p>
-            </li>
-            <li class="mt-3"><strong>Selisih Hitung Koli & Potensi Kerusakan Kemasan (Surabaya - Makassar - Maros DC)</strong>
-                <p class="mt-1"><strong>Temuan:</strong> Terdapat kontradiksi data hitung koli yang sangat signifikan di titik transit:</p>
+            <li>
+                <strong>Penerapan Sistem Pemindaian Digital (Scanning System) yang Terintegrasi</strong>
+                <p class="mt-1"><strong>Komitmen:</strong> Guna meminimalkan risiko selisih perhitungan koli dan human error, Cahaya Cargo (CCE) akan menerapkan sistem pemindaian barcode/resi (scanning system) secara ketat untuk setiap proses bongkar dan muat barang milik DHS di gudang CCE.</p>
+                <p class="mt-1"><strong>Mekanisme Kerja:</strong></p>
                 <ul class="list-disc pl-5 mt-1 space-y-1">
-                    <li>Surabaya: Data muat awal.</li>
-                    <li>Cabang Makassar: Melaporkan hasil hitung fisik "Lebih Koli". Terdapat indikasi kuat bahwa status "lebih" ini dipicu oleh adanya karung pembungkus luar yang robek, lepas, atau pecah selama perjalanan, sehingga paket-paket kecil di dalamnya tercecer keluar dan dihitung satu per satu sebagai koli terpisah.</li>
-                    <li>Maros DC: Melaporkan hasil hitung fisik "Kurang Koli" (selisih kurang 7 resi) setelah dilakukan rekonsiliasi data manifes asli.</li>
+                    <li>Setiap paket/koli yang masuk atau keluar dari unit transportasi wajib melalui proses scanning untuk memastikan kecocokan data manifest fisik dengan sistem digital secara real-time.</li>
+                    <li>Laporan hasil scanning (bongkar/muat) akan dikoordinasikan secara transparan kepada pihak pengawas DHS sebagai dasar serah terima barang yang sah.</li>
                 </ul>
-                <p class="mt-1"><strong>Pertanyaan:</strong> Bagaimana proses penanganan dan pencocokan paket yang tercecer tersebut dilakukan di Cabang Makassar? Jika paket yang tercecer menyebabkan hitungan fisik terkesan "lebih" di Makassar, mengapa setelah diteruskan ke Maros DC jumlahnya justru berkurang (minus 7 koli)? Apakah ada item tercecer yang tertinggal, salah rute, atau salah penyerahan saat pemuatan ulang di Cabang Makassar menuju Maros DC?</p>
+            </li>
+            <li>
+                <strong>Penugasan Personel Pengawas Khusus (Dedicated Operational Supervisor)</strong>
+                <p class="mt-1"><strong>Komitmen:</strong> Cahaya Cargo (CCE) akan menugaskan staf khusus yang berdedikasi penuh untuk mengawasi seluruh alur operasional barang milik DHS, mulai dari penanganan barang di gudang hingga proses pemuatan ke armada.</p>
+                <p class="mt-1"><strong>Tanggung Jawab Pengawas:</strong></p>
+                <ul class="list-disc pl-5 mt-1 space-y-1">
+                    <li>Memastikan prosedur penanganan barang dijalankan sesuai Standar Operasional Prosedur (SOP) keamanan CCE-DHS.</li>
+                    <li>Mengawal langsung kesesuaian jumlah koli fisik saat bongkar-muat bersama pengawas dari DHS.</li>
+                    <li>Memastikan setiap kondisi tidak biasa (seperti karung pecah, kemasan rusak, atau isi berceceran) langsung didokumentasikan dalam Berita Acara resmi di lokasi sebelum armada berangkat.</li>
+                </ul>
+            </li>
+            <li>
+                <strong>Perubahan Lokasi Pembongkaran Barang Consul di Makassar (Efektif 11 Juni 2026)</strong>
+                <p class="mt-1"><strong>Komitmen:</strong> Untuk meningkatkan akurasi kontrol selisih koli dan efisiensi rantai pasok, disepakati adanya penyesuaian lokasi pembongkaran khusus untuk barang konsolidasi (barang consul) milik DHS di wilayah Makassar.</p>
+                <p class="mt-1"><strong>Ketentuan Operasional:</strong></p>
+                <ul class="list-disc pl-5 mt-1 space-y-1">
+                    <li>Terhitung mulai pemberangkatan armada tanggal 11 Juni 2026, seluruh proses pembongkaran barang consul dari Surabaya tidak lagi dilakukan di Gudang CCE Makassar, melainkan akan dialihkan dan dibongkar langsung di Gudang DHS Makassar.</li>
+                    <li>Tim CCE Makassar tetap akan mengirimkan perwakilan personel pengawas untuk mendampingi, mengawasi, serta melakukan pencocokan data fisik bersama dengan tim penerima di Gudang DHS Makassar pada saat armada tiba.</li>
+                </ul>
             </li>
         </ol>`
     );
+
+    // Content after the table state (HTML string)
+    const [documentBodyEnd, setDocumentBodyEnd] = useState<string>('');
 
     // Dynamic styles mappings
     const fontFamilies: { [key: string]: string } = {
@@ -169,12 +135,84 @@ export default function DokumenLegalPage() {
         }
     };
 
-    // Load templates
+    // Reset to Surat Pernyataan Komitmen Bersama
+    const loadKomitmenTemplate = () => {
+        if (confirm("Reset dokumen ke template Surat Pernyataan Komitmen Bersama? Perubahan yang belum dicetak akan hilang.")) {
+            setDocumentTitle('SURAT PERNYATAAN KOMITMEN BERSAMA');
+            setSignatoryName('HILAL BAFAGIH');
+            setSignatoryRole('Operational Manager');
+            setLostItems([]);
+            setDocumentMetadata(
+                `<div class="grid grid-cols-12 gap-1 text-[10.5pt]">
+                    <div class="col-span-2 font-semibold">No. Surat</div>
+                    <div class="col-span-6">: CCE/DIR-OPS/SPK/VI/2026</div>
+                    <div class="col-span-4 text-right font-semibold text-[10pt]">Surabaya, 09 Juni 2026</div>
+                    
+                    <div class="col-span-2 font-semibold">Sifat</div>
+                    <div class="col-span-10">: Penting / Segera</div>
+                    
+                    <div class="col-span-2 font-semibold">Lampiran</div>
+                    <div class="col-span-10">: -</div>
+                    
+                    <div class="col-span-2 font-semibold">Hal</div>
+                    <div class="col-span-10 font-bold">: Pernyataan Komitmen Evaluasi Operasional dan Peningkatan Sistem Keamanan Area Kerja</div>
+                </div>
+                <div class="mt-5 text-[10.5pt]">
+                    <p>Kepada Yth.</p>
+                    <p class="font-bold">Pimpinan Manajemen PT DUTA HANTARAN SURABAYA (DHS)</p>
+                    <p>Di Tempat</p>
+                </div>`
+            );
+            setDocumentBody(
+                `<p class="mt-4">Dengan hormat,</p>
+                <p class="mt-2">Sehubungan dengan hasil evaluasi bersama terkait dinamika operasional logistik dan sebagai bentuk komitmen nyata dari Cahaya Cargo (CCE) dalam menjaga kualitas layanan, keamanan barang, serta kelangsungan kerja sama strategis dengan PT Duta Hantaran Surabaya (DHS), kami selaku manajemen Cahaya Cargo (CCE) dengan ini menyatakan kesanggupan, komitmen, dan rencana aksi nyata untuk melakukan evaluasi operasional serta peningkatan sistem keamanan di seluruh area kerja kami, khususnya pada Cabang Surabaya dan Cabang Makassar.</p>
+                <p class="mt-2">Adapun langkah-langkah strategis dan taktis yang akan segera kami terapkan adalah sebagai berikut:</p>
+                
+                <ol class="list-decimal pl-5 space-y-4 mt-4">
+                    <li>
+                        <strong>Peningkatan Sistem Pemantauan Visual (Instalasi &amp; Optimalisasi CCTV)</strong>
+                        <p class="mt-1"><strong>Komitmen:</strong> Cahaya Cargo (CCE) akan melakukan penambahan unit kamera CCTV (Closed-Circuit Television) berspesifikasi tinggi (high-definition) di berbagai sudut krusial yang memerlukan pemantauan lebih ketat (blind spots), baik di Cabang Surabaya maupun Cabang Makassar.</p>
+                        <p class="mt-1"><strong>Area Fokus:</strong> Area pemuatan (loading), pembongkaran (unloading), penempatan sementara (staging area), serta jalur keluar-masuk armada truk pengangkut.</p>
+                        <p class="mt-1"><strong>Sistem Manajemen Data:</strong> Kami juga berkomitmen meningkatkan kapasitas penyimpanan data rekaman (storage backup) serta melakukan pemeliharaan berkala secara rutin guna memastikan fungsi pengawasan visual berjalan tanpa kendala 24/7.</p>
+                    </li>
+                    <li>
+                        <strong>Penerapan Sistem Pemindaian Digital (Scanning System) yang Terintegrasi</strong>
+                        <p class="mt-1"><strong>Komitmen:</strong> Guna meminimalkan risiko selisih perhitungan koli dan human error, Cahaya Cargo (CCE) akan menerapkan sistem pemindaian barcode/resi (scanning system) secara ketat untuk setiap proses bongkar dan muat barang milik DHS di gudang CCE.</p>
+                        <p class="mt-1"><strong>Mekanisme Kerja:</strong></p>
+                        <ul class="list-disc pl-5 mt-1 space-y-1">
+                            <li>Setiap paket/koli yang masuk atau keluar dari unit transportasi wajib melalui proses scanning untuk memastikan kecocokan data manifest fisik dengan sistem digital secara real-time.</li>
+                            <li>Laporan hasil scanning (bongkar/muat) akan dikoordinasikan secara transparan kepada pihak pengawas DHS sebagai dasar serah terima barang yang sah.</li>
+                        </ul>
+                    </li>
+                    <li>
+                        <strong>Penugasan Personel Pengawas Khusus (Dedicated Operational Supervisor)</strong>
+                        <p class="mt-1"><strong>Komitmen:</strong> Cahaya Cargo (CCE) akan menugaskan staf khusus yang berdedikasi penuh untuk mengawasi seluruh alur operasional barang milik DHS, mulai dari penanganan barang di gudang hingga proses pemuatan ke armada.</p>
+                        <p class="mt-1"><strong>Tanggung Jawab Pengawas:</strong></p>
+                        <ul class="list-disc pl-5 mt-1 space-y-1">
+                            <li>Memastikan prosedur penanganan barang dijalankan sesuai Standar Operasional Prosedur (SOP) keamanan CCE-DHS.</li>
+                            <li>Mengawal langsung kesesuaian jumlah koli fisik saat bongkar-muat bersama pengawas dari DHS.</li>
+                            <li>Memastikan setiap kondisi tidak biasa (seperti karung pecah, kemasan rusak, atau isi berceceran) langsung didokumentasikan dalam Berita Acara resmi di lokasi sebelum armada berangkat.</li>
+                        </ul>
+                    </li>
+                    <li>
+                        <strong>Perubahan Lokasi Pembongkaran Barang Consul di Makassar (Efektif 11 Juni 2026)</strong>
+                        <p class="mt-1"><strong>Komitmen:</strong> Untuk meningkatkan akurasi kontrol selisih koli dan efisiensi rantai pasok, disepakati adanya penyesuaian lokasi pembongkaran khusus untuk barang konsolidasi (barang consul) milik DHS di wilayah Makassar.</p>
+                        <p class="mt-1"><strong>Ketentuan Operasional:</strong></p>
+                        <ul class="list-disc pl-5 mt-1 space-y-1">
+                            <li>Terhitung mulai pemberangkatan armada tanggal 11 Juni 2026, seluruh proses pembongkaran barang consul dari Surabaya tidak lagi dilakukan di Gudang CCE Makassar, melainkan akan dialihkan dan dibongkar langsung di Gudang DHS Makassar.</li>
+                            <li>Tim CCE Makassar tetap akan mengirimkan perwakilan personel pengawas untuk mendampingi, mengawasi, serta melakukan pencocokan data fisik bersama dengan tim penerima di Gudang DHS Makassar pada saat armada tiba.</li>
+                        </ul>
+                    </li>
+                </ol>`
+            );
+            setDocumentBodyEnd('');
+        }
+    };
+
+    // Load Laporan Investigasi Kehilangan
     const loadInvestigasiTemplate = () => {
-        if (confirm("Reset dokumen ke template Laporan Investigasi? Perubahan yang belum dicetak akan hilang.")) {
+        if (confirm("Reset dokumen ke template Laporan Investigasi Kehilangan? Perubahan yang belum dicetak akan hilang.")) {
             setDocumentTitle('LAPORAN INVESTIGASI & KRONOLOGI KEHILANGAN BARANG');
-            setDocumentDate('09 Juni 2026');
-            setRefNumber('024/CCE-INV/VI/2026');
             setSignatoryName('HILAL BAFAGIH');
             setSignatoryRole('Operational Manager');
             setLostItems([
@@ -186,12 +224,20 @@ export default function DokumenLegalPage() {
                 { resi: 'SPXID066094989675', order: 'TO202605293ENSI', notes: '-' },
                 { resi: 'SPXID061571645185', order: 'TO202605293EDKC', notes: '-' }
             ]);
-            setExecutiveSummary(
-                `<p>Laporan ini disusun berdasarkan adanya laporan kehilangan barang (Data LT) yang diterima oleh PT Duta Hantaran Surabaya (DHS) pada tanggal 08 Juni 2026. Kehilangan ini merujuk pada proses pemuatan barang yang dilakukan pada tanggal 29 Mei 2026 dari CCE Surabaya dengan tujuan akhir Maros DC melalui Cabang Makassar.</p>
-                <p class="mt-2">Laporan ini bertujuan untuk memetakan alur perjalanan barang, mengidentifikasi pihak-pihak yang terlibat, serta menganalisis beberapa kejanggalan administratif dan operasional yang ditemukan di lapangan guna menentukan titik terjadinya selisih barang.</p>`
+            setDocumentMetadata(
+                `<div class="grid grid-cols-12 gap-1 text-[10.5pt]">
+                    <div class="col-span-2 font-semibold">Nomor Ref</div>
+                    <div class="col-span-6">: 024/CCE-INV/VI/2026</div>
+                    <div class="col-span-4 text-right font-semibold text-[10pt]">Tanggal Laporan: 09 Juni 2026</div>
+                </div>`
             );
-            setShippingDetails(
-                `<div>
+            setDocumentBody(
+                `<h3 class="font-extrabold uppercase mb-2 text-gray-900 text-[10.5pt]">I. RINGKASAN EKSEKUTIF</h3>
+                <p>Laporan ini disusun berdasarkan adanya laporan kehilangan barang (Data LT) yang diterima oleh PT Duta Hantaran Surabaya (DHS) pada tanggal 08 Juni 2026. Kehilangan ini merujuk pada proses pemuatan barang yang dilakukan pada tanggal 29 Mei 2026 dari CCE Surabaya dengan tujuan akhir Maros DC melalui Cabang Makassar.</p>
+                <p class="mt-2">Laporan ini bertujuan untuk memetakan alur perjalanan barang, mengidentifikasi pihak-pihak yang terlibat, serta menganalisis beberapa kejanggalan administratif dan operasional yang ditemukan di lapangan guna menentukan titik terjadinya selisih barang.</p>
+                
+                <h3 class="font-extrabold uppercase mt-6 mb-2 text-gray-900 text-[10.5pt]">II. DETAIL PENGIRIMAN &amp; PIHAK TERKAIT</h3>
+                <div>
                     <h4 class="font-bold underline text-gray-800">1. Armada Transportasi</h4>
                     <div class="ml-4 mt-2 grid grid-cols-2 gap-4">
                         <div>
@@ -220,10 +266,10 @@ export default function DokumenLegalPage() {
                             <p>• Pak Ali</p>
                         </div>
                     </div>
-                </div>`
-            );
-            setChronologyText(
-                `<ul class="list-disc pl-5 space-y-2">
+                </div>
+                
+                <h3 class="font-extrabold uppercase mt-6 mb-2 text-gray-900 text-[10.5pt]">III. KRONOLOGI PERJALANAN BARANG</h3>
+                <ul class="list-disc pl-5 space-y-2">
                     <li><strong>29 Mei 2026 (Proses Pemuatan di CCE Surabaya):</strong>
                         <ul class="list-circle pl-5 mt-1 space-y-1">
                             <li>Proses pemuatan barang dilakukan dengan pengawasan ketat secara langsung oleh 4 (empat) orang pengawas dari DHS dan CCE.</li>
@@ -232,7 +278,7 @@ export default function DokumenLegalPage() {
                             <li>Barang dimuat ke unit pertama (Fuso DD 8250 LQ - Driver: Riswan) dan kemudian dilansir/dipindahkan ke unit kedua (B 9521 GO - Driver: Alvian).</li>
                         </ul>
                     </li>
-                    <li class="mt-3"><strong>Perjalanan & Pembongkaran di Cabang Makassar:</strong>
+                    <li class="mt-3"><strong>Perjalanan &amp; Pembongkaran di Cabang Makassar:</strong>
                         <ul class="list-circle pl-5 mt-1 space-y-1">
                             <li>Unit tiba di Cabang Makassar untuk proses pembongkaran.</li>
                             <li>Saat pembongkaran, karung berisi Barhal diverifikasi masih dalam keadaan tersegel rapi.</li>
@@ -252,17 +298,18 @@ export default function DokumenLegalPage() {
                     </li>
                 </ul>`
             );
-            setAnalysisText(
-                `<ol class="list-decimal pl-5 space-y-4">
+            setDocumentBodyEnd(
+                `<h3 class="font-extrabold uppercase mt-6 mb-2 text-gray-900 text-[10.5pt]">V. ANALISIS TEMUAN &amp; PERTANYAAN KUNCI (DISCREPANCIES)</h3>
+                <ol class="list-decimal pl-5 space-y-4">
                     <li><strong>Status Validitas "Barang Mahal" (Barhal)</strong>
                         <p class="mt-1"><strong>Temuan:</strong> Data resi/TO yang dilaporkan hilang di atas tidak sama dengan data TO Barhal yang disiapkan dan dimasukkan ke dalam 2 karung segel di CCE Surabaya.</p>
                         <p class="mt-1"><strong>Pertanyaan:</strong> Apakah 7 barang yang dilaporkan hilang tersebut memang dikategorikan sebagai Barang Mahal? Jika benar Barhal, mengapa nomor TO-nya tidak cocok dengan daftar Barhal yang dikoordinasikan saat pemuatan? Mengingat 2 karung Barhal tiba di Makassar dalam kondisi segel utuh, maka besar kemungkinan barang yang hilang ini berada di luar karung segel tersebut (karung reguler).</p>
                     </li>
-                    <li class="mt-3"><strong>Karakteristik Fisik Barang & Pengawasan Lapangan</strong>
+                    <li class="mt-3"><strong>Karakteristik Fisik Barang &amp; Pengawasan Lapangan</strong>
                         <p class="mt-1"><strong>Temuan:</strong> Kehilangan berjumlah 7 koli/paket. Jika ini merupakan barang ukuran besar (bulky) atau karung biasa di luar segel Barhal, pemindahannya secara ilegal (tindakan kriminal atau kelalaian) di lokasi asal seharusnya sangat sulit terjadi.</p>
                         <p class="mt-1"><strong>Pertanyaan:</strong> Apakah barang tersebut merupakan barang bulky atau karung biasa? Selama proses pemuatan di CCE Surabaya, terdapat 4 (empat) orang pengawas fisik yang siaga (Pak Aan, Pak Fauzan, Pak Indar, dan Pak Ali). Jika terjadi kejanggalan atau tindakan mencurigakan pada fase pemuatan, bagaimana hal tersebut bisa lolos dari pengawasan langsung empat orang personel tersebut?</p>
                     </li>
-                    <li class="mt-3"><strong>Selisih Hitung Koli & Potensi Kerusakan Kemasan (Surabaya - Makassar - Maros DC)</strong>
+                    <li class="mt-3"><strong>Selisih Hitung Koli &amp; Potensi Kerusakan Kemasan (Surabaya - Makassar - Maros DC)</strong>
                         <p class="mt-1"><strong>Temuan:</strong> Terdapat kontradiksi data hitung koli yang sangat signifikan di titik transit:</p>
                         <ul class="list-disc pl-5 mt-1 space-y-1">
                             <li>Surabaya: Data muat awal.</li>
@@ -276,46 +323,49 @@ export default function DokumenLegalPage() {
         }
     };
 
+    // Load Surat Keterangan
     const loadSuratKeteranganTemplate = () => {
         if (confirm("Reset dokumen ke template Surat Keterangan? Perubahan yang belum dicetak akan hilang.")) {
             setDocumentTitle('SURAT KETERANGAN JALAN ARMADA');
-            setDocumentDate('09 Juni 2026');
-            setRefNumber('015/CCE-SK/VI/2026');
             setSignatoryName('HILAL BAFAGIH');
             setSignatoryRole('Operational Manager');
             setLostItems([]);
-            setExecutiveSummary(
-                `<p>Dengan ini Direksi CV. Cahaya Cargo Express menerangkan bahwa armada yang tercantum di bawah ini berada dalam tugas operasional resmi pengangkutan logistik lintas cabang:</p>`
-            );
-            setShippingDetails(
-                `<div>
-                    <h4 class="font-bold underline text-gray-800">Detail Kendaraan & Driver</h4>
-                    <div class="ml-4 mt-2 space-y-1 text-gray-700">
-                        <p><strong>Nama Driver:</strong> Riswan</p>
-                        <p><strong>Nomor Polisi:</strong> DD 8250 LQ</p>
-                        <p><strong>Jenis Unit:</strong> Mitsubishi Fuso Long</p>
-                        <p><strong>Rute Perjalanan:</strong> Surabaya - Makassar (Via Tanjung Perak)</p>
-                    </div>
+            setDocumentMetadata(
+                `<div class="grid grid-cols-12 gap-1 text-[10.5pt]">
+                    <div class="col-span-2 font-semibold">No. Surat</div>
+                    <div class="col-span-6">: 015/CCE-SK/VI/2026</div>
+                    <div class="col-span-4 text-right font-semibold text-[10pt]">Surabaya, 09 Juni 2026</div>
                 </div>`
             );
-            setChronologyText(
-                `<p>Surat keterangan ini diberikan kepada yang bersangkutan untuk dipergunakan sebagai bukti jalan yang sah dan sebagai dokumen pendukung pemeriksaan pos jembatan timbang maupun pelabuhan.</p>
+            setDocumentBody(
+                `<p class="mt-4">Dengan ini Direksi CV. Cahaya Cargo Express menerangkan bahwa armada yang tercantum di bawah ini berada dalam tugas operasional resmi pengangkutan logistik lintas cabang:</p>
+                <div class="mt-4 ml-4 space-y-2 text-gray-800">
+                    <p><strong>Nama Driver:</strong> Riswan</p>
+                    <p><strong>Nomor Polisi:</strong> DD 8250 LQ</p>
+                    <p><strong>Jenis Unit:</strong> Mitsubishi Fuso Long</p>
+                    <p><strong>Rute Perjalanan:</strong> Surabaya - Makassar (Via Tanjung Perak)</p>
+                </div>
+                <p class="mt-4">Surat keterangan ini diberikan kepada yang bersangkutan untuk dipergunakan sebagai bukti jalan yang sah dan sebagai dokumen pendukung pemeriksaan pos jembatan timbang maupun pelabuhan.</p>
                 <p class="mt-2">Demikian surat keterangan ini dibuat dengan sebenarnya untuk digunakan sebagaimana mestinya.</p>`
             );
-            setAnalysisText('');
+            setDocumentBodyEnd('');
         }
     };
 
+    // Load Blank
     const loadBlankTemplate = () => {
         if (confirm("Kosongkan semua konten dokumen?")) {
             setDocumentTitle('JUDUL DOKUMEN RESMI');
-            setDocumentDate('09 Juni 2026');
-            setRefNumber('.../.../.../2026');
             setLostItems([]);
-            setExecutiveSummary('<p>Tulis paragraf pembuka atau isi dokumen di sini...</p>');
-            setShippingDetails('<p>Tulis detail pengiriman atau poin penting di sini...</p>');
-            setChronologyText('<p>Tulis kronologi atau detail peristiwa di sini...</p>');
-            setAnalysisText('');
+            setDocumentMetadata(
+                `<div class="grid grid-cols-12 gap-1 text-[10.5pt]">
+                    <div class="col-span-2 font-semibold">No. Surat</div>
+                    <div class="col-span-6">: .../.../.../2026</div>
+                    <div class="col-span-4 text-right font-semibold text-[10pt]">Surabaya, 09 Juni 2026</div>
+                </div>`
+            );
+            setDocumentBody('<p class="mt-4">Tulis isi dokumen legal di sini...</p>');
+            setDocumentBodyEnd('');
         }
     };
 
@@ -383,20 +433,27 @@ export default function DokumenLegalPage() {
                 {/* Templates Selector */}
                 <div className="space-y-2">
                     <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Template Dokumen</label>
-                    <div className="grid grid-cols-3 gap-2">
+                    <div className="grid grid-cols-2 gap-2">
+                        <button 
+                            onClick={loadKomitmenTemplate}
+                            className="bg-slate-800 hover:bg-slate-700 text-xs font-semibold py-2 px-1 rounded-lg border border-slate-700 hover:border-slate-600 transition-all text-center"
+                            title="Komitmen Bersama"
+                        >
+                            Komitmen SPK
+                        </button>
                         <button 
                             onClick={loadInvestigasiTemplate}
                             className="bg-slate-800 hover:bg-slate-700 text-xs font-semibold py-2 px-1 rounded-lg border border-slate-700 hover:border-slate-600 transition-all text-center"
                             title="Laporan Kehilangan"
                         >
-                            Investigasi
+                            Investigasi LT
                         </button>
                         <button 
                             onClick={loadSuratKeteranganTemplate}
                             className="bg-slate-800 hover:bg-slate-700 text-xs font-semibold py-2 px-1 rounded-lg border border-slate-700 hover:border-slate-600 transition-all text-center"
                             title="Surat Keterangan"
                         >
-                            Suket
+                            Surat Ket
                         </button>
                         <button 
                             onClick={loadBlankTemplate}
@@ -560,7 +617,8 @@ export default function DokumenLegalPage() {
                                     className="w-[20mm] h-[20mm] object-contain"
                                 />
                                 <div>
-                                    <h2 className="text-xl md:text-2xl font-extrabold text-blue-900 tracking-wider font-serif">
+                                    {/* Company name changed to black font */}
+                                    <h2 className="text-xl md:text-2xl font-extrabold text-black tracking-wider font-serif">
                                         CV. CAHAYA CARGO EXPRESS
                                     </h2>
                                     <p className="text-[7.5pt] font-semibold tracking-wider text-slate-700 uppercase -mt-0.5">
@@ -588,7 +646,7 @@ export default function DokumenLegalPage() {
                         </div>
                     )}
 
-                    {/* 2. DOKUMEN HEADER */}
+                    {/* 2. DOKUMEN HEADER & METADATA */}
                     <div className="text-center mb-6">
                         <h1 
                             className="text-base font-extrabold tracking-wide uppercase border-b border-black pb-1 inline-block"
@@ -599,81 +657,37 @@ export default function DokumenLegalPage() {
                         >
                             {documentTitle}
                         </h1>
-                        <div className="mt-2 text-xs flex justify-center gap-6">
-                            <div>
-                                <span className="font-semibold">No. Ref: </span>
-                                <span 
-                                    contentEditable 
-                                    suppressContentEditableWarning
-                                    onBlur={(e) => setRefNumber(e.currentTarget.textContent || '')}
-                                    className="border-b border-dashed border-gray-400 outline-none"
-                                >
-                                    {refNumber}
-                                </span>
-                            </div>
-                            <div>
-                                <span className="font-semibold">Tanggal: </span>
-                                <span 
-                                    contentEditable 
-                                    suppressContentEditableWarning
-                                    onBlur={(e) => setDocumentDate(e.currentTarget.textContent || '')}
-                                    className="border-b border-dashed border-gray-400 outline-none"
-                                >
-                                    {documentDate}
-                                </span>
-                            </div>
-                        </div>
+                    </div>
+
+                    <div className="mb-6">
+                        <div
+                            contentEditable
+                            suppressContentEditableWarning
+                            onBlur={(e) => setDocumentMetadata(e.currentTarget.innerHTML || '')}
+                            style={{ outline: 'none' }}
+                            dangerouslySetInnerHTML={{ __html: documentMetadata }}
+                            className="border border-transparent hover:border-dashed hover:border-gray-300 p-1 rounded transition-colors text-justify"
+                        />
                     </div>
 
                     {/* 3. DOKUMEN BODY CONTENT */}
                     <div className="space-y-6 text-justify text-xs md:text-sm">
                         
-                        {/* Section I: Executive Summary */}
+                        {/* Main Body block */}
                         <div>
-                            <h3 className="font-extrabold uppercase mb-2 text-gray-900">I. RINGKASAN EKSEKUTIF</h3>
                             <div
                                 contentEditable
                                 suppressContentEditableWarning
-                                onBlur={(e) => setExecutiveSummary(e.currentTarget.innerHTML || '')}
+                                onBlur={(e) => setDocumentBody(e.currentTarget.innerHTML || '')}
                                 style={{ outline: 'none', cursor: 'text' }}
-                                dangerouslySetInnerHTML={{ __html: executiveSummary }}
+                                dangerouslySetInnerHTML={{ __html: documentBody }}
                                 className="border border-transparent hover:border-dashed hover:border-gray-300 p-1 rounded transition-colors"
                             />
                         </div>
 
-                        {/* Section II: Shipping Details */}
-                        <div>
-                            <h3 className="font-extrabold uppercase mb-2 text-gray-900">II. DETAIL PENGIRIMAN &amp; PIHAK TERKAIT</h3>
-                            <div
-                                contentEditable
-                                suppressContentEditableWarning
-                                onBlur={(e) => setShippingDetails(e.currentTarget.innerHTML || '')}
-                                style={{ outline: 'none', cursor: 'text' }}
-                                dangerouslySetInnerHTML={{ __html: shippingDetails }}
-                                className="border border-transparent hover:border-dashed hover:border-gray-300 p-1 rounded transition-colors"
-                            />
-                        </div>
-
-                        {/* Section III: Chronology */}
-                        <div>
-                            <h3 className="font-extrabold uppercase mb-2 text-gray-900">III. KRONOLOGI PERJALANAN BARANG</h3>
-                            <div
-                                contentEditable
-                                suppressContentEditableWarning
-                                onBlur={(e) => setChronologyText(e.currentTarget.innerHTML || '')}
-                                style={{ outline: 'none', cursor: 'text' }}
-                                dangerouslySetInnerHTML={{ __html: chronologyText }}
-                                className="border border-transparent hover:border-dashed hover:border-gray-300 p-1 rounded transition-colors"
-                            />
-                        </div>
-
-                        {/* Section IV: Lost Items Table */}
+                        {/* Section IV: Lost Items Table (only renders if items are present) */}
                         {lostItems.length > 0 && (
                             <div>
-                                <h3 className="font-extrabold uppercase mb-2 text-gray-900">IV. DATA BARANG YANG DILAPORKAN HILANG (DATA LT)</h3>
-                                <p className="mb-2">
-                                    Berdasarkan laporan Data LT dengan nomor referensi <span className="font-mono font-semibold">LT0Q5T1HRGJE1</span>, berikut adalah rincian {lostItems.length} (tiga) barang yang dilaporkan hilang:
-                                </p>
                                 <table className="w-full border-collapse border border-black text-left text-xs">
                                     <thead>
                                         <tr className="bg-slate-50 border-b border-black">
@@ -721,16 +735,15 @@ export default function DokumenLegalPage() {
                             </div>
                         )}
 
-                        {/* Section V: Analysis */}
-                        {analysisText && (
+                        {/* Section V: Analysis or Extra Body Block (only renders if present) */}
+                        {documentBodyEnd && (
                             <div>
-                                <h3 className="font-extrabold uppercase mb-2 text-gray-900">V. ANALISIS TEMUAN &amp; PERTANYAAN KUNCI (DISCREPANCIES)</h3>
                                 <div
                                     contentEditable
                                     suppressContentEditableWarning
-                                    onBlur={(e) => setAnalysisText(e.currentTarget.innerHTML || '')}
+                                    onBlur={(e) => setDocumentBodyEnd(e.currentTarget.innerHTML || '')}
                                     style={{ outline: 'none', cursor: 'text' }}
-                                    dangerouslySetInnerHTML={{ __html: analysisText }}
+                                    dangerouslySetInnerHTML={{ __html: documentBodyEnd }}
                                     className="border border-transparent hover:border-dashed hover:border-gray-300 p-1 rounded transition-colors"
                                 />
                             </div>
