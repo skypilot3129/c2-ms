@@ -762,8 +762,6 @@ export default function DokumenLegalPage() {
 
                         {/* Signatory Area */}
                         <div className="w-[45%] text-center flex flex-col items-center">
-                            <p className="text-xs mb-1">Dibuat Oleh / Hormat Kami,</p>
-                            <p className="text-xs font-bold text-gray-900">CV. CAHAYA CARGO EXPRESS</p>
                             
                             {/* Signature Stamp Image */}
                             <div className="h-[25mm] flex items-center justify-center my-1">
