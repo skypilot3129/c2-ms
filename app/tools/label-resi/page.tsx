@@ -94,16 +94,16 @@ function Landscape60x40Template({ tx, koliNum, totalKoli, isPreview = false }: T
             {/* Header */}
             <div className="flex justify-between items-start border-b border-black pb-0.5 relative z-10">
                 <div className="text-left">
-                    <h3 className="font-black text-[7.5px] leading-tight text-black flex items-center gap-1">
-                        <span className="font-black bg-black text-white px-0.5 py-0.2 rounded text-[6.5px]">CCE</span>
+                    <h3 className="font-black text-[10px] leading-tight text-black flex items-center gap-1">
+                        <span className="font-black bg-black text-white px-0.5 py-0.2 rounded text-[8px]">CCE</span>
                         CAHAYA CARGO EXPRESS
                     </h3>
-                    <p className="text-[4.5px] text-gray-550 font-semibold leading-none mt-0.5">
+                    <p className="text-[7px] text-gray-550 font-semibold leading-none mt-0.5">
                         Jalan Kemudi No. 4, Surabaya | Telp: 081 337 878 138
                     </p>
                 </div>
                 <div className="text-right">
-                    <p className="font-extrabold text-[5.2px] text-gray-800 leading-none mt-0.5 tracking-tighter uppercase">
+                    <p className="font-extrabold text-[7.5px] text-gray-800 leading-none mt-0.5 tracking-tighter uppercase">
                         BANDUNG - SURABAYA - KE SELURUH SULAWESI
                     </p>
                 </div>
@@ -114,8 +114,8 @@ function Landscape60x40Template({ tx, koliNum, totalKoli, isPreview = false }: T
                 {/* Left Column: STT & Barcode */}
                 <div className="w-[66%] flex flex-col justify-center items-start gap-1">
                     <div className="leading-none">
-                        <p className="text-[5.5px] text-gray-400 font-bold uppercase tracking-wider">No. STT / Resi</p>
-                        <h2 className="font-mono font-black text-2xl text-black tracking-widest leading-none mt-0.5">
+                        <p className="text-[7px] text-gray-400 font-bold uppercase tracking-wider">No. STT / Resi</p>
+                        <h2 className="font-mono font-black text-3xl text-black tracking-widest leading-none mt-0.5">
                             {cleanedSTT}
                         </h2>
                     </div>
@@ -126,8 +126,8 @@ function Landscape60x40Template({ tx, koliNum, totalKoli, isPreview = false }: T
                 
                 {/* Right Column: Huge Koli */}
                 <div className="w-[32%] bg-black text-white rounded p-1 flex flex-col justify-center items-center text-center">
-                    <span className="text-[5.5px] font-bold tracking-widest uppercase opacity-80 leading-none">KOLI</span>
-                    <span className="font-black text-base tracking-wider block leading-tight mt-0.5">
+                    <span className="text-[7px] font-bold tracking-widest uppercase opacity-80 leading-none">KOLI</span>
+                    <span className="font-black text-lg tracking-wider block leading-tight mt-0.5">
                         {koliNum}/{totalKoli}
                     </span>
                 </div>
@@ -136,12 +136,12 @@ function Landscape60x40Template({ tx, koliNum, totalKoli, isPreview = false }: T
             {/* Footer */}
             <div className="border-t border-black pt-0.5 flex justify-between items-center text-[7.5px] text-black relative z-10">
                 <div className="w-[55%] truncate">
-                    <span className="text-[5px] text-gray-400 font-bold uppercase block">Pengirim</span>
-                    <span className="font-extrabold">{tx.pengirimName}</span>
+                    <span className="text-[7px] text-gray-405 text-gray-500 font-bold uppercase block">Pengirim</span>
+                    <span className="font-extrabold text-[9px]">{tx.pengirimName}</span>
                 </div>
                 <div className="w-[42%] text-right border-l border-gray-300 pl-1.5 truncate">
-                    <span className="text-[5px] text-gray-400 font-bold uppercase block">Tujuan</span>
-                    <span className="font-black uppercase tracking-wider">{tx.tujuan}</span>
+                    <span className="text-[7px] text-gray-405 text-gray-500 font-bold uppercase block">Tujuan</span>
+                    <span className="font-black text-[9px] uppercase tracking-wider">{tx.tujuan}</span>
                 </div>
             </div>
         </div>
@@ -198,33 +198,50 @@ export default function LabelResiPage() {
             <style dangerouslySetInnerHTML={{ __html: `
                 @media print {
                     @page {
-                        size: ${labelSize === 'A6' ? 'A6 portrait' : '60mm 40mm landscape'};
-                        margin: 0;
+                        size: ${labelSize === 'A6' ? 'A6 portrait' : '60mm 40mm'};
+                        margin: 0 !important;
                     }
-                    body {
-                        background: #fff !important;
-                        color: #000 !important;
+                    html, body {
+                        width: ${labelSize === 'A6' ? '105mm' : '60mm'} !important;
+                        height: ${labelSize === 'A6' ? '148mm' : '40mm'} !important;
                         margin: 0 !important;
                         padding: 0 !important;
+                        background: #fff !important;
+                        overflow: hidden !important;
                         -webkit-print-color-adjust: exact;
                         print-color-adjust: exact;
+                    }
+                    #__next, [data-reactroot], main {
+                        background: transparent !important;
+                        padding: 0 !important;
+                        margin: 0 !important;
+                        width: 100% !important;
+                        height: 100% !important;
                     }
                     .no-print {
                         display: none !important;
                     }
                     .print-only {
                         display: block !important;
+                        position: absolute !important;
+                        left: 0 !important;
+                        top: 0 !important;
+                        width: 100% !important;
+                        margin: 0 !important;
+                        padding: 0 !important;
                     }
                     .print-page-a6 {
                         display: flex !important;
                         flex-direction: column;
                         justify-content: space-between;
                         box-sizing: border-box;
-                        width: 105mm;
-                        height: 148mm;
+                        width: 105mm !important;
+                        height: 148mm !important;
                         padding: 6mm 8mm;
                         page-break-after: always;
                         break-after: page;
+                        page-break-inside: avoid;
+                        break-inside: avoid;
                         border: none !important;
                         box-shadow: none !important;
                         background: white !important;
@@ -236,11 +253,13 @@ export default function LabelResiPage() {
                         flex-direction: column;
                         justify-content: space-between;
                         box-sizing: border-box;
-                        width: 60mm;
-                        height: 40mm;
-                        padding: 2.5mm 3.5mm;
+                        width: 60mm !important;
+                        height: 40mm !important;
+                        padding: 1.5mm 2.5mm !important;
                         page-break-after: always;
                         break-after: page;
+                        page-break-inside: avoid;
+                        break-inside: avoid;
                         border: none !important;
                         box-shadow: none !important;
                         background: white !important;
