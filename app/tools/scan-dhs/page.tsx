@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
+import { COMPANY_INFO } from '@/lib/company-config';
 import { 
     Barcode, 
     ArrowLeft, 
@@ -17,7 +18,9 @@ import {
     Info,
     Check,
     Volume2,
-    VolumeX
+    VolumeX,
+    Trash2,
+    Search
 } from 'lucide-react';
 
 interface ManifestItem {
@@ -30,6 +33,20 @@ interface ManifestItem {
 interface ExtraScan {
     code: string;
     scanTime: string;
+}
+
+interface HistoryItem {
+    id: string;
+    date: string;
+    sessionType: 'BONGKAR' | 'MUAT';
+    driverName: string;
+    noPolisi: string;
+    totalTarget: number;
+    totalScanned: number;
+    totalExtra: number;
+    scanPercentage: number;
+    manifest: ManifestItem[];
+    extraScans: ExtraScan[];
 }
 
 export default function ScanDhsPage() {
@@ -51,8 +68,14 @@ export default function ScanDhsPage() {
     const [isCameraActive, setIsCameraActive] = useState<boolean>(false);
     const [scannerError, setScannerError] = useState<string>('');
     
-    // Sound & Haptic options
+    // Sound options
     const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
+    
+    // Search & History states
+    const [searchTerm, setSearchTerm] = useState<string>('');
+    const [history, setHistory] = useState<HistoryItem[]>([]);
+    const [showRecoveryModal, setShowRecoveryModal] = useState<boolean>(false);
+    const [pendingRecovery, setPendingRecovery] = useState<any>(null);
     
     // Scanning statuses (visual feedback)
     const [scanAlert, setScanAlert] = useState<{
@@ -64,9 +87,10 @@ export default function ScanDhsPage() {
     // Flash background effect state
     const [flashEffect, setFlashEffect] = useState<'green' | 'yellow' | 'red' | 'none'>('none');
 
-    // Ref to auto-focus manual input
+    // Refs
     const inputRef = useRef<HTMLInputElement>(null);
     const html5QrCodeRef = useRef<any>(null);
+    const isInitialLoad = useRef<boolean>(true);
 
     // Audio Context generator for native sound beeps
     const playBeep = (freq: number, duration: number, double = false) => {
@@ -130,6 +154,76 @@ export default function ScanDhsPage() {
         }
     };
 
+    // Initial load: fetch history and check for active autosaved session
+    useEffect(() => {
+        // Load history log
+        const savedHistory = localStorage.getItem('cce_scan_history');
+        if (savedHistory) {
+            try {
+                setHistory(JSON.parse(savedHistory));
+            } catch (e) {
+                console.error('Failed to load scan history:', e);
+            }
+        }
+
+        // Check for active unsaved session
+        const savedActive = localStorage.getItem('cce_active_scan_session');
+        if (savedActive) {
+            try {
+                const parsed = JSON.parse(savedActive);
+                if (parsed.manifest && parsed.manifest.length > 0) {
+                    setPendingRecovery(parsed);
+                    setShowRecoveryModal(true);
+                }
+            } catch (e) {
+                console.error('Failed to parse autosave session:', e);
+            }
+        }
+        isInitialLoad.current = false;
+    }, []);
+
+    // Autosave active session states to LocalStorage on changes during scanning
+    useEffect(() => {
+        if (isInitialLoad.current) return;
+
+        if (step === 'scan') {
+            const sessionData = {
+                sessionType,
+                driverName,
+                noPolisi,
+                manifest,
+                extraScans,
+                step
+            };
+            localStorage.setItem('cce_active_scan_session', JSON.stringify(sessionData));
+        } else if (step === 'import') {
+            // Clear active session when returned to import screen
+            localStorage.removeItem('cce_active_scan_session');
+        }
+    }, [step, sessionType, driverName, noPolisi, manifest, extraScans]);
+
+    // Handle recovering active session
+    const handleConfirmRecovery = () => {
+        if (pendingRecovery) {
+            setSessionType(pendingRecovery.sessionType);
+            setDriverName(pendingRecovery.driverName || '');
+            setNoPolisi(pendingRecovery.noPolisi || '');
+            setManifest(pendingRecovery.manifest);
+            setExtraScans(pendingRecovery.extraScans || []);
+            setStep(pendingRecovery.step);
+            setShowRecoveryModal(false);
+            setPendingRecovery(null);
+            setScanAlert({ type: 'idle', message: 'Sesi scan berhasil dipulihkan. Silakan lanjutkan.' });
+        }
+    };
+
+    // Discard recovery session
+    const handleDiscardRecovery = () => {
+        localStorage.removeItem('cce_active_scan_session');
+        setPendingRecovery(null);
+        setShowRecoveryModal(false);
+    };
+
     // Parse pasted/input text for TO & SPXID resi numbers
     const handleParseManifest = () => {
         if (!rawInput.trim()) {
@@ -154,6 +248,7 @@ export default function ScanDhsPage() {
 
         setManifest(items);
         setExtraScans([]);
+        setSearchTerm('');
         setStep('scan');
         setScanAlert({ type: 'idle', message: 'Sesi scan siap. Mulailah memindai barcode.' });
     };
@@ -229,7 +324,6 @@ TO202605293ENSI`;
         }
 
         // 3. Unlisted item (extra scan)
-        // If already exists in extraScans, increase alert duplicate or just add to extra list
         const extraItem: ExtraScan = { code, scanTime: nowStr };
         setExtraScans([extraItem, ...extraScans]);
 
@@ -241,6 +335,30 @@ TO202605293ENSI`;
         triggerFlash('red');
         playBeep(220, 0.4); // Buzz alert sound
         triggerVibration([200, 100, 200]);
+    };
+
+    // Manual Bypass Override
+    const handleManualBypass = (itemId: string) => {
+        const itemIdx = manifest.findIndex(item => item.id === itemId);
+        if (itemIdx === -1) return;
+        const item = manifest[itemIdx];
+
+        if (confirm(`Verifikasi secara manual kode: ${item.code}? \nTindakan ini akan menandai koli sebagai cocok.`)) {
+            const updated = [...manifest];
+            const nowStr = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            updated[itemIdx].status = 'scanned';
+            updated[itemIdx].scanTime = `${nowStr} (MANUAL)`;
+            setManifest(updated);
+
+            setScanAlert({
+                type: 'success',
+                message: `COCOK (MANUAL)! Koli diverifikasi manual`,
+                code: item.code
+            });
+            triggerFlash('green');
+            playBeep(880, 0.12, true);
+            triggerVibration(100);
+        }
     };
 
     // Submit manual text field scan handler
@@ -285,7 +403,6 @@ TO202605293ENSI`;
                 config,
                 (decodedText: string) => {
                     processBarcode(decodedText);
-                    // play sound on camera success
                 },
                 () => {
                     // Ignore verbose scanner noise
@@ -308,10 +425,44 @@ TO202605293ENSI`;
         };
     }, [isCameraActive]);
 
-    // Complete session and calculate statistics
+    // Calculate progress stats
+    const totalTarget = manifest.length;
+    const totalScanned = manifest.filter(i => i.status === 'scanned').length;
+    const totalPending = manifest.filter(i => i.status === 'pending').length;
+    const totalExtra = extraScans.length;
+    const scanPercentage = totalTarget > 0 ? Math.round((totalScanned / totalTarget) * 100) : 0;
+
+    // Complete session, save to history, and clear active session
     const handleFinishSession = () => {
         if (confirm("Selesaikan sesi pemindaian dan buat laporan?")) {
             setIsCameraActive(false);
+
+            // Create history item
+            const dateObj = new Date();
+            const dateStr = dateObj.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+            const timeStr = dateObj.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+            
+            const newHistoryItem: HistoryItem = {
+                id: `history-${Date.now()}`,
+                date: `${dateStr} ${timeStr}`,
+                sessionType,
+                driverName,
+                noPolisi,
+                totalTarget,
+                totalScanned,
+                totalExtra,
+                scanPercentage,
+                manifest,
+                extraScans
+            };
+
+            const updatedHistory = [newHistoryItem, ...history];
+            setHistory(updatedHistory);
+            localStorage.setItem('cce_scan_history', JSON.stringify(updatedHistory));
+
+            // Clear active session
+            localStorage.removeItem('cce_active_scan_session');
+
             setStep('report');
         }
     };
@@ -326,57 +477,59 @@ TO202605293ENSI`;
             setDriverName('');
             setNoPolisi('');
             setManualInput('');
+            setSearchTerm('');
             setIsCameraActive(false);
             setScanAlert({ type: 'idle', message: 'Masukkan data manifest baru' });
         }
     };
 
-    // Calculate progress stats
-    const totalTarget = manifest.length;
-    const totalScanned = manifest.filter(i => i.status === 'scanned').length;
-    const totalPending = manifest.filter(i => i.status === 'pending').length;
-    const totalExtra = extraScans.length;
-    const scanPercentage = totalTarget > 0 ? Math.round((totalScanned / totalTarget) * 100) : 0;
-
     // Generate formatted text for WhatsApp sharing
-    const generateWhatsAppReport = (): string => {
-        const dateStr = new Date().toLocaleDateString('id-ID', {
-            day: 'numeric',
-            month: 'long',
-            year: 'numeric'
-        });
-        const timeStr = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+    const generateWhatsAppReport = (item?: any): string => {
+        const target = item || {
+            sessionType,
+            date: new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) + ' - Pukul ' + new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
+            driverName,
+            noPolisi,
+            totalTarget,
+            totalScanned,
+            totalExtra,
+            scanPercentage,
+            manifest,
+            extraScans
+        };
+
+        const pendingCount = target.totalTarget - target.totalScanned;
         
-        let report = `*LAPORAN SCAN ${sessionType} DHS*\n`;
+        let report = `*LAPORAN SCAN ${target.sessionType} DHS*\n`;
         report += `*CV. CAHAYA CARGO EXPRESS*\n`;
-        report += `Tanggal: ${dateStr} - Pukul ${timeStr} WIB\n`;
-        if (driverName) report += `Driver: ${driverName.toUpperCase()}\n`;
-        if (noPolisi) report += `No. Polisi (Plat): ${noPolisi.toUpperCase()}\n`;
+        report += `Tanggal: ${target.date} WIB\n`;
+        if (target.driverName) report += `Driver: ${target.driverName.toUpperCase()}\n`;
+        if (target.noPolisi) report += `No. Polisi (Plat): ${target.noPolisi.toUpperCase()}\n`;
         report += `-------------------------------------------\n`;
         report += `*RINGKASAN HASIL SCAN*\n`;
-        report += `• Total Target (Manifest): *${totalTarget} Koli*\n`;
-        report += `• Cocok Terverifikasi: *${totalScanned} Koli*\n`;
-        report += `• Kurang (Belum Scan): *${totalPending} Koli* ${totalPending > 0 ? '⚠️' : '✅'}\n`;
-        report += `• Lebih (Tidak Terdaftar): *${totalExtra} Koli* ${totalExtra > 0 ? '⚠️' : '✅'}\n`;
-        report += `• Status Selesai: *${scanPercentage}%*\n`;
+        report += `• Total Target (Manifest): *${target.totalTarget} Koli*\n`;
+        report += `• Cocok Terverifikasi: *${target.totalScanned} Koli*\n`;
+        report += `• Kurang (Belum Scan): *${pendingCount} Koli* ${pendingCount > 0 ? '⚠️' : '✅'}\n`;
+        report += `• Lebih (Tidak Terdaftar): *${target.totalExtra} Koli* ${target.totalExtra > 0 ? '⚠️' : '✅'}\n`;
+        report += `• Status Selesai: *${target.scanPercentage}%*\n`;
         report += `-------------------------------------------\n`;
 
-        if (totalPending > 0) {
-            report += `\n*DAFTAR SELISIH KURANG (BELUM DI-SCAN) [${totalPending}]:*\n`;
-            const missingCodes = manifest.filter(i => i.status === 'pending');
-            missingCodes.forEach((item, index) => {
-                report += `${index + 1}. ${item.code}\n`;
+        if (pendingCount > 0) {
+            report += `\n*DAFTAR SELISIH KURANG (BELUM DI-SCAN) [${pendingCount}]:*\n`;
+            const missingCodes = target.manifest.filter((i: any) => i.status === 'pending');
+            missingCodes.forEach((missingItem: any, index: number) => {
+                report += `${index + 1}. ${missingItem.code}\n`;
             });
         }
 
-        if (totalExtra > 0) {
-            report += `\n*DAFTAR SELISIH LEBIH (TIDAK ADA DI MANIFEST) [${totalExtra}]:*\n`;
-            extraScans.forEach((item, index) => {
-                report += `${index + 1}. ${item.code} (${item.scanTime})\n`;
+        if (target.totalExtra > 0) {
+            report += `\n*DAFTAR SELISIH LEBIH (TIDAK ADA DI MANIFEST) [${target.totalExtra}]:*\n`;
+            target.extraScans.forEach((extraItem: any, index: number) => {
+                report += `${index + 1}. ${extraItem.code} (${extraItem.scanTime})\n`;
             });
         }
 
-        if (totalPending === 0 && totalExtra === 0) {
+        if (pendingCount === 0 && target.totalExtra === 0) {
             report += `\n*STATUS OPERASIONAL: 100% AMAN (TIDAK ADA SELISIH BARANG) ACC.* 💯\n`;
         }
 
@@ -386,13 +539,89 @@ TO202605293ENSI`;
     const handleCopyWhatsApp = () => {
         const text = generateWhatsAppReport();
         navigator.clipboard.writeText(text)
-            .then(() => alert('Laporan WhatsApp berhasil disalin ke clipboard! Silakan paste langsung ke grup WhatsApp.'))
-            .catch(() => alert('Gagal menyalin laporan. Silakan salin teks secara manual.'));
+            .then(() => alert('Laporan WhatsApp berhasil disalin ke clipboard!'))
+            .catch(() => alert('Gagal menyalin laporan.'));
     };
+
+    // Copy WA report directly from history card
+    const handleCopyHistoryWA = (item: HistoryItem) => {
+        const text = generateWhatsAppReport(item);
+        navigator.clipboard.writeText(text)
+            .then(() => alert('Laporan riwayat WhatsApp berhasil disalin!'))
+            .catch(() => alert('Gagal menyalin laporan.'));
+    };
+
+    // Load a completed history session for details viewing / printing
+    const handleViewHistoryReport = (item: HistoryItem) => {
+        setSessionType(item.sessionType);
+        setDriverName(item.driverName || '');
+        setNoPolisi(item.noPolisi || '');
+        setManifest(item.manifest);
+        setExtraScans(item.extraScans || []);
+        setStep('report');
+    };
+
+    // Delete a specific history log item
+    const handleDeleteHistoryItem = (id: string) => {
+        if (confirm("Hapus item riwayat ini?")) {
+            const updated = history.filter(item => item.id !== id);
+            setHistory(updated);
+            localStorage.setItem('cce_scan_history', JSON.stringify(updated));
+        }
+    };
+
+    // Clear all history log items
+    const handleClearAllHistory = () => {
+        if (confirm("Hapus semua riwayat sesi pemindaian? Tindakan ini tidak dapat dibatalkan.")) {
+            setHistory([]);
+            localStorage.removeItem('cce_scan_history');
+        }
+    };
+
+    // Filter manifest items based on search term
+    const filteredManifest = manifest.filter(item => 
+        item.code.toLowerCase().includes(searchTerm.toLowerCase())
+    );
 
     return (
         <div className="min-h-screen bg-slate-900 text-white flex flex-col font-sans">
             
+            {/* Active Session Recovery Modal popup */}
+            {showRecoveryModal && pendingRecovery && (
+                <div className="fixed inset-0 bg-black/75 flex items-center justify-center p-4 z-50 backdrop-blur-sm no-print">
+                    <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 max-w-md w-full space-y-4 shadow-2xl">
+                        <div className="flex items-center gap-3 text-blue-400">
+                            <Barcode size={32} />
+                            <h3 className="text-lg font-bold">Sesi Pemindaian Ditemukan</h3>
+                        </div>
+                        <div className="text-sm text-slate-300 space-y-2">
+                            <p>Sistem mendeteksi adanya sesi pemindaian yang belum selesai di browser ini:</p>
+                            <ul className="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-1.5 font-semibold text-xs font-mono">
+                                <li>Tipe Sesi: <span className="text-white">{pendingRecovery.sessionType}</span></li>
+                                <li>Driver: <span className="text-white">{pendingRecovery.driverName || '-'}</span></li>
+                                <li>Plat Truk: <span className="text-white">{pendingRecovery.noPolisi || '-'}</span></li>
+                                <li>Progress: <span className="text-emerald-400">{pendingRecovery.manifest.filter((i: any) => i.status === 'scanned').length} / {pendingRecovery.manifest.length} Koli</span></li>
+                            </ul>
+                            <p className="text-xs text-slate-400">Apakah Anda ingin melanjutkan sesi ini atau memulai sesi baru?</p>
+                        </div>
+                        <div className="flex gap-3 pt-2">
+                            <button 
+                                onClick={handleConfirmRecovery}
+                                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-4 rounded-xl text-sm transition-all"
+                            >
+                                Lanjutkan Sesi
+                            </button>
+                            <button 
+                                onClick={handleDiscardRecovery}
+                                className="flex-1 bg-slate-800 hover:bg-red-950/40 border border-slate-700 hover:border-red-900/40 text-slate-300 hover:text-red-400 font-bold py-2.5 px-4 rounded-xl text-sm transition-all"
+                            >
+                                Mulai Baru
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Nav Header */}
             <header className="bg-slate-950 border-b border-slate-800 py-4 px-6 flex justify-between items-center shadow-lg sticky top-0 z-10">
                 <div className="flex items-center gap-3">
@@ -405,11 +634,10 @@ TO202605293ENSI`;
                     </div>
                 </div>
                 <div className="flex items-center gap-2">
-                    {/* Sound Mute Toggle */}
                     <button 
                         onClick={() => setSoundEnabled(!soundEnabled)}
                         className={`p-2.5 rounded-xl border transition-all ${soundEnabled ? 'bg-slate-800 text-slate-300 border-slate-700' : 'bg-red-950/20 text-red-400 border-red-900/30'}`}
-                        title={soundEnabled ? 'Matikan Suara' : 'Aktifkan Suara'}
+                        title={soundEnabled ? 'Matikan Suara Bip' : 'Aktifkan Suara Bip'}
                     >
                         {soundEnabled ? <Volume2 size={18} /> : <VolumeX size={18} />}
                     </button>
@@ -427,103 +655,171 @@ TO202605293ENSI`;
 
                 {/* 1. IMPORT DATA MANIFEST STEP */}
                 {step === 'import' && (
-                    <div className="bg-slate-950 border border-slate-800 rounded-3xl p-6 md:p-8 shadow-2xl space-y-6">
-                        <div className="space-y-2">
-                            <h2 className="text-xl md:text-2xl font-bold flex items-center gap-2 text-blue-400">
-                                1. Input Manifest DHS
-                            </h2>
-                            <p className="text-sm text-slate-400">
-                                Tempelkan (paste) data manifes TO atau unggah file text laporan dari DHS untuk memuat daftar target scan.
-                            </p>
-                        </div>
+                    <>
+                        <div className="bg-slate-950 border border-slate-800 rounded-3xl p-6 md:p-8 shadow-2xl space-y-6">
+                            <div className="space-y-2">
+                                <h2 className="text-xl md:text-2xl font-bold flex items-center gap-2 text-blue-400">
+                                    1. Input Manifest DHS
+                                </h2>
+                                <p className="text-sm text-slate-400">
+                                    Tempelkan (paste) data manifes TO atau unggah file text laporan dari DHS untuk memuat daftar target scan.
+                                </p>
+                            </div>
 
-                        {/* Session details */}
-                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 bg-slate-900/50 rounded-2xl border border-slate-800">
-                            <div className="flex flex-col gap-1.5">
-                                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Tipe Sesi</label>
-                                <div className="grid grid-cols-2 bg-slate-800 p-1 rounded-xl">
-                                    <button 
-                                        onClick={() => setSessionType('BONGKAR')}
-                                        className={`py-2 text-xs font-bold rounded-lg transition-all ${sessionType === 'BONGKAR' ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'}`}
-                                    >
-                                        Bongkar
-                                    </button>
-                                    <button 
-                                        onClick={() => setSessionType('MUAT')}
-                                        className={`py-2 text-xs font-bold rounded-lg transition-all ${sessionType === 'MUAT' ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'}`}
-                                    >
-                                        Muat
-                                    </button>
+                            {/* Session details */}
+                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 bg-slate-900/50 rounded-2xl border border-slate-800">
+                                <div className="flex flex-col gap-1.5">
+                                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Tipe Sesi</label>
+                                    <div className="grid grid-cols-2 bg-slate-800 p-1 rounded-xl">
+                                        <button 
+                                            onClick={() => setSessionType('BONGKAR')}
+                                            className={`py-2 text-xs font-bold rounded-lg transition-all ${sessionType === 'BONGKAR' ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'}`}
+                                        >
+                                            Bongkar
+                                        </button>
+                                        <button 
+                                            onClick={() => setSessionType('MUAT')}
+                                            className={`py-2 text-xs font-bold rounded-lg transition-all ${sessionType === 'MUAT' ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'}`}
+                                        >
+                                            Muat
+                                        </button>
+                                    </div>
+                                </div>
+                                <div className="flex flex-col gap-1.5">
+                                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Nama Driver</label>
+                                    <input 
+                                        type="text" 
+                                        placeholder="Nama Driver (Opsional)" 
+                                        value={driverName}
+                                        onChange={(e) => setDriverName(e.target.value)}
+                                        className="bg-slate-800 border border-slate-700 rounded-xl px-4 py-2 text-sm text-white placeholder-slate-500 outline-none focus:border-blue-500 transition-colors"
+                                    />
+                                </div>
+                                <div className="flex flex-col gap-1.5 col-span-1 md:col-span-2">
+                                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">No. Polisi / Plat Kendaraan</label>
+                                    <input 
+                                        type="text" 
+                                        placeholder="Plat Nomor Truk (Opsional)" 
+                                        value={noPolisi}
+                                        onChange={(e) => setNoPolisi(e.target.value)}
+                                        className="bg-slate-800 border border-slate-700 rounded-xl px-4 py-2 text-sm text-white placeholder-slate-500 outline-none focus:border-blue-500 transition-colors"
+                                    />
                                 </div>
                             </div>
-                            <div className="flex flex-col gap-1.5">
-                                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Nama Driver</label>
-                                <input 
-                                    type="text" 
-                                    placeholder="Nama Driver (Opsional)" 
-                                    value={driverName}
-                                    onChange={(e) => setDriverName(e.target.value)}
-                                    className="bg-slate-800 border border-slate-700 rounded-xl px-4 py-2 text-sm text-white placeholder-slate-500 outline-none focus:border-blue-500 transition-colors"
-                                />
-                            </div>
-                            <div className="flex flex-col gap-1.5 col-span-1 md:col-span-2">
-                                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">No. Polisi / Plat Kendaraan</label>
-                                <input 
-                                    type="text" 
-                                    placeholder="Plat Nomor Truk (Opsional)" 
-                                    value={noPolisi}
-                                    onChange={(e) => setNoPolisi(e.target.value)}
-                                    className="bg-slate-800 border border-slate-700 rounded-xl px-4 py-2 text-sm text-white placeholder-slate-500 outline-none focus:border-blue-500 transition-colors"
-                                />
-                            </div>
-                        </div>
 
-                        {/* File Upload / Paste Box */}
-                        <div className="space-y-3">
-                            <div className="flex justify-between items-center">
-                                <label className="text-sm font-semibold text-slate-300">Tempelkan Data Manifes TO:</label>
+                            {/* File Upload / Paste Box */}
+                            <div className="space-y-3">
+                                <div className="flex justify-between items-center">
+                                    <label className="text-sm font-semibold text-slate-300">Tempelkan Data Manifes TO:</label>
+                                    <button 
+                                        onClick={handleLoadSample}
+                                        className="text-xs font-semibold text-blue-400 hover:text-blue-300 flex items-center gap-1.5 bg-blue-950/30 px-3 py-1.5 rounded-lg border border-blue-900/50 hover:border-blue-800 transition-all"
+                                    >
+                                        <RefreshCcw size={12} /> Gunakan Contoh Data TO
+                                    </button>
+                                </div>
+                                <textarea 
+                                    rows={8}
+                                    placeholder="Tempelkan data TO/resi di sini (sistem akan otomatis membaca kode seperti TO202605293D9ZG dari baris mana pun)..."
+                                    value={rawInput}
+                                    onChange={(e) => setRawInput(e.target.value)}
+                                    className="w-full bg-slate-900 border border-slate-800 focus:border-blue-600 rounded-2xl p-4 text-sm font-mono text-white placeholder-slate-600 outline-none transition-all"
+                                />
+                            </div>
+
+                            {/* Drag-and-drop / Select file */}
+                            <div className="border-2 border-dashed border-slate-800 hover:border-blue-500/50 rounded-2xl p-6 text-center cursor-pointer transition-colors relative group">
+                                <input 
+                                    type="file" 
+                                    accept=".txt,.csv"
+                                    onChange={handleFileUpload}
+                                    className="absolute inset-0 opacity-0 cursor-pointer"
+                                />
+                                <div className="flex flex-col items-center gap-2 text-slate-400 group-hover:text-blue-400 transition-colors">
+                                    <Upload size={32} />
+                                    <p className="text-sm font-semibold">Tarik &amp; lepas file teks (.txt / .csv) di sini</p>
+                                    <p className="text-xs text-slate-500">Atau klik untuk menelusuri file dari penyimpanan Anda</p>
+                                </div>
+                            </div>
+
+                            {/* Actions */}
+                            <div className="pt-4 border-t border-slate-800 flex justify-end">
                                 <button 
-                                    onClick={handleLoadSample}
-                                    className="text-xs font-semibold text-blue-400 hover:text-blue-300 flex items-center gap-1.5 bg-blue-950/30 px-3 py-1.5 rounded-lg border border-blue-900/50 hover:border-blue-800 transition-all"
+                                    onClick={handleParseManifest}
+                                    className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 px-8 rounded-xl shadow-lg shadow-blue-950/20 flex items-center gap-2 hover:scale-[1.02] active:scale-[0.98] transition-all"
                                 >
-                                    <RefreshCcw size={12} /> Gunakan Contoh Data TO
+                                    <Play size={18} />
+                                    Mulai Sesi Pemindaian
                                 </button>
                             </div>
-                            <textarea 
-                                rows={8}
-                                placeholder="Tempelkan data TO/resi di sini (sistem akan otomatis membaca kode seperti TO202605293D9ZG dari baris mana pun)..."
-                                value={rawInput}
-                                onChange={(e) => setRawInput(e.target.value)}
-                                className="w-full bg-slate-900 border border-slate-800 focus:border-blue-600 rounded-2xl p-4 text-sm font-mono text-white placeholder-slate-600 outline-none transition-all"
-                            />
                         </div>
 
-                        {/* Drag-and-drop / Select file */}
-                        <div className="border-2 border-dashed border-slate-800 hover:border-blue-500/50 rounded-2xl p-6 text-center cursor-pointer transition-colors relative group">
-                            <input 
-                                type="file" 
-                                accept=".txt,.csv"
-                                onChange={handleFileUpload}
-                                className="absolute inset-0 opacity-0 cursor-pointer"
-                            />
-                            <div className="flex flex-col items-center gap-2 text-slate-400 group-hover:text-blue-400 transition-colors">
-                                <Upload size={32} />
-                                <p className="text-sm font-semibold">Tarik &amp; lepas file teks (.txt / .csv) di sini</p>
-                                <p className="text-xs text-slate-500">Atau klik untuk menelusuri file dari penyimpanan Anda</p>
+                        {/* 1b. SESSION HISTORY ARCHIVE */}
+                        {history.length > 0 && (
+                            <div className="bg-slate-950 border border-slate-800 rounded-3xl p-6 shadow-2xl space-y-4">
+                                <h3 className="font-bold text-base text-slate-300 flex justify-between items-center">
+                                    <span>Riwayat Sesi Pemindaian ({history.length})</span>
+                                    <button 
+                                        onClick={handleClearAllHistory}
+                                        className="text-xs text-red-400 hover:text-red-350 bg-red-950/20 hover:bg-red-950/40 border border-red-900/30 px-3 py-1.5 rounded-lg transition-colors"
+                                    >
+                                        Hapus Semua Riwayat
+                                    </button>
+                                </h3>
+                                <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
+                                    {history.map((item) => (
+                                        <div 
+                                            key={item.id}
+                                            className="bg-slate-900/40 border border-slate-800 hover:border-slate-700 p-4 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all"
+                                        >
+                                            <div className="space-y-1">
+                                                <div className="flex items-center gap-2">
+                                                    <span className={`text-[9px] font-bold px-2 py-0.5 rounded ${item.sessionType === 'BONGKAR' ? 'bg-blue-900/40 text-blue-400 border border-blue-800/40' : 'bg-purple-900/40 text-purple-400 border border-purple-800/40'}`}>
+                                                        {item.sessionType}
+                                                    </span>
+                                                    <span className="text-[10px] text-slate-500">{item.date}</span>
+                                                </div>
+                                                <p className="text-sm font-bold text-white leading-none mt-1">
+                                                    Truk {item.noPolisi || '-'} • Driver: {item.driverName || '-'}
+                                                </p>
+                                                <div className="flex gap-4 text-xs text-slate-400 pt-0.5">
+                                                    <span>Target: <strong>{item.totalTarget} Koli</strong></span>
+                                                    <span>Cocok: <strong className="text-emerald-400">{item.totalScanned} Koli</strong></span>
+                                                    {item.totalTarget - item.totalScanned > 0 && (
+                                                        <span className="text-red-400">Kurang: <strong>{item.totalTarget - item.totalScanned}</strong></span>
+                                                    )}
+                                                    {item.totalExtra > 0 && (
+                                                        <span className="text-yellow-400">Lebih: <strong>{item.totalExtra}</strong></span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <div className="flex gap-2 self-start md:self-center">
+                                                <button 
+                                                    onClick={() => handleViewHistoryReport(item)}
+                                                    className="bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold py-2 px-3 rounded-lg border border-slate-700 transition-colors"
+                                                >
+                                                    Lihat Laporan
+                                                </button>
+                                                <button 
+                                                    onClick={() => handleCopyHistoryWA(item)}
+                                                    className="bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 text-xs font-bold py-2 px-3 rounded-lg border border-emerald-800/30 transition-colors"
+                                                >
+                                                    Salin WA
+                                                </button>
+                                                <button 
+                                                    onClick={() => handleDeleteHistoryItem(item.id)}
+                                                    className="text-red-400 hover:text-red-300 p-2 hover:bg-red-950/20 rounded-lg border border-transparent hover:border-red-900/20 transition-all"
+                                                    title="Hapus Riwayat"
+                                                >
+                                                    <Trash2 size={16} />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
                             </div>
-                        </div>
-
-                        {/* Actions */}
-                        <div className="pt-4 border-t border-slate-800 flex justify-end">
-                            <button 
-                                onClick={handleParseManifest}
-                                className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 px-8 rounded-xl shadow-lg shadow-blue-950/20 flex items-center gap-2 hover:scale-[1.02] active:scale-[0.98] transition-all"
-                            >
-                                <Play size={18} />
-                                Mulai Proses Pemindaian
-                            </button>
-                        </div>
-                    </div>
+                        )}
+                    </>
                 )}
 
                 {/* 2. SCANNING & MATCHING IN PROGRESS STEP */}
@@ -650,27 +946,27 @@ TO202605293ENSI`;
                         </div>
 
                         {/* RIGHT PANEL: REALTIME MANIFEST LIST */}
-                        <div className="lg:col-span-5 bg-slate-950 border border-slate-800 rounded-3xl p-6 shadow-2xl flex flex-col gap-6 max-h-[85vh] sticky top-28">
+                        <div className="lg:col-span-5 bg-slate-950 border border-slate-800 rounded-3xl p-6 shadow-2xl flex flex-col gap-4 max-h-[85vh] sticky top-28">
                             
                             {/* Target stats summary card */}
                             <div className="grid grid-cols-2 gap-4">
-                                <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl flex flex-col">
+                                <div className="bg-slate-900 border border-slate-800 p-3.5 rounded-2xl flex flex-col">
                                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Scanned</span>
                                     <span className="text-3xl font-black text-emerald-400 mt-1">{totalScanned} <span className="text-xs font-bold text-slate-500">/ {totalTarget}</span></span>
                                 </div>
-                                <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl flex flex-col">
+                                <div className="bg-slate-900 border border-slate-800 p-3.5 rounded-2xl flex flex-col">
                                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Unlisted (Lebih)</span>
                                     <span className="text-3xl font-black text-red-400 mt-1">{totalExtra}</span>
                                 </div>
                             </div>
 
                             {/* Progress bar */}
-                            <div className="space-y-1.5">
+                            <div className="space-y-1">
                                 <div className="flex justify-between text-xs font-bold text-slate-400 uppercase tracking-wider">
                                     <span>Penyelesaian</span>
                                     <span>{scanPercentage}%</span>
                                 </div>
-                                <div className="w-full bg-slate-800 h-3 rounded-full overflow-hidden">
+                                <div className="w-full bg-slate-800 h-2.5 rounded-full overflow-hidden">
                                     <div 
                                         className="bg-emerald-500 h-full rounded-full transition-all duration-300"
                                         style={{ width: `${scanPercentage}%` }}
@@ -678,56 +974,88 @@ TO202605293ENSI`;
                                 </div>
                             </div>
 
+                            {/* Search bar inside the manifest checklist */}
+                            <div className="relative mt-2">
+                                <span className="absolute left-3.5 top-2.5 text-slate-500">
+                                    <Search size={16} />
+                                </span>
+                                <input 
+                                    type="text" 
+                                    placeholder="Cari Kode TO / Resi..." 
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    className="w-full bg-slate-900 border border-slate-850 rounded-xl pl-10 pr-4 py-2 text-xs text-white placeholder-slate-500 outline-none focus:border-slate-700 transition-all"
+                                />
+                            </div>
+
                             {/* Realtime Target List */}
-                            <div className="flex-1 flex flex-col gap-3 overflow-hidden">
-                                <h3 className="font-bold text-sm text-slate-300 flex justify-between items-center">
+                            <div className="flex-1 flex flex-col gap-2.5 overflow-hidden mt-1">
+                                <h3 className="font-bold text-xs text-slate-300 flex justify-between items-center">
                                     <span>Daftar Manifest ({totalTarget} Koli)</span>
-                                    {driverName && <span className="text-xs font-bold text-blue-400 bg-blue-950/30 px-2.5 py-1 rounded border border-blue-900/50 uppercase">{sessionType} - TRUK {noPolisi || ''}</span>}
+                                    {driverName && <span className="text-[10px] font-bold text-blue-400 bg-blue-950/20 px-2 py-0.5 rounded border border-blue-900/50 uppercase">{sessionType} - TRUK {noPolisi || ''}</span>}
                                 </h3>
                                 
                                 <div className="flex-1 overflow-y-auto pr-1 space-y-2">
-                                    {manifest.map((item, idx) => (
-                                        <div 
-                                            key={item.id} 
-                                            className={`p-3 rounded-xl border flex items-center justify-between transition-all ${
-                                                item.status === 'scanned' 
-                                                    ? 'bg-emerald-950/10 border-emerald-900/30 text-emerald-400' 
-                                                    : 'bg-slate-900/40 border-slate-800/80 text-slate-400'
-                                            }`}
-                                        >
-                                            <div className="flex items-center gap-2.5">
-                                                <span className="text-xs font-bold text-slate-600 font-mono w-4">{idx + 1}.</span>
-                                                <span className="font-mono font-bold text-sm tracking-wide">{item.code}</span>
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                {item.status === 'scanned' ? (
-                                                    <>
-                                                        <span className="text-[9px] bg-emerald-950 border border-emerald-900 px-2 py-0.5 rounded text-emerald-400 font-bold font-mono">{item.scanTime}</span>
-                                                        <Check size={16} className="text-emerald-400" />
-                                                    </>
-                                                ) : (
-                                                    <span className="text-[9px] bg-slate-800 border border-slate-700 px-2 py-0.5 rounded text-slate-500 font-bold font-mono">PENDING</span>
-                                                )}
-                                            </div>
+                                    {filteredManifest.length === 0 ? (
+                                        <div className="text-center py-8 text-slate-600 text-xs italic">
+                                            Tidak ada hasil pencocokan kode TO
                                         </div>
-                                    ))}
+                                    ) : (
+                                        filteredManifest.map((item, idx) => (
+                                            <div 
+                                                key={item.id} 
+                                                className={`p-2.5 rounded-xl border flex items-center justify-between transition-all ${
+                                                    item.status === 'scanned' 
+                                                        ? 'bg-emerald-950/10 border-emerald-900/30 text-emerald-400' 
+                                                        : 'bg-slate-900/40 border-slate-800/80 text-slate-400'
+                                                }`}
+                                            >
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-[10px] font-bold text-slate-600 font-mono w-4">{idx + 1}.</span>
+                                                    <span className="font-mono font-bold text-xs tracking-wide">{item.code}</span>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    {item.status === 'scanned' ? (
+                                                        <>
+                                                            <span className="text-[8px] bg-emerald-950 border border-emerald-900 px-2 py-0.5 rounded text-emerald-400 font-bold font-mono">{item.scanTime}</span>
+                                                            <Check size={14} className="text-emerald-400" />
+                                                        </>
+                                                    ) : (
+                                                        <div className="flex items-center gap-1.5">
+                                                            <span className="text-[8px] bg-slate-800 border border-slate-700 px-2 py-0.5 rounded text-slate-550 font-bold font-mono">PENDING</span>
+                                                            <button 
+                                                                onClick={() => handleManualBypass(item.id)}
+                                                                className="p-1 bg-blue-600/20 hover:bg-blue-650 border border-blue-500/30 hover:border-blue-500 text-blue-400 hover:text-white rounded-lg transition-all"
+                                                                title="Verifikasi Manual (Bypass)"
+                                                            >
+                                                                <Check size={10} />
+                                                            </button>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        ))
+                                    )}
 
-                                    {/* Display extra scans if any */}
-                                    {extraScans.map((item, idx) => (
-                                        <div 
-                                            key={`extra-${idx}`}
-                                            className="p-3 rounded-xl border bg-red-950/10 border-red-900/30 text-red-400 flex items-center justify-between"
-                                        >
-                                            <div className="flex items-center gap-2.5">
-                                                <span className="text-xs font-bold text-red-700 font-mono w-4">+</span>
-                                                <span className="font-mono font-bold text-sm tracking-wide">{item.code}</span>
+                                    {/* Display extra scans if any and if it matches search term */}
+                                    {extraScans
+                                        .filter(item => item.code.toLowerCase().includes(searchTerm.toLowerCase()))
+                                        .map((item, idx) => (
+                                            <div 
+                                                key={`extra-${idx}`}
+                                                className="p-2.5 rounded-xl border bg-red-950/10 border-red-900/30 text-red-400 flex items-center justify-between"
+                                            >
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-[10px] font-bold text-red-700 font-mono w-4">+</span>
+                                                    <span className="font-mono font-bold text-xs tracking-wide">{item.code}</span>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-[8px] bg-red-950 border border-red-900 px-2 py-0.5 rounded text-red-400 font-bold font-mono">{item.scanTime}</span>
+                                                    <span className="text-[8px] bg-red-600 text-white font-black px-1.5 py-0.5 rounded">LEBIH</span>
+                                                </div>
                                             </div>
-                                            <div className="flex items-center gap-2">
-                                                <span className="text-[9px] bg-red-950 border border-red-900 px-2 py-0.5 rounded text-red-400 font-bold font-mono">{item.scanTime}</span>
-                                                <span className="text-[9px] bg-red-600 text-white font-black px-1.5 py-0.5 rounded">LEBIH</span>
-                                            </div>
-                                        </div>
-                                    ))}
+                                        ))
+                                    }
                                 </div>
                             </div>
                         </div>
