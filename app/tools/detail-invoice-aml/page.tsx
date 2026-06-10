@@ -56,14 +56,65 @@ const loadPdfJs = (): Promise<any> => {
 };
 
 // Heuristic STT/AWB matcher
-const sttRegex = /\b(?:A\d{7}|\d{6,8})\b/i;
+const sttRegex = /\b(?:A\d{7}|\d{5,8})\b/i;
 
 // Parse text output from Volume Calculator
 const parseVolumeData = (text: string): { stt: string; colly: number; weight: number }[] => {
     const results: { stt: string; colly: number; weight: number }[] = [];
     const lines = text.split(/\r?\n/);
     
-    // Heuristic A: Parse block format
+    // Heuristic A: Rincian Volume report (group layout, e.g., "39301 (13 item)" and "Subtotal 39301 : 114.5 237.78 237.78")
+    const isRincianVolume = text.toLowerCase().includes('rincian volume') || text.toLowerCase().includes('subtotal');
+    if (isRincianVolume) {
+        const groups: Record<string, { stt: string; colly: number; weight: number }> = {};
+        
+        // Match e.g. "39301 (13 item)" or "A0039301 (13 item)" or similar
+        const groupHeaderRegex = /([A-Za-z0-9]{3,12})\s*\(\s*(\d+)\s*(?:item|items|colly|colli|koli|pcs)\s*\)/i;
+        
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i].trim();
+            if (!line) continue;
+            
+            const groupMatch = line.match(groupHeaderRegex);
+            if (groupMatch) {
+                const stt = groupMatch[1].toUpperCase();
+                const colly = parseInt(groupMatch[2]);
+                if (!groups[stt]) {
+                    groups[stt] = { stt, colly, weight: 0 };
+                } else {
+                    groups[stt].colly = colly;
+                }
+                continue;
+            }
+            
+            // Match e.g. "Subtotal 39301 :" or "Subtotal 39301:"
+            const subtotalMatch = line.match(/Subtotal\s+([A-Za-z0-9]{3,12})\s*:/i);
+            if (subtotalMatch) {
+                const stt = subtotalMatch[1].toUpperCase();
+                // Extract all numbers/dash tokens after the colon
+                const afterColon = line.substring(subtotalMatch[0].length);
+                const numbers = afterColon.match(/[\d.,-]+/g) || [];
+                if (numbers.length > 0) {
+                    // The last number is the chargeable weight (B. TAGIHAN)
+                    const weightVal = numbers[numbers.length - 1].replace(',', '.');
+                    const weight = parseFloat(weightVal) || 0;
+                    
+                    if (!groups[stt]) {
+                        groups[stt] = { stt, colly: 1, weight };
+                    } else {
+                        groups[stt].weight = weight;
+                    }
+                }
+            }
+        }
+        
+        const groupList = Object.values(groups);
+        if (groupList.length > 0) {
+            return groupList;
+        }
+    }
+    
+    // Heuristic B: Parse block format
     let currentStt = '';
     let currentColly = 1;
     let currentWeight = 0;
@@ -99,7 +150,7 @@ const parseVolumeData = (text: string): { stt: string; colly: number; weight: nu
         results.push({ stt: currentStt, colly: currentColly, weight: currentWeight });
     }
     
-    // Heuristic B: Parse tabular/row copy format (e.g. "1 A0037628 3 50")
+    // Heuristic C: Parse tabular/row copy format (e.g. "1 A0037628 3 50")
     if (results.length === 0) {
         for (let i = 0; i < lines.length; i++) {
             const line = lines[i].trim();
@@ -378,8 +429,25 @@ export default function DetailInvoiceAmlPage() {
 
         // 3. Merge and build rows
         const mergedRows: InvoiceRow[] = parsedVolumeItems.map((vItem, idx) => {
-            // Find customer from packing list
-            const customer = packingListMap[vItem.stt] || '';
+            // Find customer from packing list, matching keys with suffix/substring check
+            let customer = '';
+            let displayStt = vItem.stt;
+            const vSttUpper = vItem.stt.toUpperCase();
+            
+            if (packingListMap[vSttUpper]) {
+                customer = packingListMap[vSttUpper];
+                displayStt = vSttUpper;
+            } else {
+                // Try fuzzy/suffix match
+                const matchKey = Object.keys(packingListMap).find(key => {
+                    const keyUpper = key.toUpperCase();
+                    return keyUpper.endsWith(vSttUpper) || vSttUpper.endsWith(keyUpper);
+                });
+                if (matchKey) {
+                    customer = packingListMap[matchKey];
+                    displayStt = matchKey; // Use the full STT from packing list!
+                }
+            }
             
             // Only fill Manifest Laki for the first two items by default (similar to sample)
             // or let the user decide. Let's prefill with the global Manifest Laki for rows 1 & 2
@@ -390,7 +458,7 @@ export default function DetailInvoiceAmlPage() {
                 id: `row-${idx}-${Date.now()}`,
                 resiCCE,
                 manifestLaki: rowManifest,
-                stt: vItem.stt,
+                stt: displayStt,
                 customer,
                 colly: vItem.colly,
                 weight: vItem.weight,
