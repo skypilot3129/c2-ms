@@ -9,12 +9,152 @@ import ProtectedRoute from '@/components/ProtectedRoute';
 import Code39Barcode from '@/components/Code39Barcode';
 import { ArrowLeft, Printer, Search, Barcode, User, MapPin, Package, RefreshCw, Layers } from 'lucide-react';
 
+interface TemplateProps {
+    tx: Transaction;
+    koliNum: number;
+    totalKoli: number;
+    isPreview?: boolean;
+}
+
+function A6Template({ tx, koliNum, totalKoli, isPreview = false }: TemplateProps) {
+    const cleanedSTT = tx.noSTT.replace(/^stt[\s-]*|stt/gi, '').trim();
+    
+    return (
+        <div className={isPreview ? "label-preview-card-a6" : "print-page-a6"}>
+            {/* Background Watermark/Large CCE */}
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-[0.04] select-none">
+                <span className="font-black text-[120px] tracking-widest">CCE</span>
+            </div>
+
+            {/* Header */}
+            <div className="flex justify-between items-start border-b-2 border-black pb-2.5 relative z-10">
+                <div className="text-left">
+                    <h3 className="font-black text-sm tracking-wide text-black">CAHAYA CARGO EXPRESS</h3>
+                    <p className="text-[9px] text-gray-500 font-semibold tracking-tight uppercase">
+                        Jalan Kemudi No. 4, Surabaya | Telp: 081 337 878 138
+                    </p>
+                </div>
+                <span className="font-black text-2xl text-black tracking-widest">CCE</span>
+            </div>
+
+            {/* Route Banner */}
+            <div className="text-center py-1 border-b-2 border-black text-[10px] font-extrabold tracking-wider text-black uppercase relative z-10 bg-gray-50/50">
+                BANDUNG - SURABAYA - KE SELURUH SULAWESI
+            </div>
+
+            {/* Main STT & Barcode Area */}
+            <div className="text-center py-4 flex-1 flex flex-col justify-center items-center gap-4 relative z-10">
+                <div className="space-y-1">
+                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">No. STT / Resi</p>
+                    <h2 className="font-mono font-black text-5xl text-black tracking-widest leading-none">
+                        {cleanedSTT}
+                    </h2>
+                </div>
+                
+                {/* Barcode Component */}
+                <div className="w-[85%] max-w-[220px] h-[40px] bg-white p-1 rounded-sm border border-gray-150">
+                    <Code39Barcode value={tx.noSTT} height={32} narrowWidth={1.5} wideWidth={3.8} />
+                </div>
+            </div>
+
+            {/* Footer & Paging details */}
+            <div className="border-t-2 border-black pt-2.5 flex flex-col justify-between gap-3 relative z-10">
+                
+                {/* Sender & Destination Info */}
+                <div className="flex justify-between items-start text-xs text-gray-800 leading-tight">
+                    <div className="w-[60%]">
+                        <span className="font-bold text-gray-400 text-[8px] uppercase tracking-wider block mb-0.5">Pengirim</span>
+                        <p className="font-extrabold text-sm">{tx.pengirimName}</p>
+                        {tx.pengirimPhone && (
+                            <p className="text-gray-500 text-[10px] mt-0.5">Telp: {tx.pengirimPhone}</p>
+                        )}
+                    </div>
+                    <div className="w-[38%] text-right border-l border-gray-300 pl-3">
+                        <span className="font-bold text-gray-400 text-[8px] uppercase tracking-wider block mb-0.5">Tujuan</span>
+                        <p className="font-black text-sm uppercase text-gray-900 tracking-wide">{tx.tujuan}</p>
+                    </div>
+                </div>
+
+                {/* Big Koli Paging */}
+                <div className="bg-black text-white text-center py-3 rounded-xl">
+                    <span className="font-black text-3xl tracking-widest block uppercase">
+                        KOLI {koliNum} / {totalKoli}
+                    </span>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function Landscape60x40Template({ tx, koliNum, totalKoli, isPreview = false }: TemplateProps) {
+    const cleanedSTT = tx.noSTT.replace(/^stt[\s-]*|stt/gi, '').trim();
+    
+    return (
+        <div className={isPreview ? "label-preview-card-60x40" : "print-page-60x40"}>
+            {/* Header */}
+            <div className="flex justify-between items-start border-b border-black pb-0.5 relative z-10">
+                <div className="text-left">
+                    <h3 className="font-black text-[7.5px] leading-tight text-black flex items-center gap-1">
+                        <span className="font-black bg-black text-white px-0.5 py-0.2 rounded text-[6.5px]">CCE</span>
+                        CAHAYA CARGO EXPRESS
+                    </h3>
+                    <p className="text-[4.5px] text-gray-550 font-semibold leading-none mt-0.5">
+                        Jalan Kemudi No. 4, Surabaya | Telp: 081 337 878 138
+                    </p>
+                </div>
+                <div className="text-right">
+                    <p className="font-extrabold text-[5.2px] text-gray-800 leading-none mt-0.5 tracking-tighter uppercase">
+                        BANDUNG - SURABAYA - KE SELURUH SULAWESI
+                    </p>
+                </div>
+            </div>
+
+            {/* Middle: STT, Barcode & Koli */}
+            <div className="flex justify-between items-center py-1 flex-1 relative z-10 gap-2">
+                {/* Left Column: STT & Barcode */}
+                <div className="w-[66%] flex flex-col justify-center items-start gap-1">
+                    <div className="leading-none">
+                        <p className="text-[5.5px] text-gray-400 font-bold uppercase tracking-wider">No. STT / Resi</p>
+                        <h2 className="font-mono font-black text-2xl text-black tracking-widest leading-none mt-0.5">
+                            {cleanedSTT}
+                        </h2>
+                    </div>
+                    <div className="w-full h-[18px] bg-white">
+                        <Code39Barcode value={tx.noSTT} height={16} narrowWidth={0.8} wideWidth={2.0} />
+                    </div>
+                </div>
+                
+                {/* Right Column: Huge Koli */}
+                <div className="w-[32%] bg-black text-white rounded p-1 flex flex-col justify-center items-center text-center">
+                    <span className="text-[5.5px] font-bold tracking-widest uppercase opacity-80 leading-none">KOLI</span>
+                    <span className="font-black text-base tracking-wider block leading-tight mt-0.5">
+                        {koliNum}/{totalKoli}
+                    </span>
+                </div>
+            </div>
+
+            {/* Footer */}
+            <div className="border-t border-black pt-0.5 flex justify-between items-center text-[7.5px] text-black relative z-10">
+                <div className="w-[55%] truncate">
+                    <span className="text-[5px] text-gray-400 font-bold uppercase block">Pengirim</span>
+                    <span className="font-extrabold">{tx.pengirimName}</span>
+                </div>
+                <div className="w-[42%] text-right border-l border-gray-300 pl-1.5 truncate">
+                    <span className="text-[5px] text-gray-400 font-bold uppercase block">Tujuan</span>
+                    <span className="font-black uppercase tracking-wider">{tx.tujuan}</span>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 export default function LabelResiPage() {
     const { user } = useAuth();
     const [transactions, setTransactions] = useState<Transaction[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
+    const [labelSize, setLabelSize] = useState<'A6' | '60x40'>('A6');
 
     // Subscribe to transactions
     useEffect(() => {
@@ -56,10 +196,9 @@ export default function LabelResiPage() {
     return (
         <ProtectedRoute>
             <style dangerouslySetInnerHTML={{ __html: `
-                /* CSS layout for A6 Print mode */
                 @media print {
                     @page {
-                        size: A6 portrait;
+                        size: ${labelSize === 'A6' ? 'A6 portrait' : '60mm 40mm landscape'};
                         margin: 0;
                     }
                     body {
@@ -76,7 +215,7 @@ export default function LabelResiPage() {
                     .print-only {
                         display: block !important;
                     }
-                    .print-page {
+                    .print-page-a6 {
                         display: flex !important;
                         flex-direction: column;
                         justify-content: space-between;
@@ -92,10 +231,25 @@ export default function LabelResiPage() {
                         position: relative;
                         overflow: hidden;
                     }
+                    .print-page-60x40 {
+                        display: flex !important;
+                        flex-direction: column;
+                        justify-content: space-between;
+                        box-sizing: border-box;
+                        width: 60mm;
+                        height: 40mm;
+                        padding: 2.5mm 3.5mm;
+                        page-break-after: always;
+                        break-after: page;
+                        border: none !important;
+                        box-shadow: none !important;
+                        background: white !important;
+                        position: relative;
+                        overflow: hidden;
+                    }
                 }
                 
-                /* Layout for screen preview of labels */
-                .label-preview-card {
+                .label-preview-card-a6 {
                     width: 105mm;
                     height: 148mm;
                     background: #ffffff;
@@ -103,6 +257,21 @@ export default function LabelResiPage() {
                     box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
                     border-radius: 12px;
                     padding: 6mm 8mm;
+                    display: flex;
+                    flex-direction: column;
+                    justify-content: space-between;
+                    position: relative;
+                    overflow: hidden;
+                }
+
+                .label-preview-card-60x40 {
+                    width: 90mm;
+                    height: 60mm;
+                    background: #ffffff;
+                    border: 2px dashed #94a3b8;
+                    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+                    border-radius: 8px;
+                    padding: 3.5mm 5mm;
                     display: flex;
                     flex-direction: column;
                     justify-content: space-between;
@@ -122,19 +291,35 @@ export default function LabelResiPage() {
                                 </Link>
                                 <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
                                     <Barcode className="text-blue-600" />
-                                    Cetak Label Resi (A6)
+                                    Cetak Label Resi
                                 </h1>
-                                <p className="text-gray-500 text-sm mt-1">Cetak label sticker thermal A6 per STT</p>
+                                <p className="text-gray-500 text-sm mt-1">Cetak label sticker thermal untuk STT</p>
                             </div>
-                            {selectedTx && (
-                                <button
-                                    onClick={handlePrint}
-                                    className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-blue-600/20 transition-all hover:scale-105 active:scale-95"
-                                >
-                                    <Printer size={18} />
-                                    Cetak PDF (Label A6)
-                                </button>
-                            )}
+                            <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto">
+                                <div className="flex bg-gray-100 p-1 rounded-xl border border-gray-200 w-full sm:w-auto">
+                                    <button
+                                        onClick={() => setLabelSize('A6')}
+                                        className={`flex-1 sm:flex-initial px-4 py-2 rounded-lg text-xs font-bold transition-all ${labelSize === 'A6' ? 'bg-white text-blue-650 text-blue-600 shadow' : 'text-gray-500 hover:text-gray-700'}`}
+                                    >
+                                        A6 Portrait
+                                    </button>
+                                    <button
+                                        onClick={() => setLabelSize('60x40')}
+                                        className={`flex-1 sm:flex-initial px-4 py-2 rounded-lg text-xs font-bold transition-all ${labelSize === '60x40' ? 'bg-white text-blue-650 text-blue-600 shadow' : 'text-gray-500 hover:text-gray-700'}`}
+                                    >
+                                        60x40 Landscape
+                                    </button>
+                                </div>
+                                {selectedTx && (
+                                    <button
+                                        onClick={handlePrint}
+                                        className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-blue-600/20 transition-all hover:scale-105 active:scale-95"
+                                    >
+                                        <Printer size={18} />
+                                        Cetak PDF ({labelSize === 'A6' ? 'A6' : '60x40'})
+                                    </button>
+                                )}
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -264,7 +449,7 @@ export default function LabelResiPage() {
 
                         </div>
 
-                        {/* Right Column: Label A6 Preview */}
+                        {/* Right Column: Label Preview */}
                         <div className="lg:col-span-7 flex flex-col items-center">
                             
                             {!selectedTx ? (
@@ -272,7 +457,9 @@ export default function LabelResiPage() {
                                     <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mb-4">
                                         <Barcode size={32} />
                                     </div>
-                                    <h4 className="text-lg font-bold text-gray-800 mb-1">Preview Label A6</h4>
+                                    <h4 className="text-lg font-bold text-gray-800 mb-1">
+                                        Preview Label {labelSize === 'A6' ? 'A6' : '60x40'}
+                                    </h4>
                                     <p className="text-gray-500 text-sm max-w-sm">
                                         Silakan pilih STT dari daftar transaksi terbaru atau cari berdasarkan Nomor STT di kolom pencarian sebelah kiri.
                                     </p>
@@ -282,68 +469,21 @@ export default function LabelResiPage() {
                                     
                                     <div className="bg-gray-100 p-6 rounded-3xl border border-gray-200 flex flex-col items-center gap-8 overflow-y-auto max-h-[70vh]">
                                         <div className="text-center">
-                                            <p className="text-xs text-gray-500 uppercase tracking-wider font-bold mb-1">Preview Gulungan Sticker ({selectedTx.koli} Lembar)</p>
-                                            <p className="text-[10px] text-gray-400">Tampilan di bawah mewakili kertas sticker thermal A6 portrait yang akan dicetak</p>
+                                            <p className="text-xs text-gray-500 uppercase tracking-wider font-bold mb-1">
+                                                Preview Gulungan Sticker ({selectedTx.koli} Lembar)
+                                            </p>
+                                            <p className="text-[10px] text-gray-400">
+                                                Tampilan di bawah mewakili kertas sticker thermal {labelSize === 'A6' ? 'A6 Portrait' : '60x40 Landscape'} yang akan dicetak
+                                            </p>
                                         </div>
 
                                         {/* Generating N pages for Koli quantity */}
                                         {Array.from({ length: selectedTx.koli || 1 }, (_, index) => {
                                             const koliNum = index + 1;
-                                            return (
-                                                <div key={koliNum} className="label-preview-card">
-                                                    
-                                                    {/* Background Watermark/Large CCE */}
-                                                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-[0.06] select-none">
-                                                        <span className="font-black text-[120px] tracking-widest">CCE</span>
-                                                    </div>
-
-                                                    {/* Header */}
-                                                    <div className="flex justify-between items-start border-b-2 border-black pb-2.5 relative z-10">
-                                                        <div>
-                                                            <h3 className="font-black text-sm tracking-wide text-black">CAHAYA CARGO EXPRESS</h3>
-                                                            <p className="text-[9px] text-gray-500 font-medium tracking-tight uppercase">Jasa Pengiriman Terpercaya</p>
-                                                        </div>
-                                                        <span className="font-black text-2xl text-black tracking-widest">CCE</span>
-                                                    </div>
-
-                                                    {/* Main STT & Barcode Area */}
-                                                    <div className="text-center py-4 flex-1 flex flex-col justify-center items-center gap-3 relative z-10">
-                                                        <div className="space-y-0.5">
-                                                            <p className="text-[9px] text-gray-400 font-bold uppercase tracking-wider">No. STT / Resi</p>
-                                                            <h2 className="font-mono font-black text-4xl text-black tracking-widest">
-                                                                {selectedTx.noSTT}
-                                                            </h2>
-                                                        </div>
-                                                        
-                                                        {/* Small Barcode Component */}
-                                                        <div className="w-[80%] max-w-[200px] h-[36px] bg-white p-1 rounded-sm border border-gray-150">
-                                                            <Code39Barcode value={selectedTx.noSTT} height={32} narrowWidth={1.5} wideWidth={3.8} />
-                                                        </div>
-                                                    </div>
-
-                                                    {/* Footer & Paging details */}
-                                                    <div className="border-t-2 border-black pt-2.5 flex flex-col justify-between gap-2.5 relative z-10">
-                                                        
-                                                        {/* Small Sender info */}
-                                                        <div className="text-[10px] text-gray-750 text-gray-800 leading-tight">
-                                                            <span className="font-bold text-gray-500 text-[8px] uppercase tracking-wider block mb-0.5">Pengirim</span>
-                                                            <p className="font-bold">{selectedTx.pengirimName}</p>
-                                                            {selectedTx.pengirimPhone && (
-                                                                <p className="text-gray-500 mt-0.5">Telp: {selectedTx.pengirimPhone}</p>
-                                                            )}
-                                                            <p className="text-gray-550 text-gray-600 mt-0.5 uppercase font-bold text-[9px] tracking-wide">Tujuan: {selectedTx.tujuan}</p>
-                                                        </div>
-
-                                                        {/* Big Koli Paging */}
-                                                        <div className="bg-black text-white text-center py-2 rounded-lg">
-                                                            <span className="font-black text-2xl tracking-widest block uppercase">
-                                                                KOLI {koliNum} / {selectedTx.koli}
-                                                            </span>
-                                                        </div>
-
-                                                    </div>
-
-                                                </div>
+                                            return labelSize === 'A6' ? (
+                                                <A6Template key={koliNum} tx={selectedTx} koliNum={koliNum} totalKoli={selectedTx.koli || 1} isPreview={true} />
+                                            ) : (
+                                                <Landscape60x40Template key={koliNum} tx={selectedTx} koliNum={koliNum} totalKoli={selectedTx.koli || 1} isPreview={true} />
                                             );
                                         })}
                                     </div>
@@ -361,56 +501,10 @@ export default function LabelResiPage() {
                 <div className="hidden print-only">
                     {Array.from({ length: selectedTx.koli || 1 }, (_, index) => {
                         const koliNum = index + 1;
-                        return (
-                            <div key={koliNum} className="print-page">
-                                
-                                {/* Header */}
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '3px solid black', paddingBottom: '8px', zIndex: 10 }}>
-                                    <div>
-                                        <h3 style={{ margin: 0, fontWeight: 900, fontSize: '12pt', color: 'black' }}>CAHAYA CARGO EXPRESS</h3>
-                                        <p style={{ margin: '1px 0 0 0', fontSize: '7.5pt', color: 'black', fontWeight: 700, textTransform: 'uppercase' }}>Jasa Pengiriman Terpercaya</p>
-                                    </div>
-                                    <span style={{ fontWeight: 900, fontSize: '18pt', color: 'black', letterSpacing: '1px' }}>CCE</span>
-                                </div>
-
-                                {/* Middle: Massive STT and small barcode */}
-                                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', margin: '20px 0', zIndex: 10 }}>
-                                    <div style={{ textAlign: 'center', marginBottom: '16px' }}>
-                                        <p style={{ margin: 0, fontSize: '8pt', color: 'black', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px' }}>No. STT / Resi</p>
-                                        <h2 style={{ margin: '4px 0 0 0', fontFamily: 'monospace', fontWeight: 900, fontSize: '30pt', color: 'black', letterSpacing: '2px' }}>
-                                            {selectedTx.noSTT}
-                                        </h2>
-                                    </div>
-                                    
-                                    {/* Barcode component with thick bars for high density thermal printing */}
-                                    <div style={{ width: '180px', height: '34px', background: 'white' }}>
-                                        <Code39Barcode value={selectedTx.noSTT} height={32} narrowWidth={1.5} wideWidth={3.8} />
-                                    </div>
-                                </div>
-
-                                {/* Footer & Paging details */}
-                                <div style={{ borderTop: '3px solid black', paddingTop: '10px', display: 'flex', flexDirection: 'column', gap: '8px', zIndex: 10 }}>
-                                    
-                                    {/* Small Sender info */}
-                                    <div style={{ fontSize: '8pt', color: '#000', lineHeight: 1.3 }}>
-                                        <span style={{ fontWeight: 'bold', color: 'black', fontSize: '7pt', textTransform: 'uppercase', display: 'block', marginBottom: '2px' }}>Pengirim</span>
-                                        <p style={{ margin: 0, fontWeight: 'bold' }}>{selectedTx.pengirimName}</p>
-                                        {selectedTx.pengirimPhone && (
-                                            <p style={{ margin: '1px 0 0 0', color: 'black' }}>Telp: {selectedTx.pengirimPhone}</p>
-                                        )}
-                                        <p style={{ margin: '3px 0 0 0', color: '#111', textTransform: 'uppercase', fontWeight: 'bold', fontSize: '7.5pt' }}>Tujuan: {selectedTx.tujuan}</p>
-                                    </div>
-
-                                    {/* Big Koli Paging */}
-                                    <div style={{ background: 'black', color: 'white', textAlign: 'center', padding: '6px 0', borderRadius: '6px' }}>
-                                        <span style={{ fontWeight: 900, fontSize: '18pt', letterSpacing: '2px', display: 'block', textTransform: 'uppercase' }}>
-                                            KOLI {koliNum} / {selectedTx.koli}
-                                        </span>
-                                    </div>
-
-                                </div>
-
-                            </div>
+                        return labelSize === 'A6' ? (
+                            <A6Template key={koliNum} tx={selectedTx} koliNum={koliNum} totalKoli={selectedTx.koli || 1} isPreview={false} />
+                        ) : (
+                            <Landscape60x40Template key={koliNum} tx={selectedTx} koliNum={koliNum} totalKoli={selectedTx.koli || 1} isPreview={false} />
                         );
                     })}
                 </div>
