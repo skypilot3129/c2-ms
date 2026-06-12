@@ -190,13 +190,27 @@ export default function CetakSlipSkkPage() {
                         background: white !important;
                         color: black !important;
                         padding: 0 !important;
+                        margin: 0 !important;
+                    }
+                    /* Print layout reset */
+                    .preview-container {
+                        border: none !important;
+                        box-shadow: none !important;
+                        padding: 0 !important;
+                        background: transparent !important;
+                        min-height: 0 !important;
+                        width: 100% !important;
+                        display: block !important;
+                    }
+                    .main-grid {
+                        display: block !important;
                     }
                 }
             ` }} />
 
-            <div className="min-h-screen bg-gray-50 pb-16 no-print">
+            <div className="min-h-screen bg-gray-50 pb-16">
                 {/* Header Navigation */}
-                <div className="bg-white border-b sticky top-0 z-20 shadow-sm">
+                <div className="bg-white border-b sticky top-0 z-20 shadow-sm no-print">
                     <div className="container mx-auto px-4 py-4 max-w-7xl">
                         <div className="flex flex-col md:flex-row justify-between items-center gap-4">
                             <div>
@@ -237,7 +251,7 @@ export default function CetakSlipSkkPage() {
 
                 <div className="container mx-auto px-4 py-6 max-w-7xl">
                     {/* Tab Navigation */}
-                    <div className="flex border-b border-gray-200 mb-6 bg-white p-1 rounded-xl shadow-sm max-w-md">
+                    <div className="flex border-b border-gray-200 mb-6 bg-white p-1 rounded-xl shadow-sm max-w-md no-print">
                         <button
                             onClick={() => setActiveTab('slip')}
                             className={`flex-1 py-2.5 text-xs font-bold rounded-lg transition-all ${
@@ -260,12 +274,12 @@ export default function CetakSlipSkkPage() {
                         </button>
                     </div>
 
-                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start main-grid">
                         
                         {/* ========================================================
                             LEFT COLUMN: EDITOR FORMS
                            ======================================================== */}
-                        <div className="lg:col-span-5 bg-white p-6 rounded-2xl border border-gray-250 shadow-sm space-y-6">
+                        <div className="lg:col-span-5 bg-white p-6 rounded-2xl border border-gray-250 shadow-sm space-y-6 no-print">
                             
                             {activeTab === 'slip' ? (
                                 // FORM: SLIP GAJI
@@ -576,7 +590,7 @@ export default function CetakSlipSkkPage() {
                         {/* ========================================================
                             RIGHT COLUMN: LIVE PREVIEW CONTAINER
                            ======================================================== */}
-                        <div className="lg:col-span-7 bg-white border border-gray-200 rounded-2xl shadow-sm p-8 overflow-x-auto min-h-[842px] relative flex justify-center items-start">
+                        <div className="lg:col-span-7 bg-white border border-gray-200 rounded-2xl shadow-sm p-8 overflow-x-auto min-h-[842px] relative flex justify-center items-start preview-container">
                             
                             {activeTab === 'slip' ? (
                                 // PREVIEW: SLIP GAJI
