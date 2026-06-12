@@ -700,8 +700,6 @@ export default function CetakSlipSkkPage() {
                                                         />
                                                     )}
                                                 </div>
-                                                <span className="font-bold underline uppercase">{slipPersetujuanNama}</span>
-                                                <span className="text-[7.5pt] text-gray-500">({slipPersetujuanTitle})</span>
                                             </div>
 
                                             <div className="flex flex-col items-center justify-between min-h-[28mm]">
@@ -783,7 +781,6 @@ export default function CetakSlipSkkPage() {
                                         {/* Signature block */}
                                         <div className="mt-12 ml-auto w-[65mm] text-center flex flex-col items-center">
                                             <span className="block font-sans text-[9pt]">{skkKotaSurat}, {skkTanggalSurat}</span>
-                                            <span className="block font-bold text-[9pt] mt-1 font-sans">CV. Cahaya Cargo Express</span>
                                             
                                             <div className="h-[25mm] flex items-center justify-center my-1 relative w-[40mm]">
                                                 {showTtd && (
@@ -794,9 +791,6 @@ export default function CetakSlipSkkPage() {
                                                     />
                                                 )}
                                             </div>
-
-                                            <span className="font-bold underline block uppercase font-sans text-[9.5pt]">{skkPenandatanganNama}</span>
-                                            <span className="text-[8pt] text-gray-500 uppercase tracking-wider font-sans mt-0.5">{skkPenandatanganRole}</span>
                                         </div>
 
                                     </div>
