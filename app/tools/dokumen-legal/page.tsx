@@ -352,6 +352,81 @@ export default function DokumenLegalPage() {
         }
     };
 
+    // Load Kesiapan Operasional & Keamanan Template
+    const loadKesiapanTemplate = () => {
+        if (confirm("Reset dokumen ke template Laporan Kesiapan Operasional? Perubahan yang belum dicetak akan hilang.")) {
+            setDocumentTitle('SURAT PEMBERITAHUAN KESIAPAN OPERASIONAL DAN IMPLEMENTASI KEAMANAN');
+            setSignatoryName('HILAL BAFAGIH');
+            setSignatoryRole('Director of Operations / Branch Manager');
+            setLostItems([]);
+            setDocumentMetadata(
+                `<div class="grid grid-cols-12 gap-1 text-[10.5pt]">
+                    <div class="col-span-2 font-semibold">No. Surat</div>
+                    <div class="col-span-6">: CCE/DIR-OPS/SPK-READY/VI/2026</div>
+                    <div class="col-span-4 text-right font-semibold text-[10pt]">Surabaya, 19 Juni 2026</div>
+                    
+                    <div class="col-span-2 font-semibold">Sifat</div>
+                    <div class="col-span-10">: Penting / Segera</div>
+                    
+                    <div class="col-span-2 font-semibold">Lampiran</div>
+                    <div class="col-span-10">: -</div>
+                    
+                    <div class="col-span-2 font-semibold">Hal</div>
+                    <div class="col-span-10 font-bold">: Pemberitahuan Kesiapan Personel Team CCE dan Kelengkapan Sistem Keamanan Gudang Muat (Surabaya) &amp; Gudang Bongkar (Makassar)</div>
+                </div>
+                <div class="mt-5 text-[10.5pt]">
+                    <p>Kepada Yth.</p>
+                    <p class="font-bold">Pimpinan Manajemen PT DUTA HANTARAN SURABAYA (DHS)</p>
+                    <p>Di Tempat</p>
+                </div>`
+            );
+            setDocumentBody(
+                `<p class="mt-4">Dengan hormat,</p>
+                <p class="mt-2">Merujuk pada Surat Pernyataan Komitmen Bersama (No. Surat: CCE/DIR-OPS/SPK/VI/2026) yang telah kami sampaikan pada tanggal 09 Juni 2026 terkait rencana evaluasi operasional dan peningkatan sistem keamanan area kerja, kami selaku manajemen Cahaya Cargo (CCE) dengan ini menyampaikan kabar baik mengenai kesiapan penuh (operational readiness) seluruh tim kami di lapangan beserta kelengkapan fasilitas keamanan yang telah selesai diimplementasikan.</p>
+                <p class="mt-2">Berikut adalah laporan rincian kesiapan operasional serta kelengkapan keamanan di Gudang Muat (Cabang Surabaya) dan Gudang Bongkar (Cabang Makassar) per tanggal 19 Juni 2026:</p>
+                
+                <ol class="list-decimal pl-5 space-y-4 mt-4">
+                    <li>
+                        <strong>Kesiapan Sistem Pemantauan Visual (CCTV Baru Aktif 24/7)</strong>
+                        <p class="mt-1">Kami mengonfirmasi bahwa penambahan dan optimalisasi perangkat CCTV berspesifikasi tinggi (High-Definition) telah selesai dilaksanakan 100% pada kedua titik cabang:</p>
+                        <ul class="list-disc pl-5 mt-1 space-y-1">
+                            <li><strong>Gudang Muat (Surabaya):</strong> CCTV baru telah terpasang dan aktif memantau area blind spots (khususnya area loading, penataan barang di staging area, serta jalur keluar-masuk armada). Sistem penyimpanan data (backup storage) telah ditingkatkan dengan kapasitas retensi rekaman yang lebih panjang dan aman.</li>
+                            <li><strong>Gudang Bongkar (Makassar):</strong> Penambahan unit kamera pengawas visual juga telah selesai dipasang untuk memantau ketat seluruh aktivitas pembongkaran, pemindahan barang, serta penyerahan dokumen operasional di area gudang.</li>
+                        </ul>
+                    </li>
+                    <li>
+                        <strong>Kesiapan Sistem Pemindaian Digital (Scanning System)</strong>
+                        <p class="mt-1">Perangkat pemindai (barcode scanner) beserta integrasi sistem internal CCE telah siap digunakan sepenuhnya.</p>
+                        <p class="mt-1">Mulai saat ini, setiap koli/resi milik DHS yang masuk ke gudang muat (Surabaya) maupun yang keluar dari gudang bongkar (Makassar) wajib melalui proses scanning digital secara real-time guna meminimalkan kesalahan hitung (human error) dan mendeteksi selisih koli sejak dini.</p>
+                    </li>
+                    <li>
+                        <strong>Kesiapan Personel Pengawas Khusus (Dedicated Operational Supervisor)</strong>
+                        <p class="mt-1">Kami telah menunjuk dan menugaskan staf khusus yang berdedikasi penuh untuk mengawal jalannya operasional barang DHS. Berikut adalah nama personel pengawas CCE yang bertugas:</p>
+                        <ul class="list-disc pl-5 mt-1 space-y-1">
+                            <li><strong>Pengawas Khusus Gudang Surabaya (Muat):</strong> Pak Indar / Pak Ali</li>
+                            <li><strong>Pengawas Khusus Gudang Makassar (Bongkar/Transit):</strong> Staf Operational Supervisor Makassar</li>
+                        </ul>
+                        <p class="mt-1">Tugas utama tim ini adalah memastikan kepatuhan SOP penanganan barang, mengawal penghitungan fisik secara ketat bersama pengawas dari DHS, serta langsung menerbitkan Berita Acara di lokasi apabila ditemukan kondisi kemasan yang tidak standar (seperti karung robek, pecah, atau berceceran).</p>
+                    </li>
+                    <li>
+                        <strong>Realisasi Pembongkaran Barang Consul di Gudang DHS Makassar</strong>
+                        <p class="mt-1">Terkait kesepakatan pemindahan lokasi pembongkaran barang konsolidasi (barang consul) asal Surabaya yang efektif berlaku sejak keberangkatan armada tanggal 11 Juni 2026, kami laporkan bahwa:</p>
+                        <ul class="list-disc pl-5 mt-1 space-y-1">
+                            <li>Seluruh proses pembongkaran muatan consul telah dialihkan dan dijalankan langsung di Gudang DHS Makassar (bukan di gudang CCE).</li>
+                            <li>Tim pengawas dari CCE Makassar secara konsisten dikirim ke lokasi Gudang DHS Makassar untuk melakukan pendampingan pengawasan serta pencocokan data serah terima fisik bersama tim DHS di lokasi tujuan.</li>
+                        </ul>
+                    </li>
+                </ol>
+                
+                <h4 class="font-extrabold uppercase mt-6 mb-2 text-gray-900 text-[10.5pt]">Penutup dan Komitmen Kemitraan</h4>
+                <p class="text-justify">Dengan seluruh kelengkapan infrastruktur keamanan serta kesiapan personel yang telah terpasang dan berjalan ini, kami meyakini kualitas layanan operasional, akurasi perhitungan barang, serta keamanan pengiriman barang milik PT Duta Hantaran Surabaya (DHS) akan terjaga dengan jauh lebih baik dan transparan.</p>
+                <p class="mt-2 text-justify">Kami mengucapkan terima kasih yang sebesar-besarnya atas kepercayaan dan kerja sama yang terus terjalin erat dengan PT Duta Hantaran Surabaya (DHS). Kami berkomitmen penuh untuk terus menjaga standar keamanan ini demi kesuksesan operasional bersama.</p>
+                <p class="mt-2">Demikian surat pemberitahuan ini kami sampaikan agar dapat menjadi acuan bersama.</p>`
+            );
+            setDocumentBodyEnd('');
+        }
+    };
+
     // Load Blank
     const loadBlankTemplate = () => {
         if (confirm("Kosongkan semua konten dokumen?")) {
@@ -442,6 +517,13 @@ export default function DokumenLegalPage() {
                             Komitmen SPK
                         </button>
                         <button 
+                            onClick={loadKesiapanTemplate}
+                            className="bg-slate-800 hover:bg-slate-700 text-xs font-semibold py-2 px-1 rounded-lg border border-slate-700 hover:border-slate-600 transition-all text-center text-emerald-300 font-bold"
+                            title="Kesiapan Operasional & Keamanan"
+                        >
+                            Kesiapan Ops
+                        </button>
+                        <button 
                             onClick={loadInvestigasiTemplate}
                             className="bg-slate-800 hover:bg-slate-700 text-xs font-semibold py-2 px-1 rounded-lg border border-slate-700 hover:border-slate-600 transition-all text-center"
                             title="Laporan Kehilangan"
@@ -457,7 +539,7 @@ export default function DokumenLegalPage() {
                         </button>
                         <button 
                             onClick={loadBlankTemplate}
-                            className="bg-slate-800 hover:bg-red-900/40 text-xs font-semibold py-2 px-1 rounded-lg border border-slate-700 hover:border-red-900/60 transition-all text-center text-red-300"
+                            className="bg-slate-800 hover:bg-red-900/40 text-xs font-semibold py-2 px-1 rounded-lg border border-slate-700 hover:border-red-900/60 transition-all text-center text-red-300 col-span-2"
                             title="Mulai Dari Kosong"
                         >
                             Kosong
