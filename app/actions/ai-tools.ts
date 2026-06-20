@@ -202,3 +202,284 @@ export async function tool_get_recent_transactions(limitCount: number = 5) {
         return { error: error.message };
     }
 }
+
+// Branch Info Map for STT generation
+const BRANCHES_MAP: Record<string, { displayName: string, initialCounter: number }> = {
+    surabaya: {
+        displayName: 'Surabaya (Pusat)',
+        initialCounter: 17641  // Next will be 17642
+    },
+    bandung: {
+        displayName: 'Bandung',
+        initialCounter: 1032   // Next will be 1033
+    },
+    makassar: {
+        displayName: 'Makassar',
+        initialCounter: 550    // Next will be 00551
+    }
+};
+
+// --- Tool 5: Search Clients ---
+export async function tool_search_clients(keyword: string) {
+    try {
+        const snapshot = await adminDb.collection('clients').get();
+        const term = keyword.toLowerCase().trim();
+        const clients = snapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+                id: doc.id,
+                name: data.name || '',
+                phone: data.phone || '',
+                address: data.address || '',
+                city: data.city || '',
+            };
+        });
+
+        if (!term) return clients;
+
+        const filtered = clients.filter(c =>
+            c.name.toLowerCase().includes(term) ||
+            c.phone.toLowerCase().includes(term) ||
+            c.city.toLowerCase().includes(term) ||
+            c.address.toLowerCase().includes(term)
+        );
+
+        return filtered;
+    } catch (error: any) {
+        console.error('Error in tool_search_clients:', error);
+        return { error: error.message };
+    }
+}
+
+// --- Tool 6: Create Client ---
+export async function tool_create_client(
+    name: string,
+    phone: string = '',
+    address: string = '',
+    city: string = '',
+    userId: string = 'system-ai'
+) {
+    try {
+        if (!name.trim()) {
+            return { error: 'Nama client tidak boleh kosong.' };
+        }
+
+        const now = Timestamp.now();
+        const clientData = {
+            name: name.trim(),
+            phone: phone.trim(),
+            address: address.trim(),
+            city: city.trim(),
+            notes: 'Daftar otomatis via Agent Cahaya',
+            userId,
+            createdAt: now,
+            updatedAt: now,
+        };
+
+        const docRef = await adminDb.collection('clients').add(clientData);
+        return {
+            success: true,
+            id: docRef.id,
+            name: clientData.name,
+            message: `Client '${clientData.name}' berhasil didaftarkan secara otomatis.`
+        };
+    } catch (error: any) {
+        console.error('Error in tool_create_client:', error);
+        return { error: error.message };
+    }
+}
+
+// --- Tool 7: Create Transaction (Buat Resi) ---
+export async function tool_create_transaction(params: {
+    branch?: string;
+    tanggal?: string;
+    tujuan: string;
+    pengirimId: string;
+    penerimaName: string;
+    penerimaPhone?: string;
+    penerimaAddress?: string;
+    penerimaCity?: string;
+    koli?: number;
+    berat?: number;
+    beratUnit?: string;
+    tipeTransaksi?: string;
+    harga?: number;
+    jumlah?: number;
+    pembayaran?: string;
+    pelunasan?: string;
+    isiBarang?: string;
+    keterangan?: string;
+    isTaxable?: boolean;
+    userId?: string;
+}) {
+    try {
+        const {
+            branch = 'surabaya',
+            tanggal,
+            tujuan,
+            pengirimId,
+            penerimaName,
+            penerimaPhone = '',
+            penerimaAddress = '',
+            penerimaCity = '',
+            koli = 1,
+            berat = 0,
+            beratUnit = 'KG',
+            tipeTransaksi = 'regular',
+            harga = 0,
+            jumlah = 0,
+            pembayaran = 'Tunai',
+            pelunasan = 'Pending',
+            isiBarang = '',
+            keterangan = '',
+            isTaxable = false,
+            userId = 'system-ai'
+        } = params;
+
+        if (!pengirimId) return { error: 'Pengirim ID harus disertakan.' };
+        if (!penerimaName) return { error: 'Nama penerima harus diisi.' };
+        if (!tujuan) return { error: 'Tujuan pengiriman harus diisi.' };
+
+        // Fetch pengirim client data
+        const clientSnap = await adminDb.collection('clients').doc(pengirimId).get();
+        if (!clientSnap.exists) {
+            return { error: `Client pengirim dengan ID '${pengirimId}' tidak ditemukan.` };
+        }
+        const clientData = clientSnap.data() || {};
+
+        // Calculate totals based on transaction type
+        let finalJumlah = Number(jumlah);
+        if (tipeTransaksi === 'regular') {
+            finalJumlah = Number(harga) * Number(berat);
+        }
+
+        // Calculate tax (PPN 1.1%)
+        const ppnRate = isTaxable ? 0.011 : 0;
+        const ppn = isTaxable ? Math.round(finalJumlah * ppnRate) : 0;
+
+        const branchInfo = BRANCHES_MAP[branch] || BRANCHES_MAP['surabaya'];
+        const counterRef = adminDb.collection('metadata').doc('stt_counters');
+        const invoiceCounterRef = adminDb.collection('metadata').doc('invoice_counters');
+        const counterKey = isTaxable ? 'global_pkp' : 'global';
+
+        // Run transaction to generate unique STT and Invoice numbers
+        const numbers = await adminDb.runTransaction(async (dbTx) => {
+            // 1. Get STT Counter
+            const counterDoc = await dbTx.get(counterRef);
+            let currentNumber = branchInfo.initialCounter + 1;
+            if (counterDoc.exists) {
+                const data = counterDoc.data() || {};
+                const counterData = data[branch] || {};
+                const existingNumber = counterData.currentNumber || branchInfo.initialCounter;
+                currentNumber = existingNumber + 1;
+            }
+
+            // 2. Get Invoice Counter
+            const invoiceDoc = await dbTx.get(invoiceCounterRef);
+            let nextInvoice = isTaxable ? 5177 : 12366;
+            if (invoiceDoc.exists) {
+                const data = invoiceDoc.data() || {};
+                const lastNumber = isTaxable
+                    ? (data[counterKey]?.currentNumber || 5176)
+                    : (data[counterKey]?.currentNumber || 12365);
+                nextInvoice = lastNumber + 1;
+            }
+
+            // Update counters in database
+            dbTx.set(counterRef, {
+                [branch]: {
+                    currentNumber,
+                    prefix: 'STT',
+                    branchName: branchInfo.displayName,
+                    lastUpdated: Timestamp.now(),
+                }
+            }, { merge: true });
+
+            dbTx.set(invoiceCounterRef, {
+                [counterKey]: {
+                    currentNumber: nextInvoice,
+                    prefix: isTaxable ? 'INV-PKP' : 'INV',
+                    lastUpdated: Timestamp.now(),
+                }
+            }, { merge: true });
+
+            return { currentNumber, nextInvoice };
+        });
+
+        const sttNumber = `STT${String(numbers.currentNumber).padStart(6, '0')}`;
+        const invoiceNumber = isTaxable
+            ? `INV-PKP${String(numbers.nextInvoice).padStart(5, '0')}`
+            : `INV${String(numbers.nextInvoice).padStart(6, '0')}`;
+
+        const now = Timestamp.now();
+        let tanggalTimestamp = now;
+        if (tanggal) {
+            tanggalTimestamp = Timestamp.fromDate(new Date(tanggal));
+        }
+
+        const transactionDoc = {
+            userId,
+            branch,
+            tanggal: tanggalTimestamp,
+            tujuan,
+            noSTT: sttNumber,
+
+            // Pengirim
+            pengirimId,
+            pengirimName: clientData.name || '',
+            pengirimPhone: clientData.phone || '',
+            pengirimAddress: clientData.address || '',
+            pengirimCity: clientData.city || '',
+
+            // Penerima
+            penerimaId: '',
+            penerimaName: penerimaName.trim(),
+            penerimaPhone: penerimaPhone.trim(),
+            penerimaAddress: penerimaAddress.trim(),
+            penerimaCity: penerimaCity.trim(),
+
+            koli: Number(koli),
+            berat: Number(berat),
+            beratUnit,
+            tipeTransaksi,
+            harga: Number(harga),
+            jumlah: finalJumlah,
+
+            isTaxable,
+            ppnRate,
+            ppn,
+
+            noInvoice: invoiceNumber,
+            pembayaran,
+            pelunasan,
+            keterangan,
+            isiBarang,
+            status: 'pending',
+            statusHistory: [{
+                status: 'pending',
+                timestamp: now,
+                catatan: 'Transaksi dibuat otomatis via Agent Cahaya',
+            }],
+            createdAt: now,
+            updatedAt: now,
+        };
+
+        const txRef = await adminDb.collection('transactions').add(transactionDoc);
+
+        return {
+            success: true,
+            id: txRef.id,
+            noSTT: sttNumber,
+            noInvoice: invoiceNumber,
+            pengirimName: clientData.name,
+            penerimaName: penerimaName,
+            jumlah: finalJumlah,
+            ppn: ppn,
+            message: `Berhasil mencatat resi ${sttNumber} (Invoice: ${invoiceNumber})`
+        };
+
+    } catch (error: any) {
+        console.error('Error in tool_create_transaction:', error);
+        return { error: error.message };
+    }
+}

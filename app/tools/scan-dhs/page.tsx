@@ -28,6 +28,10 @@ interface ManifestItem {
     code: string;
     status: 'pending' | 'scanned';
     scanTime?: string;
+    jmlhPaket?: number;
+    berat?: number;
+    toType?: string;
+    dgType?: string;
 }
 
 interface ExtraScan {
@@ -224,27 +228,75 @@ export default function ScanDhsPage() {
         setShowRecoveryModal(false);
     };
 
-    // Parse pasted/input text for TO & SPXID resi numbers
+    // Parse pasted/input text for TO & SPXID resi numbers and additional columns
     const handleParseManifest = () => {
         if (!rawInput.trim()) {
             alert('Masukkan data manifest terlebih dahulu!');
             return;
         }
 
-        // Match TO[A-Z0-9]+ or SPXID[0-9]+
-        const pattern = /\b(?:TO|SPXID)[A-Z0-9]+\b/gi;
-        const matches = rawInput.match(pattern) || [];
+        const lines = rawInput.split(/\r?\n/);
+        const items: ManifestItem[] = [];
+        let itemIndex = 0;
 
-        if (matches.length === 0) {
+        for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed) continue;
+
+            // Split by tab first, if no tabs then by multiple spaces (2 or more)
+            let cols = trimmed.split('\t');
+            if (cols.length <= 1) {
+                cols = trimmed.split(/\s{2,}/);
+            }
+
+            // Find index of column matching TO or SPXID pattern
+            const codePattern = /^(?:TO|SPXID)[A-Z0-9]+$/i;
+            const codeIdx = cols.findIndex(col => codePattern.test(col.trim()));
+
+            if (codeIdx !== -1) {
+                const code = cols[codeIdx].trim().toUpperCase();
+                
+                // Parse optional columns relative to the matched TO code column
+                const jmlhPaketStr = cols[codeIdx + 1]?.trim() || '';
+                const beratStr = cols[codeIdx + 2]?.trim() || '';
+                const toType = cols[codeIdx + 3]?.trim() || '';
+                const dgType = cols[codeIdx + 4]?.trim() || '';
+
+                const jmlhPaket = jmlhPaketStr ? parseInt(jmlhPaketStr.replace(/[,.]/g, ''), 10) : undefined;
+                // Replace comma with dot for standard decimal parseFloat conversion (e.g. 18,330 -> 18.330)
+                const berat = beratStr ? parseFloat(beratStr.replace(/,/g, '.')) : undefined;
+
+                items.push({
+                    id: `item-${itemIndex++}-${Date.now()}`,
+                    code,
+                    status: 'pending',
+                    jmlhPaket: (jmlhPaket !== undefined && !isNaN(jmlhPaket)) ? jmlhPaket : undefined,
+                    berat: (berat !== undefined && !isNaN(berat)) ? berat : undefined,
+                    toType: toType || undefined,
+                    dgType: dgType || undefined
+                });
+            } else {
+                // Fallback: search the whole line for TO or SPXID pattern just in case it's not tabular
+                const linePattern = /\b(?:TO|SPXID)[A-Z0-9]+\b/gi;
+                const lineMatches = trimmed.match(linePattern);
+                if (lineMatches) {
+                    for (const code of lineMatches) {
+                        if (!items.some(item => item.code === code.toUpperCase())) {
+                            items.push({
+                                id: `item-${itemIndex++}-${Date.now()}`,
+                                code: code.toUpperCase(),
+                                status: 'pending'
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
+        if (items.length === 0) {
             alert('Tidak ditemukan kode resi/TO yang valid pada data input! Pastikan kode diawali dengan TO atau SPXID.');
             return;
         }
-
-        const items: ManifestItem[] = matches.map((code, idx) => ({
-            id: `item-${idx}-${Date.now()}`,
-            code: code.toUpperCase(),
-            status: 'pending'
-        }));
 
         setManifest(items);
         setExtraScans([]);
@@ -256,11 +308,12 @@ export default function ScanDhsPage() {
     // Preload sample data from the user request
     const handleLoadSample = () => {
         const sample = `DHS BONGKARAN - SURABAYA 29 MEI 2026
-TO202605293D9ZG
-TO202605293EGRI
-TO202605293EI4A
-TO202605293D9ZG
-TO202605293ENSI`;
+#\tNomor TO\tJmlh Paket\tBerat (kg)\tTO Type\tDG Type
+1\tTO20260619A17BR\t30\t18.330\tBag\t-
+2\tTO20260620BXW06\t45\t19.570\tBag\t-
+3\tTO20260621CGC9Z\t12\t17.560\tBulky\tNon-DG
+4\tTO20260611RJ52T\t16\t6.030\tBag\t-
+5\tTO202606176X6G8\t30\t7.880\tBag\t-`;
         setRawInput(sample);
         setDriverName('Riswan');
         setNoPolisi('DD 8250 LQ');
@@ -518,7 +571,11 @@ TO202605293ENSI`;
             report += `\n*DAFTAR SELISIH KURANG (BELUM DI-SCAN) [${pendingCount}]:*\n`;
             const missingCodes = target.manifest.filter((i: any) => i.status === 'pending');
             missingCodes.forEach((missingItem: any, index: number) => {
-                report += `${index + 1}. ${missingItem.code}\n`;
+                let detail = '';
+                if (missingItem.jmlhPaket !== undefined) detail += ` [${missingItem.jmlhPaket} Pkt`;
+                if (missingItem.berat !== undefined) detail += detail ? `, ${missingItem.berat} kg` : ` [${missingItem.berat} kg`;
+                if (detail) detail += ']';
+                report += `${index + 1}. ${missingItem.code}${detail}\n`;
             });
         }
 
@@ -1010,9 +1067,19 @@ TO202605293ENSI`;
                                                         : 'bg-slate-900/40 border-slate-800/80 text-slate-400'
                                                 }`}
                                             >
-                                                <div className="flex items-center gap-2">
-                                                    <span className="text-[10px] font-bold text-slate-600 font-mono w-4">{idx + 1}.</span>
-                                                    <span className="font-mono font-bold text-xs tracking-wide">{item.code}</span>
+                                                <div className="flex flex-col gap-0.5">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="text-[10px] font-bold text-slate-650 font-mono w-4">{idx + 1}.</span>
+                                                        <span className="font-mono font-bold text-xs tracking-wide">{item.code}</span>
+                                                    </div>
+                                                    {(item.jmlhPaket !== undefined || item.berat !== undefined || item.toType || item.dgType) && (
+                                                        <div className="flex flex-wrap gap-x-2 gap-y-0.5 text-[9px] text-slate-500 font-medium pl-6">
+                                                            {item.jmlhPaket !== undefined && <span>{item.jmlhPaket} Pkt</span>}
+                                                            {item.berat !== undefined && <span>{item.berat} kg</span>}
+                                                            {item.toType && <span className="bg-slate-800/50 px-1 rounded text-[8px]">{item.toType}</span>}
+                                                            {item.dgType && <span className="bg-slate-800/50 px-1 rounded text-[8px]">{item.dgType}</span>}
+                                                        </div>
+                                                    )}
                                                 </div>
                                                 <div className="flex items-center gap-2">
                                                     {item.status === 'scanned' ? (
@@ -1134,11 +1201,15 @@ TO202605293ENSI`;
                                 <div className="border border-slate-800 rounded-2xl overflow-hidden text-xs">
                                     <table className="w-full text-left">
                                         <thead>
-                                            <tr className="bg-slate-900 border-b border-slate-800 text-slate-400 font-semibold uppercase text-[10px]">
-                                                <th className="p-3 text-center w-[8%]">No</th>
-                                                <th className="p-3 w-[46%]">Kode Resi / TO</th>
-                                                <th className="p-3 w-[30%]">Waktu Scan</th>
-                                                <th className="p-3 text-right w-[16%]">Status</th>
+                                            <tr className="bg-slate-900 border-b border-slate-800 text-slate-400 font-semibold uppercase text-[9px] md:text-[10px]">
+                                                <th className="p-3 text-center w-[5%]">No</th>
+                                                <th className="p-3 w-[25%]">Nomor TO</th>
+                                                <th className="p-3 text-center w-[12%]">Jmlh Paket</th>
+                                                <th className="p-3 text-center w-[12%]">Berat (kg)</th>
+                                                <th className="p-3 text-center w-[12%]">TO Type</th>
+                                                <th className="p-3 text-center w-[12%]">DG Type</th>
+                                                <th className="p-3 w-[12%]">Waktu Scan</th>
+                                                <th className="p-3 text-right w-[10%]">Status</th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -1146,6 +1217,10 @@ TO202605293ENSI`;
                                                 <tr key={item.id} className="border-b border-slate-800/50 hover:bg-slate-900/30">
                                                     <td className="p-3 text-center text-slate-500 font-mono">{idx + 1}.</td>
                                                     <td className="p-3 font-mono font-bold text-white tracking-wide">{item.code}</td>
+                                                    <td className="p-3 text-center font-mono text-slate-350">{item.jmlhPaket !== undefined ? item.jmlhPaket : '-'}</td>
+                                                    <td className="p-3 text-center font-mono text-slate-350">{item.berat !== undefined ? item.berat.toFixed(3) : '-'}</td>
+                                                    <td className="p-3 text-center text-slate-350">{item.toType || '-'}</td>
+                                                    <td className="p-3 text-center text-slate-350">{item.dgType || '-'}</td>
                                                     <td className="p-3 font-mono text-slate-400">{item.scanTime || '-'}</td>
                                                     <td className="p-3 text-right">
                                                         {item.status === 'scanned' ? (
@@ -1160,6 +1235,10 @@ TO202605293ENSI`;
                                                 <tr key={`extra-report-${idx}`} className="border-b border-slate-800/50 hover:bg-slate-900/30 bg-red-950/5">
                                                     <td className="p-3 text-center text-red-500 font-mono">+</td>
                                                     <td className="p-3 font-mono font-bold text-red-400 tracking-wide">{item.code}</td>
+                                                    <td className="p-3 text-center font-mono text-slate-500">-</td>
+                                                    <td className="p-3 text-center font-mono text-slate-500">-</td>
+                                                    <td className="p-3 text-center text-slate-500">-</td>
+                                                    <td className="p-3 text-center text-slate-500">-</td>
                                                     <td className="p-3 font-mono text-slate-400">{item.scanTime}</td>
                                                     <td className="p-3 text-right">
                                                         <span className="text-[9px] bg-red-600 text-white font-black px-1.5 py-0.5 rounded">LEBIH</span>

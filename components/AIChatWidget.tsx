@@ -3,9 +3,11 @@
 import { useState, useRef, useEffect } from 'react';
 import { MessageCircle, X, Send, Bot, User, Minimize2, Maximize2, Sparkles } from 'lucide-react';
 import { chatWithGemini, type ChatMessage } from '@/app/actions/chat';
+import { useAuth } from '@/context/AuthContext';
 import ReactMarkdown from 'react-markdown';
 
 export default function AIChatWidget() {
+    const { user } = useAuth();
     const [isOpen, setIsOpen] = useState(false);
     const [isMinimized, setIsMinimized] = useState(false);
     const [messages, setMessages] = useState<ChatMessage[]>([
@@ -39,8 +41,8 @@ export default function AIChatWidget() {
         setIsLoading(true);
 
         try {
-            // Call Server Action
-            const result = await chatWithGemini(newHistory, userMessage);
+            // Call Server Action with user UID
+            const result = await chatWithGemini(newHistory, userMessage, user?.uid);
 
             if (result.error) {
                 setMessages(prev => [...prev, { role: 'model', parts: `⚠️ ${result.error}` }]);

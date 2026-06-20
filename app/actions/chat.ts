@@ -5,7 +5,10 @@ import {
     tool_get_dashboard_summary,
     tool_get_transaction_stats,
     tool_search_transaction,
-    tool_get_recent_transactions
+    tool_get_recent_transactions,
+    tool_search_clients,
+    tool_create_client,
+    tool_create_transaction
 } from './ai-tools';
 
 const apiKey = process.env.GEMINI_API_KEY;
@@ -64,28 +67,87 @@ const tools: any[] = [
                     },
                 },
             },
+            {
+                name: "search_clients",
+                description: "Search for clients in the database by name, phone, city, or address.",
+                parameters: {
+                    type: "OBJECT",
+                    properties: {
+                        keyword: { type: "STRING", description: "The keyword to search for (e.g. client name, phone, or city)." },
+                    },
+                    required: ["keyword"],
+                },
+            },
+            {
+                name: "create_client",
+                description: "Register a new client in the database.",
+                parameters: {
+                    type: "OBJECT",
+                    properties: {
+                        name: { type: "STRING", description: "Full name of the client." },
+                        phone: { type: "STRING", description: "Phone number (optional)." },
+                        address: { type: "STRING", description: "Full address (optional)." },
+                        city: { type: "STRING", description: "City (optional)." },
+                    },
+                    required: ["name"],
+                },
+            },
+            {
+                name: "create_transaction",
+                description: "Create a new cargo shipping receipt (STT / Resi) in the database.",
+                parameters: {
+                    type: "OBJECT",
+                    properties: {
+                        branch: { type: "STRING", description: "Branch ID: 'surabaya', 'bandung', or 'makassar'. Default is 'surabaya'." },
+                        tanggal: { type: "STRING", description: "Transaction date in YYYY-MM-DD format. Default is today." },
+                        tujuan: { type: "STRING", description: "Destination city." },
+                        pengirimId: { type: "STRING", description: "Firestore document ID of the sender client (must be retrieved first)." },
+                        penerimaName: { type: "STRING", description: "Name of the receiver." },
+                        penerimaPhone: { type: "STRING", description: "Phone number of the receiver (optional)." },
+                        penerimaAddress: { type: "STRING", description: "Full address of the receiver (optional)." },
+                        penerimaCity: { type: "STRING", description: "City of the receiver (optional)." },
+                        koli: { type: "NUMBER", description: "Number of packages/koli (default is 1)." },
+                        berat: { type: "NUMBER", description: "Weight or volume size (default is 0)." },
+                        beratUnit: { type: "STRING", description: "Unit: 'KG' or 'M3' (default is 'KG')." },
+                        tipeTransaksi: { type: "STRING", description: "Type: 'regular' (by weight) or 'borongan' (manual/flat price). Default is 'regular'." },
+                        harga: { type: "NUMBER", description: "Price per unit (optional, regular only). Keep 0 or empty for new client (without history)." },
+                        jumlah: { type: "NUMBER", description: "Total flat price (optional, borongan only). Leave empty or ask user first." },
+                        pembayaran: { type: "STRING", description: "Payment method: 'Tunai', 'Kredit', or 'DP'. Default is 'Tunai'." },
+                        pelunasan: { type: "STRING", description: "Payment status: 'Pending', 'Cash', or 'TF'. Default is 'Pending'." },
+                        isiBarang: { type: "STRING", description: "Description of the cargo contents." },
+                        keterangan: { type: "STRING", description: "Additional notes (optional)." },
+                        isTaxable: { type: "BOOLEAN", description: "Is taxable (PPN 1.1% applies). Default is false." }
+                    },
+                    required: ["tujuan", "pengirimId", "penerimaName"]
+                },
+            },
         ],
     },
 ];
 
 const SYSTEM_INSTRUCTION = `
 Kamu adalah "Agent Cahaya", asisten virtual cerdas untuk "Cahaya Cargo Express" (C2-MS), sebuah perusahaan logistik dan kargo.
-Tugasmu adalah membantu Owner perusahaan dengan memberikan saran bisnis, wawasan strategi, dan ide marketing.
-Kamu memiliki akses ke data perusahaan melalui "Tools" (Function Calling).
+Tugasmu adalah membantu Owner dan Operator dengan memberikan saran bisnis, wawasan strategi, dan merekam transaksi/resi baru secara otomatis.
 
-Panduan Penggunaan Tools:
-1. Jika user bertanya tentang data (omzet, status resi, jumlah order, keuangan), JANGAN MENEBAK. Gunakan Tool yang sesuai.
-2. Jika user bertanya "Berapa omzet bulan ini?", gunakan 'get_dashboard_summary'.
-3. Jika user bertanya detail hutang/piutang/belum bayar, gunakan 'get_transaction_stats'.
-4. Jika user bertanya status resi spesifik, gunakan 'search_transaction'.
-5. Selalu jawab dengan Bahasa Indonesia yang profesional dan ramah.
-6. Analisa data yang kamu terima sebelum menjawab. Berikan insight jika ada (misal: "Profit turun karena biaya naik").
+PANDUAN ALUR PENCATATAN TRANSAKSI / RESI OTOMATIS:
+1. Jika pengguna meminta untuk mencatat transaksi atau membuat resi/STT baru, kamu harus mencari data Pengirim (Sender) terlebih dahulu menggunakan tool 'search_clients'.
+   - Contoh: "Cari pengirim Budi" atau jika pengguna berkata "Buat resi untuk pengirim Budi...", panggil 'search_clients' dengan kata kunci "Budi".
+2. **Jika Pengirim Ditemukan**: Dapatkan ID pengirim tersebut.
+3. **Jika Pengirim TIDAK Ditemukan**: Kamu harus mendaftarkan pengirim baru secara otomatis menggunakan tool 'create_client' dengan informasi yang tersedia.
+   - PENTING: Untuk client baru yang baru dibuat ini, input 'harga' pada pengiriman harus dikosongkan (diisi 0/tidak disertakan) karena belum memiliki riwayat tarif atau harga khusus di sistem. Beritahukan hal ini kepada pengguna.
+4. **Tipe Transaksi**:
+   - **Regular (Timbang)**: Kumpulkan data tujuan, koli, berat, beratUnit ('KG' atau 'M3'), dan isiBarang.
+   - **Borongan (Manual)**: Untuk tipe borongan, kosongkan harga/jumlah terlebih dahulu, dan **tanyakan verifikasi PPN (Jasa Kena Pajak 1,1%) secara eksplisit** kepada pengguna: *"Apakah transaksi borongan ini dikenakan PPN 1.1%?"*. Setelah pengguna menjawab, baru panggil tool 'create_transaction' dengan isTaxable=true (jika Ya) atau isTaxable=false (jika Tidak).
+5. Sebelum membuat transaksi, pastikan kamu mengonfirmasikan ringkasan data resi secara sopan kepada pengguna jika ada parameter wajib yang belum jelas. Setelah semua oke atau jika pengguna memerintahkannya langsung, panggil tool 'create_transaction'.
+
+Panduan Penggunaan Tools Lainnya:
+- Jika user bertanya tentang data (omzet, status resi, jumlah order, keuangan), JANGAN MENEBAK. Gunakan Tool yang sesuai.
+- Selalu jawab dengan Bahasa Indonesia yang profesional, ramah, dan solutif.
 
 Karakteristikmu:
-- Profesional namun ramah dan suportif.
-- Menggunakan Bahasa Indonesia, Jawa, Bandung, Makassar Casual.
-- Memahami konteks logistik (pengiriman, armada, rute, biaya operasional).
-- Selalu positif dan solutif.
+- Profesional namun ramah, suportif, dan tanggap.
+- Menggunakan Bahasa Indonesia yang baik dan komunikatif.
+- Memahami konteks logistik (pengiriman, koli, berat volume, PPN 1.1%).
 
 Konteks Waktu:
 - Hari ini adalah: ${new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}.
@@ -96,13 +158,12 @@ export type ChatMessage = {
     parts: string;
 };
 
-export async function chatWithGemini(history: ChatMessage[], message: string) {
+export async function chatWithGemini(history: ChatMessage[], message: string, userId?: string) {
     if (!apiKey) {
         return { error: 'API Key not configured.' };
     }
 
     try {
-        // User requested gemini-2.5-pro
         const model = genAI.getGenerativeModel({
             model: 'gemini-2.5-pro',
             systemInstruction: SYSTEM_INSTRUCTION,
@@ -132,9 +193,6 @@ export async function chatWithGemini(history: ChatMessage[], message: string) {
         const response = result.response;
 
         // --- Handle Function Calls (Multi-turn) ---
-        // Gemini SDK handles function calling by returning a 'functionCall' part.
-        // We need to execute it and send the result back.
-
         let finalResponseText = '';
 
         // Check for function calls
@@ -143,7 +201,6 @@ export async function chatWithGemini(history: ChatMessage[], message: string) {
             // Process all function calls
             const functionResponses = await Promise.all(functionCalls.map(async (call) => {
                 const name = call.name;
-                // Cast args to any to safely access dynamic properties
                 const args = call.args as any;
 
                 console.log(`[Agent Cahaya] Calling Tool: ${name}`, args);
@@ -157,6 +214,16 @@ export async function chatWithGemini(history: ChatMessage[], message: string) {
                     toolResult = await tool_search_transaction(args.keyword);
                 } else if (name === 'get_recent_transactions') {
                     toolResult = await tool_get_recent_transactions(args.limit);
+                } else if (name === 'search_clients') {
+                    toolResult = await tool_search_clients(args.keyword);
+                } else if (name === 'create_client') {
+                    toolResult = await tool_create_client(args.name, args.phone, args.address, args.city, userId);
+                } else if (name === 'create_transaction') {
+                    // Inject userId into transaction creation params
+                    toolResult = await tool_create_transaction({
+                        ...args,
+                        userId
+                    });
                 } else {
                     toolResult = { error: 'Unknown function' };
                 }
