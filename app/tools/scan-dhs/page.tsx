@@ -687,7 +687,7 @@ export default function ScanDhsPage() {
                     </div>
                     <div>
                         <h1 className="font-bold text-lg leading-tight">Scan Barcode DHS</h1>
-                        <p className="text-xs text-slate-400">CV. Cahaya Cargo Express</p>
+                        <p className="text-xs text-slate-400">CV. Cahaya Cargo Express • v1.1</p>
                     </div>
                 </div>
                 <div className="flex items-center gap-2">
