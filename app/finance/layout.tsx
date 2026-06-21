@@ -56,7 +56,13 @@ export default function FinanceLayout({ children }: { children: ReactNode }) {
             label: 'Laporan Keuangan',
             icon: <PieChart size={20} />,
             href: '/finance/reports',
-            active: pathname.startsWith('/finance/reports')
+            active: pathname === '/finance/reports' || pathname === '/finance/reports/'
+        },
+        {
+            label: '↳ Lap. Kapal & Operasional',
+            icon: <ClipboardList size={18} />,
+            href: '/finance/reports/voyage-ops',
+            active: pathname.startsWith('/finance/reports/voyage-ops')
         },
         {
             label: 'Pajak & PPN',
