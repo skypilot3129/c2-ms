@@ -29,10 +29,10 @@ function PrintVoyageOpsReportContent({
 
         const loadData = async () => {
             try {
-                // 1. Fetch Voyage
+                // 1. Fetch Voyage/Kapal
                 const voyageData = await getVoyageById(voyageId);
                 if (!voyageData) {
-                    alert('Pemberangkatan tidak ditemukan');
+                    alert('Pemberangkatan kapal tidak ditemukan');
                     setLoading(false);
                     return;
                 }
@@ -43,7 +43,7 @@ function PrintVoyageOpsReportContent({
                 const txData = await Promise.all(txPromises);
                 setTransactions(txData.filter((tx): tx is Transaction => tx !== null));
 
-                // 3. Fetch Voyage-Specific Expenses
+                // 3. Fetch Voyage-Specific Direct Expenses
                 const directExpenses = await getExpensesByVoyage(voyageData.id, user.uid);
                 setVoyageExpenses(directExpenses);
 
@@ -126,7 +126,7 @@ function PrintVoyageOpsReportContent({
     const netProfit = totalRevenue - totalVoyageExpenses - generalOpsSum - ticketSum - salarySum - carRentalSum;
 
     if (loading) return <div className="p-8 text-center text-gray-500 font-medium">Memuat data laporan cetak...</div>;
-    if (!voyage) return <div className="p-8 text-center text-red-500 font-semibold">Pemberangkatan tidak ditemukan.</div>;
+    if (!voyage) return <div className="p-8 text-center text-red-500 font-semibold">Pemberangkatan kapal tidak ditemukan.</div>;
 
     return (
         <div className="bg-white min-h-screen p-8 text-xs text-gray-800 font-sans leading-normal">
@@ -135,11 +135,11 @@ function PrintVoyageOpsReportContent({
             <div className="border-b-2 border-gray-800 pb-4 mb-6">
                 <div className="flex justify-between items-start">
                     <div>
-                        <h1 className="text-2xl font-bold uppercase tracking-wide mb-1 font-serif">Laporan Keuangan Per-Voyage & Operasional</h1>
+                        <h1 className="text-2xl font-bold uppercase tracking-wide mb-1 font-serif">Laporan Keuangan Per-Kapal &amp; Operasional</h1>
                         <p className="text-gray-500 text-[10px]">Cahaya Cargo Express Management System (C2-MS)</p>
                     </div>
                     <div className="text-right">
-                        <p className="font-semibold text-gray-500 text-[10px] uppercase">No. Voyage</p>
+                        <p className="font-semibold text-gray-500 text-[10px] uppercase">No. Keberangkatan</p>
                         <h2 className="text-xl font-mono font-bold text-gray-900">{voyage.voyageNumber}</h2>
                         <p className="text-gray-400 text-[9px] mt-0.5">Tanggal Cetak: {new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
                     </div>
@@ -151,7 +151,7 @@ function PrintVoyageOpsReportContent({
                         <span className="font-semibold text-gray-800">{voyage.route}</span>
                     </div>
                     <div>
-                        <span className="text-gray-400 block text-[9px] uppercase font-bold">Kapal / Plat Truk</span>
+                        <span className="text-gray-400 block text-[9px] uppercase font-bold">Nama Kapal / Plat Truk</span>
                         <span className="font-semibold text-gray-800">{voyage.shipName || '-'} / {voyage.vehicleNumbers?.join(', ') || voyage.vehicleNumber || '-'}</span>
                     </div>
                     <div>
@@ -172,7 +172,7 @@ function PrintVoyageOpsReportContent({
                     <p className="text-base font-bold text-blue-700">{formatRupiah(totalRevenue)}</p>
                 </div>
                 <div className="border-l border-gray-200">
-                    <p className="text-gray-500 text-[9px] uppercase mb-1">Total Pengeluaran Voyage</p>
+                    <p className="text-gray-500 text-[9px] uppercase mb-1">Total Biaya Kapal (Direct)</p>
                     <p className="text-base font-bold text-red-650">-{formatRupiah(totalVoyageExpenses)}</p>
                 </div>
                 <div className="border-l border-gray-200">
@@ -230,10 +230,10 @@ function PrintVoyageOpsReportContent({
 
             {/* Direct Expenses Table */}
             <div className="mb-6">
-                <h3 className="text-xs font-bold border-b border-gray-400 pb-1 mb-2.5 uppercase tracking-wide text-gray-900">2. Rincian Pengeluaran Khusus Voyage</h3>
+                <h3 className="text-xs font-bold border-b border-gray-400 pb-1 mb-2.5 uppercase tracking-wide text-gray-900">2. Rincian Pengeluaran Khusus Kapal (Direct)</h3>
                 <table className="w-full text-left border-collapse">
                     <thead>
-                        <tr className="border-b border-gray-350 text-[9px] text-gray-500 uppercase font-semibold bg-gray-50">
+                        <tr className="border-b border-gray-200 text-[9px] text-gray-500 uppercase font-semibold bg-gray-50">
                             <th className="py-1.5 px-2 w-10 text-center">No</th>
                             <th className="py-1.5 px-2 w-28">Tanggal</th>
                             <th className="py-1.5 px-2 w-48">Kategori</th>
@@ -253,11 +253,11 @@ function PrintVoyageOpsReportContent({
                         ))}
                         {voyageExpenses.length === 0 && (
                             <tr>
-                                <td colSpan={5} className="py-4 text-center text-gray-400 italic">Tidak ada pengeluaran langsung voyage.</td>
+                                <td colSpan={5} className="py-4 text-center text-gray-400 italic">Tidak ada pengeluaran langsung kapal.</td>
                             </tr>
                         )}
                         <tr className="bg-gray-100 font-bold border-t border-gray-300">
-                            <td colSpan={4} className="py-2 px-2 text-right pr-4 uppercase text-[9px] tracking-wider text-gray-600">Total Pengeluaran Voyage (Direct)</td>
+                            <td colSpan={4} className="py-2 px-2 text-right pr-4 uppercase text-[9px] tracking-wider text-gray-600">Total Pengeluaran Kapal (Langsung)</td>
                             <td className="py-2 px-2 text-right text-red-700">{formatRupiah(totalVoyageExpenses)}</td>
                         </tr>
                     </tbody>
@@ -364,12 +364,12 @@ function PrintVoyageOpsReportContent({
             {/* Signature Section */}
             <div className="mt-16 pt-8 border-t border-gray-200 flex justify-between items-end text-[9px] text-gray-400">
                 <div>
-                    <p>Laporan Keuangan Voyage &amp; Operasional Harian C2-MS</p>
+                    <p>Laporan Keuangan Per-Kapal &amp; Operasional Harian C2-MS</p>
                     <p>Waktu Cetak: {new Date().toLocaleString('id-ID')} WIB</p>
                 </div>
                 <div className="text-center w-40">
                     <div className="h-14 mb-2 border-b border-gray-200"></div>
-                    <p className="font-semibold text-gray-700 text-[10px]">Manager Keuangan</p>
+                    <p className="font-semibold text-gray-750 text-[10px]">Manager Keuangan</p>
                 </div>
             </div>
 
@@ -401,7 +401,7 @@ export default function PrintVoyageOpsReportPage(props: {
 }) {
     const searchParams = use(props.searchParams);
     return (
-        <Suspense fallback={<div className="p-8 text-center text-gray-500">Memuat halaman cetak...</div>}>
+        <Suspense fallback={<div className="p-8 text-center text-gray-500 font-medium">Memuat halaman cetak...</div>}>
             <PrintVoyageOpsReportContent searchParams={searchParams} />
         </Suspense>
     );
