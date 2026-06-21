@@ -20,7 +20,8 @@ import {
     Volume2,
     VolumeX,
     Trash2,
-    Search
+    Search,
+    Edit
 } from 'lucide-react';
 
 interface ManifestItem {
@@ -78,6 +79,7 @@ export default function ScanDhsPage() {
     // Search & History states
     const [searchTerm, setSearchTerm] = useState<string>('');
     const [history, setHistory] = useState<HistoryItem[]>([]);
+    const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
     const [showRecoveryModal, setShowRecoveryModal] = useState<boolean>(false);
     const [pendingRecovery, setPendingRecovery] = useState<any>(null);
     
@@ -300,6 +302,7 @@ export default function ScanDhsPage() {
 
         setManifest(items);
         setExtraScans([]);
+        setCurrentSessionId(null);
         setSearchTerm('');
         setStep('scan');
         setScanAlert({ type: 'idle', message: 'Sesi scan siap. Mulailah memindai barcode.' });
@@ -495,21 +498,59 @@ export default function ScanDhsPage() {
             const dateStr = dateObj.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
             const timeStr = dateObj.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
             
-            const newHistoryItem: HistoryItem = {
-                id: `history-${Date.now()}`,
-                date: `${dateStr} ${timeStr}`,
-                sessionType,
-                driverName,
-                noPolisi,
-                totalTarget,
-                totalScanned,
-                totalExtra,
-                scanPercentage,
-                manifest,
-                extraScans
-            };
+            let updatedHistory = [...history];
 
-            const updatedHistory = [newHistoryItem, ...history];
+            if (currentSessionId) {
+                // Edit existing session
+                const existingIdx = history.findIndex(item => item.id === currentSessionId);
+                if (existingIdx !== -1) {
+                    updatedHistory[existingIdx] = {
+                        ...history[existingIdx],
+                        sessionType,
+                        driverName,
+                        noPolisi,
+                        totalTarget,
+                        totalScanned,
+                        totalExtra,
+                        scanPercentage,
+                        manifest,
+                        extraScans
+                    };
+                } else {
+                    // Fallback
+                    const newHistoryItem: HistoryItem = {
+                        id: currentSessionId,
+                        date: `${dateStr} ${timeStr}`,
+                        sessionType,
+                        driverName,
+                        noPolisi,
+                        totalTarget,
+                        totalScanned,
+                        totalExtra,
+                        scanPercentage,
+                        manifest,
+                        extraScans
+                    };
+                    updatedHistory = [newHistoryItem, ...updatedHistory];
+                }
+            } else {
+                // Create new history item
+                const newHistoryItem: HistoryItem = {
+                    id: `history-${Date.now()}`,
+                    date: `${dateStr} ${timeStr}`,
+                    sessionType,
+                    driverName,
+                    noPolisi,
+                    totalTarget,
+                    totalScanned,
+                    totalExtra,
+                    scanPercentage,
+                    manifest,
+                    extraScans
+                };
+                updatedHistory = [newHistoryItem, ...updatedHistory];
+            }
+
             setHistory(updatedHistory);
             localStorage.setItem('cce_scan_history', JSON.stringify(updatedHistory));
 
@@ -532,6 +573,7 @@ export default function ScanDhsPage() {
             setManualInput('');
             setSearchTerm('');
             setIsCameraActive(false);
+            setCurrentSessionId(null);
             setScanAlert({ type: 'idle', message: 'Masukkan data manifest baru' });
         }
     };
@@ -610,12 +652,31 @@ export default function ScanDhsPage() {
 
     // Load a completed history session for details viewing / printing
     const handleViewHistoryReport = (item: HistoryItem) => {
+        setCurrentSessionId(item.id);
         setSessionType(item.sessionType);
         setDriverName(item.driverName || '');
         setNoPolisi(item.noPolisi || '');
         setManifest(item.manifest);
         setExtraScans(item.extraScans || []);
         setStep('report');
+    };
+
+    // Edit/Resume session scanning from details view
+    const handleEditSession = () => {
+        setStep('scan');
+        setScanAlert({ type: 'idle', message: 'Melanjutkan pemindaian sesi ini.' });
+    };
+
+    // Edit/Resume session scanning directly from history list
+    const handleEditHistorySession = (item: HistoryItem) => {
+        setCurrentSessionId(item.id);
+        setSessionType(item.sessionType);
+        setDriverName(item.driverName || '');
+        setNoPolisi(item.noPolisi || '');
+        setManifest(item.manifest);
+        setExtraScans(item.extraScans || []);
+        setStep('scan');
+        setScanAlert({ type: 'idle', message: 'Melanjutkan pemindaian sesi ini.' });
     };
 
     // Delete a specific history log item
@@ -856,6 +917,12 @@ export default function ScanDhsPage() {
                                                     className="bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold py-2 px-3 rounded-lg border border-slate-700 transition-colors"
                                                 >
                                                     Lihat Laporan
+                                                </button>
+                                                <button 
+                                                    onClick={() => handleEditHistorySession(item)}
+                                                    className="bg-yellow-650/20 hover:bg-yellow-650/30 text-yellow-400 text-xs font-bold py-2 px-3 rounded-lg border border-yellow-800/30 transition-colors"
+                                                >
+                                                    Edit
                                                 </button>
                                                 <button 
                                                     onClick={() => handleCopyHistoryWA(item)}
@@ -1271,6 +1338,13 @@ export default function ScanDhsPage() {
                             >
                                 <Printer size={18} />
                                 Cetak Laporan (A4)
+                            </button>
+                            <button 
+                                onClick={handleEditSession}
+                                className="flex-1 bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-3.5 px-6 rounded-xl flex items-center justify-center gap-2 transition-all hover:scale-[1.01]"
+                            >
+                                <Edit size={18} />
+                                Edit / Lanjutkan Scan
                             </button>
                             <button 
                                 onClick={handleNewSession}
