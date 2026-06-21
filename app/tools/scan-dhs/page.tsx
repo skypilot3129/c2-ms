@@ -36,6 +36,7 @@ interface ManifestItem {
 }
 
 interface ExtraScan {
+    id: string;
     code: string;
     scanTime: string;
 }
@@ -389,7 +390,11 @@ export default function ScanDhsPage() {
         }
 
         // 3. Unlisted item (extra scan)
-        const extraItem: ExtraScan = { code, scanTime: nowStr };
+        const extraItem: ExtraScan = { 
+            id: `extra-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+            code, 
+            scanTime: nowStr 
+        };
         setExtraScans([extraItem, ...extraScans]);
 
         setScanAlert({
@@ -730,6 +735,17 @@ export default function ScanDhsPage() {
             type: 'success',
             message: `Data TO berhasil diperbarui: ${editCode.trim().toUpperCase()}`
         });
+    };
+
+    const handleDeleteExtraScan = (id: string, code: string) => {
+        if (confirm(`Hapus koli selisih lebih: ${code} dari daftar?`)) {
+            const updated = extraScans.filter(item => item.id !== id);
+            setExtraScans(updated);
+            setScanAlert({
+                type: 'success',
+                message: `Berhasil menghapus koli selisih lebih: ${code}`
+            });
+        }
     };
 
     // Delete a specific history log item
@@ -1324,16 +1340,23 @@ export default function ScanDhsPage() {
                                         .filter(item => item.code.toLowerCase().includes(searchTerm.toLowerCase()))
                                         .map((item, idx) => (
                                             <div 
-                                                key={`extra-${idx}`}
+                                                key={item.id || `extra-${idx}`}
                                                 className="p-2.5 rounded-xl border bg-red-950/10 border-red-900/30 text-red-400 flex items-center justify-between"
                                             >
                                                 <div className="flex items-center gap-2">
                                                     <span className="text-[10px] font-bold text-red-700 font-mono w-4">+</span>
                                                     <span className="font-mono font-bold text-xs tracking-wide">{item.code}</span>
                                                 </div>
-                                                <div className="flex items-center gap-2">
+                                                <div className="flex items-center gap-1.5">
                                                     <span className="text-[8px] bg-red-950 border border-red-900 px-2 py-0.5 rounded text-red-400 font-bold font-mono">{item.scanTime}</span>
                                                     <span className="text-[8px] bg-red-600 text-white font-black px-1.5 py-0.5 rounded">LEBIH</span>
+                                                    <button 
+                                                        onClick={() => handleDeleteExtraScan(item.id, item.code)}
+                                                        className="p-1 bg-red-950 hover:bg-red-900/60 border border-red-900/30 hover:border-red-800 text-red-450 hover:text-white rounded-lg transition-all"
+                                                        title="Hapus Koli Lebih"
+                                                    >
+                                                        <Trash2 size={10} />
+                                                    </button>
                                                 </div>
                                             </div>
                                         ))
