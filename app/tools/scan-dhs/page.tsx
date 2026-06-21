@@ -153,18 +153,18 @@ export default function ScanDhsPage() {
         return () => clearTimeout(timer);
     };
 
-    // Auto-focus the input during the scanning step
+    // Auto-focus the input during the scanning step (only if not editing any item)
     useEffect(() => {
-        if (step === 'scan' && inputRef.current) {
+        if (step === 'scan' && inputRef.current && !editingItemId) {
             inputRef.current.focus();
         }
-    }, [step, scanAlert]);
+    }, [step, scanAlert, editingItemId]);
 
     // Handle focus loss: automatically refocus to ensure continuous scanning
     const handleBlur = () => {
-        if (step === 'scan' && !isCameraActive) {
+        if (step === 'scan' && !isCameraActive && !editingItemId) {
             setTimeout(() => {
-                if (inputRef.current) inputRef.current.focus();
+                if (inputRef.current && !editingItemId) inputRef.current.focus();
             }, 100);
         }
     };
