@@ -1,18 +1,31 @@
 'use client';
 
-import { useEffect, useState, Suspense } from 'react';
+import { use, useEffect, useState, useMemo, Suspense } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { subscribeToInvoices } from '@/lib/firestore-invoices';
 import { getTransactionById } from '@/lib/firestore-transactions';
 import type { Invoice } from '@/types/invoice';
 import { formatRupiah } from '@/lib/currency';
 
-function PrintUnpaidInvoicesContent() {
+function PrintUnpaidInvoicesContent({ 
+    searchParams 
+}: { 
+    searchParams: { month?: string } 
+}) {
     const { user } = useAuth();
     const [invoices, setInvoices] = useState<Invoice[]>([]);
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [sttNumbers, setSttNumbers] = useState<Record<string, string>>({});
     const [loading, setLoading] = useState(true);
+
+    const initialMonth = searchParams.month || '';
+    const [selectedMonth, setSelectedMonth] = useState(initialMonth);
+
+    useEffect(() => {
+        if (searchParams.month) {
+            setSelectedMonth(searchParams.month);
+        }
+    }, [searchParams.month]);
 
     useEffect(() => {
         if (!user) return;
@@ -21,15 +34,12 @@ function PrintUnpaidInvoicesContent() {
             // Filter out Paid invoices
             const unpaidInvoices = data.filter(inv => inv.status !== 'Paid');
             
-            // Sort by issue date (oldest first, or newest first?)
-            // Let's sort oldest first to prioritize oldest unpaid
+            // Sort by issue date (oldest first)
             unpaidInvoices.sort((a, b) => new Date(a.issueDate).getTime() - new Date(b.issueDate).getTime());
             
             setInvoices(unpaidInvoices);
-            // Only initialize selectedIds once when first loaded
+            
             if (loading) {
-                setSelectedIds(new Set(unpaidInvoices.map(inv => inv.id)));
-                
                 // Fetch STT numbers for all unpaid invoices
                 const loadSttNumbers = async () => {
                     const mapping: Record<string, string> = {};
@@ -51,16 +61,45 @@ function PrintUnpaidInvoicesContent() {
         });
 
         return () => unsubscribe();
-    }, [user]);
+    }, [user, loading]);
 
-    // Removed auto-print to allow user selection first
+    // Filtered invoices based on selectedMonth
+    const filteredInvoices = useMemo(() => {
+        return invoices.filter(inv => {
+            if (!selectedMonth) return true;
+            const date = new Date(inv.issueDate);
+            const monthStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+            return monthStr === selectedMonth;
+        });
+    }, [invoices, selectedMonth]);
 
-    if (loading) return <div className="p-8 text-center text-gray-500">Memuat data laporan...</div>;
+    // Available months list for dropdown
+    const availableMonths = useMemo(() => {
+        const monthsSet = new Set<string>();
+        invoices.forEach(inv => {
+            const date = new Date(inv.issueDate);
+            const monthStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+            monthsSet.add(monthStr);
+        });
+        return Array.from(monthsSet).sort().reverse().map(m => {
+            const [y, mm] = m.split('-');
+            const date = new Date(parseInt(y), parseInt(mm) - 1);
+            return {
+                value: m,
+                label: date.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })
+            };
+        });
+    }, [invoices]);
 
-    const totalUnpaidAmount = invoices
+    // Update selection when month filter changes or list loads
+    useEffect(() => {
+        setSelectedIds(new Set(filteredInvoices.map(inv => inv.id)));
+    }, [selectedMonth, invoices.length]);
+
+    const totalUnpaidAmount = filteredInvoices
         .filter(inv => selectedIds.has(inv.id))
         .reduce((sum, inv) => sum + inv.totalAmount, 0);
-    const selectedCount = selectedIds.size;
+    const selectedCount = filteredInvoices.filter(inv => selectedIds.has(inv.id)).length;
 
     const toggleSelection = (id: string) => {
         const newSet = new Set(selectedIds);
@@ -70,9 +109,11 @@ function PrintUnpaidInvoicesContent() {
     };
 
     const toggleAll = (checked: boolean) => {
-        if (checked) setSelectedIds(new Set(invoices.map(i => i.id)));
+        if (checked) setSelectedIds(new Set(filteredInvoices.map(i => i.id)));
         else setSelectedIds(new Set());
     };
+
+    if (loading) return <div className="p-8 text-center text-gray-500 font-medium">Memuat data tagihan...</div>;
 
     return (
         <div className="bg-white min-h-screen p-8 text-sm text-gray-800 font-sans">
@@ -84,21 +125,46 @@ function PrintUnpaidInvoicesContent() {
                         <p className="text-gray-500">Cahaya Cargo Express Management System</p>
                     </div>
                     <div className="text-right">
-                        <p className="font-semibold text-gray-600">Tanggal Cetak</p>
+                        <p className="font-semibold text-gray-650">Tanggal Cetak</p>
                         <p className="text-lg font-bold">{new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
                         <p className="text-gray-400 text-xs mt-1">Dicetak oleh: {user?.displayName || user?.email}</p>
                     </div>
                 </div>
 
-                {/* Filter Summary */}
-                <div className="mt-6 flex gap-8 text-sm">
-                    <div>
-                        <span className="text-gray-500 block text-xs uppercase tracking-wider">Status Invoice</span>
-                        <span className="font-semibold uppercase text-red-600">Belum Lunas (Unpaid)</span>
+                {/* Filter Summary & Month Selection */}
+                <div className="mt-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-t border-gray-150 pt-4">
+                    <div className="flex flex-wrap gap-8 text-sm">
+                        <div>
+                            <span className="text-gray-500 block text-xs uppercase tracking-wider">Status Invoice</span>
+                            <span className="font-semibold uppercase text-red-600">Belum Lunas (Unpaid)</span>
+                        </div>
+                        {selectedMonth && (
+                            <div>
+                                <span className="text-gray-500 block text-xs uppercase tracking-wider">Bulan Tagihan</span>
+                                <span className="font-bold text-blue-650">
+                                    {availableMonths.find(m => m.value === selectedMonth)?.label || selectedMonth}
+                                </span>
+                            </div>
+                        )}
+                        <div>
+                            <span className="text-gray-500 block text-xs uppercase tracking-wider">Total Dokumen</span>
+                            <span className="font-semibold">{selectedCount} dari {filteredInvoices.length} Invoice</span>
+                        </div>
                     </div>
-                    <div>
-                        <span className="text-gray-500 block text-xs uppercase tracking-wider">Total Dokumen</span>
-                        <span className="font-semibold">{selectedCount} dari {invoices.length} Invoice</span>
+                    
+                    {/* Month selector dropdown (hidden in print) */}
+                    <div className="print:hidden flex items-center gap-2 bg-gray-50 px-3.5 py-2 rounded-xl border border-gray-200 shadow-sm">
+                        <span className="text-gray-600 font-bold text-xs uppercase tracking-wider">Filter Bulan:</span>
+                        <select
+                            value={selectedMonth}
+                            onChange={(e) => setSelectedMonth(e.target.value)}
+                            className="px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 font-semibold text-gray-700 cursor-pointer"
+                        >
+                            <option value="">Semua Bulan</option>
+                            {availableMonths.map(m => (
+                                <option key={m.value} value={m.value}>{m.label}</option>
+                            ))}
+                        </select>
                     </div>
                 </div>
             </div>
@@ -110,7 +176,7 @@ function PrintUnpaidInvoicesContent() {
                         <th className="py-3 font-bold uppercase text-xs tracking-wider w-10 text-center print:hidden">
                             <input 
                                 type="checkbox" 
-                                checked={selectedIds.size === invoices.length && invoices.length > 0} 
+                                checked={filteredInvoices.length > 0 && filteredInvoices.every(inv => selectedIds.has(inv.id))} 
                                 onChange={(e) => toggleAll(e.target.checked)}
                                 className="w-4 h-4 cursor-pointer"
                             />
@@ -125,13 +191,12 @@ function PrintUnpaidInvoicesContent() {
                     </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
-                    {invoices.length === 0 ? (
+                    {filteredInvoices.length === 0 ? (
                         <tr>
-                            <td colSpan={7} className="py-8 text-center text-gray-500 italic">Tidak ada invoice yang belum dilunasi.</td>
+                            <td colSpan={8} className="py-8 text-center text-gray-500 italic">Tidak ada invoice yang belum dilunasi.</td>
                         </tr>
                     ) : (
-                        invoices.map((inv, index) => {
-                            // Calculate if overdue
+                        filteredInvoices.map((inv, index) => {
                             const isOverdue = new Date(inv.dueDate).getTime() < new Date().getTime();
                             const isSelected = selectedIds.has(inv.id);
                             
@@ -155,7 +220,7 @@ function PrintUnpaidInvoicesContent() {
                                         <div className="font-bold">{inv.clientName}</div>
                                     </td>
                                     <td className="py-3 text-center">
-                                        <span className={`inline-block px-2 py-0.5 rounded text-[10px] uppercase font-bold text-white bg-red-500`}>
+                                        <span className="inline-block px-2 py-0.5 rounded text-[10px] uppercase font-bold text-white bg-red-500">
                                             {inv.status}
                                         </span>
                                     </td>
@@ -166,7 +231,7 @@ function PrintUnpaidInvoicesContent() {
                     )}
                     
                     {/* Grand Total */}
-                    {invoices.length > 0 && (
+                    {filteredInvoices.length > 0 && (
                         <tr className="bg-gray-50 border-t-2 border-gray-800">
                             <td className="print:hidden"></td>
                             <td colSpan={6} className="py-4 text-right pr-4 uppercase text-sm tracking-wider font-bold">Total Piutang Belum Lunas</td>
@@ -179,11 +244,11 @@ function PrintUnpaidInvoicesContent() {
             <div className="mt-12 pt-8 border-t border-gray-200 flex justify-between items-end text-xs text-gray-500">
                 <div>
                     <p>Dicetak melalui C2-MS System</p>
-                    <p>{new Date().toLocaleString('id-ID')}</p>
+                    <p>{new Date().toLocaleString('id-ID')} WIB</p>
                 </div>
                 <div className="text-center w-40">
                     <div className="h-16 mb-2 border-b border-gray-300"></div>
-                    <p className="font-semibold">Finance / Admin</p>
+                    <p className="font-semibold text-gray-700">Finance / Admin</p>
                 </div>
             </div>
 
@@ -200,10 +265,13 @@ function PrintUnpaidInvoicesContent() {
     );
 }
 
-export default function PrintUnpaidInvoicesPage() {
+export default function PrintUnpaidInvoicesPage(props: {
+    searchParams: Promise<{ month?: string }>
+}) {
+    const searchParams = use(props.searchParams);
     return (
-        <Suspense fallback={<div>Loading...</div>}>
-            <PrintUnpaidInvoicesContent />
+        <Suspense fallback={<div className="p-8 text-center text-gray-500 font-medium">Memuat halaman cetak...</div>}>
+            <PrintUnpaidInvoicesContent searchParams={searchParams} />
         </Suspense>
     );
 }

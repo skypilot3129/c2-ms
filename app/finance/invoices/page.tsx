@@ -186,7 +186,7 @@ export default function InvoicesPage() {
                     </div>
                     <div className="flex flex-wrap gap-2">
                         <Link
-                            href="/finance/invoices/print-unpaid"
+                            href={`/finance/invoices/print-unpaid${dateFilter ? `?month=${dateFilter}` : ''}`}
                             target="_blank"
                             className="bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 px-4 py-2.5 rounded-xl font-medium flex items-center justify-center gap-2 transition-all active:scale-95"
                         >
