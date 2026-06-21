@@ -8,12 +8,27 @@ import type { Invoice } from '@/types/invoice';
 import { formatRupiah, terbilang } from '@/lib/currency';
 import { COMPANY_INFO } from '@/lib/company-config';
 
+interface ManualRow {
+    id: string;
+    invoiceNumber: string;
+    issueDate: Date;
+    noSTT?: string;
+    totalAmount: number;
+}
+
 function PrintRekapContent() {
     const { user } = useAuth();
     const [invoices, setInvoices] = useState<Invoice[]>([]);
     const [sttNumbers, setSttNumbers] = useState<Record<string, string>>({});
     const [loading, setLoading] = useState(true);
     const [selectedClient, setSelectedClient] = useState<string>('');
+
+    // State for manual invoice addition
+    const [manualRows, setManualRows] = useState<ManualRow[]>([]);
+    const [formNoInv, setFormNoInv] = useState('');
+    const [formTglInv, setFormTglInv] = useState('');
+    const [formNoSTT, setFormNoSTT] = useState('');
+    const [formTotalTagihan, setFormTotalTagihan] = useState('');
 
     useEffect(() => {
         if (!user) return;
@@ -46,6 +61,11 @@ function PrintRekapContent() {
         return () => unsubscribe();
     }, [user, loading]);
 
+    // Reset manual rows when selected customer changes
+    useEffect(() => {
+        setManualRows([]);
+    }, [selectedClient]);
+
     const clients = useMemo(() => {
         const uniqueClients = new Set(invoices.map(inv => inv.clientName));
         return Array.from(uniqueClients).sort();
@@ -56,9 +76,59 @@ function PrintRekapContent() {
         return invoices.filter(inv => inv.clientName === selectedClient);
     }, [invoices, selectedClient]);
 
-    const totalAmount = clientInvoices.reduce((sum, inv) => sum + inv.totalAmount, 0);
+    // Combine standard invoices and manual rows
+    const combinedInvoices = useMemo(() => {
+        const standardInvoices = clientInvoices.map(inv => ({
+            id: inv.id,
+            invoiceNumber: inv.invoiceNumber,
+            issueDate: new Date(inv.issueDate),
+            noSTT: sttNumbers[inv.id] || '-',
+            totalAmount: inv.totalAmount,
+            isManual: false
+        }));
 
-    if (loading) return <div className="p-8 text-center text-gray-500">Memuat data rekap...</div>;
+        const customInvoices = manualRows.map(row => ({
+            id: row.id,
+            invoiceNumber: row.invoiceNumber,
+            issueDate: new Date(row.issueDate),
+            noSTT: row.noSTT || '-',
+            totalAmount: row.totalAmount,
+            isManual: true
+        }));
+
+        return [...standardInvoices, ...customInvoices];
+    }, [clientInvoices, manualRows, sttNumbers]);
+
+    const totalAmount = useMemo(() => {
+        return combinedInvoices.reduce((sum, inv) => sum + inv.totalAmount, 0);
+    }, [combinedInvoices]);
+
+    const handleAddManualRow = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!formNoInv || !formTglInv || !formTotalTagihan) return;
+
+        const newRow: ManualRow = {
+            id: `manual-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            invoiceNumber: formNoInv,
+            issueDate: new Date(formTglInv),
+            noSTT: formNoSTT,
+            totalAmount: parseFloat(formTotalTagihan)
+        };
+
+        setManualRows([...manualRows, newRow]);
+
+        // Reset form
+        setFormNoInv('');
+        setFormTglInv('');
+        setFormNoSTT('');
+        setFormTotalTagihan('');
+    };
+
+    const removeManualRow = (id: string) => {
+        setManualRows(manualRows.filter(row => row.id !== id));
+    };
+
+    if (loading) return <div className="p-8 text-center text-gray-500 font-medium">Memuat data rekap...</div>;
 
     return (
         <div className="bg-gray-100 min-h-screen font-sans">
@@ -75,39 +145,101 @@ function PrintRekapContent() {
             `}} />
 
             {/* Print & Selection Controls (Hidden in Print) */}
-            <div className="no-print bg-white p-6 shadow-sm mb-6 flex flex-wrap gap-4 items-end border-b border-gray-200 sticky top-0 z-50">
-                <div className="flex-1 min-w-[300px]">
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">Pilih Customer untuk Direkap:</label>
-                    <select 
-                        className="w-full border border-gray-300 rounded-lg p-2.5 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                        value={selectedClient}
-                        onChange={(e) => setSelectedClient(e.target.value)}
-                    >
-                        <option value="">-- Pilih Customer --</option>
-                        {clients.map(c => (
-                            <option key={c} value={c}>{c}</option>
-                        ))}
-                    </select>
+            <div className="no-print bg-white p-6 shadow-sm mb-6 border-b border-gray-200 sticky top-0 z-50">
+                <div className="flex flex-wrap gap-6 items-end justify-between">
+                    <div className="flex-1 min-w-[300px]">
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Pilih Customer untuk Direkap:</label>
+                        <select 
+                            className="w-full border border-gray-300 rounded-lg p-2.5 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 font-semibold text-gray-700"
+                            value={selectedClient}
+                            onChange={(e) => setSelectedClient(e.target.value)}
+                        >
+                            <option value="">-- Pilih Customer --</option>
+                            {clients.map(c => (
+                                <option key={c} value={c}>{c}</option>
+                            ))}
+                        </select>
+                    </div>
+                    <div className="flex gap-2">
+                        <button 
+                            onClick={() => window.print()}
+                            disabled={!selectedClient || combinedInvoices.length === 0}
+                            className="bg-blue-600 text-white px-6 py-2.5 rounded-lg font-bold hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                        >
+                            🖨️ Cetak Rekap
+                        </button>
+                        <button 
+                            onClick={() => window.close()}
+                            className="bg-gray-500 text-white px-6 py-2.5 rounded-lg font-bold hover:bg-gray-600 transition-colors"
+                        >
+                            ✕ Tutup
+                        </button>
+                    </div>
                 </div>
-                <div className="flex gap-2">
-                    <button 
-                        onClick={() => window.print()}
-                        disabled={!selectedClient || clientInvoices.length === 0}
-                        className="bg-blue-600 text-white px-6 py-2.5 rounded-lg font-bold hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                    >
-                        🖨️ Cetak Rekap
-                    </button>
-                    <button 
-                        onClick={() => window.close()}
-                        className="bg-gray-500 text-white px-6 py-2.5 rounded-lg font-bold hover:bg-gray-600 transition-colors"
-                    >
-                        ✕ Tutup
-                    </button>
-                </div>
+
+                {/* Manual row addition form (shows only when a client is selected) */}
+                {selectedClient && (
+                    <div className="mt-6 pt-6 border-t border-gray-150">
+                        <h4 className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-3">Tambah Data Tagihan Manual (Sementara/Kustom)</h4>
+                        <form onSubmit={handleAddManualRow} className="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
+                            <div>
+                                <label className="block text-xs font-semibold text-gray-650 mb-1">No. Invoice:</label>
+                                <input
+                                    type="text"
+                                    required
+                                    placeholder="Contoh: INV/2026/001"
+                                    value={formNoInv}
+                                    onChange={(e) => setFormNoInv(e.target.value)}
+                                    className="w-full border border-gray-300 rounded-lg p-2 text-xs outline-none focus:border-blue-500 text-gray-700"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-semibold text-gray-650 mb-1">Tanggal Invoice:</label>
+                                <input
+                                    type="date"
+                                    required
+                                    value={formTglInv}
+                                    onChange={(e) => setFormTglInv(e.target.value)}
+                                    className="w-full border border-gray-300 rounded-lg p-2 text-xs outline-none focus:border-blue-500 text-gray-700"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-semibold text-gray-650 mb-1">Nomor STT (Opsional):</label>
+                                <input
+                                    type="text"
+                                    placeholder="Contoh: 12345, 12346"
+                                    value={formNoSTT}
+                                    onChange={(e) => setFormNoSTT(e.target.value)}
+                                    className="w-full border border-gray-300 rounded-lg p-2 text-xs outline-none focus:border-blue-500 text-gray-700"
+                                />
+                            </div>
+                            <div className="flex gap-2">
+                                <div className="flex-1">
+                                    <label className="block text-xs font-semibold text-gray-650 mb-1">Total Tagihan (Rp):</label>
+                                    <input
+                                        type="number"
+                                        required
+                                        min="0"
+                                        placeholder="Contoh: 1500000"
+                                        value={formTotalTagihan}
+                                        onChange={(e) => setFormTotalTagihan(e.target.value)}
+                                        className="w-full border border-gray-300 rounded-lg p-2 text-xs outline-none focus:border-blue-500 font-mono font-bold text-gray-700"
+                                    />
+                                </div>
+                                <button
+                                    type="submit"
+                                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-2.5 px-4 rounded-lg active:scale-95 transition-all h-[36px]"
+                                >
+                                    + Tambah
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                )}
             </div>
 
             {/* A4 Document Area */}
-            {selectedClient && clientInvoices.length > 0 ? (
+            {selectedClient && combinedInvoices.length > 0 ? (
                 <div className="a4-page bg-white mx-auto shadow-xl" style={{ width: '210mm', minHeight: '297mm', padding: '10mm 15mm' }}>
                     {/* Header */}
                     <div className="flex justify-between items-start mb-6 border-b-2 border-black pb-4">
@@ -143,7 +275,7 @@ function PrintRekapContent() {
                                     <tr>
                                         <td className="pr-4 text-gray-600">Total Invoice</td>
                                         <td>:</td>
-                                        <td className="font-bold pl-2">{clientInvoices.length} Dokumen</td>
+                                        <td className="font-bold pl-2">{combinedInvoices.length} Dokumen</td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -162,19 +294,30 @@ function PrintRekapContent() {
                             </tr>
                         </thead>
                         <tbody>
-                            {clientInvoices.map((inv, idx) => (
+                            {combinedInvoices.map((inv, idx) => (
                                 <tr key={inv.id}>
                                     <td className="text-center">{idx + 1}</td>
                                     <td className="font-mono font-bold text-center">{inv.invoiceNumber}</td>
-                                    <td className="text-center">{new Date(inv.issueDate).toLocaleDateString('id-ID')}</td>
+                                    <td className="text-center">{inv.issueDate.toLocaleDateString('id-ID')}</td>
                                     <td className="font-mono text-xs max-w-[200px] break-words">
-                                        {sttNumbers[inv.id] || '-'}
+                                        <div className="flex justify-between items-center">
+                                            <span>{inv.noSTT}</span>
+                                            {inv.isManual && (
+                                                <button
+                                                    onClick={() => removeManualRow(inv.id)}
+                                                    className="no-print text-red-650 hover:text-red-800 hover:bg-red-50 border border-red-200 rounded px-1.5 py-0.5 text-[8px] font-bold transition-all active:scale-95 cursor-pointer ml-2"
+                                                    title="Hapus baris manual ini"
+                                                >
+                                                    Hapus
+                                                </button>
+                                            )}
+                                        </div>
                                     </td>
                                     <td className="text-right font-bold pr-2">{formatRupiah(inv.totalAmount)}</td>
                                 </tr>
                             ))}
                             {/* Empty padding rows to make it look formal */}
-                            {clientInvoices.length < 5 && Array.from({ length: 5 - clientInvoices.length }).map((_, i) => (
+                            {combinedInvoices.length < 5 && Array.from({ length: 5 - combinedInvoices.length }).map((_, i) => (
                                 <tr key={`empty-${i}`} style={{ height: '8mm' }}>
                                     <td></td><td></td><td></td><td></td><td></td>
                                 </tr>
@@ -228,7 +371,7 @@ function PrintRekapContent() {
 
 export default function PrintRekapPage() {
     return (
-        <Suspense fallback={<div className="p-8 text-center">Loading...</div>}>
+        <Suspense fallback={<div className="p-8 text-center font-medium text-gray-500">Loading...</div>}>
             <PrintRekapContent />
         </Suspense>
     );
