@@ -80,6 +80,15 @@ export default function ScanDhsPage() {
     const [searchTerm, setSearchTerm] = useState<string>('');
     const [history, setHistory] = useState<HistoryItem[]>([]);
     const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+    
+    // Inline item edit states
+    const [editingItemId, setEditingItemId] = useState<string | null>(null);
+    const [editCode, setEditCode] = useState<string>('');
+    const [editJmlh, setEditJmlh] = useState<string>('');
+    const [editBerat, setEditBerat] = useState<string>('');
+    const [editToType, setEditToType] = useState<string>('');
+    const [editDgType, setEditDgType] = useState<string>('');
+
     const [showRecoveryModal, setShowRecoveryModal] = useState<boolean>(false);
     const [pendingRecovery, setPendingRecovery] = useState<any>(null);
     
@@ -679,6 +688,50 @@ export default function ScanDhsPage() {
         setScanAlert({ type: 'idle', message: 'Melanjutkan pemindaian sesi ini.' });
     };
 
+    // Inline item editing helper functions
+    const handleStartEditItem = (item: ManifestItem) => {
+        setEditingItemId(item.id);
+        setEditCode(item.code);
+        setEditJmlh(item.jmlhPaket !== undefined ? item.jmlhPaket.toString() : '');
+        setEditBerat(item.berat !== undefined ? item.berat.toString() : '');
+        setEditToType(item.toType || '');
+        setEditDgType(item.dgType || '');
+    };
+
+    const handleCancelEditItem = () => {
+        setEditingItemId(null);
+    };
+
+    const handleSaveEditItem = (itemId: string) => {
+        if (!editCode.trim()) {
+            alert('Nomor TO tidak boleh kosong!');
+            return;
+        }
+
+        const updated = manifest.map(item => {
+            if (item.id === itemId) {
+                const jmlh = editJmlh.trim() ? parseInt(editJmlh, 10) : undefined;
+                const berat = editBerat.trim() ? parseFloat(editBerat.replace(/,/g, '.')) : undefined;
+                return {
+                    ...item,
+                    code: editCode.trim().toUpperCase(),
+                    jmlhPaket: (jmlh !== undefined && !isNaN(jmlh)) ? jmlh : undefined,
+                    berat: (berat !== undefined && !isNaN(berat)) ? berat : undefined,
+                    toType: editToType.trim() || undefined,
+                    dgType: editDgType.trim() || undefined
+                };
+            }
+            return item;
+        });
+
+        setManifest(updated);
+        setEditingItemId(null);
+        setScanAlert({
+            type: 'success',
+            message: `Data TO berhasil diperbarui: ${editCode.trim().toUpperCase()}`
+        });
+    };
+
     // Delete a specific history log item
     const handleDeleteHistoryItem = (id: string) => {
         if (confirm("Hapus item riwayat ini?")) {
@@ -1125,50 +1178,145 @@ export default function ScanDhsPage() {
                                             Tidak ada hasil pencocokan kode TO
                                         </div>
                                     ) : (
-                                        filteredManifest.map((item, idx) => (
-                                            <div 
-                                                key={item.id} 
-                                                className={`p-2.5 rounded-xl border flex items-center justify-between transition-all ${
-                                                    item.status === 'scanned' 
-                                                        ? 'bg-emerald-950/10 border-emerald-900/30 text-emerald-400' 
-                                                        : 'bg-slate-900/40 border-slate-800/80 text-slate-400'
-                                                }`}
-                                            >
-                                                <div className="flex flex-col gap-0.5">
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="text-[10px] font-bold text-slate-650 font-mono w-4">{idx + 1}.</span>
-                                                        <span className="font-mono font-bold text-xs tracking-wide">{item.code}</span>
-                                                    </div>
-                                                    {(item.jmlhPaket !== undefined || item.berat !== undefined || item.toType || item.dgType) && (
-                                                        <div className="flex flex-wrap gap-x-2 gap-y-0.5 text-[9px] text-slate-500 font-medium pl-6">
-                                                            {item.jmlhPaket !== undefined && <span>{item.jmlhPaket} Pkt</span>}
-                                                            {item.berat !== undefined && <span>{item.berat} kg</span>}
-                                                            {item.toType && <span className="bg-slate-800/50 px-1 rounded text-[8px]">{item.toType}</span>}
-                                                            {item.dgType && <span className="bg-slate-800/50 px-1 rounded text-[8px]">{item.dgType}</span>}
+                                        filteredManifest.map((item, idx) => {
+                                            if (item.id === editingItemId) {
+                                                return (
+                                                    <div 
+                                                        key={item.id} 
+                                                        className="p-3.5 bg-slate-900 border-2 border-yellow-600/70 rounded-2xl flex flex-col gap-2.5 shadow-xl transition-all"
+                                                    >
+                                                        <div className="text-[10px] font-bold text-yellow-400 uppercase tracking-widest flex justify-between items-center">
+                                                            <span>Edit Data TO #{idx + 1}</span>
+                                                            <span className="font-mono text-slate-500">{item.code}</span>
                                                         </div>
-                                                    )}
-                                                </div>
-                                                <div className="flex items-center gap-2">
-                                                    {item.status === 'scanned' ? (
-                                                        <>
-                                                            <span className="text-[8px] bg-emerald-950 border border-emerald-900 px-2 py-0.5 rounded text-emerald-400 font-bold font-mono">{item.scanTime}</span>
-                                                            <Check size={14} className="text-emerald-400" />
-                                                        </>
-                                                    ) : (
-                                                        <div className="flex items-center gap-1.5">
-                                                            <span className="text-[8px] bg-slate-800 border border-slate-700 px-2 py-0.5 rounded text-slate-550 font-bold font-mono">PENDING</span>
+                                                        <div className="grid grid-cols-2 gap-2 text-xs">
+                                                            <div className="flex flex-col gap-1 col-span-2">
+                                                                <label className="text-[9px] font-bold text-slate-400 uppercase">Nomor TO</label>
+                                                                <input 
+                                                                    type="text" 
+                                                                    value={editCode}
+                                                                    onChange={(e) => setEditCode(e.target.value.toUpperCase())}
+                                                                    className="bg-slate-950 border border-slate-800 focus:border-yellow-600 rounded-lg px-2.5 py-1.5 font-mono text-white outline-none transition-all"
+                                                                />
+                                                            </div>
+                                                            <div className="flex flex-col gap-1">
+                                                                <label className="text-[9px] font-bold text-slate-400 uppercase">Jmlh Paket</label>
+                                                                <input 
+                                                                    type="number" 
+                                                                    value={editJmlh}
+                                                                    onChange={(e) => setEditJmlh(e.target.value)}
+                                                                    className="bg-slate-950 border border-slate-800 focus:border-yellow-600 rounded-lg px-2.5 py-1.5 text-white outline-none transition-all"
+                                                                    placeholder="30"
+                                                                />
+                                                            </div>
+                                                            <div className="flex flex-col gap-1">
+                                                                <label className="text-[9px] font-bold text-slate-400 uppercase">Berat (kg)</label>
+                                                                <input 
+                                                                    type="text" 
+                                                                    value={editBerat}
+                                                                    onChange={(e) => setEditBerat(e.target.value)}
+                                                                    className="bg-slate-950 border border-slate-800 focus:border-yellow-600 rounded-lg px-2.5 py-1.5 text-white outline-none transition-all"
+                                                                    placeholder="18.330"
+                                                                />
+                                                            </div>
+                                                            <div className="flex flex-col gap-1">
+                                                                <label className="text-[9px] font-bold text-slate-400 uppercase">TO Type</label>
+                                                                <input 
+                                                                    type="text" 
+                                                                    value={editToType}
+                                                                    onChange={(e) => setEditToType(e.target.value)}
+                                                                    className="bg-slate-950 border border-slate-800 focus:border-yellow-600 rounded-lg px-2.5 py-1.5 text-white outline-none transition-all"
+                                                                    placeholder="Bag"
+                                                                />
+                                                            </div>
+                                                            <div className="flex flex-col gap-1">
+                                                                <label className="text-[9px] font-bold text-slate-400 uppercase">DG Type</label>
+                                                                <input 
+                                                                    type="text" 
+                                                                    value={editDgType}
+                                                                    onChange={(e) => setEditDgType(e.target.value)}
+                                                                    className="bg-slate-950 border border-slate-800 focus:border-yellow-600 rounded-lg px-2.5 py-1.5 text-white outline-none transition-all"
+                                                                    placeholder="Non-DG"
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                        <div className="flex gap-2 justify-end pt-1 border-t border-slate-800/60 mt-1">
                                                             <button 
-                                                                onClick={() => handleManualBypass(item.id)}
-                                                                className="p-1 bg-blue-600/20 hover:bg-blue-650 border border-blue-500/30 hover:border-blue-500 text-blue-400 hover:text-white rounded-lg transition-all"
-                                                                title="Verifikasi Manual (Bypass)"
+                                                                onClick={handleCancelEditItem}
+                                                                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-750 text-slate-300 text-xs font-bold rounded-lg transition-colors"
                                                             >
-                                                                <Check size={10} />
+                                                                Batal
+                                                            </button>
+                                                            <button 
+                                                                onClick={() => handleSaveEditItem(item.id)}
+                                                                className="px-3 py-1.5 bg-yellow-600 hover:bg-yellow-700 text-white text-xs font-bold rounded-lg transition-colors"
+                                                            >
+                                                                Simpan
                                                             </button>
                                                         </div>
-                                                    )}
+                                                    </div>
+                                                );
+                                            }
+
+                                            return (
+                                                <div 
+                                                    key={item.id} 
+                                                    className={`p-2.5 rounded-xl border flex items-center justify-between transition-all ${
+                                                        item.status === 'scanned' 
+                                                            ? 'bg-emerald-950/10 border-emerald-900/30 text-emerald-400' 
+                                                            : 'bg-slate-900/40 border-slate-800/80 text-slate-400'
+                                                    }`}
+                                                >
+                                                    <div className="flex flex-col gap-0.5">
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="text-[10px] font-bold text-slate-650 font-mono w-4">{idx + 1}.</span>
+                                                            <span className="font-mono font-bold text-xs tracking-wide">{item.code}</span>
+                                                        </div>
+                                                        {(item.jmlhPaket !== undefined || item.berat !== undefined || item.toType || item.dgType) && (
+                                                            <div className="flex flex-wrap gap-x-2 gap-y-0.5 text-[9px] text-slate-500 font-medium pl-6">
+                                                                {item.jmlhPaket !== undefined && <span>{item.jmlhPaket} Pkt</span>}
+                                                                {item.berat !== undefined && <span>{item.berat} kg</span>}
+                                                                {item.toType && <span className="bg-slate-800/50 px-1 rounded text-[8px]">{item.toType}</span>}
+                                                                {item.dgType && <span className="bg-slate-800/50 px-1 rounded text-[8px]">{item.dgType}</span>}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        {item.status === 'scanned' ? (
+                                                            <div className="flex items-center gap-1.5">
+                                                                <span className="text-[8px] bg-emerald-950 border border-emerald-900 px-2 py-0.5 rounded text-emerald-400 font-bold font-mono">{item.scanTime}</span>
+                                                                <button 
+                                                                    onClick={() => handleStartEditItem(item)}
+                                                                    className="p-1 bg-slate-850 hover:bg-slate-750 border border-slate-750 text-slate-350 hover:text-white rounded-lg transition-all"
+                                                                    title="Edit Data TO"
+                                                                >
+                                                                    <Edit size={10} />
+                                                                </button>
+                                                                <Check size={14} className="text-emerald-400" />
+                                                            </div>
+                                                        ) : (
+                                                            <div className="flex items-center gap-1.5">
+                                                                <span className="text-[8px] bg-slate-800 border border-slate-700 px-2 py-0.5 rounded text-slate-550 font-bold font-mono">PENDING</span>
+                                                                <button 
+                                                                    onClick={() => handleStartEditItem(item)}
+                                                                    className="p-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 rounded-lg transition-all"
+                                                                    title="Edit Data TO"
+                                                                >
+                                                                    <Edit size={10} />
+                                                                </button>
+                                                                <button 
+                                                                    onClick={() => handleManualBypass(item.id)}
+                                                                    className="p-1 bg-blue-600/20 hover:bg-blue-650 border border-blue-500/30 hover:border-blue-500 text-blue-400 hover:text-white rounded-lg transition-all"
+                                                                    title="Verifikasi Manual (Bypass)"
+                                                                >
+                                                                    <Check size={10} />
+                                                                </button>
+                                                            </div>
+                                                        )}
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        ))
+                                            );
+                                        })
                                     )}
 
                                     {/* Display extra scans if any and if it matches search term */}
