@@ -1510,59 +1510,63 @@ export default function ScanDhsPage() {
                         
                         {/* Printable Report Panel */}
                         <div id="print-dhs-report" className="bg-slate-950 border border-slate-800 rounded-3xl p-6 md:p-8 shadow-2xl space-y-6 text-white max-w-4xl mx-auto">
-                             <div className={isPrintingOnlyBa ? 'print-ba-only-hide space-y-6' : 'space-y-6'}>
-                                 {/* Kop Surat */}
-                                 <div className="flex flex-col md:flex-row items-center justify-between border-b-4 border-double border-slate-800 pb-4 mb-6 gap-4">
-                                     <div className="flex items-center gap-4">
-                                         <img src="/logo.png" alt="Logo" className="w-16 h-16 object-contain" />
-                                         <div>
-                                             <h1 className="text-xl font-black tracking-wide text-white uppercase font-sans">CV. CAHAYA CARGO EXPRESS</h1>
-                                             <p className="text-[10px] text-slate-400 font-semibold leading-relaxed">
-                                                 JASA PENGIRIMAN BARANG DOMESTIK &amp; LOGISTIK TERINTEGRASI
-                                             </p>
-                                         </div>
-                                     </div>
-                                     <div className="text-right text-[9px] text-slate-400 space-y-0.5 leading-tight font-medium max-w-md">
-                                         <p><strong className="text-slate-300">Surabaya (Pusat):</strong> Jl. Kemudi No. 4, Surabaya | Telp: 081 337 878 138</p>
-                                         <p><strong className="text-slate-300">Makassar:</strong> Jl. Irian No. 245 B, Makassar | Telp: 0852 4228 0396</p>
-                                         <p><strong className="text-slate-300">Bandung:</strong> Jl. Terusan Buah Batu No. 200, Bandung | Telp: 0813-2469-8260</p>
-                                     </div>
-                                 </div>
+                            <div className={isPrintingOnlyBa ? 'print-ba-only-hide space-y-5' : 'space-y-5'}>
+                                {/* Kop Surat */}
+                                <div className="w-full flex items-center gap-4 border-b-[3px] border-double border-slate-700 pb-4 mb-2">
+                                    <img src="/logo.png" alt="Logo" className="w-[20mm] h-[20mm] object-contain flex-shrink-0" />
+                                    <div className="flex-1">
+                                        <h1 className="text-xl md:text-2xl font-extrabold text-white tracking-wider font-serif">CV. CAHAYA CARGO EXPRESS</h1>
+                                        <p className="text-[7.5pt] font-semibold tracking-wider text-slate-400 uppercase -mt-0.5">
+                                            Jasa Pengiriman Barang - Domestik &amp; Internasional
+                                        </p>
+                                        <div className="grid grid-cols-3 gap-3 mt-2 text-[6.5pt] text-slate-400 leading-tight">
+                                            <div>
+                                                <strong className="text-slate-300">SURABAYA (Pusat):</strong>
+                                                <p>Jl. Kemudi No. 4, Surabaya</p>
+                                                <p>Telp: 081 337 878 138</p>
+                                            </div>
+                                            <div>
+                                                <strong className="text-slate-300">MAKASSAR:</strong>
+                                                <p>Jl. Irian No. 245 B, Makassar</p>
+                                                <p>Telp: 0852 4228 0396</p>
+                                            </div>
+                                            <div>
+                                                <strong className="text-slate-300">BANDUNG:</strong>
+                                                <p>Jl. Gandasari (PS Sentra Bisnis Warlob) G 1, Bandung</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
 
-                                 {/* Document Head */}
-                                 <div className="w-full flex justify-between items-start pb-2">
-                                     <div className="space-y-1">
-                                         <h2 className="text-base font-bold tracking-wide uppercase text-blue-400">
-                                             LAPORAN HASIL PEMINDAIAN BARCODE DHS
-                                         </h2>
-                                         <p className="text-xs text-slate-500">
-                                             Tanggal Sesi: {new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
-                                         </p>
-                                     </div>
-                                     <span className="text-xs font-black bg-blue-600 px-3.5 py-1.5 rounded-lg border border-blue-500 uppercase tracking-wider">
-                                         {sessionType}
-                                     </span>
-                                 </div>
+                                {/* Document Title */}
+                                <div className="text-center mb-2">
+                                    <h2 className="text-sm font-extrabold tracking-[3px] uppercase text-white underline underline-offset-4 decoration-slate-700">
+                                        LAPORAN HASIL PEMINDAIAN BARCODE DHS
+                                    </h2>
+                                    <p className="text-[10px] text-slate-500 mt-1">
+                                        Tanggal: {new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                                    </p>
+                                </div>
 
-                            {/* Session Information Details */}
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-slate-900 rounded-2xl border border-slate-800 text-xs">
-                                <div>
-                                    <span className="text-slate-400 uppercase font-semibold">Tipe Operasi</span>
-                                    <p className="font-bold text-sm text-white mt-0.5">{sessionType} KOLI</p>
+                                {/* Session Information Details */}
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 p-3 bg-slate-900/80 rounded-xl border border-slate-800 text-[10px]">
+                                    <div>
+                                        <span className="text-slate-500 uppercase font-bold text-[8px] tracking-wider">Tipe Operasi</span>
+                                        <p className="font-bold text-xs text-white mt-0.5">{sessionType} KOLI</p>
+                                    </div>
+                                    <div>
+                                        <span className="text-slate-500 uppercase font-bold text-[8px] tracking-wider">Nama Driver</span>
+                                        <p className="font-bold text-xs text-white mt-0.5">{driverName.toUpperCase() || '-'}</p>
+                                    </div>
+                                    <div>
+                                        <span className="text-slate-500 uppercase font-bold text-[8px] tracking-wider">No. Polisi (Plat)</span>
+                                        <p className="font-bold text-xs text-white mt-0.5">{noPolisi.toUpperCase() || '-'}</p>
+                                    </div>
+                                    <div>
+                                        <span className="text-slate-500 uppercase font-bold text-[8px] tracking-wider">Status Penyelesaian</span>
+                                        <p className="font-bold text-xs text-white mt-0.5">{scanPercentage}% Selesai</p>
+                                    </div>
                                 </div>
-                                <div>
-                                    <span className="text-slate-400 uppercase font-semibold">Nama Driver</span>
-                                    <p className="font-bold text-sm text-white mt-0.5">{driverName.toUpperCase() || '-'}</p>
-                                </div>
-                                <div>
-                                    <span className="text-slate-400 uppercase font-semibold">No. Polisi (Plat)</span>
-                                    <p className="font-bold text-sm text-white mt-0.5">{noPolisi.toUpperCase() || '-'}</p>
-                                </div>
-                                <div>
-                                    <span className="text-slate-400 uppercase font-semibold">Status Penyelesaian</span>
-                                    <p className="font-bold text-sm text-white mt-0.5">{scanPercentage}% Selesai</p>
-                                </div>
-                            </div>
 
                             {/* Statistics Cards */}
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
@@ -1651,28 +1655,37 @@ export default function ScanDhsPage() {
                             {baCreated && (
                                 <div className={isPrintingOnlyBa ? 'space-y-6' : 'page-break pt-8 mt-8 border-t-2 border-dashed border-slate-800 space-y-6'}>
                                     {/* Kop Surat */}
-                                    <div className="flex flex-col md:flex-row items-center justify-between border-b-4 border-double border-slate-800 pb-4 mb-6 gap-4">
-                                        <div className="flex items-center gap-4">
-                                            <img src="/logo.png" alt="Logo" className="w-16 h-16 object-contain" />
-                                            <div>
-                                                <h1 className="text-xl font-black tracking-wide text-white uppercase font-sans">CV. CAHAYA CARGO EXPRESS</h1>
-                                                <p className="text-[10px] text-slate-400 font-semibold leading-relaxed">
-                                                    JASA PENGIRIMAN BARANG DOMESTIK &amp; LOGISTIK TERINTEGRASI
-                                                </p>
+                                    <div className="w-full flex items-center gap-4 border-b-[3px] border-double border-slate-700 pb-4 mb-2">
+                                        <img src="/logo.png" alt="Logo" className="w-[20mm] h-[20mm] object-contain flex-shrink-0" />
+                                        <div className="flex-1">
+                                            <h1 className="text-xl md:text-2xl font-extrabold text-white tracking-wider font-serif">CV. CAHAYA CARGO EXPRESS</h1>
+                                            <p className="text-[7.5pt] font-semibold tracking-wider text-slate-400 uppercase -mt-0.5">
+                                                Jasa Pengiriman Barang - Domestik &amp; Internasional
+                                            </p>
+                                            <div className="grid grid-cols-3 gap-3 mt-2 text-[6.5pt] text-slate-400 leading-tight">
+                                                <div>
+                                                    <strong className="text-slate-300">SURABAYA (Pusat):</strong>
+                                                    <p>Jl. Kemudi No. 4, Surabaya</p>
+                                                    <p>Telp: 081 337 878 138</p>
+                                                </div>
+                                                <div>
+                                                    <strong className="text-slate-300">MAKASSAR:</strong>
+                                                    <p>Jl. Irian No. 245 B, Makassar</p>
+                                                    <p>Telp: 0852 4228 0396</p>
+                                                </div>
+                                                <div>
+                                                    <strong className="text-slate-300">BANDUNG:</strong>
+                                                    <p>Jl. Gandasari (PS Sentra Bisnis Warlob) G 1, Bandung</p>
+                                                </div>
                                             </div>
-                                        </div>
-                                        <div className="text-right text-[9px] text-slate-400 space-y-0.5 leading-tight font-medium max-w-md">
-                                            <p><strong className="text-slate-300">Surabaya (Pusat):</strong> Jl. Kemudi No. 4, Surabaya | Telp: 081 337 878 138</p>
-                                            <p><strong className="text-slate-300">Makassar:</strong> Jl. Irian No. 245 B, Makassar | Telp: 0852 4228 0396</p>
-                                            <p><strong className="text-slate-300">Bandung:</strong> Jl. Terusan Buah Batu No. 200, Bandung | Telp: 0813-2469-8260</p>
                                         </div>
                                     </div>
 
                                     {/* BA Document Head */}
-                                    <div className="text-center space-y-1">
-                                        <h2 className="text-xl font-bold uppercase tracking-wider font-serif text-white">BERITA ACARA SELISIH BARANG</h2>
-                                        <p className="text-xs font-mono font-semibold text-slate-400">Nomor: {baNo}</p>
-                                        <p className="text-xs text-slate-400">Tanggal: {new Date(baDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+                                    <div className="text-center mb-4">
+                                        <h2 className="text-sm font-extrabold uppercase tracking-[3px] text-white underline underline-offset-4 decoration-slate-700">BERITA ACARA SELISIH BARANG</h2>
+                                        <p className="text-[10px] font-mono font-semibold text-slate-400 mt-1.5">Nomor: {baNo}</p>
+                                        <p className="text-[10px] text-slate-500">Tanggal: {new Date(baDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
                                     </div>
 
                                     {/* BA Narration */}
@@ -1680,11 +1693,20 @@ export default function ScanDhsPage() {
                                         <p>
                                             Pada hari ini, <span className="font-bold text-white">{new Date(baDate).toLocaleDateString('id-ID', { weekday: 'long' })}</span> tanggal <span className="font-bold text-white">{new Date(baDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</span>, bertempat di Gudang CV. Cahaya Cargo Express, kami yang bertanda tangan di bawah ini telah melakukan pemeriksaan fisik kargo pada saat proses <span className="font-bold text-white">{sessionType}</span> koli dengan rincian operasional sebagai berikut:
                                         </p>
-                                        <ul className="bg-slate-900 border border-slate-800 p-3 rounded-2xl space-y-1 font-semibold text-slate-200 pl-6 list-disc">
-                                            <li>Nama Driver / Pengemudi: <span className="text-blue-400">{driverName.toUpperCase() || '-'}</span></li>
-                                            <li>No. Polisi Armada Truk: <span className="text-blue-400">{noPolisi.toUpperCase() || '-'}</span></li>
-                                            <li>Tipe Sesi Pemindaian: <span className="text-blue-400">{sessionType} DHS</span></li>
-                                        </ul>
+                                        <div className="bg-slate-900/60 border border-slate-800 p-3 rounded-xl space-y-1.5 text-[11px]">
+                                            <div className="grid grid-cols-12 gap-1">
+                                                <span className="col-span-4 font-semibold text-slate-400">Nama Driver</span>
+                                                <span className="col-span-8 font-bold text-white">: {driverName.toUpperCase() || '-'}</span>
+                                            </div>
+                                            <div className="grid grid-cols-12 gap-1">
+                                                <span className="col-span-4 font-semibold text-slate-400">No. Polisi Armada</span>
+                                                <span className="col-span-8 font-bold text-white">: {noPolisi.toUpperCase() || '-'}</span>
+                                            </div>
+                                            <div className="grid grid-cols-12 gap-1">
+                                                <span className="col-span-4 font-semibold text-slate-400">Tipe Sesi</span>
+                                                <span className="col-span-8 font-bold text-white">: {sessionType} DHS</span>
+                                            </div>
+                                        </div>
                                     </div>
 
                                     {/* BA Selected TO Table */}
@@ -1751,17 +1773,26 @@ export default function ScanDhsPage() {
                                     )}
 
                                     {/* Signatures block (2 columns) */}
-                                    <div className="grid grid-cols-2 gap-8 pt-8 text-center text-xs text-slate-300">
-                                        <div className="space-y-12">
-                                            <p className="font-semibold text-slate-400 uppercase tracking-wider">PIHAK I (Pengawas DHS)</p>
-                                            <div className="w-36 border-b border-slate-700 mx-auto"></div>
-                                            <p className="font-bold text-white text-[10px] uppercase font-mono">( Pengawas DHS )</p>
+                                    <div className="grid grid-cols-2 gap-8 pt-8 mt-4 border-t border-dashed border-slate-800 text-center text-xs text-slate-300">
+                                        <div className="flex flex-col items-center">
+                                            <p className="font-semibold text-slate-400 uppercase tracking-wider text-[9px]">PIHAK I (Pengawas DHS)</p>
+                                            <div className="h-[22mm] flex items-end justify-center">
+                                                <div className="w-40 border-b border-slate-600"></div>
+                                            </div>
+                                            <p className="font-bold text-white text-[10px] uppercase font-mono mt-1">( Pengawas DHS )</p>
                                         </div>
-                                        <div className="space-y-12">
-                                            <p className="font-semibold text-slate-400 uppercase tracking-wider">PIHAK II (Checker CCE)</p>
-                                            <div className="w-36 border-b border-slate-700 mx-auto"></div>
-                                            <p className="font-bold text-white text-[10px] uppercase font-mono">( Checker CCE )</p>
+                                        <div className="flex flex-col items-center">
+                                            <p className="font-semibold text-slate-400 uppercase tracking-wider text-[9px]">PIHAK II (Checker CCE)</p>
+                                            <div className="h-[22mm] flex items-end justify-center">
+                                                <div className="w-40 border-b border-slate-600"></div>
+                                            </div>
+                                            <p className="font-bold text-white text-[10px] uppercase font-mono mt-1">( Checker CCE )</p>
                                         </div>
+                                    </div>
+
+                                    {/* BA Footer */}
+                                    <div className="pt-3 border-t border-slate-800 text-[9px] text-slate-500 italic leading-snug text-center">
+                                        Dokumen ini bersifat rahasia dan internal untuk lingkungan CV. Cahaya Cargo Express beserta mitra pengawas terkait.
                                     </div>
                                 </div>
                             )}
@@ -2019,25 +2050,34 @@ export default function ScanDhsPage() {
                     body {
                         background: white !important;
                         color: black !important;
-                        padding: 15mm !important;
+                        padding: 0 !important;
+                        margin: 0 !important;
                     }
                     #print-dhs-report {
                         background: white !important;
                         color: black !important;
                         border: none !important;
                         box-shadow: none !important;
+                        border-radius: 0 !important;
                         padding: 0 !important;
                         max-width: 100% !important;
                         width: 100% !important;
+                        font-size: 10pt !important;
                     }
                     #print-dhs-report * {
                         color: black !important;
-                        border-color: #cbd5e1 !important;
+                        border-color: #d1d5db !important;
                     }
+                    /* Kop Surat print overrides */
                     #print-dhs-report .border-double {
                         border-color: black !important;
+                        border-bottom-width: 3px !important;
                     }
-                    #print-dhs-report .text-slate-400 {
+                    #print-dhs-report .font-serif {
+                        font-family: 'Georgia', 'Times New Roman', serif !important;
+                    }
+                    #print-dhs-report .text-slate-400,
+                    #print-dhs-report .text-slate-500 {
                         color: #475569 !important;
                     }
                     #print-dhs-report .text-slate-300 {
@@ -2046,25 +2086,56 @@ export default function ScanDhsPage() {
                     #print-dhs-report .text-slate-200 {
                         color: black !important;
                     }
-                    #print-dhs-report .bg-slate-900, #print-dhs-report .bg-slate-50 {
-                        background: #f1f5f9 !important;
+                    /* Background overrides for print */
+                    #print-dhs-report .bg-slate-900,
+                    #print-dhs-report .bg-slate-900\\/80,
+                    #print-dhs-report .bg-slate-50 {
+                        background: #f8fafc !important;
                     }
-                    #print-dhs-report .text-emerald-400, #print-dhs-report .text-emerald-500 {
+                    #print-dhs-report .rounded-3xl,
+                    #print-dhs-report .rounded-2xl,
+                    #print-dhs-report .rounded-xl {
+                        border-radius: 4px !important;
+                    }
+                    /* Color overrides for print */
+                    #print-dhs-report .text-emerald-400,
+                    #print-dhs-report .text-emerald-500 {
                         color: #047857 !important;
                     }
-                    #print-dhs-report .text-red-400, #print-dhs-report .text-red-500 {
+                    #print-dhs-report .text-red-400,
+                    #print-dhs-report .text-red-500 {
                         color: #b91c1c !important;
                     }
                     #print-dhs-report .text-blue-400 {
                         color: #2563eb !important;
                     }
+                    #print-dhs-report .text-amber-400,
+                    #print-dhs-report .text-amber-500 {
+                        color: #b45309 !important;
+                    }
+                    /* Underline decoration for print */
+                    #print-dhs-report .decoration-slate-700 {
+                        text-decoration-color: #1e293b !important;
+                    }
+                    /* Page break handling */
                     .page-break {
                         page-break-before: always;
                         break-before: page;
+                        margin-top: 0 !important;
+                        padding-top: 0 !important;
+                        border-top: none !important;
+                    }
+                    /* Table print tweaks */
+                    #print-dhs-report table {
+                        font-size: 8pt !important;
+                    }
+                    #print-dhs-report table th {
+                        background: #e2e8f0 !important;
+                        font-weight: 700 !important;
                     }
                     @page {
                         size: A4 portrait;
-                        margin: 15mm;
+                        margin: 12mm 15mm;
                     }
                 }
                 `

@@ -11,6 +11,8 @@ export const COMPANY_INFO = {
     branch2Address: 'Jl. Gelandakan (Ps Sentra Bilanja Hancap) G1',
     branch2City: 'Banjarmasin',
     branch2Phone: '081 2954 777',
+    branch3Address: 'Jl. Gandasari (PS Sentra Bisnis Warlob) G 1',
+    branch3City: 'Bandung',
     email: '',
 
     // Bank account details for transfer
