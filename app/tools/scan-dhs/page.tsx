@@ -103,9 +103,9 @@ export default function ScanDhsPage() {
     const [baCreated, setBaCreated] = useState<boolean>(false);
 
     // New states for manual TO addition
-    const [baManualTOs, setBaManualTOs] = useState<{ code: string; type: 'KURANG' | 'LEBIH' }[]>([]);
+    const [baManualTOs, setBaManualTOs] = useState<{ code: string; type: 'KURANG' | 'LEBIH' | 'DOUBLE' }[]>([]);
     const [manualToCode, setManualToCode] = useState('');
-    const [manualToType, setManualToType] = useState<'KURANG' | 'LEBIH'>('KURANG');
+    const [manualToType, setManualToType] = useState<'KURANG' | 'LEBIH' | 'DOUBLE'>('KURANG');
 
     // State for printing only BA
     const [isPrintingOnlyBa, setIsPrintingOnlyBa] = useState(false);
@@ -1510,25 +1510,39 @@ export default function ScanDhsPage() {
                         
                         {/* Printable Report Panel */}
                         <div id="print-dhs-report" className="bg-slate-950 border border-slate-800 rounded-3xl p-6 md:p-8 shadow-2xl space-y-6 text-white max-w-4xl mx-auto">
-                            
-                            <div className={isPrintingOnlyBa ? 'print-ba-only-hide space-y-6' : 'space-y-6'}>
-                                {/* Document Head */}
-                            <div className="w-full flex justify-between items-start border-b-2 border-slate-800 pb-4">
-                                <div className="space-y-1">
-                                    <h2 className="text-xl font-bold tracking-wide uppercase text-white font-serif">
-                                        CV. CAHAYA CARGO EXPRESS
-                                    </h2>
-                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">
-                                        LAPORAN HASIL PEMINDAIAN BARCODE DHS
-                                    </p>
-                                    <p className="text-xs text-slate-500">
-                                        Tanggal Sesi: {new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
-                                    </p>
-                                </div>
-                                <span className="text-xs font-black bg-blue-600 px-3.5 py-1.5 rounded-lg border border-blue-500 uppercase tracking-wider">
-                                    {sessionType}
-                                </span>
-                            </div>
+                             <div className={isPrintingOnlyBa ? 'print-ba-only-hide space-y-6' : 'space-y-6'}>
+                                 {/* Kop Surat */}
+                                 <div className="flex flex-col md:flex-row items-center justify-between border-b-4 border-double border-slate-800 pb-4 mb-6 gap-4">
+                                     <div className="flex items-center gap-4">
+                                         <img src="/logo.png" alt="Logo" className="w-16 h-16 object-contain" />
+                                         <div>
+                                             <h1 className="text-xl font-black tracking-wide text-white uppercase font-sans">CV. CAHAYA CARGO EXPRESS</h1>
+                                             <p className="text-[10px] text-slate-400 font-semibold leading-relaxed">
+                                                 JASA PENGIRIMAN BARANG DOMESTIK &amp; LOGISTIK TERINTEGRASI
+                                             </p>
+                                         </div>
+                                     </div>
+                                     <div className="text-right text-[9px] text-slate-400 space-y-0.5 leading-tight font-medium max-w-md">
+                                         <p><strong className="text-slate-300">Surabaya (Pusat):</strong> Jl. Kemudi No. 4, Surabaya | Telp: 081 337 878 138</p>
+                                         <p><strong className="text-slate-300">Makassar:</strong> Jl. Irian No. 245 B, Makassar | Telp: 0852 4228 0396</p>
+                                         <p><strong className="text-slate-300">Bandung:</strong> Jl. Terusan Buah Batu No. 200, Bandung | Telp: 0813-2469-8260</p>
+                                     </div>
+                                 </div>
+
+                                 {/* Document Head */}
+                                 <div className="w-full flex justify-between items-start pb-2">
+                                     <div className="space-y-1">
+                                         <h2 className="text-base font-bold tracking-wide uppercase text-blue-400">
+                                             LAPORAN HASIL PEMINDAIAN BARCODE DHS
+                                         </h2>
+                                         <p className="text-xs text-slate-500">
+                                             Tanggal Sesi: {new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                                         </p>
+                                     </div>
+                                     <span className="text-xs font-black bg-blue-600 px-3.5 py-1.5 rounded-lg border border-blue-500 uppercase tracking-wider">
+                                         {sessionType}
+                                     </span>
+                                 </div>
 
                             {/* Session Information Details */}
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-slate-900 rounded-2xl border border-slate-800 text-xs">
@@ -1636,6 +1650,24 @@ export default function ScanDhsPage() {
                             {/* Render Berita Acara Document inside Report (only if created) */}
                             {baCreated && (
                                 <div className={isPrintingOnlyBa ? 'space-y-6' : 'page-break pt-8 mt-8 border-t-2 border-dashed border-slate-800 space-y-6'}>
+                                    {/* Kop Surat */}
+                                    <div className="flex flex-col md:flex-row items-center justify-between border-b-4 border-double border-slate-800 pb-4 mb-6 gap-4">
+                                        <div className="flex items-center gap-4">
+                                            <img src="/logo.png" alt="Logo" className="w-16 h-16 object-contain" />
+                                            <div>
+                                                <h1 className="text-xl font-black tracking-wide text-white uppercase font-sans">CV. CAHAYA CARGO EXPRESS</h1>
+                                                <p className="text-[10px] text-slate-400 font-semibold leading-relaxed">
+                                                    JASA PENGIRIMAN BARANG DOMESTIK &amp; LOGISTIK TERINTEGRASI
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <div className="text-right text-[9px] text-slate-400 space-y-0.5 leading-tight font-medium max-w-md">
+                                            <p><strong className="text-slate-300">Surabaya (Pusat):</strong> Jl. Kemudi No. 4, Surabaya | Telp: 081 337 878 138</p>
+                                            <p><strong className="text-slate-300">Makassar:</strong> Jl. Irian No. 245 B, Makassar | Telp: 0852 4228 0396</p>
+                                            <p><strong className="text-slate-300">Bandung:</strong> Jl. Terusan Buah Batu No. 200, Bandung | Telp: 0813-2469-8260</p>
+                                        </div>
+                                    </div>
+
                                     {/* BA Document Head */}
                                     <div className="text-center space-y-1">
                                         <h2 className="text-xl font-bold uppercase tracking-wider font-serif text-white">BERITA ACARA SELISIH BARANG</h2>
@@ -1675,21 +1707,22 @@ export default function ScanDhsPage() {
                                                         </tr>
                                                     ) : (
                                                         allBaTOs.map((item, idx) => {
-                                                            const isExtra = item.type === 'LEBIH';
                                                             return (
                                                                 <tr key={`ba-to-${idx}`} className="border-b border-slate-800/50 hover:bg-slate-900/30">
                                                                     <td className="p-3 text-center text-slate-500 font-mono">{idx + 1}.</td>
                                                                     <td className="p-3 font-mono font-bold text-white">{item.code}</td>
                                                                     <td className="p-3">
-                                                                        {isExtra ? (
+                                                                        {item.type === 'LEBIH' ? (
                                                                             <span className="text-[10px] text-yellow-500 font-bold">SELISIH LEBIH</span>
+                                                                        ) : item.type === 'DOUBLE' ? (
+                                                                            <span className="text-[10px] text-blue-400 font-bold">TO SAMA / DOBEL</span>
                                                                         ) : (
                                                                             <span className="text-[10px] text-red-500 font-bold">SELISIH KURANG</span>
                                                                         )}
                                                                     </td>
                                                                     <td className="p-3 text-right">
                                                                         <span className="text-[9px] bg-slate-900 border border-slate-800 text-slate-350 px-2 py-0.5 rounded font-black">
-                                                                            {isExtra ? 'TIDAK ADA DI MANIFEST' : 'BELUM SCAN'}
+                                                                            {item.type === 'LEBIH' ? 'TIDAK ADA DI MANIFEST' : item.type === 'DOUBLE' ? 'KEDOBELAN / DOUBLE' : 'BELUM SCAN'}
                                                                         </span>
                                                                     </td>
                                                                 </tr>
@@ -1821,11 +1854,12 @@ export default function ScanDhsPage() {
                                             />
                                             <select
                                                 value={manualToType}
-                                                onChange={(e) => setManualToType(e.target.value as 'KURANG' | 'LEBIH')}
+                                                onChange={(e) => setManualToType(e.target.value as 'KURANG' | 'LEBIH' | 'DOUBLE')}
                                                 className="bg-slate-900 border border-slate-800 rounded-xl p-2.5 outline-none focus:border-blue-500 text-white text-xs"
                                             >
                                                 <option value="KURANG">KURANG (BELUM SCAN)</option>
                                                 <option value="LEBIH">LEBIH (TIDAK ADA DI MANIFEST)</option>
+                                                <option value="DOUBLE">KARUNG (TO SAMA / KEDOBELAN)</option>
                                             </select>
                                             <button
                                                 type="button"
@@ -1845,8 +1879,8 @@ export default function ScanDhsPage() {
                                                         className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-950/50 border border-slate-800/60 text-slate-200 font-mono text-xs font-semibold"
                                                     >
                                                         <span>{item.code}</span>
-                                                        <span className={`text-[8px] font-bold px-1 py-0.5 rounded leading-none ${item.type === 'KURANG' ? 'bg-red-950 text-red-400 border border-red-900/35' : 'bg-yellow-950 text-yellow-400 border border-yellow-900/35'}`}>
-                                                            {item.type}
+                                                        <span className={`text-[8px] font-bold px-1 py-0.5 rounded leading-none ${item.type === 'KURANG' ? 'bg-red-950 text-red-400 border border-red-900/35' : item.type === 'LEBIH' ? 'bg-yellow-950 text-yellow-400 border border-yellow-900/35' : 'bg-blue-950 text-blue-400 border border-blue-900/35'}`}>
+                                                            {item.type === 'DOUBLE' ? 'DOBEL' : item.type}
                                                         </span>
                                                         <button
                                                             type="button"
@@ -1998,7 +2032,19 @@ export default function ScanDhsPage() {
                     }
                     #print-dhs-report * {
                         color: black !important;
+                        border-color: #cbd5e1 !important;
+                    }
+                    #print-dhs-report .border-double {
                         border-color: black !important;
+                    }
+                    #print-dhs-report .text-slate-400 {
+                        color: #475569 !important;
+                    }
+                    #print-dhs-report .text-slate-300 {
+                        color: #1e293b !important;
+                    }
+                    #print-dhs-report .text-slate-200 {
+                        color: black !important;
                     }
                     #print-dhs-report .bg-slate-900, #print-dhs-report .bg-slate-50 {
                         background: #f1f5f9 !important;
@@ -2008,6 +2054,9 @@ export default function ScanDhsPage() {
                     }
                     #print-dhs-report .text-red-400, #print-dhs-report .text-red-500 {
                         color: #b91c1c !important;
+                    }
+                    #print-dhs-report .text-blue-400 {
+                        color: #2563eb !important;
                     }
                     .page-break {
                         page-break-before: always;
