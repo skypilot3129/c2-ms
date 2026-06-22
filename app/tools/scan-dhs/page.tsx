@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import Link from 'next/link';
 import { COMPANY_INFO } from '@/lib/company-config';
 import { 
@@ -92,6 +92,41 @@ export default function ScanDhsPage() {
 
     const [showRecoveryModal, setShowRecoveryModal] = useState<boolean>(false);
     const [pendingRecovery, setPendingRecovery] = useState<any>(null);
+
+    // Berita Acara states
+    const [showBaForm, setShowBaForm] = useState<boolean>(false);
+    const [baNo, setBaNo] = useState<string>('');
+    const [baDate, setBaDate] = useState<string>(new Date().toISOString().split('T')[0]);
+    const [baDescription, setBaDescription] = useState<string>('');
+    const [baSelectedTOs, setBaSelectedTOs] = useState<string[]>([]);
+    const [baImageBase64, setBaImageBase64] = useState<string>('');
+    const [baCreated, setBaCreated] = useState<boolean>(false);
+
+    // Dynamic generation of Berita Acara number
+    useEffect(() => {
+        if (step === 'report' && !baNo) {
+            const year = new Date().getFullYear();
+            const rand = Math.floor(1000 + Math.random() * 9000);
+            setBaNo(`BA/DHS/${year}/${rand}`);
+        }
+    }, [step, baNo]);
+
+    const handleBaImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            setBaImageBase64(event.target?.result as string);
+        };
+        reader.readAsDataURL(file);
+    };
+
+    const discrepantTOOptions = useMemo(() => {
+        const pending = manifest.filter(item => item.status === 'pending').map(item => ({ code: item.code, type: 'KURANG' }));
+        const extra = extraScans.map(item => ({ code: item.code, type: 'LEBIH' }));
+        return [...pending, ...extra];
+    }, [manifest, extraScans]);
     
     // Scanning statuses (visual feedback)
     const [scanAlert, setScanAlert] = useState<{
@@ -1537,6 +1572,248 @@ export default function ScanDhsPage() {
                             <div className="pt-4 border-t border-slate-800 text-[10px] text-slate-500 italic leading-snug">
                                 Laporan ini dihasilkan secara otomatis oleh sistem C2-MS CV. Cahaya Cargo Express pada saat penyelesaian sesi pemindaian real-time. Penilaian selisih didasarkan pada kecocokan manifes resmi yang diunggah.
                             </div>
+
+                            {/* Render Berita Acara Document inside Report (only if created) */}
+                            {baCreated && (
+                                <div className="page-break pt-8 mt-8 border-t-2 border-dashed border-slate-800 space-y-6">
+                                    {/* BA Document Head */}
+                                    <div className="text-center space-y-1">
+                                        <h2 className="text-xl font-bold uppercase tracking-wider font-serif text-white">BERITA ACARA SELISIH BARANG</h2>
+                                        <p className="text-xs font-mono font-semibold text-slate-400">Nomor: {baNo}</p>
+                                        <p className="text-xs text-slate-400">Tanggal: {new Date(baDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+                                    </div>
+
+                                    {/* BA Narration */}
+                                    <div className="text-xs text-slate-300 leading-relaxed space-y-2.5">
+                                        <p>
+                                            Pada hari ini, <span className="font-bold text-white">{new Date(baDate).toLocaleDateString('id-ID', { weekday: 'long' })}</span> tanggal <span className="font-bold text-white">{new Date(baDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</span>, bertempat di Gudang CV. Cahaya Cargo Express, kami yang bertanda tangan di bawah ini telah melakukan pemeriksaan fisik kargo pada saat proses <span className="font-bold text-white">{sessionType}</span> koli dengan rincian operasional sebagai berikut:
+                                        </p>
+                                        <ul className="bg-slate-900 border border-slate-800 p-3 rounded-2xl space-y-1 font-semibold text-slate-200 pl-6 list-disc">
+                                            <li>Nama Driver / Pengemudi: <span className="text-blue-400">{driverName.toUpperCase() || '-'}</span></li>
+                                            <li>No. Polisi Armada Truk: <span className="text-blue-400">{noPolisi.toUpperCase() || '-'}</span></li>
+                                            <li>Tipe Sesi Pemindaian: <span className="text-blue-400">{sessionType} DHS</span></li>
+                                        </ul>
+                                    </div>
+
+                                    {/* BA Selected TO Table */}
+                                    <div className="space-y-2">
+                                        <h4 className="font-bold text-xs text-slate-350">Daftar Nomor TO yang Bermasalah/Selisih:</h4>
+                                        <div className="border border-slate-800 rounded-2xl overflow-hidden text-xs">
+                                            <table className="w-full text-left">
+                                                <thead>
+                                                    <tr className="bg-slate-900 border-b border-slate-800 text-slate-400 font-semibold uppercase text-[9px]">
+                                                        <th className="p-3 text-center w-[10%]">No</th>
+                                                        <th className="p-3 w-[45%]">Nomor TO</th>
+                                                        <th className="p-3 w-[25%]">Jenis Selisih</th>
+                                                        <th className="p-3 text-right w-[20%]">Status Barang</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {baSelectedTOs.length === 0 ? (
+                                                        <tr>
+                                                            <td colSpan={4} className="p-4 text-center text-slate-500 italic">Tidak ada TO spesifik yang dilampirkan.</td>
+                                                        </tr>
+                                                    ) : (
+                                                        baSelectedTOs.map((code, idx) => {
+                                                            const isExtra = extraScans.some(item => item.code === code);
+                                                            return (
+                                                                <tr key={`ba-to-${idx}`} className="border-b border-slate-800/50 hover:bg-slate-900/30">
+                                                                    <td className="p-3 text-center text-slate-500 font-mono">{idx + 1}.</td>
+                                                                    <td className="p-3 font-mono font-bold text-white">{code}</td>
+                                                                    <td className="p-3">
+                                                                        {isExtra ? (
+                                                                            <span className="text-[10px] text-yellow-500 font-bold">SELISIH LEBIH</span>
+                                                                        ) : (
+                                                                            <span className="text-[10px] text-red-500 font-bold">SELISIH KURANG</span>
+                                                                        )}
+                                                                    </td>
+                                                                    <td className="p-3 text-right">
+                                                                        <span className="text-[9px] bg-slate-900 border border-slate-800 text-slate-350 px-2 py-0.5 rounded font-black">
+                                                                            {isExtra ? 'TIDAK ADA DI MANIFEST' : 'BELUM SCAN'}
+                                                                        </span>
+                                                                    </td>
+                                                                </tr>
+                                                            );
+                                                        })
+                                                    )}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+
+                                    {/* BA Description Card */}
+                                    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-2">
+                                        <h4 className="font-bold text-xs text-slate-350">Deskripsi / Keterangan Kejadian:</h4>
+                                        <p className="text-xs text-slate-300 whitespace-pre-wrap leading-relaxed italic">{baDescription || 'Tidak ada keterangan tambahan.'}</p>
+                                    </div>
+
+                                    {/* BA Image Proof */}
+                                    {baImageBase64 && (
+                                        <div className="space-y-2 text-center">
+                                            <h4 className="font-bold text-xs text-slate-350 text-left">Foto Bukti Lapangan (Lampiran):</h4>
+                                            <div className="border border-slate-800 rounded-2xl overflow-hidden bg-slate-900/50 p-4 inline-block max-w-full">
+                                                <img src={baImageBase64} alt="Bukti Lapangan" className="max-w-md max-h-[12cm] rounded-xl mx-auto object-contain shadow-md" />
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Signatures block */}
+                                    <div className="grid grid-cols-3 gap-4 pt-8 text-center text-xs text-slate-300">
+                                        <div className="space-y-12">
+                                            <p className="font-semibold text-slate-400 uppercase tracking-wider">PIHAK I (Pengemudi/Driver)</p>
+                                            <div className="w-28 border-b border-slate-700 mx-auto"></div>
+                                            <p className="font-bold text-white text-[10px] uppercase font-mono">{driverName || '( Arm Driver )'}</p>
+                                        </div>
+                                        <div className="space-y-12">
+                                            <p className="font-semibold text-slate-400 uppercase tracking-wider">PIHAK II (Checker/Penerima)</p>
+                                            <div className="w-28 border-b border-slate-700 mx-auto"></div>
+                                            <p className="font-bold text-white text-[10px] uppercase font-mono">( Staff Warehouse )</p>
+                                        </div>
+                                        <div className="space-y-12">
+                                            <p className="font-semibold text-slate-400 uppercase tracking-wider">MENGETAHUI (Warehouse Head)</p>
+                                            <div className="w-28 border-b border-slate-700 mx-auto"></div>
+                                            <p className="font-bold text-white text-[10px] uppercase font-mono">( Kepala Gudang )</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Berita Acara Creator Panel (no-print) */}
+                        <div className="no-print bg-slate-950 border border-slate-800 rounded-3xl p-6 max-w-4xl mx-auto space-y-4">
+                            <div className="flex justify-between items-center">
+                                <div>
+                                    <h3 className="text-lg font-bold flex items-center gap-2">
+                                        <span>📝 Berita Acara Selisih Barang</span>
+                                        {baCreated && <span className="text-xs bg-emerald-950 border border-emerald-900 text-emerald-400 font-bold px-2 py-0.5 rounded-full">Dibuat</span>}
+                                    </h3>
+                                    <p className="text-xs text-slate-400 font-medium">Buat dokumen resmi berita acara jika terdapat selisih koli.</p>
+                                </div>
+                                <button
+                                    onClick={() => setShowBaForm(!showBaForm)}
+                                    className="bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs py-2 px-4 rounded-xl border border-slate-700 transition-all active:scale-95"
+                                >
+                                    {showBaForm ? 'Tutup Form' : baCreated ? 'Edit Berita Acara' : 'Buat Berita Acara'}
+                                </button>
+                            </div>
+
+                            {showBaForm && (
+                                <form onSubmit={(e) => { e.preventDefault(); setBaCreated(true); setShowBaForm(false); }} className="space-y-4 pt-4 border-t border-slate-900 text-xs">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-slate-400 font-semibold mb-1">Nomor Berita Acara:</label>
+                                            <input
+                                                type="text"
+                                                required
+                                                value={baNo}
+                                                onChange={(e) => setBaNo(e.target.value)}
+                                                className="w-full bg-slate-900 border border-slate-800 rounded-xl p-3 outline-none focus:border-blue-500 font-mono font-semibold text-white"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-slate-400 font-semibold mb-1">Tanggal Berita Acara:</label>
+                                            <input
+                                                type="date"
+                                                required
+                                                value={baDate}
+                                                onChange={(e) => setBaDate(e.target.value)}
+                                                className="w-full bg-slate-900 border border-slate-800 rounded-xl p-3 outline-none focus:border-blue-500 text-white"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-slate-400 font-semibold mb-1.5">Pilih TO yang Selisih (Manifest / Lebih):</label>
+                                        {discrepantTOOptions.length === 0 ? (
+                                            <p className="text-slate-500 italic">Tidak ada selisih barang (100% cocok).</p>
+                                        ) : (
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 bg-slate-900 p-4 rounded-2xl border border-slate-800 max-h-48 overflow-y-auto">
+                                                {discrepantTOOptions.map((opt: { code: string; type: string }) => {
+                                                    const isChecked = baSelectedTOs.includes(opt.code);
+                                                    return (
+                                                        <label key={opt.code} className="flex items-center gap-2.5 p-2 bg-slate-950/50 rounded-lg hover:bg-slate-950 border border-slate-800/60 cursor-pointer">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={isChecked}
+                                                                onChange={(e) => {
+                                                                    if (e.target.checked) {
+                                                                        setBaSelectedTOs([...baSelectedTOs, opt.code]);
+                                                                    } else {
+                                                                        setBaSelectedTOs(baSelectedTOs.filter(c => c !== opt.code));
+                                                                    }
+                                                                }}
+                                                                className="w-4 h-4 rounded text-blue-600 bg-slate-900 border-slate-800"
+                                                            />
+                                                            <span className="font-mono text-xs font-semibold text-slate-200">{opt.code}</span>
+                                                            <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded leading-none ${opt.type === 'KURANG' ? 'bg-red-950 text-red-400 border border-red-900/35' : 'bg-yellow-950 text-yellow-400 border border-yellow-900/35'}`}>{opt.type}</span>
+                                                        </label>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-slate-400 font-semibold mb-1">Upload Foto Bukti (Gambar):</label>
+                                            <div className="space-y-3">
+                                                <input
+                                                    type="file"
+                                                    accept="image/*"
+                                                    onChange={handleBaImageUpload}
+                                                    className="w-full text-slate-350 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-700 cursor-pointer"
+                                                />
+                                                {baImageBase64 && (
+                                                    <div className="relative w-32 h-24 border border-slate-800 rounded-xl overflow-hidden bg-slate-900">
+                                                        <img src={baImageBase64} alt="Preview" className="w-full h-full object-cover" />
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setBaImageBase64('')}
+                                                            className="absolute top-1 right-1 bg-red-600 text-white rounded-full p-1 hover:bg-red-750 transition-colors"
+                                                            title="Hapus foto"
+                                                        >
+                                                            ✕
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label className="block text-slate-400 font-semibold mb-1">Keterangan Kejadian / Catatan:</label>
+                                            <textarea
+                                                required
+                                                rows={4}
+                                                placeholder="Contoh: Ditemukan 2 koli TO2026... dalam keadaan basah/sobek di bagian bawah karung. Driver mengonfirmasi terjadi benturan saat pemuatan."
+                                                value={baDescription}
+                                                onChange={(e) => setBaDescription(e.target.value)}
+                                                className="w-full bg-slate-900 border border-slate-800 rounded-xl p-3 outline-none focus:border-blue-500 text-white resize-none"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="flex justify-end gap-2 pt-2 border-t border-slate-900">
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setBaCreated(false);
+                                                setBaSelectedTOs([]);
+                                                setBaDescription('');
+                                                setBaImageBase64('');
+                                                setShowBaForm(false);
+                                            }}
+                                            className="bg-red-950 hover:bg-red-900/65 border border-red-900 text-red-400 font-bold py-2.5 px-4 rounded-xl transition-all cursor-pointer"
+                                        >
+                                            Reset & Hapus
+                                        </button>
+                                        <button
+                                            type="submit"
+                                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 px-6 rounded-xl transition-all active:scale-95 cursor-pointer"
+                                        >
+                                            Simpan Berita Acara
+                                        </button>
+                                    </div>
+                                </form>
+                            )}
                         </div>
 
                         {/* Export Action Buttons */}
@@ -1607,6 +1884,10 @@ export default function ScanDhsPage() {
                     }
                     #print-dhs-report .text-red-400, #print-dhs-report .text-red-500 {
                         color: #b91c1c !important;
+                    }
+                    .page-break {
+                        page-break-before: always;
+                        break-before: page;
                     }
                     @page {
                         size: A4 portrait;
