@@ -140,6 +140,22 @@ export default function ScanDhsPage() {
         }
     };
 
+    // Voice TTS helper using Web Speech API
+    const speakText = (text: string) => {
+        if (!soundEnabled) return;
+        try {
+            if (typeof window !== 'undefined' && window.speechSynthesis) {
+                window.speechSynthesis.cancel();
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = 'id-ID';
+                utterance.rate = 1.25;
+                window.speechSynthesis.speak(utterance);
+            }
+        } catch (e) {
+            console.error('SpeechSynthesis error:', e);
+        }
+    };
+
     // Vibrate haptic helper
     const triggerVibration = (pattern: number | number[]) => {
         if (typeof navigator !== 'undefined' && navigator.vibrate) {
@@ -362,6 +378,9 @@ export default function ScanDhsPage() {
             updated[pendingItemIdx].scanTime = nowStr;
             setManifest(updated);
 
+            // Get sequence number of this successfully scanned item
+            const sequenceNumber = updated.filter(i => i.status === 'scanned').length;
+
             setScanAlert({
                 type: 'success',
                 message: `COCOK! Koli berhasil diverifikasi`,
@@ -370,10 +389,13 @@ export default function ScanDhsPage() {
             triggerFlash('green');
             playBeep(880, 0.12, true); // Double high beep
             triggerVibration(100);
+            
+            // Speak the sequence number in Indonesian
+            speakText(sequenceNumber.toString());
             return;
         }
 
-        // 2. Check if it's already scanned (duplicate scan)
+        // 2. Check if it's already scanned in manifest (duplicate scan)
         const alreadyScannedCount = manifest.filter(item => item.code === code && item.status === 'scanned').length;
         const totalInManifestCount = manifest.filter(item => item.code === code).length;
 
@@ -386,10 +408,26 @@ export default function ScanDhsPage() {
             triggerFlash('yellow');
             playBeep(440, 0.25); // Warning beep
             triggerVibration([80, 80]);
+            speakText("T O tetap sama");
             return;
         }
 
-        // 3. Unlisted item (extra scan)
+        // 3. Check if it's already scanned as extra (duplicate extra scan)
+        const isAlreadyExtra = extraScans.some(item => item.code === code);
+        if (isAlreadyExtra) {
+            setScanAlert({
+                type: 'duplicate',
+                message: `TO TETAP SAMA! Kode selisih lebih ini sudah discan sebelumnya.`,
+                code
+            });
+            triggerFlash('yellow');
+            playBeep(440, 0.25); // Warning beep
+            triggerVibration([80, 80]);
+            speakText("T O tetap sama");
+            return;
+        }
+
+        // 4. Unlisted item (extra scan/salah)
         const extraItem: ExtraScan = { 
             id: `extra-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
             code, 
@@ -405,6 +443,7 @@ export default function ScanDhsPage() {
         triggerFlash('red');
         playBeep(220, 0.4); // Buzz alert sound
         triggerVibration([200, 100, 200]);
+        speakText("Salah");
     };
 
     // Manual Bypass Override
@@ -420,6 +459,9 @@ export default function ScanDhsPage() {
             updated[itemIdx].scanTime = `${nowStr} (MANUAL)`;
             setManifest(updated);
 
+            // Get sequence number of this successfully scanned item
+            const sequenceNumber = updated.filter(i => i.status === 'scanned').length;
+
             setScanAlert({
                 type: 'success',
                 message: `COCOK (MANUAL)! Koli diverifikasi manual`,
@@ -428,6 +470,9 @@ export default function ScanDhsPage() {
             triggerFlash('green');
             playBeep(880, 0.12, true);
             triggerVibration(100);
+
+            // Speak the sequence number
+            speakText(sequenceNumber.toString());
         }
     };
 
