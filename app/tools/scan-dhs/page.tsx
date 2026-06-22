@@ -102,6 +102,14 @@ export default function ScanDhsPage() {
     const [baImageBase64, setBaImageBase64] = useState<string>('');
     const [baCreated, setBaCreated] = useState<boolean>(false);
 
+    // New states for manual TO addition
+    const [baManualTOs, setBaManualTOs] = useState<{ code: string; type: 'KURANG' | 'LEBIH' }[]>([]);
+    const [manualToCode, setManualToCode] = useState('');
+    const [manualToType, setManualToType] = useState<'KURANG' | 'LEBIH'>('KURANG');
+
+    // State for printing only BA
+    const [isPrintingOnlyBa, setIsPrintingOnlyBa] = useState(false);
+
     // Dynamic generation of Berita Acara number
     useEffect(() => {
         if (step === 'report' && !baNo) {
@@ -127,6 +135,55 @@ export default function ScanDhsPage() {
         const extra = extraScans.map(item => ({ code: item.code, type: 'LEBIH' }));
         return [...pending, ...extra];
     }, [manifest, extraScans]);
+
+    const handleAddManualTO = (e?: React.FormEvent | React.MouseEvent) => {
+        if (e) e.preventDefault();
+        const code = manualToCode.trim().toUpperCase();
+        if (!code) return;
+
+        const existsManual = baManualTOs.some(item => item.code === code);
+        const existsChecklist = baSelectedTOs.includes(code);
+
+        if (existsManual || existsChecklist) {
+            alert('Nomor TO ini sudah ada dalam daftar Berita Acara!');
+            return;
+        }
+
+        setBaManualTOs([...baManualTOs, { code, type: manualToType }]);
+        setManualToCode('');
+    };
+
+    const handleRemoveManualTO = (code: string) => {
+        setBaManualTOs(baManualTOs.filter(item => item.code !== code));
+    };
+
+    const allBaTOs = useMemo(() => {
+        const checked = baSelectedTOs.map(code => {
+            const isExtra = extraScans.some(item => item.code === code);
+            return { code, type: isExtra ? 'LEBIH' : 'KURANG' };
+        });
+        const manual = baManualTOs.map(item => ({ code: item.code.toUpperCase(), type: item.type }));
+
+        const combined: { code: string; type: string }[] = [];
+        const seen = new Set<string>();
+        [...checked, ...manual].forEach(item => {
+            if (!seen.has(item.code)) {
+                seen.add(item.code);
+                combined.push(item);
+            }
+        });
+        return combined;
+    }, [baSelectedTOs, baManualTOs, extraScans]);
+
+    const handlePrintOnlyBa = () => {
+        setIsPrintingOnlyBa(true);
+        setTimeout(() => {
+            window.print();
+            setTimeout(() => {
+                setIsPrintingOnlyBa(false);
+            }, 1000);
+        }, 150);
+    };
     
     // Scanning statuses (visual feedback)
     const [scanAlert, setScanAlert] = useState<{
@@ -1454,7 +1511,8 @@ export default function ScanDhsPage() {
                         {/* Printable Report Panel */}
                         <div id="print-dhs-report" className="bg-slate-950 border border-slate-800 rounded-3xl p-6 md:p-8 shadow-2xl space-y-6 text-white max-w-4xl mx-auto">
                             
-                            {/* Document Head */}
+                            <div className={isPrintingOnlyBa ? 'print-ba-only-hide space-y-6' : 'space-y-6'}>
+                                {/* Document Head */}
                             <div className="w-full flex justify-between items-start border-b-2 border-slate-800 pb-4">
                                 <div className="space-y-1">
                                     <h2 className="text-xl font-bold tracking-wide uppercase text-white font-serif">
@@ -1572,10 +1630,12 @@ export default function ScanDhsPage() {
                             <div className="pt-4 border-t border-slate-800 text-[10px] text-slate-500 italic leading-snug">
                                 Laporan ini dihasilkan secara otomatis oleh sistem C2-MS CV. Cahaya Cargo Express pada saat penyelesaian sesi pemindaian real-time. Penilaian selisih didasarkan pada kecocokan manifes resmi yang diunggah.
                             </div>
+                            
+                            </div>
 
                             {/* Render Berita Acara Document inside Report (only if created) */}
                             {baCreated && (
-                                <div className="page-break pt-8 mt-8 border-t-2 border-dashed border-slate-800 space-y-6">
+                                <div className={isPrintingOnlyBa ? 'space-y-6' : 'page-break pt-8 mt-8 border-t-2 border-dashed border-slate-800 space-y-6'}>
                                     {/* BA Document Head */}
                                     <div className="text-center space-y-1">
                                         <h2 className="text-xl font-bold uppercase tracking-wider font-serif text-white">BERITA ACARA SELISIH BARANG</h2>
@@ -1609,17 +1669,17 @@ export default function ScanDhsPage() {
                                                     </tr>
                                                 </thead>
                                                 <tbody>
-                                                    {baSelectedTOs.length === 0 ? (
+                                                    {allBaTOs.length === 0 ? (
                                                         <tr>
                                                             <td colSpan={4} className="p-4 text-center text-slate-500 italic">Tidak ada TO spesifik yang dilampirkan.</td>
                                                         </tr>
                                                     ) : (
-                                                        baSelectedTOs.map((code, idx) => {
-                                                            const isExtra = extraScans.some(item => item.code === code);
+                                                        allBaTOs.map((item, idx) => {
+                                                            const isExtra = item.type === 'LEBIH';
                                                             return (
                                                                 <tr key={`ba-to-${idx}`} className="border-b border-slate-800/50 hover:bg-slate-900/30">
                                                                     <td className="p-3 text-center text-slate-500 font-mono">{idx + 1}.</td>
-                                                                    <td className="p-3 font-mono font-bold text-white">{code}</td>
+                                                                    <td className="p-3 font-mono font-bold text-white">{item.code}</td>
                                                                     <td className="p-3">
                                                                         {isExtra ? (
                                                                             <span className="text-[10px] text-yellow-500 font-bold">SELISIH LEBIH</span>
@@ -1657,22 +1717,17 @@ export default function ScanDhsPage() {
                                         </div>
                                     )}
 
-                                    {/* Signatures block */}
-                                    <div className="grid grid-cols-3 gap-4 pt-8 text-center text-xs text-slate-300">
+                                    {/* Signatures block (2 columns) */}
+                                    <div className="grid grid-cols-2 gap-8 pt-8 text-center text-xs text-slate-300">
                                         <div className="space-y-12">
-                                            <p className="font-semibold text-slate-400 uppercase tracking-wider">PIHAK I (Pengemudi/Driver)</p>
-                                            <div className="w-28 border-b border-slate-700 mx-auto"></div>
-                                            <p className="font-bold text-white text-[10px] uppercase font-mono">{driverName || '( Arm Driver )'}</p>
+                                            <p className="font-semibold text-slate-400 uppercase tracking-wider">PIHAK I (Pengawas DHS)</p>
+                                            <div className="w-36 border-b border-slate-700 mx-auto"></div>
+                                            <p className="font-bold text-white text-[10px] uppercase font-mono">( Pengawas DHS )</p>
                                         </div>
                                         <div className="space-y-12">
-                                            <p className="font-semibold text-slate-400 uppercase tracking-wider">PIHAK II (Checker/Penerima)</p>
-                                            <div className="w-28 border-b border-slate-700 mx-auto"></div>
-                                            <p className="font-bold text-white text-[10px] uppercase font-mono">( Staff Warehouse )</p>
-                                        </div>
-                                        <div className="space-y-12">
-                                            <p className="font-semibold text-slate-400 uppercase tracking-wider">MENGETAHUI (Warehouse Head)</p>
-                                            <div className="w-28 border-b border-slate-700 mx-auto"></div>
-                                            <p className="font-bold text-white text-[10px] uppercase font-mono">( Kepala Gudang )</p>
+                                            <p className="font-semibold text-slate-400 uppercase tracking-wider">PIHAK II (Checker CCE)</p>
+                                            <div className="w-36 border-b border-slate-700 mx-auto"></div>
+                                            <p className="font-bold text-white text-[10px] uppercase font-mono">( Checker CCE )</p>
                                         </div>
                                     </div>
                                 </div>
@@ -1753,6 +1808,60 @@ export default function ScanDhsPage() {
                                         )}
                                     </div>
 
+                                    {/* Manual TO Input Section */}
+                                    <div className="bg-slate-900/50 p-4 rounded-2xl border border-slate-800/80 space-y-3">
+                                        <span className="block text-slate-400 font-semibold mb-1 text-xs">Tambah Nomor TO Secara Manual (Jika salah atau lebih yang tidak ada di daftar):</span>
+                                        <div className="flex flex-col sm:flex-row gap-3">
+                                            <input
+                                                type="text"
+                                                placeholder="Contoh: TO2026..."
+                                                value={manualToCode}
+                                                onChange={(e) => setManualToCode(e.target.value)}
+                                                className="flex-1 bg-slate-900 border border-slate-800 rounded-xl p-2.5 outline-none focus:border-blue-500 font-mono text-white text-xs uppercase"
+                                            />
+                                            <select
+                                                value={manualToType}
+                                                onChange={(e) => setManualToType(e.target.value as 'KURANG' | 'LEBIH')}
+                                                className="bg-slate-900 border border-slate-800 rounded-xl p-2.5 outline-none focus:border-blue-500 text-white text-xs"
+                                            >
+                                                <option value="KURANG">KURANG (BELUM SCAN)</option>
+                                                <option value="LEBIH">LEBIH (TIDAK ADA DI MANIFEST)</option>
+                                            </select>
+                                            <button
+                                                type="button"
+                                                onClick={handleAddManualTO}
+                                                className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-4 rounded-xl text-xs transition-all active:scale-95"
+                                            >
+                                                + Tambah TO
+                                            </button>
+                                        </div>
+
+                                        {/* Display manually added TOs */}
+                                        {baManualTOs.length > 0 && (
+                                            <div className="flex flex-wrap gap-2 pt-2">
+                                                {baManualTOs.map((item) => (
+                                                    <span 
+                                                        key={item.code} 
+                                                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-950/50 border border-slate-800/60 text-slate-200 font-mono text-xs font-semibold"
+                                                    >
+                                                        <span>{item.code}</span>
+                                                        <span className={`text-[8px] font-bold px-1 py-0.5 rounded leading-none ${item.type === 'KURANG' ? 'bg-red-950 text-red-400 border border-red-900/35' : 'bg-yellow-950 text-yellow-400 border border-yellow-900/35'}`}>
+                                                            {item.type}
+                                                        </span>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleRemoveManualTO(item.code)}
+                                                            className="text-red-400 hover:text-red-300 font-bold ml-1 focus:outline-none"
+                                                            title="Hapus"
+                                                        >
+                                                            ✕
+                                                        </button>
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         <div>
                                             <label className="block text-slate-400 font-semibold mb-1">Upload Foto Bukti (Gambar):</label>
@@ -1797,6 +1906,9 @@ export default function ScanDhsPage() {
                                             onClick={() => {
                                                 setBaCreated(false);
                                                 setBaSelectedTOs([]);
+                                                setBaManualTOs([]);
+                                                setManualToCode('');
+                                                setManualToType('KURANG');
                                                 setBaDescription('');
                                                 setBaImageBase64('');
                                                 setShowBaForm(false);
@@ -1832,6 +1944,15 @@ export default function ScanDhsPage() {
                                 <Printer size={18} />
                                 Cetak Laporan (A4)
                             </button>
+                            {baCreated && (
+                                <button 
+                                    onClick={handlePrintOnlyBa}
+                                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 px-6 rounded-xl flex items-center justify-center gap-2 transition-all hover:scale-[1.01]"
+                                >
+                                    <Printer size={18} />
+                                    Cetak Berita Acara Saja (A4)
+                                </button>
+                            )}
                             <button 
                                 onClick={handleEditSession}
                                 className="flex-1 bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-3.5 px-6 rounded-xl flex items-center justify-center gap-2 transition-all hover:scale-[1.01]"
@@ -1856,6 +1977,9 @@ export default function ScanDhsPage() {
                 __html: `
                 @media print {
                     header, .no-print, button, Link {
+                        display: none !important;
+                    }
+                    .print-ba-only-hide {
                         display: none !important;
                     }
                     body {
