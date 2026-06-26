@@ -3,18 +3,18 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import Link from 'next/link';
 import { COMPANY_INFO } from '@/lib/company-config';
-import { 
-    Barcode, 
-    ArrowLeft, 
-    Upload, 
-    CheckCircle, 
-    AlertCircle, 
+import {
+    Barcode,
+    ArrowLeft,
+    Upload,
+    CheckCircle,
+    AlertCircle,
     AlertTriangle,
-    Camera, 
-    Play, 
-    RefreshCcw, 
-    Copy, 
-    Printer, 
+    Camera,
+    Play,
+    RefreshCcw,
+    Copy,
+    Printer,
     Info,
     Check,
     Volume2,
@@ -59,29 +59,29 @@ export default function ScanDhsPage() {
     // Session state: 'import' | 'scan' | 'report'
     const [step, setStep] = useState<'import' | 'scan' | 'report'>('import');
     const [sessionType, setSessionType] = useState<'BONGKAR' | 'MUAT'>('BONGKAR');
-    
+
     // Manifest details
     const [driverName, setDriverName] = useState<string>('');
     const [noPolisi, setNoPolisi] = useState<string>('');
     const [rawInput, setRawInput] = useState<string>('');
-    
+
     // Parsed Items
     const [manifest, setManifest] = useState<ManifestItem[]>([]);
     const [extraScans, setExtraScans] = useState<ExtraScan[]>([]);
-    
+
     // Scanner input
     const [manualInput, setManualInput] = useState<string>('');
     const [isCameraActive, setIsCameraActive] = useState<boolean>(false);
     const [scannerError, setScannerError] = useState<string>('');
-    
+
     // Sound options
     const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
-    
+
     // Search & History states
     const [searchTerm, setSearchTerm] = useState<string>('');
     const [history, setHistory] = useState<HistoryItem[]>([]);
     const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
-    
+
     // Inline item edit states
     const [editingItemId, setEditingItemId] = useState<string | null>(null);
     const [editCode, setEditCode] = useState<string>('');
@@ -184,7 +184,7 @@ export default function ScanDhsPage() {
             }, 1000);
         }, 150);
     };
-    
+
     // Scanning statuses (visual feedback)
     const [scanAlert, setScanAlert] = useState<{
         type: 'success' | 'duplicate' | 'error' | 'idle';
@@ -199,33 +199,100 @@ export default function ScanDhsPage() {
     const inputRef = useRef<HTMLInputElement>(null);
     const html5QrCodeRef = useRef<any>(null);
     const isInitialLoad = useRef<boolean>(true);
+    const audioCtxRef = useRef<AudioContext | null>(null);
+    const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+
+    // Warm up/Resume AudioContext and speech synthesis helper
+    const warmupAudio = () => {
+        try {
+            if (typeof window !== 'undefined') {
+                const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+                if (AudioContextClass) {
+                    if (!audioCtxRef.current) {
+                        audioCtxRef.current = new AudioContextClass();
+                    }
+                    if (audioCtxRef.current.state === 'suspended') {
+                        audioCtxRef.current.resume().catch((err) => console.error('AudioContext resume failed:', err));
+                    }
+                }
+                if (window.speechSynthesis) {
+                    const utterance = new SpeechSynthesisUtterance("");
+                    window.speechSynthesis.speak(utterance);
+                }
+            }
+        } catch (e) {
+            console.error('Warmup audio error:', e);
+        }
+    };
+
+    // Auto-unlock AudioContext and SpeechSynthesis on first user interaction
+    useEffect(() => {
+        const handleInteraction = () => {
+            warmupAudio();
+            cleanup();
+        };
+
+        const cleanup = () => {
+            document.removeEventListener('click', handleInteraction);
+            document.removeEventListener('keydown', handleInteraction);
+            document.removeEventListener('touchstart', handleInteraction);
+        };
+
+        document.addEventListener('click', handleInteraction);
+        document.addEventListener('keydown', handleInteraction);
+        document.addEventListener('touchstart', handleInteraction);
+
+        return cleanup;
+    }, []);
 
     // Audio Context generator for native sound beeps
     const playBeep = (freq: number, duration: number, double = false) => {
         if (!soundEnabled) return;
         try {
+            if (typeof window === 'undefined') return;
+
+            // Lazy initialize AudioContext as a singleton
+            if (!audioCtxRef.current) {
+                const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+                if (AudioContextClass) {
+                    audioCtxRef.current = new AudioContextClass();
+                }
+            }
+
+            const audioCtx = audioCtxRef.current;
+            if (!audioCtx) return;
+
+            // Resume audio context if suspended
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume().catch((err) => console.error('AudioContext resume failed:', err));
+            }
+
             const playSingle = (frequency: number, delay = 0) => {
-                const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
                 const oscillator = audioCtx.createOscillator();
                 const gainNode = audioCtx.createGain();
-                
+
                 oscillator.connect(gainNode);
                 gainNode.connect(audioCtx.destination);
-                
+
                 oscillator.frequency.value = frequency;
                 oscillator.type = 'sine';
-                
+
                 gainNode.gain.setValueAtTime(0, audioCtx.currentTime + delay);
                 gainNode.gain.linearRampToValueAtTime(0.1, audioCtx.currentTime + delay + 0.02);
                 gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + delay + duration);
-                
+
                 oscillator.start(audioCtx.currentTime + delay);
                 oscillator.stop(audioCtx.currentTime + delay + duration);
             };
 
             playSingle(freq);
             if (double) {
-                setTimeout(() => playSingle(freq * 1.2), 150);
+                setTimeout(() => {
+                    if (audioCtx.state === 'suspended') {
+                        audioCtx.resume().catch(() => {});
+                    }
+                    playSingle(freq * 1.2);
+                }, 150);
             }
         } catch (e) {
             console.error('Web Audio API error:', e);
@@ -237,11 +304,30 @@ export default function ScanDhsPage() {
         if (!soundEnabled) return;
         try {
             if (typeof window !== 'undefined' && window.speechSynthesis) {
+                // Cancel any ongoing speaking to prioritize the new scan result
                 window.speechSynthesis.cancel();
-                const utterance = new SpeechSynthesisUtterance(text);
-                utterance.lang = 'id-ID';
-                utterance.rate = 1.25;
-                window.speechSynthesis.speak(utterance);
+
+                // Chrome SpeechSynthesis bug workaround: add delay after cancel()
+                setTimeout(() => {
+                    const utterance = new SpeechSynthesisUtterance(text);
+                    utterance.lang = 'id-ID';
+                    utterance.rate = 1.25;
+
+                    // Keep a reference to prevent garbage collection mid-speech
+                    utteranceRef.current = utterance;
+                    utterance.onend = () => {
+                        if (utteranceRef.current === utterance) {
+                            utteranceRef.current = null;
+                        }
+                    };
+                    utterance.onerror = () => {
+                        if (utteranceRef.current === utterance) {
+                            utteranceRef.current = null;
+                        }
+                    };
+
+                    window.speechSynthesis.speak(utterance);
+                }, 100);
             }
         } catch (e) {
             console.error('SpeechSynthesis error:', e);
@@ -375,7 +461,7 @@ export default function ScanDhsPage() {
 
             if (codeIdx !== -1) {
                 const code = cols[codeIdx].trim().toUpperCase();
-                
+
                 // Parse optional columns relative to the matched TO code column
                 const jmlhPaketStr = cols[codeIdx + 1]?.trim() || '';
                 const beratStr = cols[codeIdx + 2]?.trim() || '';
@@ -481,7 +567,7 @@ export default function ScanDhsPage() {
             triggerFlash('green');
             playBeep(880, 0.12, true); // Double high beep
             triggerVibration(100);
-            
+
             // Speak the sequence number in Indonesian
             speakText(sequenceNumber.toString());
             return;
@@ -520,10 +606,10 @@ export default function ScanDhsPage() {
         }
 
         // 4. Unlisted item (extra scan/salah)
-        const extraItem: ExtraScan = { 
+        const extraItem: ExtraScan = {
             id: `extra-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
-            code, 
-            scanTime: nowStr 
+            code,
+            scanTime: nowStr
         };
         setExtraScans([extraItem, ...extraScans]);
 
@@ -648,7 +734,7 @@ export default function ScanDhsPage() {
             const dateObj = new Date();
             const dateStr = dateObj.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
             const timeStr = dateObj.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
-            
+
             let updatedHistory = [...history];
 
             if (currentSessionId) {
@@ -745,7 +831,7 @@ export default function ScanDhsPage() {
         };
 
         const pendingCount = target.totalTarget - target.totalScanned;
-        
+
         let report = `*LAPORAN SCAN ${target.sessionType} DHS*\n`;
         report += `*CV. CAHAYA CARGO EXPRESS*\n`;
         report += `Tanggal: ${target.date} WIB\n`;
@@ -903,13 +989,13 @@ export default function ScanDhsPage() {
     };
 
     // Filter manifest items based on search term
-    const filteredManifest = manifest.filter(item => 
+    const filteredManifest = manifest.filter(item =>
         item.code.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
     return (
         <div className="min-h-screen bg-slate-900 text-white flex flex-col font-sans">
-            
+
             {/* Active Session Recovery Modal popup */}
             {showRecoveryModal && pendingRecovery && (
                 <div className="fixed inset-0 bg-black/75 flex items-center justify-center p-4 z-50 backdrop-blur-sm no-print">
@@ -929,13 +1015,13 @@ export default function ScanDhsPage() {
                             <p className="text-xs text-slate-400">Apakah Anda ingin melanjutkan sesi ini atau memulai sesi baru?</p>
                         </div>
                         <div className="flex gap-3 pt-2">
-                            <button 
+                            <button
                                 onClick={handleConfirmRecovery}
                                 className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-4 rounded-xl text-sm transition-all"
                             >
                                 Lanjutkan Sesi
                             </button>
-                            <button 
+                            <button
                                 onClick={handleDiscardRecovery}
                                 className="flex-1 bg-slate-800 hover:bg-red-950/40 border border-slate-700 hover:border-red-900/40 text-slate-300 hover:text-red-400 font-bold py-2.5 px-4 rounded-xl text-sm transition-all"
                             >
@@ -958,8 +1044,14 @@ export default function ScanDhsPage() {
                     </div>
                 </div>
                 <div className="flex items-center gap-2">
-                    <button 
-                        onClick={() => setSoundEnabled(!soundEnabled)}
+                    <button
+                        onClick={() => {
+                            const newSoundEnabled = !soundEnabled;
+                            setSoundEnabled(newSoundEnabled);
+                            if (newSoundEnabled) {
+                                warmupAudio();
+                            }
+                        }}
                         className={`p-2.5 rounded-xl border transition-all ${soundEnabled ? 'bg-slate-800 text-slate-300 border-slate-700' : 'bg-red-950/20 text-red-400 border-red-900/30'}`}
                         title={soundEnabled ? 'Matikan Suara Bip' : 'Aktifkan Suara Bip'}
                     >
@@ -995,13 +1087,13 @@ export default function ScanDhsPage() {
                                 <div className="flex flex-col gap-1.5">
                                     <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Tipe Sesi</label>
                                     <div className="grid grid-cols-2 bg-slate-800 p-1 rounded-xl">
-                                        <button 
+                                        <button
                                             onClick={() => setSessionType('BONGKAR')}
                                             className={`py-2 text-xs font-bold rounded-lg transition-all ${sessionType === 'BONGKAR' ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'}`}
                                         >
                                             Bongkar
                                         </button>
-                                        <button 
+                                        <button
                                             onClick={() => setSessionType('MUAT')}
                                             className={`py-2 text-xs font-bold rounded-lg transition-all ${sessionType === 'MUAT' ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'}`}
                                         >
@@ -1011,9 +1103,9 @@ export default function ScanDhsPage() {
                                 </div>
                                 <div className="flex flex-col gap-1.5">
                                     <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Nama Driver</label>
-                                    <input 
-                                        type="text" 
-                                        placeholder="Nama Driver (Opsional)" 
+                                    <input
+                                        type="text"
+                                        placeholder="Nama Driver (Opsional)"
                                         value={driverName}
                                         onChange={(e) => setDriverName(e.target.value)}
                                         className="bg-slate-800 border border-slate-700 rounded-xl px-4 py-2 text-sm text-white placeholder-slate-500 outline-none focus:border-blue-500 transition-colors"
@@ -1021,9 +1113,9 @@ export default function ScanDhsPage() {
                                 </div>
                                 <div className="flex flex-col gap-1.5 col-span-1 md:col-span-2">
                                     <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">No. Polisi / Plat Kendaraan</label>
-                                    <input 
-                                        type="text" 
-                                        placeholder="Plat Nomor Truk (Opsional)" 
+                                    <input
+                                        type="text"
+                                        placeholder="Plat Nomor Truk (Opsional)"
                                         value={noPolisi}
                                         onChange={(e) => setNoPolisi(e.target.value)}
                                         className="bg-slate-800 border border-slate-700 rounded-xl px-4 py-2 text-sm text-white placeholder-slate-500 outline-none focus:border-blue-500 transition-colors"
@@ -1035,14 +1127,14 @@ export default function ScanDhsPage() {
                             <div className="space-y-3">
                                 <div className="flex justify-between items-center">
                                     <label className="text-sm font-semibold text-slate-300">Tempelkan Data Manifes TO:</label>
-                                    <button 
+                                    <button
                                         onClick={handleLoadSample}
                                         className="text-xs font-semibold text-blue-400 hover:text-blue-300 flex items-center gap-1.5 bg-blue-950/30 px-3 py-1.5 rounded-lg border border-blue-900/50 hover:border-blue-800 transition-all"
                                     >
                                         <RefreshCcw size={12} /> Gunakan Contoh Data TO
                                     </button>
                                 </div>
-                                <textarea 
+                                <textarea
                                     rows={8}
                                     placeholder="Tempelkan data TO/resi di sini (sistem akan otomatis membaca kode seperti TO202605293D9ZG dari baris mana pun)..."
                                     value={rawInput}
@@ -1053,8 +1145,8 @@ export default function ScanDhsPage() {
 
                             {/* Drag-and-drop / Select file */}
                             <div className="border-2 border-dashed border-slate-800 hover:border-blue-500/50 rounded-2xl p-6 text-center cursor-pointer transition-colors relative group">
-                                <input 
-                                    type="file" 
+                                <input
+                                    type="file"
                                     accept=".txt,.csv"
                                     onChange={handleFileUpload}
                                     className="absolute inset-0 opacity-0 cursor-pointer"
@@ -1068,7 +1160,7 @@ export default function ScanDhsPage() {
 
                             {/* Actions */}
                             <div className="pt-4 border-t border-slate-800 flex justify-end">
-                                <button 
+                                <button
                                     onClick={handleParseManifest}
                                     className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 px-8 rounded-xl shadow-lg shadow-blue-950/20 flex items-center gap-2 hover:scale-[1.02] active:scale-[0.98] transition-all"
                                 >
@@ -1083,7 +1175,7 @@ export default function ScanDhsPage() {
                             <div className="bg-slate-950 border border-slate-800 rounded-3xl p-6 shadow-2xl space-y-4">
                                 <h3 className="font-bold text-base text-slate-300 flex justify-between items-center">
                                     <span>Riwayat Sesi Pemindaian ({history.length})</span>
-                                    <button 
+                                    <button
                                         onClick={handleClearAllHistory}
                                         className="text-xs text-red-400 hover:text-red-350 bg-red-950/20 hover:bg-red-950/40 border border-red-900/30 px-3 py-1.5 rounded-lg transition-colors"
                                     >
@@ -1092,7 +1184,7 @@ export default function ScanDhsPage() {
                                 </h3>
                                 <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
                                     {history.map((item) => (
-                                        <div 
+                                        <div
                                             key={item.id}
                                             className="bg-slate-900/40 border border-slate-800 hover:border-slate-700 p-4 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all"
                                         >
@@ -1118,25 +1210,25 @@ export default function ScanDhsPage() {
                                                 </div>
                                             </div>
                                             <div className="flex gap-2 self-start md:self-center">
-                                                <button 
+                                                <button
                                                     onClick={() => handleViewHistoryReport(item)}
                                                     className="bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold py-2 px-3 rounded-lg border border-slate-700 transition-colors"
                                                 >
                                                     Lihat Laporan
                                                 </button>
-                                                <button 
+                                                <button
                                                     onClick={() => handleEditHistorySession(item)}
                                                     className="bg-yellow-650/20 hover:bg-yellow-650/30 text-yellow-400 text-xs font-bold py-2 px-3 rounded-lg border border-yellow-800/30 transition-colors"
                                                 >
                                                     Edit
                                                 </button>
-                                                <button 
+                                                <button
                                                     onClick={() => handleCopyHistoryWA(item)}
                                                     className="bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 text-xs font-bold py-2 px-3 rounded-lg border border-emerald-800/30 transition-colors"
                                                 >
                                                     Salin WA
                                                 </button>
-                                                <button 
+                                                <button
                                                     onClick={() => handleDeleteHistoryItem(item.id)}
                                                     className="text-red-400 hover:text-red-300 p-2 hover:bg-red-950/20 rounded-lg border border-transparent hover:border-red-900/20 transition-all"
                                                     title="Hapus Riwayat"
@@ -1155,17 +1247,16 @@ export default function ScanDhsPage() {
                 {/* 2. SCANNING & MATCHING IN PROGRESS STEP */}
                 {step === 'scan' && (
                     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-                        
+
                         {/* LEFT PANEL: SCAN INPUTS & NOTIFICATIONS */}
                         <div className="lg:col-span-7 space-y-6">
-                            
+
                             {/* Flash Alert Box */}
-                            <div className={`border rounded-3xl p-6 shadow-2xl transition-all duration-300 relative overflow-hidden flex flex-col items-center text-center gap-4 ${
-                                flashEffect === 'green' ? 'bg-emerald-950/90 border-emerald-500 scale-[1.01] shadow-emerald-950/30' :
-                                flashEffect === 'yellow' ? 'bg-yellow-950/90 border-yellow-500 scale-[1.01] shadow-yellow-950/30' :
-                                flashEffect === 'red' ? 'bg-red-950/90 border-red-500 scale-[1.01] shadow-red-950/30' :
-                                'bg-slate-950 border-slate-800'
-                            }`}>
+                            <div className={`border rounded-3xl p-6 shadow-2xl transition-all duration-300 relative overflow-hidden flex flex-col items-center text-center gap-4 ${flashEffect === 'green' ? 'bg-emerald-950/90 border-emerald-500 scale-[1.01] shadow-emerald-950/30' :
+                                    flashEffect === 'yellow' ? 'bg-yellow-950/90 border-yellow-500 scale-[1.01] shadow-yellow-950/30' :
+                                        flashEffect === 'red' ? 'bg-red-950/90 border-red-500 scale-[1.01] shadow-red-950/30' :
+                                            'bg-slate-950 border-slate-800'
+                                }`}>
                                 {/* Icon display */}
                                 {scanAlert.type === 'success' && <CheckCircle className="text-emerald-400 animate-bounce" size={48} />}
                                 {scanAlert.type === 'duplicate' && <AlertTriangle className="text-yellow-400 animate-pulse" size={48} />}
@@ -1173,16 +1264,15 @@ export default function ScanDhsPage() {
                                 {scanAlert.type === 'idle' && <Barcode className="text-blue-500" size={48} />}
 
                                 <div>
-                                    <p className={`text-xs font-bold uppercase tracking-widest ${
-                                        scanAlert.type === 'success' ? 'text-emerald-400' :
-                                        scanAlert.type === 'duplicate' ? 'text-yellow-400' :
-                                        scanAlert.type === 'error' ? 'text-red-400' :
-                                        'text-blue-400'
-                                    }`}>
+                                    <p className={`text-xs font-bold uppercase tracking-widest ${scanAlert.type === 'success' ? 'text-emerald-400' :
+                                            scanAlert.type === 'duplicate' ? 'text-yellow-400' :
+                                                scanAlert.type === 'error' ? 'text-red-400' :
+                                                    'text-blue-400'
+                                        }`}>
                                         {scanAlert.type === 'success' ? 'COCOK' :
-                                         scanAlert.type === 'duplicate' ? 'DUPLIKAT' :
-                                         scanAlert.type === 'error' ? 'SELISIH LEBIH' :
-                                         'STATUS'}
+                                            scanAlert.type === 'duplicate' ? 'DUPLIKAT' :
+                                                scanAlert.type === 'error' ? 'SELISIH LEBIH' :
+                                                    'STATUS'}
                                     </p>
                                     <h3 className="text-lg md:text-xl font-bold text-white mt-1">
                                         {scanAlert.message}
@@ -1204,16 +1294,16 @@ export default function ScanDhsPage() {
                                     <div className="flex flex-col gap-1.5">
                                         <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Scanner Laser / Input Kode</span>
                                         <div className="relative">
-                                            <input 
+                                            <input
                                                 ref={inputRef}
-                                                type="text" 
+                                                type="text"
                                                 placeholder="Arahkan laser scanner ke barcode..."
                                                 value={manualInput}
                                                 onChange={(e) => setManualInput(e.target.value)}
                                                 onBlur={handleBlur}
                                                 className="w-full bg-slate-900 border-2 border-slate-800 focus:border-blue-600 rounded-2xl pl-4 pr-24 py-3.5 text-base font-mono outline-none text-white transition-all shadow-inner"
                                             />
-                                            <button 
+                                            <button
                                                 type="submit"
                                                 className="absolute right-2.5 top-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold py-1.5 px-4 rounded-xl text-xs transition-colors"
                                             >
@@ -1228,13 +1318,18 @@ export default function ScanDhsPage() {
 
                                 {/* Camera Scanner toggle */}
                                 <div className="pt-2">
-                                    <button 
-                                        onClick={() => setIsCameraActive(!isCameraActive)}
-                                        className={`w-full py-3 px-4 rounded-2xl font-bold flex items-center justify-center gap-2 border transition-all ${
-                                            isCameraActive 
-                                                ? 'bg-red-950/20 border-red-900/30 text-red-400 hover:bg-red-950/40' 
+                                    <button
+                                        onClick={() => {
+                                            const newCameraActive = !isCameraActive;
+                                            setIsCameraActive(newCameraActive);
+                                            if (newCameraActive) {
+                                                warmupAudio();
+                                            }
+                                        }}
+                                        className={`w-full py-3 px-4 rounded-2xl font-bold flex items-center justify-center gap-2 border transition-all ${isCameraActive
+                                                ? 'bg-red-950/20 border-red-900/30 text-red-400 hover:bg-red-950/40'
                                                 : 'bg-slate-800 border-slate-700 text-slate-200 hover:bg-slate-700'
-                                        }`}
+                                            }`}
                                     >
                                         <Camera size={18} />
                                         {isCameraActive ? 'Matikan Kamera Scanner' : 'Nyalakan Kamera Scanner'}
@@ -1258,14 +1353,14 @@ export default function ScanDhsPage() {
 
                             {/* Session control buttons */}
                             <div className="flex gap-4">
-                                <button 
+                                <button
                                     onClick={handleNewSession}
                                     className="flex-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 text-slate-200 font-bold py-3.5 px-6 rounded-xl flex items-center justify-center gap-2 transition-all"
                                 >
                                     <RefreshCcw size={16} />
                                     Reset Sesi
                                 </button>
-                                <button 
+                                <button
                                     onClick={handleFinishSession}
                                     className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 px-6 rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-blue-950/20 hover:scale-[1.01] active:scale-[0.99] transition-all"
                                 >
@@ -1277,7 +1372,7 @@ export default function ScanDhsPage() {
 
                         {/* RIGHT PANEL: REALTIME MANIFEST LIST */}
                         <div className="lg:col-span-5 bg-slate-950 border border-slate-800 rounded-3xl p-6 shadow-2xl flex flex-col gap-4 max-h-[85vh] sticky top-28">
-                            
+
                             {/* Target stats summary card */}
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="bg-slate-900 border border-slate-800 p-3.5 rounded-2xl flex flex-col">
@@ -1297,7 +1392,7 @@ export default function ScanDhsPage() {
                                     <span>{scanPercentage}%</span>
                                 </div>
                                 <div className="w-full bg-slate-800 h-2.5 rounded-full overflow-hidden">
-                                    <div 
+                                    <div
                                         className="bg-emerald-500 h-full rounded-full transition-all duration-300"
                                         style={{ width: `${scanPercentage}%` }}
                                     />
@@ -1309,9 +1404,9 @@ export default function ScanDhsPage() {
                                 <span className="absolute left-3.5 top-2.5 text-slate-500">
                                     <Search size={16} />
                                 </span>
-                                <input 
-                                    type="text" 
-                                    placeholder="Cari Kode TO / Resi..." 
+                                <input
+                                    type="text"
+                                    placeholder="Cari Kode TO / Resi..."
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
                                     className="w-full bg-slate-900 border border-slate-850 rounded-xl pl-10 pr-4 py-2 text-xs text-white placeholder-slate-500 outline-none focus:border-slate-700 transition-all"
@@ -1324,7 +1419,7 @@ export default function ScanDhsPage() {
                                     <span>Daftar Manifest ({totalTarget} Koli)</span>
                                     {driverName && <span className="text-[10px] font-bold text-blue-400 bg-blue-950/20 px-2 py-0.5 rounded border border-blue-900/50 uppercase">{sessionType} - TRUK {noPolisi || ''}</span>}
                                 </h3>
-                                
+
                                 <div className="flex-1 overflow-y-auto pr-1 space-y-2">
                                     {filteredManifest.length === 0 ? (
                                         <div className="text-center py-8 text-slate-600 text-xs italic">
@@ -1334,8 +1429,8 @@ export default function ScanDhsPage() {
                                         filteredManifest.map((item, idx) => {
                                             if (item.id === editingItemId) {
                                                 return (
-                                                    <div 
-                                                        key={item.id} 
+                                                    <div
+                                                        key={item.id}
                                                         className="p-3.5 bg-slate-900 border-2 border-yellow-600/70 rounded-2xl flex flex-col gap-2.5 shadow-xl transition-all"
                                                     >
                                                         <div className="text-[10px] font-bold text-yellow-400 uppercase tracking-widest flex justify-between items-center">
@@ -1345,8 +1440,8 @@ export default function ScanDhsPage() {
                                                         <div className="grid grid-cols-2 gap-2 text-xs">
                                                             <div className="flex flex-col gap-1 col-span-2">
                                                                 <label className="text-[9px] font-bold text-slate-400 uppercase">Nomor TO</label>
-                                                                <input 
-                                                                    type="text" 
+                                                                <input
+                                                                    type="text"
                                                                     value={editCode}
                                                                     onChange={(e) => setEditCode(e.target.value.toUpperCase())}
                                                                     className="bg-slate-950 border border-slate-800 focus:border-yellow-600 rounded-lg px-2.5 py-1.5 font-mono text-white outline-none transition-all"
@@ -1354,8 +1449,8 @@ export default function ScanDhsPage() {
                                                             </div>
                                                             <div className="flex flex-col gap-1">
                                                                 <label className="text-[9px] font-bold text-slate-400 uppercase">Jmlh Paket</label>
-                                                                <input 
-                                                                    type="number" 
+                                                                <input
+                                                                    type="number"
                                                                     value={editJmlh}
                                                                     onChange={(e) => setEditJmlh(e.target.value)}
                                                                     className="bg-slate-950 border border-slate-800 focus:border-yellow-600 rounded-lg px-2.5 py-1.5 text-white outline-none transition-all"
@@ -1364,8 +1459,8 @@ export default function ScanDhsPage() {
                                                             </div>
                                                             <div className="flex flex-col gap-1">
                                                                 <label className="text-[9px] font-bold text-slate-400 uppercase">Berat (kg)</label>
-                                                                <input 
-                                                                    type="text" 
+                                                                <input
+                                                                    type="text"
                                                                     value={editBerat}
                                                                     onChange={(e) => setEditBerat(e.target.value)}
                                                                     className="bg-slate-950 border border-slate-800 focus:border-yellow-600 rounded-lg px-2.5 py-1.5 text-white outline-none transition-all"
@@ -1374,8 +1469,8 @@ export default function ScanDhsPage() {
                                                             </div>
                                                             <div className="flex flex-col gap-1">
                                                                 <label className="text-[9px] font-bold text-slate-400 uppercase">TO Type</label>
-                                                                <input 
-                                                                    type="text" 
+                                                                <input
+                                                                    type="text"
                                                                     value={editToType}
                                                                     onChange={(e) => setEditToType(e.target.value)}
                                                                     className="bg-slate-950 border border-slate-800 focus:border-yellow-600 rounded-lg px-2.5 py-1.5 text-white outline-none transition-all"
@@ -1384,8 +1479,8 @@ export default function ScanDhsPage() {
                                                             </div>
                                                             <div className="flex flex-col gap-1">
                                                                 <label className="text-[9px] font-bold text-slate-400 uppercase">DG Type</label>
-                                                                <input 
-                                                                    type="text" 
+                                                                <input
+                                                                    type="text"
                                                                     value={editDgType}
                                                                     onChange={(e) => setEditDgType(e.target.value)}
                                                                     className="bg-slate-950 border border-slate-800 focus:border-yellow-600 rounded-lg px-2.5 py-1.5 text-white outline-none transition-all"
@@ -1394,13 +1489,13 @@ export default function ScanDhsPage() {
                                                             </div>
                                                         </div>
                                                         <div className="flex gap-2 justify-end pt-1 border-t border-slate-800/60 mt-1">
-                                                            <button 
+                                                            <button
                                                                 onClick={handleCancelEditItem}
                                                                 className="px-3 py-1.5 bg-slate-800 hover:bg-slate-750 text-slate-300 text-xs font-bold rounded-lg transition-colors"
                                                             >
                                                                 Batal
                                                             </button>
-                                                            <button 
+                                                            <button
                                                                 onClick={() => handleSaveEditItem(item.id)}
                                                                 className="px-3 py-1.5 bg-yellow-600 hover:bg-yellow-700 text-white text-xs font-bold rounded-lg transition-colors"
                                                             >
@@ -1412,13 +1507,12 @@ export default function ScanDhsPage() {
                                             }
 
                                             return (
-                                                <div 
-                                                    key={item.id} 
-                                                    className={`p-2.5 rounded-xl border flex items-center justify-between transition-all ${
-                                                        item.status === 'scanned' 
-                                                            ? 'bg-emerald-950/10 border-emerald-900/30 text-emerald-400' 
+                                                <div
+                                                    key={item.id}
+                                                    className={`p-2.5 rounded-xl border flex items-center justify-between transition-all ${item.status === 'scanned'
+                                                            ? 'bg-emerald-950/10 border-emerald-900/30 text-emerald-400'
                                                             : 'bg-slate-900/40 border-slate-800/80 text-slate-400'
-                                                    }`}
+                                                        }`}
                                                 >
                                                     <div className="flex flex-col gap-0.5">
                                                         <div className="flex items-center gap-2">
@@ -1438,7 +1532,7 @@ export default function ScanDhsPage() {
                                                         {item.status === 'scanned' ? (
                                                             <div className="flex items-center gap-1.5">
                                                                 <span className="text-[8px] bg-emerald-950 border border-emerald-900 px-2 py-0.5 rounded text-emerald-400 font-bold font-mono">{item.scanTime}</span>
-                                                                <button 
+                                                                <button
                                                                     onClick={() => handleStartEditItem(item)}
                                                                     className="p-1 bg-slate-850 hover:bg-slate-750 border border-slate-750 text-slate-350 hover:text-white rounded-lg transition-all"
                                                                     title="Edit Data TO"
@@ -1450,14 +1544,14 @@ export default function ScanDhsPage() {
                                                         ) : (
                                                             <div className="flex items-center gap-1.5">
                                                                 <span className="text-[8px] bg-slate-800 border border-slate-700 px-2 py-0.5 rounded text-slate-550 font-bold font-mono">PENDING</span>
-                                                                <button 
+                                                                <button
                                                                     onClick={() => handleStartEditItem(item)}
                                                                     className="p-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 rounded-lg transition-all"
                                                                     title="Edit Data TO"
                                                                 >
                                                                     <Edit size={10} />
                                                                 </button>
-                                                                <button 
+                                                                <button
                                                                     onClick={() => handleManualBypass(item.id)}
                                                                     className="p-1 bg-blue-600/20 hover:bg-blue-650 border border-blue-500/30 hover:border-blue-500 text-blue-400 hover:text-white rounded-lg transition-all"
                                                                     title="Verifikasi Manual (Bypass)"
@@ -1476,7 +1570,7 @@ export default function ScanDhsPage() {
                                     {extraScans
                                         .filter(item => item.code.toLowerCase().includes(searchTerm.toLowerCase()))
                                         .map((item, idx) => (
-                                            <div 
+                                            <div
                                                 key={item.id || `extra-${idx}`}
                                                 className="p-2.5 rounded-xl border bg-red-950/10 border-red-900/30 text-red-400 flex items-center justify-between"
                                             >
@@ -1487,7 +1581,7 @@ export default function ScanDhsPage() {
                                                 <div className="flex items-center gap-1.5">
                                                     <span className="text-[8px] bg-red-950 border border-red-900 px-2 py-0.5 rounded text-red-400 font-bold font-mono">{item.scanTime}</span>
                                                     <span className="text-[8px] bg-red-600 text-white font-black px-1.5 py-0.5 rounded">LEBIH</span>
-                                                    <button 
+                                                    <button
                                                         onClick={() => handleDeleteExtraScan(item.id, item.code)}
                                                         className="p-1 bg-red-950 hover:bg-red-900/60 border border-red-900/30 hover:border-red-800 text-red-450 hover:text-white rounded-lg transition-all"
                                                         title="Hapus Koli Lebih"
@@ -1507,7 +1601,7 @@ export default function ScanDhsPage() {
                 {/* 3. REPORT / SUMMARY STEP */}
                 {step === 'report' && (
                     <div className="space-y-6">
-                        
+
                         {/* Printable Report Panel */}
                         <div id="print-dhs-report" className="bg-slate-950 border border-slate-800 rounded-3xl p-6 md:p-8 shadow-2xl space-y-6 text-white max-w-4xl mx-auto">
                             <div className={isPrintingOnlyBa ? 'print-ba-only-hide space-y-5' : 'space-y-5'}>
@@ -1517,7 +1611,7 @@ export default function ScanDhsPage() {
                                     <div className="flex-1">
                                         <h1 className="text-xl md:text-2xl font-extrabold text-white tracking-wider font-serif">CV. CAHAYA CARGO EXPRESS</h1>
                                         <p className="text-[7.5pt] font-semibold tracking-wider text-slate-400 uppercase -mt-0.5">
-                                            Jasa Pengiriman Barang - Domestik &amp; Internasional
+                                            Jasa Pengiriman Barang - Spesialis &amp; Jawa ke Sulawesi
                                         </p>
                                         <div className="grid grid-cols-3 gap-3 mt-2 text-[6.5pt] text-slate-400 leading-tight">
                                             <div>
@@ -1568,87 +1662,87 @@ export default function ScanDhsPage() {
                                     </div>
                                 </div>
 
-                            {/* Statistics Cards */}
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-                                <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl flex flex-col items-center">
-                                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Target Manifest</span>
-                                    <span className="text-3xl font-black text-white mt-1">{totalTarget}</span>
+                                {/* Statistics Cards */}
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+                                    <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl flex flex-col items-center">
+                                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Target Manifest</span>
+                                        <span className="text-3xl font-black text-white mt-1">{totalTarget}</span>
+                                    </div>
+                                    <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl flex flex-col items-center">
+                                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Cocok (Terverifikasi)</span>
+                                        <span className="text-3xl font-black text-emerald-400 mt-1">{totalScanned}</span>
+                                    </div>
+                                    <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl flex flex-col items-center">
+                                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Selisih Kurang</span>
+                                        <span className={`text-3xl font-black mt-1 ${totalPending > 0 ? 'text-red-400' : 'text-slate-400'}`}>{totalPending}</span>
+                                    </div>
+                                    <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl flex flex-col items-center">
+                                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Selisih Lebih</span>
+                                        <span className={`text-3xl font-black mt-1 ${totalExtra > 0 ? 'text-yellow-400' : 'text-slate-400'}`}>{totalExtra}</span>
+                                    </div>
                                 </div>
-                                <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl flex flex-col items-center">
-                                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Cocok (Terverifikasi)</span>
-                                    <span className="text-3xl font-black text-emerald-400 mt-1">{totalScanned}</span>
-                                </div>
-                                <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl flex flex-col items-center">
-                                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Selisih Kurang</span>
-                                    <span className={`text-3xl font-black mt-1 ${totalPending > 0 ? 'text-red-400' : 'text-slate-400'}`}>{totalPending}</span>
-                                </div>
-                                <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl flex flex-col items-center">
-                                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Selisih Lebih</span>
-                                    <span className={`text-3xl font-black mt-1 ${totalExtra > 0 ? 'text-yellow-400' : 'text-slate-400'}`}>{totalExtra}</span>
-                                </div>
-                            </div>
 
-                            {/* Table of Results */}
-                            <div className="space-y-4 pt-4 border-t border-slate-800">
-                                <h3 className="font-bold text-sm text-slate-300">Rincian Hasil Pengecekan Koli:</h3>
-                                
-                                <div className="border border-slate-800 rounded-2xl overflow-hidden text-xs">
-                                    <table className="w-full text-left">
-                                        <thead>
-                                            <tr className="bg-slate-900 border-b border-slate-800 text-slate-400 font-semibold uppercase text-[9px] md:text-[10px]">
-                                                <th className="p-3 text-center w-[5%]">No</th>
-                                                <th className="p-3 w-[25%]">Nomor TO</th>
-                                                <th className="p-3 text-center w-[12%]">Jmlh Paket</th>
-                                                <th className="p-3 text-center w-[12%]">Berat (kg)</th>
-                                                <th className="p-3 text-center w-[12%]">TO Type</th>
-                                                <th className="p-3 text-center w-[12%]">DG Type</th>
-                                                <th className="p-3 w-[12%]">Waktu Scan</th>
-                                                <th className="p-3 text-right w-[10%]">Status</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {manifest.map((item, idx) => (
-                                                <tr key={item.id} className="border-b border-slate-800/50 hover:bg-slate-900/30">
-                                                    <td className="p-3 text-center text-slate-500 font-mono">{idx + 1}.</td>
-                                                    <td className="p-3 font-mono font-bold text-white tracking-wide">{item.code}</td>
-                                                    <td className="p-3 text-center font-mono text-slate-350">{item.jmlhPaket !== undefined ? item.jmlhPaket : '-'}</td>
-                                                    <td className="p-3 text-center font-mono text-slate-350">{item.berat !== undefined ? item.berat.toFixed(3) : '-'}</td>
-                                                    <td className="p-3 text-center text-slate-350">{item.toType || '-'}</td>
-                                                    <td className="p-3 text-center text-slate-350">{item.dgType || '-'}</td>
-                                                    <td className="p-3 font-mono text-slate-400">{item.scanTime || '-'}</td>
-                                                    <td className="p-3 text-right">
-                                                        {item.status === 'scanned' ? (
-                                                            <span className="text-[9px] bg-emerald-950 border border-emerald-900 text-emerald-400 font-black px-2 py-0.5 rounded">COCOK</span>
-                                                        ) : (
-                                                            <span className="text-[9px] bg-red-950 border border-red-900 text-red-400 font-black px-2 py-0.5 rounded">KURANG</span>
-                                                        )}
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                            {extraScans.map((item, idx) => (
-                                                <tr key={`extra-report-${idx}`} className="border-b border-slate-800/50 hover:bg-slate-900/30 bg-red-950/5">
-                                                    <td className="p-3 text-center text-red-500 font-mono">+</td>
-                                                    <td className="p-3 font-mono font-bold text-red-400 tracking-wide">{item.code}</td>
-                                                    <td className="p-3 text-center font-mono text-slate-500">-</td>
-                                                    <td className="p-3 text-center font-mono text-slate-500">-</td>
-                                                    <td className="p-3 text-center text-slate-500">-</td>
-                                                    <td className="p-3 text-center text-slate-500">-</td>
-                                                    <td className="p-3 font-mono text-slate-400">{item.scanTime}</td>
-                                                    <td className="p-3 text-right">
-                                                        <span className="text-[9px] bg-red-600 text-white font-black px-1.5 py-0.5 rounded">LEBIH</span>
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
+                                {/* Table of Results */}
+                                <div className="space-y-4 pt-4 border-t border-slate-800">
+                                    <h3 className="font-bold text-sm text-slate-300">Rincian Hasil Pengecekan Koli:</h3>
 
-                            {/* Document Footer Note */}
-                            <div className="pt-4 border-t border-slate-800 text-[10px] text-slate-500 italic leading-snug">
-                                Laporan ini dihasilkan secara otomatis oleh sistem C2-MS CV. Cahaya Cargo Express pada saat penyelesaian sesi pemindaian real-time. Penilaian selisih didasarkan pada kecocokan manifes resmi yang diunggah.
-                            </div>
-                            
+                                    <div className="border border-slate-800 rounded-2xl overflow-hidden text-xs">
+                                        <table className="w-full text-left">
+                                            <thead>
+                                                <tr className="bg-slate-900 border-b border-slate-800 text-slate-400 font-semibold uppercase text-[9px] md:text-[10px]">
+                                                    <th className="p-3 text-center w-[5%]">No</th>
+                                                    <th className="p-3 w-[25%]">Nomor TO</th>
+                                                    <th className="p-3 text-center w-[12%]">Jmlh Paket</th>
+                                                    <th className="p-3 text-center w-[12%]">Berat (kg)</th>
+                                                    <th className="p-3 text-center w-[12%]">TO Type</th>
+                                                    <th className="p-3 text-center w-[12%]">DG Type</th>
+                                                    <th className="p-3 w-[12%]">Waktu Scan</th>
+                                                    <th className="p-3 text-right w-[10%]">Status</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {manifest.map((item, idx) => (
+                                                    <tr key={item.id} className="border-b border-slate-800/50 hover:bg-slate-900/30">
+                                                        <td className="p-3 text-center text-slate-500 font-mono">{idx + 1}.</td>
+                                                        <td className="p-3 font-mono font-bold text-white tracking-wide">{item.code}</td>
+                                                        <td className="p-3 text-center font-mono text-slate-350">{item.jmlhPaket !== undefined ? item.jmlhPaket : '-'}</td>
+                                                        <td className="p-3 text-center font-mono text-slate-350">{item.berat !== undefined ? item.berat.toFixed(3) : '-'}</td>
+                                                        <td className="p-3 text-center text-slate-350">{item.toType || '-'}</td>
+                                                        <td className="p-3 text-center text-slate-350">{item.dgType || '-'}</td>
+                                                        <td className="p-3 font-mono text-slate-400">{item.scanTime || '-'}</td>
+                                                        <td className="p-3 text-right">
+                                                            {item.status === 'scanned' ? (
+                                                                <span className="text-[9px] bg-emerald-950 border border-emerald-900 text-emerald-400 font-black px-2 py-0.5 rounded">COCOK</span>
+                                                            ) : (
+                                                                <span className="text-[9px] bg-red-950 border border-red-900 text-red-400 font-black px-2 py-0.5 rounded">KURANG</span>
+                                                            )}
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                                {extraScans.map((item, idx) => (
+                                                    <tr key={`extra-report-${idx}`} className="border-b border-slate-800/50 hover:bg-slate-900/30 bg-red-950/5">
+                                                        <td className="p-3 text-center text-red-500 font-mono">+</td>
+                                                        <td className="p-3 font-mono font-bold text-red-400 tracking-wide">{item.code}</td>
+                                                        <td className="p-3 text-center font-mono text-slate-500">-</td>
+                                                        <td className="p-3 text-center font-mono text-slate-500">-</td>
+                                                        <td className="p-3 text-center text-slate-500">-</td>
+                                                        <td className="p-3 text-center text-slate-500">-</td>
+                                                        <td className="p-3 font-mono text-slate-400">{item.scanTime}</td>
+                                                        <td className="p-3 text-right">
+                                                            <span className="text-[9px] bg-red-600 text-white font-black px-1.5 py-0.5 rounded">LEBIH</span>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+
+                                {/* Document Footer Note */}
+                                <div className="pt-4 border-t border-slate-800 text-[10px] text-slate-500 italic leading-snug">
+                                    Laporan ini dihasilkan secara otomatis oleh sistem C2-MS CV. Cahaya Cargo Express pada saat penyelesaian sesi pemindaian real-time. Penilaian selisih didasarkan pada kecocokan manifes resmi yang diunggah.
+                                </div>
+
                             </div>
 
                             {/* Render Berita Acara Document inside Report (only if created) */}
@@ -1905,8 +1999,8 @@ export default function ScanDhsPage() {
                                         {baManualTOs.length > 0 && (
                                             <div className="flex flex-wrap gap-2 pt-2">
                                                 {baManualTOs.map((item) => (
-                                                    <span 
-                                                        key={item.code} 
+                                                    <span
+                                                        key={item.code}
                                                         className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-950/50 border border-slate-800/60 text-slate-200 font-mono text-xs font-semibold"
                                                     >
                                                         <span>{item.code}</span>
@@ -1995,14 +2089,14 @@ export default function ScanDhsPage() {
 
                         {/* Export Action Buttons */}
                         <div className="flex flex-col sm:flex-row gap-4 max-w-4xl mx-auto">
-                            <button 
+                            <button
                                 onClick={handleCopyWhatsApp}
                                 className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 px-6 rounded-xl flex items-center justify-center gap-2 hover:scale-[1.01] active:scale-[0.99] transition-all shadow-lg shadow-emerald-950/20"
                             >
                                 <Copy size={18} />
                                 Salin Laporan WhatsApp (WA)
                             </button>
-                            <button 
+                            <button
                                 onClick={() => window.print()}
                                 className="flex-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 text-slate-200 font-bold py-3.5 px-6 rounded-xl flex items-center justify-center gap-2 transition-all"
                             >
@@ -2010,7 +2104,7 @@ export default function ScanDhsPage() {
                                 Cetak Laporan (A4)
                             </button>
                             {baCreated && (
-                                <button 
+                                <button
                                     onClick={handlePrintOnlyBa}
                                     className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 px-6 rounded-xl flex items-center justify-center gap-2 transition-all hover:scale-[1.01]"
                                 >
@@ -2018,14 +2112,14 @@ export default function ScanDhsPage() {
                                     Cetak Berita Acara Saja (A4)
                                 </button>
                             )}
-                            <button 
+                            <button
                                 onClick={handleEditSession}
                                 className="flex-1 bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-3.5 px-6 rounded-xl flex items-center justify-center gap-2 transition-all hover:scale-[1.01]"
                             >
                                 <Edit size={18} />
                                 Edit / Lanjutkan Scan
                             </button>
-                            <button 
+                            <button
                                 onClick={handleNewSession}
                                 className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 px-6 rounded-xl flex items-center justify-center gap-2 transition-all hover:scale-[1.01]"
                             >
