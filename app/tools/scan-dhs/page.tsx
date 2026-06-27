@@ -635,6 +635,15 @@ export default function ScanDhsPage() {
         const totalInManifestCount = manifest.filter(item => item.code === code).length;
 
         if (totalInManifestCount > 0 && alreadyScannedCount === totalInManifestCount) {
+            // Update the scanTime of the matching item in the manifest to include the duplicate scan time
+            const updated = [...manifest];
+            const matchedIdx = updated.findIndex(item => item.code === code && item.status === 'scanned');
+            if (matchedIdx !== -1) {
+                const currentScanTime = updated[matchedIdx].scanTime || '';
+                updated[matchedIdx].scanTime = currentScanTime ? `${currentScanTime}, ${nowStr} (Dup)` : `${nowStr} (Dup)`;
+                setManifest(updated);
+            }
+
             setScanAlert({
                 type: 'duplicate',
                 message: `DUPLIKAT! Kode ini sudah discan sebelumnya (${alreadyScannedCount}/${totalInManifestCount} Koli)`,
@@ -650,6 +659,15 @@ export default function ScanDhsPage() {
         // 3. Check if it's already scanned as extra (duplicate extra scan)
         const isAlreadyExtra = extraScans.some(item => item.code === code);
         if (isAlreadyExtra) {
+            // Update the scanTime of the matching item in extraScans to include the duplicate scan time
+            const updatedExtras = [...extraScans];
+            const matchedIdx = updatedExtras.findIndex(item => item.code === code);
+            if (matchedIdx !== -1) {
+                const currentScanTime = updatedExtras[matchedIdx].scanTime || '';
+                updatedExtras[matchedIdx].scanTime = currentScanTime ? `${currentScanTime}, ${nowStr} (Dup)` : `${nowStr} (Dup)`;
+                setExtraScans(updatedExtras);
+            }
+
             setScanAlert({
                 type: 'duplicate',
                 message: `TO TETAP SAMA! Kode selisih lebih ini sudah discan sebelumnya.`,
