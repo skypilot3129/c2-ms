@@ -216,7 +216,8 @@ export default function ScanDhsPage() {
                     }
                 }
                 if (window.speechSynthesis) {
-                    const utterance = new SpeechSynthesisUtterance("");
+                    // Speak dummy space to prime iOS Safari/Chrome engines
+                    const utterance = new SpeechSynthesisUtterance(" ");
                     window.speechSynthesis.speak(utterance);
                 }
             }
@@ -227,6 +228,16 @@ export default function ScanDhsPage() {
 
     // Auto-unlock AudioContext and SpeechSynthesis on first user interaction
     useEffect(() => {
+        // Pre-warm Web Speech API voices list as they load asynchronously
+        if (typeof window !== 'undefined' && window.speechSynthesis) {
+            window.speechSynthesis.getVoices();
+            if (window.speechSynthesis.onvoiceschanged !== undefined) {
+                window.speechSynthesis.onvoiceschanged = () => {
+                    window.speechSynthesis.getVoices();
+                };
+            }
+        }
+
         const handleInteraction = () => {
             warmupAudio();
             cleanup();
@@ -262,11 +273,6 @@ export default function ScanDhsPage() {
             const audioCtx = audioCtxRef.current;
             if (!audioCtx) return;
 
-            // Resume audio context if suspended
-            if (audioCtx.state === 'suspended') {
-                audioCtx.resume().catch((err) => console.error('AudioContext resume failed:', err));
-            }
-
             const playSingle = (frequency: number, delay = 0) => {
                 const oscillator = audioCtx.createOscillator();
                 const gainNode = audioCtx.createGain();
@@ -277,22 +283,34 @@ export default function ScanDhsPage() {
                 oscillator.frequency.value = frequency;
                 oscillator.type = 'sine';
 
-                gainNode.gain.setValueAtTime(0, audioCtx.currentTime + delay);
+                // Use simple linear values to avoid exponential to/from 0 errors
+                gainNode.gain.setValueAtTime(0.001, audioCtx.currentTime + delay);
                 gainNode.gain.linearRampToValueAtTime(0.1, audioCtx.currentTime + delay + 0.02);
-                gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + delay + duration);
+                gainNode.gain.linearRampToValueAtTime(0.001, audioCtx.currentTime + delay + duration);
 
                 oscillator.start(audioCtx.currentTime + delay);
                 oscillator.stop(audioCtx.currentTime + delay + duration);
             };
 
-            playSingle(freq);
-            if (double) {
-                setTimeout(() => {
-                    if (audioCtx.state === 'suspended') {
-                        audioCtx.resume().catch(() => {});
-                    }
-                    playSingle(freq * 1.2);
-                }, 150);
+            const runPlay = () => {
+                playSingle(freq);
+                if (double) {
+                    setTimeout(() => {
+                        playSingle(freq * 1.2);
+                    }, 150);
+                }
+            };
+
+            // Wait for AudioContext to be resumed before starting sound
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume()
+                    .then(runPlay)
+                    .catch((err) => {
+                        console.error('AudioContext resume failed:', err);
+                        runPlay(); // Try to play anyway
+                    });
+            } else {
+                runPlay();
             }
         } catch (e) {
             console.error('Web Audio API error:', e);
@@ -310,7 +328,18 @@ export default function ScanDhsPage() {
                 // Chrome SpeechSynthesis bug workaround: add delay after cancel()
                 setTimeout(() => {
                     const utterance = new SpeechSynthesisUtterance(text);
-                    utterance.lang = 'id-ID';
+                    
+                    // Explicitly fetch available voices to find the best Indonesian voice if available
+                    const voices = window.speechSynthesis.getVoices();
+                    const idVoice = voices.find(v => v.lang.startsWith('id') || v.lang.includes('ID'));
+                    if (idVoice) {
+                        utterance.voice = idVoice;
+                        utterance.lang = idVoice.lang;
+                    } else {
+                        // Fallback lang
+                        utterance.lang = 'id-ID';
+                    }
+                    
                     utterance.rate = 1.25;
 
                     // Keep a reference to prevent garbage collection mid-speech
@@ -320,7 +349,8 @@ export default function ScanDhsPage() {
                             utteranceRef.current = null;
                         }
                     };
-                    utterance.onerror = () => {
+                    utterance.onerror = (e) => {
+                        console.error('SpeechSynthesisUtterance error:', e);
                         if (utteranceRef.current === utterance) {
                             utteranceRef.current = null;
                         }
@@ -424,6 +454,7 @@ export default function ScanDhsPage() {
             setShowRecoveryModal(false);
             setPendingRecovery(null);
             setScanAlert({ type: 'idle', message: 'Sesi scan berhasil dipulihkan. Silakan lanjutkan.' });
+            warmupAudio();
         }
     };
 
@@ -510,6 +541,7 @@ export default function ScanDhsPage() {
         setSearchTerm('');
         setStep('scan');
         setScanAlert({ type: 'idle', message: 'Sesi scan siap. Mulailah memindai barcode.' });
+        warmupAudio();
     };
 
     // Preload sample data from the user request
@@ -902,6 +934,7 @@ export default function ScanDhsPage() {
     const handleEditSession = () => {
         setStep('scan');
         setScanAlert({ type: 'idle', message: 'Melanjutkan pemindaian sesi ini.' });
+        warmupAudio();
     };
 
     // Edit/Resume session scanning directly from history list
@@ -914,6 +947,7 @@ export default function ScanDhsPage() {
         setExtraScans(item.extraScans || []);
         setStep('scan');
         setScanAlert({ type: 'idle', message: 'Melanjutkan pemindaian sesi ini.' });
+        warmupAudio();
     };
 
     // Inline item editing helper functions
@@ -1044,6 +1078,20 @@ export default function ScanDhsPage() {
                     </div>
                 </div>
                 <div className="flex items-center gap-2">
+                    <button
+                        onClick={() => {
+                            warmupAudio();
+                            setTimeout(() => {
+                                playBeep(880, 0.12, true);
+                                speakText("Satu");
+                            }, 100);
+                        }}
+                        className="bg-blue-600 hover:bg-blue-500 text-white px-3 py-2.5 rounded-xl flex items-center justify-center gap-1.5 transition-colors border border-blue-500"
+                        title="Tes Suara Bip & TTS"
+                    >
+                        <Volume2 size={18} />
+                        <span className="text-sm font-semibold">Tes Suara</span>
+                    </button>
                     <button
                         onClick={() => {
                             const newSoundEnabled = !soundEnabled;
