@@ -641,9 +641,9 @@ export default function ScanDhsPage() {
                 code
             });
             triggerFlash('yellow');
-            playBeep(440, 0.25); // Warning beep
+            playBeep(440, 0.2); // Normal warning beep
             triggerVibration([80, 80]);
-            speakText("T O tetap sama");
+            speakText("Duplikat");
             return;
         }
 
@@ -656,8 +656,8 @@ export default function ScanDhsPage() {
                 code
             });
             triggerFlash('yellow');
-            playBeep(440, 0.25); // Warning beep
-            triggerVibration([80, 80]);
+            playBeep(330, 0.35); // Lower frequency warning beep for excess/extra duplicate
+            triggerVibration([100, 50, 100]);
             speakText("T O tetap sama");
             return;
         }
