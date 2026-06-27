@@ -76,6 +76,7 @@ export default function ScanDhsPage() {
 
     // Sound options
     const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
+    const [audioSystemError, setAudioSystemError] = useState<string>('');
 
     // Search & History states
     const [searchTerm, setSearchTerm] = useState<string>('');
@@ -210,19 +211,29 @@ export default function ScanDhsPage() {
                 if (AudioContextClass) {
                     if (!audioCtxRef.current) {
                         audioCtxRef.current = new AudioContextClass();
+                        
+                        audioCtxRef.current.onstatechange = () => {
+                            if (audioCtxRef.current && audioCtxRef.current.state === 'closed') {
+                                setAudioSystemError('Sistem Audio terputus secara tidak terduga. Silakan segarkan halaman.');
+                            }
+                        };
                     }
                     if (audioCtxRef.current.state === 'suspended') {
-                        audioCtxRef.current.resume().catch((err) => console.error('AudioContext resume failed:', err));
+                        audioCtxRef.current.resume().catch((err) => {
+                            console.error('AudioContext resume failed:', err);
+                            setAudioSystemError('Aplikasi diblokir dari memutar audio oleh browser. Silakan klik tombol "Tes Suara" atau layani interaksi manual.');
+                        });
                     }
                 }
                 if (window.speechSynthesis) {
-                    // Speak dummy space to prime iOS Safari/Chrome engines
+                    // Speak dummy space to prime iOS/Chrome Speech Synthesis engines
                     const utterance = new SpeechSynthesisUtterance(" ");
                     window.speechSynthesis.speak(utterance);
                 }
             }
         } catch (e) {
             console.error('Warmup audio error:', e);
+            setAudioSystemError('Perangkat output suara Anda terputus atau tidak didukung di browser ini.');
         }
     };
 
@@ -267,6 +278,12 @@ export default function ScanDhsPage() {
                 const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
                 if (AudioContextClass) {
                     audioCtxRef.current = new AudioContextClass();
+                    
+                    audioCtxRef.current.onstatechange = () => {
+                        if (audioCtxRef.current && audioCtxRef.current.state === 'closed') {
+                            setAudioSystemError('Sistem Audio terputus secara tidak terduga. Silakan segarkan halaman.');
+                        }
+                    };
                 }
             }
 
@@ -307,6 +324,7 @@ export default function ScanDhsPage() {
                     .then(runPlay)
                     .catch((err) => {
                         console.error('AudioContext resume failed:', err);
+                        setAudioSystemError('Aplikasi diblokir dari memutar audio oleh browser. Silakan klik tombol "Tes Suara" untuk mengaktifkan.');
                         runPlay(); // Try to play anyway
                     });
             } else {
@@ -314,6 +332,7 @@ export default function ScanDhsPage() {
             }
         } catch (e) {
             console.error('Web Audio API error:', e);
+            setAudioSystemError('Perangkat output suara Anda terputus atau tidak didukung di browser ini.');
         }
     };
 
@@ -350,7 +369,13 @@ export default function ScanDhsPage() {
                         }
                     };
                     utterance.onerror = (e) => {
-                        console.error('SpeechSynthesisUtterance error:', e);
+                        // Log real errors but skip normal canceled/interrupted states
+                        if (e.error !== 'interrupted' && e.error !== 'canceled') {
+                            console.error('SpeechSynthesisUtterance error:', e.error || e);
+                            if (e.error === 'audio-hardware' || e.error === 'audio-busy') {
+                                setAudioSystemError('Perangkat audio/speaker terputus atau sedang digunakan oleh aplikasi lain.');
+                            }
+                        }
                         if (utteranceRef.current === utterance) {
                             utteranceRef.current = null;
                         }
@@ -1298,6 +1323,29 @@ export default function ScanDhsPage() {
 
                         {/* LEFT PANEL: SCAN INPUTS & NOTIFICATIONS */}
                         <div className="lg:col-span-7 space-y-6">
+
+                            {/* Audio Error Alert Box */}
+                            {audioSystemError && (
+                                <div className="border border-red-950 border-red-900/50 bg-red-950/20 text-red-400 rounded-2xl p-4 flex items-start gap-3 shadow-lg">
+                                    <AlertTriangle className="flex-shrink-0 mt-0.5" size={18} />
+                                    <div className="flex-1 space-y-1">
+                                        <p className="text-sm font-semibold">Masalah Audio Terdeteksi</p>
+                                        <p className="text-xs text-red-300/80 leading-relaxed">
+                                            {audioSystemError}
+                                        </p>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setAudioSystemError('');
+                                                warmupAudio();
+                                            }}
+                                            className="text-xs font-bold underline hover:text-red-200 block pt-1"
+                                        >
+                                            Coba Aktifkan Kembali Audio
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
 
                             {/* Flash Alert Box */}
                             <div className={`border rounded-3xl p-6 shadow-2xl transition-all duration-300 relative overflow-hidden flex flex-col items-center text-center gap-4 ${flashEffect === 'green' ? 'bg-emerald-950/90 border-emerald-500 scale-[1.01] shadow-emerald-950/30' :
