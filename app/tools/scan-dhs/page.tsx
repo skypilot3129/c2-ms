@@ -33,6 +33,7 @@ interface ManifestItem {
     berat?: number;
     toType?: string;
     dgType?: string;
+    tujuan?: string;
 }
 
 interface ExtraScan {
@@ -506,6 +507,240 @@ export default function ScanDhsPage() {
         setShowRecoveryModal(false);
     };
 
+    // Helper function to parse CSV text into a 2D array of strings, supporting commas, semicolons, and tabs
+    const parseCSVText = (text: string): string[][] => {
+        const rows = text.split(/\r?\n/).filter(r => r.trim());
+        if (rows.length === 0) return [];
+        
+        // Auto-detect delimiter based on frequency
+        let delimiter = ',';
+        const sample = rows.slice(0, 10).join('\n');
+        const commaCount = (sample.match(/,/g) || []).length;
+        const semiCount = (sample.match(/;/g) || []).length;
+        const tabCount = (sample.match(/\t/g) || []).length;
+        
+        if (semiCount > commaCount && semiCount > tabCount) {
+            delimiter = ';';
+        } else if (tabCount > commaCount && tabCount > semiCount) {
+            delimiter = '\t';
+        }
+
+        const lines: string[][] = [];
+        for (const row of rows) {
+            const cells: string[] = [];
+            let inQuotes = false;
+            let currentCell = '';
+            for (let i = 0; i < row.length; i++) {
+                const char = row[i];
+                if (char === '"') {
+                    inQuotes = !inQuotes;
+                } else if (char === delimiter && !inQuotes) {
+                    cells.push(currentCell.trim());
+                    currentCell = '';
+                } else {
+                    currentCell += char;
+                }
+            }
+            cells.push(currentCell.trim());
+            lines.push(cells);
+        }
+        return lines;
+    };
+
+    // Helper: Parse weight supporting both Indonesian and US decimal notations
+    const parseCSVWeight = (val: string): number => {
+        if (!val) return 0.0;
+        let s = String(val).trim().replace(/\s/g, '');
+        
+        // If both dots and commas exist
+        if (s.includes('.') && s.includes(',')) {
+            const dotIdx = s.indexOf('.');
+            const commaIdx = s.indexOf(',');
+            if (dotIdx < commaIdx) {
+                // Indonesian format (e.g. 5.166,847) -> strip dot, convert comma to dot
+                s = s.replace(/\./g, '').replace(',', '.');
+            } else {
+                // US format (e.g. 5,166.847) -> strip comma
+                s = s.replace(/,/g, '');
+            }
+        } else if (s.includes(',')) {
+            s = s.replace(',', '.');
+        }
+        
+        return parseFloat(s) || 0.0;
+    };
+
+    // Helper: Parse koli/package quantities
+    const parseCSVPackages = (val: string): number => {
+        if (!val) return 0;
+        let s = String(val).trim().replace(/\s/g, '');
+        s = s.replace(/[,.]/g, ''); // strip thousands
+        return parseInt(s, 10) || 0;
+    };
+
+    // Helper: Extract items and metadata from CSV structure
+    const processCSVData = (rows: string[][]) => {
+        let extractedDriver = '';
+        let extractedNopol = '';
+        let extractedSessionType: 'BONGKAR' | 'MUAT' = 'BONGKAR';
+        
+        // 1. Scan for trip metadata from header rows (first 35 rows)
+        for (let r = 0; r < Math.min(rows.length, 35); r++) {
+            const rowStr = rows[r].join(" ");
+            
+            if (rowStr.toLowerCase().includes("bongkar")) {
+                extractedSessionType = 'BONGKAR';
+            } else if (rowStr.toLowerCase().includes("muat")) {
+                extractedSessionType = 'MUAT';
+            }
+
+            for (let c = 0; c < rows[r].length; c++) {
+                const cellVal = String(rows[r][c]).trim();
+                const nextCellVal = rows[r][c+1] ? String(rows[r][c+1]).trim() : "";
+                const cleanedVal = cellVal.toLowerCase();
+
+                if (cleanedVal.includes("nomor polisi") || cleanedVal.includes("no polisi") || cleanedVal === "plat" || cleanedVal === "nopol") {
+                    extractedNopol = nextCellVal.replace(/^[\s:]+/, '').trim();
+                }
+                if (cleanedVal.includes("nama driver") || cleanedVal === "driver" || cleanedVal === "sopir") {
+                    extractedDriver = nextCellVal.replace(/^[\s:]+/, '').trim();
+                }
+            }
+        }
+
+        // 2. Discover dynamic column indices by scanning the CSV header row
+        let headerMap = { toIdx: -1, paketIdx: -1, beratIdx: -1, tujuanIdx: -1, typeIdx: -1, dgIdx: -1 };
+        for (let r = 0; r < Math.min(rows.length, 45); r++) {
+            const row = rows[r];
+            let foundTOHeader = false;
+            let tempMap = { toIdx: -1, paketIdx: -1, beratIdx: -1, tujuanIdx: -1, typeIdx: -1, dgIdx: -1 };
+            
+            for (let c = 0; c < row.length; c++) {
+                const val = String(row[c]).trim().toLowerCase();
+                if (val === 'nomor to' || val === 'to number' || val === 'to no' || val === 'to_number' || val === 'no to' || val === 'resi') {
+                    tempMap.toIdx = c;
+                    foundTOHeader = true;
+                } else if (val.includes('jmlh') || val === 'jumlah' || val === 'qty' || val === 'paket' || val === 'jml' || val.includes('koli') || val === 'pcs') {
+                    tempMap.paketIdx = c;
+                } else if (val.includes('berat') || val.includes('weight')) {
+                    tempMap.beratIdx = c;
+                } else if (val === 'destination' || val === 'tujuan' || val === 'dest') {
+                    tempMap.tujuanIdx = c;
+                } else if (val.includes('to type') || val === 'to_type' || val === 'type' || val === 'tipe') {
+                    tempMap.typeIdx = c;
+                } else if (val.includes('dg type') || val === 'dg_type' || val === 'dg') {
+                    tempMap.dgIdx = c;
+                }
+            }
+            if (foundTOHeader) {
+                headerMap = tempMap;
+                break;
+            }
+        }
+
+        const items: ManifestItem[] = [];
+        let itemIndex = 0;
+
+        // 3. Process each row and parse TOs
+        for (let r = 0; r < rows.length; r++) {
+            const row = rows[r];
+            
+            let toColIdx = -1;
+            let toVal = "";
+            for (let c = 0; c < row.length; c++) {
+                const cellVal = String(row[c]).trim();
+                if (/^(?:TO|SPXID)[0-9]{8}[A-Z0-9]+$/i.test(cellVal)) {
+                    toColIdx = c;
+                    toVal = cellVal.toUpperCase();
+                    break;
+                }
+            }
+
+            if (toColIdx !== -1) {
+                let paket = undefined;
+                let berat = undefined;
+                let tujuan = undefined;
+                let type = "-";
+                let dg = "-";
+
+                if (headerMap.toIdx !== -1) {
+                    // Standardized Header Mapping
+                    if (headerMap.paketIdx !== -1 && row[headerMap.paketIdx]) {
+                        paket = parseCSVPackages(row[headerMap.paketIdx]);
+                    }
+                    if (headerMap.beratIdx !== -1 && row[headerMap.beratIdx]) {
+                        berat = parseCSVWeight(row[headerMap.beratIdx]);
+                    }
+                    if (headerMap.tujuanIdx !== -1 && row[headerMap.tujuanIdx]) {
+                        tujuan = String(row[headerMap.tujuanIdx]).trim();
+                    }
+                    if (headerMap.typeIdx !== -1 && row[headerMap.typeIdx]) {
+                        type = String(row[headerMap.typeIdx]).trim();
+                    }
+                    if (headerMap.dgIdx !== -1 && row[headerMap.dgIdx]) {
+                        const rawDg = String(row[headerMap.dgIdx]).trim();
+                        dg = (rawDg === "" || rawDg === "-") ? "-" : rawDg;
+                    }
+                } else {
+                    // Fail-safe scanning relative to TO column index
+                    let foundNumerics: { index: number; value: number; raw: string }[] = [];
+                    for (let c = toColIdx + 1; c < row.length; c++) {
+                        const val = String(row[c]).trim();
+                        if (val === "") continue;
+
+                        const cleanNum = val.replace(/,/g, '.');
+                        if (!isNaN(Number(cleanNum)) && cleanNum !== "") {
+                            foundNumerics.push({ index: c, value: parseFloat(cleanNum), raw: val });
+                        }
+                        if (val.toLowerCase().includes('dc') || val.toLowerCase().includes('hub')) {
+                            tujuan = val;
+                        }
+                        if (['bag', 'bulky', 'liquid', 'karung', 'box'].includes(val.toLowerCase())) {
+                            type = val;
+                        }
+                        if (['non-dg', 'dg type a', 'dg type b', 'dg'].includes(val.toLowerCase())) {
+                            dg = val;
+                        }
+                    }
+
+                    if (foundNumerics.length >= 2) {
+                        paket = parseCSVPackages(foundNumerics[0].raw);
+                        berat = parseCSVWeight(foundNumerics[1].raw);
+                    } else if (foundNumerics.length === 1) {
+                        berat = parseCSVWeight(foundNumerics[0].raw);
+                    }
+                }
+
+                if (type === "" || type === "-") {
+                    for (let c = 0; c < row.length; c++) {
+                        const val = String(row[c]).trim().toLowerCase();
+                        if (['bag', 'bulky', 'liquid', 'karung', 'box'].includes(val)) {
+                            type = row[c].trim();
+                        }
+                    }
+                }
+
+                items.push({
+                    id: `item-${itemIndex++}-${Date.now()}`,
+                    code: toVal,
+                    status: 'pending',
+                    jmlhPaket: (paket !== undefined && !isNaN(paket)) ? paket : undefined,
+                    berat: (berat !== undefined && !isNaN(berat)) ? berat : undefined,
+                    toType: (type === "" || type === "-") ? undefined : type,
+                    dgType: (dg === "" || dg === "-" || dg.toLowerCase() === "non-dg") ? undefined : dg,
+                    tujuan: (tujuan === "" || tujuan === "-") ? undefined : tujuan
+                });
+            }
+        }
+
+        return {
+            items,
+            driver: extractedDriver,
+            nopol: extractedNopol,
+            sessionType: extractedSessionType
+        };
+    };
+
     // Parse pasted/input text for TO & SPXID resi numbers and additional columns
     const handleParseManifest = () => {
         if (!rawInput.trim()) {
@@ -513,6 +748,34 @@ export default function ScanDhsPage() {
             return;
         }
 
+        // Try structured CSV parsing first
+        try {
+            const rows = parseCSVText(rawInput);
+            const csvResult = processCSVData(rows);
+            
+            if (csvResult && csvResult.items.length > 0) {
+                setManifest(csvResult.items);
+                setExtraScans([]);
+                setCurrentSessionId(null);
+                setSearchTerm('');
+                
+                if (csvResult.driver) setDriverName(csvResult.driver);
+                if (csvResult.nopol) setNoPolisi(csvResult.nopol);
+                setSessionType(csvResult.sessionType);
+
+                setStep('scan');
+                setScanAlert({ 
+                    type: 'idle', 
+                    message: `Manifest CSV berhasil diimpor! Terdeteksi ${csvResult.items.length} TO.` 
+                });
+                warmupAudio();
+                return;
+            }
+        } catch (e) {
+            console.warn('CSV parsing fell back to plain text parser:', e);
+        }
+
+        // Fallback: plain text parser (line by line extraction)
         const lines = rawInput.split(/\r?\n/);
         const items: ManifestItem[] = [];
         let itemIndex = 0;
@@ -608,6 +871,25 @@ export default function ScanDhsPage() {
         reader.onload = (event) => {
             const text = event.target?.result as string;
             setRawInput(text);
+
+            // Try to parse CSV manifest directly to help the user pre-fill details
+            try {
+                const rows = parseCSVText(text);
+                const csvResult = processCSVData(rows);
+                if (csvResult && csvResult.items.length > 0) {
+                    setManifest(csvResult.items);
+                    if (csvResult.driver) setDriverName(csvResult.driver);
+                    if (csvResult.nopol) setNoPolisi(csvResult.nopol);
+                    setSessionType(csvResult.sessionType);
+                    
+                    setScanAlert({
+                        type: 'success',
+                        message: `Berhasil mengekstrak ${csvResult.items.length} TO dari berkas CSV! Driver: ${csvResult.driver || '-'}, Plat Truk: ${csvResult.nopol || '-'}`
+                    });
+                }
+            } catch (err) {
+                console.warn('Auto-parsing CSV on upload failed, user can still submit manually.', err);
+            }
         };
         reader.readAsText(file);
     };
@@ -1649,10 +1931,11 @@ export default function ScanDhsPage() {
                                                             <span className="text-[10px] font-bold text-slate-650 font-mono w-4">{idx + 1}.</span>
                                                             <span className="font-mono font-bold text-xs tracking-wide">{item.code}</span>
                                                         </div>
-                                                        {(item.jmlhPaket !== undefined || item.berat !== undefined || item.toType || item.dgType) && (
+                                                        {(item.jmlhPaket !== undefined || item.berat !== undefined || item.toType || item.dgType || item.tujuan) && (
                                                             <div className="flex flex-wrap gap-x-2 gap-y-0.5 text-[9px] text-slate-500 font-medium pl-6">
                                                                 {item.jmlhPaket !== undefined && <span>{item.jmlhPaket} Pkt</span>}
                                                                 {item.berat !== undefined && <span>{item.berat} kg</span>}
+                                                                {item.tujuan && <span className="bg-blue-950/40 text-blue-455 border border-blue-900/30 px-1 rounded text-[8px]">{item.tujuan}</span>}
                                                                 {item.toType && <span className="bg-slate-800/50 px-1 rounded text-[8px]">{item.toType}</span>}
                                                                 {item.dgType && <span className="bg-slate-800/50 px-1 rounded text-[8px]">{item.dgType}</span>}
                                                             </div>
@@ -1821,13 +2104,14 @@ export default function ScanDhsPage() {
                                             <thead>
                                                 <tr className="bg-slate-900 border-b border-slate-800 text-slate-400 font-semibold uppercase text-[9px] md:text-[10px]">
                                                     <th className="p-3 text-center w-[5%]">No</th>
-                                                    <th className="p-3 w-[25%]">Nomor TO</th>
-                                                    <th className="p-3 text-center w-[12%]">Jmlh Paket</th>
-                                                    <th className="p-3 text-center w-[12%]">Berat (kg)</th>
-                                                    <th className="p-3 text-center w-[12%]">TO Type</th>
-                                                    <th className="p-3 text-center w-[12%]">DG Type</th>
+                                                    <th className="p-3 w-[20%]">Nomor TO</th>
+                                                    <th className="p-3 text-center w-[10%]">Jmlh Paket</th>
+                                                    <th className="p-3 text-center w-[10%]">Berat (kg)</th>
+                                                    <th className="p-3 w-[16%]">Tujuan</th>
+                                                    <th className="p-3 text-center w-[10%]">TO Type</th>
+                                                    <th className="p-3 text-center w-[10%]">DG Type</th>
                                                     <th className="p-3 w-[12%]">Waktu Scan</th>
-                                                    <th className="p-3 text-right w-[10%]">Status</th>
+                                                    <th className="p-3 text-right w-[7%]">Status</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
@@ -1837,6 +2121,7 @@ export default function ScanDhsPage() {
                                                         <td className="p-3 font-mono font-bold text-white tracking-wide">{item.code}</td>
                                                         <td className="p-3 text-center font-mono text-slate-350">{item.jmlhPaket !== undefined ? item.jmlhPaket : '-'}</td>
                                                         <td className="p-3 text-center font-mono text-slate-350">{item.berat !== undefined ? item.berat.toFixed(3) : '-'}</td>
+                                                        <td className="p-3 text-slate-300 font-medium">{item.tujuan || '-'}</td>
                                                         <td className="p-3 text-center text-slate-350">{item.toType || '-'}</td>
                                                         <td className="p-3 text-center text-slate-350">{item.dgType || '-'}</td>
                                                         <td className="p-3 font-mono text-slate-400">{item.scanTime || '-'}</td>
@@ -1855,6 +2140,7 @@ export default function ScanDhsPage() {
                                                         <td className="p-3 font-mono font-bold text-red-400 tracking-wide">{item.code}</td>
                                                         <td className="p-3 text-center font-mono text-slate-500">-</td>
                                                         <td className="p-3 text-center font-mono text-slate-500">-</td>
+                                                        <td className="p-3 text-slate-500 font-medium">-</td>
                                                         <td className="p-3 text-center text-slate-500">-</td>
                                                         <td className="p-3 text-center text-slate-500">-</td>
                                                         <td className="p-3 font-mono text-slate-400">{item.scanTime}</td>
