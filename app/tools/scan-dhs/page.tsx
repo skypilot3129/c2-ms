@@ -336,6 +336,22 @@ export default function ScanDhsPage() {
         }
     };
 
+    // Helper function to translate numbers to Indonesian spoken words
+    const numberToIndonesianWords = (n: number): string => {
+        const convert = (num: number): string => {
+            const units = ['', 'satu', 'dua', 'tiga', 'empat', 'lima', 'enam', 'tujuh', 'delapan', 'sembilan', 'sepuluh', 'sebelas'];
+            if (num < 12) return units[num];
+            if (num < 20) return convert(num - 10) + ' belas';
+            if (num < 100) return convert(Math.floor(num / 10)) + ' puluh ' + convert(num % 10);
+            if (num < 200) return 'seratus ' + convert(num - 100);
+            if (num < 1000) return convert(Math.floor(num / 100)) + ' ratus ' + convert(num % 100);
+            if (num < 2000) return 'seribu ' + convert(num - 1000);
+            if (num < 1000000) return convert(Math.floor(num / 1000)) + ' ribu ' + convert(num % 1000);
+            return num.toString();
+        };
+        return convert(n).replace(/\s+/g, ' ').trim();
+    };
+
     // Voice TTS helper using Web Speech API
     const speakText = (text: string) => {
         if (!soundEnabled) return;
@@ -626,7 +642,7 @@ export default function ScanDhsPage() {
             triggerVibration(100);
 
             // Speak the sequence number in Indonesian
-            speakText(sequenceNumber.toString());
+            speakText(numberToIndonesianWords(sequenceNumber));
             return;
         }
 
@@ -725,7 +741,7 @@ export default function ScanDhsPage() {
             triggerVibration(100);
 
             // Speak the sequence number
-            speakText(sequenceNumber.toString());
+            speakText(numberToIndonesianWords(sequenceNumber));
         }
     };
 
