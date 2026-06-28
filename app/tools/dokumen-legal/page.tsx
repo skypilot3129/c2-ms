@@ -427,6 +427,83 @@ export default function DokumenLegalPage() {
         }
     };
 
+    // Load Surat Penawaran Harga J&T
+    const loadPenawaranTemplate = () => {
+        if (confirm("Reset dokumen ke template Surat Penawaran Harga J&T? Perubahan yang belum dicetak akan hilang.")) {
+            setDocumentTitle('SURAT PENAWARAN HARGA PENGIRIMAN CARGO LAUT');
+            setSignatoryName('HILAL BAFAGIH');
+            setSignatoryRole('Operational Manager');
+            setLostItems([]);
+            setDocumentMetadata(
+                `<div class="grid grid-cols-12 gap-1 text-[10.5pt]">
+                    <div class="col-span-2 font-semibold">No. Surat</div>
+                    <div class="col-span-6">: 142/CCE-OPH/JT/VI/2026</div>
+                    <div class="col-span-4 text-right font-semibold text-[10pt]">Surabaya, 28 Juni 2026</div>
+                    
+                    <div class="col-span-2 font-semibold">Sifat</div>
+                    <div class="col-span-10">: Penting / Segera</div>
+                    
+                    <div class="col-span-2 font-semibold">Lampiran</div>
+                    <div class="col-span-10">: -</div>
+                    
+                    <div class="col-span-2 font-semibold">Hal</div>
+                    <div class="col-span-10 font-bold">: Penawaran Harga Pengiriman Cargo Via Kapal Laut</div>
+                </div>
+                <div class="mt-5 text-[10.5pt]">
+                    <p>Kepada Yth.</p>
+                    <p class="font-bold">Pimpinan Manajemen PT. LINTAS NUSANTARA JAYA (J&T Express / J&T Cargo)</p>
+                    <p>Di Tempat</p>
+                </div>`
+            );
+            setDocumentBody(
+                `<p class="mt-4">Dengan hormat,</p>
+                <p class="mt-2">Sehubungan dengan kebutuhan distribusi logistik yang andal dan aman, kami dari <strong>CV. Cahaya Cargo Express (CCE)</strong> dengan ini mengajukan penawaran tarif pengiriman cargo via kapal laut (kontainer LCL/FCL) dengan tarif khusus dan kompetitif untuk rute-rute utama sebagai berikut:</p>
+                
+                <table class="w-full text-left border-collapse mt-4 text-[10pt] border border-slate-300">
+                    <thead>
+                        <tr class="bg-slate-100 border-b border-slate-350 font-semibold text-slate-700">
+                            <th class="p-3 border-r border-slate-300 w-[10%] text-center">No.</th>
+                            <th class="p-3 border-r border-slate-300 w-[45%]">Rute Pengiriman</th>
+                            <th class="p-3 border-r border-slate-300 w-[25%] text-center">Layanan / Media</th>
+                            <th class="p-3 w-[20%] text-right font-bold text-slate-700">Tarif (Rp/kg)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr class="border-b border-slate-300 hover:bg-slate-50/50">
+                            <td class="p-3 border-r border-slate-300 text-center font-mono">1.</td>
+                            <td class="p-3 border-r border-slate-300 font-semibold text-slate-900">Surabaya ke Makassar</td>
+                            <td class="p-3 border-r border-slate-300 text-center text-slate-700">Kapal Laut</td>
+                            <td class="p-3 text-right font-mono font-bold text-slate-900">Rp 2.200</td>
+                        </tr>
+                        <tr class="border-b border-slate-300 hover:bg-slate-50/50">
+                            <td class="p-3 border-r border-slate-300 text-center font-mono">2.</td>
+                            <td class="p-3 border-r border-slate-300 font-semibold text-slate-900">Surabaya ke Pare-Pare</td>
+                            <td class="p-3 border-r border-slate-300 text-center text-slate-700">Kapal Laut</td>
+                            <td class="p-3 text-right font-mono font-bold text-slate-900">Rp 2.600</td>
+                        </tr>
+                        <tr class="hover:bg-slate-50/50">
+                            <td class="p-3 border-r border-slate-300 text-center font-mono">3.</td>
+                            <td class="p-3 border-r border-slate-300 font-semibold text-slate-900">Makassar ke Surabaya</td>
+                            <td class="p-3 border-r border-slate-300 text-center text-slate-700">Kapal Laut</td>
+                            <td class="p-3 text-right font-mono font-bold text-slate-900">Rp 1.050</td>
+                        </tr>
+                    </tbody>
+                </table>
+                
+                <h3 class="font-extrabold uppercase mt-6 mb-2 text-slate-900 text-[10pt]">Syarat dan Ketentuan Layanan:</h3>
+                <ol class="list-decimal pl-5 space-y-2 text-[9.5pt]">
+                    <li><strong>Minimal Berat Pengiriman:</strong> Batas minimal muatan adalah 100 kg per satu kali pengiriman.</li>
+                    <li><strong>Sistem Pembayaran:</strong> Penagihan/invoice disesuaikan dengan kesepakatan tertulis (termin pembayaran mingguan atau bulanan).</li>
+                    <li><strong>Penanganan Barang (Handling):</strong> Tarif di atas mencakup proses pemuatan barang di gudang asal dan pembongkaran di pelabuhan tujuan.</li>
+                    <li><strong>Asuransi:</strong> Tarif di atas belum mencakup perlindungan asuransi kehilangan barang (opsional, disarankan untuk barang-barang bernilai tinggi).</li>
+                    <li><strong>Lead Time Pengiriman:</strong> Waktu tempuh via armada kapal laut adalah 4-7 hari kerja terhitung sejak hari keberangkatan kapal.</li>
+                </ol>
+                <p class="mt-4 text-[9.5pt]">Besar harapan kami bahwa penawaran harga ini dapat menjadi landasan kerja sama kemitraan yang saling menguntungkan dan berkelanjutan di masa mendatang. Jika terdapat penyesuaian atau pertanyaan lebih lanjut, silakan hubungi tim kami.</p>`
+            );
+            setDocumentBodyEnd('');
+        }
+    };
+
     // Load Blank
     const loadBlankTemplate = () => {
         if (confirm("Kosongkan semua konten dokumen?")) {
@@ -509,6 +586,13 @@ export default function DokumenLegalPage() {
                 <div className="space-y-2">
                     <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Template Dokumen</label>
                     <div className="grid grid-cols-2 gap-2">
+                        <button 
+                            onClick={loadPenawaranTemplate}
+                            className="bg-slate-800 hover:bg-slate-700 text-xs font-semibold py-2 px-1 rounded-lg border border-slate-700 hover:border-slate-600 transition-all text-center text-yellow-300 font-bold col-span-2"
+                            title="Penawaran Harga J&T"
+                        >
+                            Penawaran Harga J&T
+                        </button>
                         <button 
                             onClick={loadKomitmenTemplate}
                             className="bg-slate-800 hover:bg-slate-700 text-xs font-semibold py-2 px-1 rounded-lg border border-slate-700 hover:border-slate-600 transition-all text-center"
