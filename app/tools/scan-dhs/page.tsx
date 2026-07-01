@@ -93,6 +93,14 @@ export default function ScanDhsPage() {
     const [editDgType, setEditDgType] = useState<string>('');
 
     const [showRecoveryModal, setShowRecoveryModal] = useState<boolean>(false);
+
+    // Custom filter tabs & audio settings states
+    const [activeFilterTab, setActiveFilterTab] = useState<'all' | 'pending' | 'scanned' | 'extra'>('all');
+    const [wrongScanText, setWrongScanText] = useState<string>('Salah');
+    const [duplicateText, setDuplicateText] = useState<string>('Duplikat');
+    const [doubleScanText, setDoubleScanText] = useState<string>('T O tetap sama');
+    const [speechRate, setSpeechRate] = useState<number>(1.25);
+    const [showAudioSettings, setShowAudioSettings] = useState<boolean>(false);
     const [pendingRecovery, setPendingRecovery] = useState<any>(null);
 
     // Berita Acara states
@@ -376,7 +384,7 @@ export default function ScanDhsPage() {
                         utterance.lang = 'id-ID';
                     }
                     
-                    utterance.rate = 1.25;
+                    utterance.rate = speechRate;
 
                     // Keep a reference to prevent garbage collection mid-speech
                     utteranceRef.current = utterance;
@@ -950,7 +958,7 @@ export default function ScanDhsPage() {
             triggerFlash('yellow');
             playBeep(440, 0.2); // Normal warning beep
             triggerVibration([80, 80]);
-            speakText("Duplikat");
+            speakText(duplicateText);
             return;
         }
 
@@ -974,7 +982,7 @@ export default function ScanDhsPage() {
             triggerFlash('yellow');
             playBeep(330, 0.35); // Lower frequency warning beep for excess/extra duplicate
             triggerVibration([100, 50, 100]);
-            speakText("T O tetap sama");
+            speakText(doubleScanText);
             return;
         }
 
@@ -994,7 +1002,7 @@ export default function ScanDhsPage() {
         triggerFlash('red');
         playBeep(220, 0.4); // Buzz alert sound
         triggerVibration([200, 100, 200]);
-        speakText("Salah");
+        speakText(wrongScanText);
     };
 
     // Manual Bypass Override
@@ -1363,10 +1371,78 @@ export default function ScanDhsPage() {
         }
     };
 
-    // Filter manifest items based on search term
-    const filteredManifest = manifest.filter(item =>
-        item.code.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    // Helper to extract the last scan time from the scanTime string
+    const getLastScanTime = (scanTimeStr?: string): string => {
+        if (!scanTimeStr) return '';
+        const parts = scanTimeStr.split(',');
+        const lastPart = parts[parts.length - 1].trim();
+        const match = lastPart.match(/\d{2}:\d{2}:\d{2}/);
+        return match ? match[0] : lastPart;
+    };
+
+    // Filter and sort items to display in the realtime manifest panel
+    const getFilteredAndSortedItems = () => {
+        const search = searchTerm.toLowerCase().trim();
+
+        // 1. Get manifest items matching search
+        const filteredManifest = manifest.map((item, idx) => ({
+            ...item,
+            originalIndex: idx
+        })).filter(item => 
+            item.code.toLowerCase().includes(search)
+        );
+
+        // 2. Get extra scans matching search
+        const filteredExtras = extraScans.map(item => ({
+            id: item.id,
+            code: item.code,
+            status: 'extra' as const,
+            scanTime: item.scanTime,
+            originalIndex: -1
+        })).filter(item => 
+            item.code.toLowerCase().includes(search)
+        );
+
+        if (activeFilterTab === 'pending') {
+            return filteredManifest.filter(item => item.status === 'pending');
+        } else if (activeFilterTab === 'scanned') {
+            return filteredManifest.filter(item => item.status === 'scanned').sort((a, b) => {
+                const timeA = getLastScanTime(a.scanTime);
+                const timeB = getLastScanTime(b.scanTime);
+                return timeB.localeCompare(timeA);
+            });
+        } else if (activeFilterTab === 'extra') {
+            return filteredExtras.sort((a, b) => {
+                const timeA = getLastScanTime(a.scanTime);
+                const timeB = getLastScanTime(b.scanTime);
+                return timeB.localeCompare(timeA);
+            });
+        }
+
+        // 'all' tab: Scanned on top (newest first), then Pending, then Extra scans at the bottom
+        const scannedItems = filteredManifest.filter(item => item.status === 'scanned').sort((a, b) => {
+            const timeA = getLastScanTime(a.scanTime);
+            const timeB = getLastScanTime(b.scanTime);
+            return timeB.localeCompare(timeA);
+        });
+
+        const pendingItems = filteredManifest.filter(item => item.status === 'pending');
+
+        return [...scannedItems, ...pendingItems, ...filteredExtras];
+    };
+
+    const displayItems = getFilteredAndSortedItems() as {
+        id: string;
+        code: string;
+        status: 'pending' | 'scanned' | 'extra';
+        scanTime?: string;
+        jmlhPaket?: number;
+        berat?: number;
+        toType?: string;
+        dgType?: string;
+        tujuan?: string;
+        originalIndex: number;
+    }[];
 
     return (
         <div className="min-h-screen bg-slate-900 text-white flex flex-col font-sans">
@@ -1763,6 +1839,85 @@ export default function ScanDhsPage() {
                                 </div>
                             </div>
 
+                            {/* COLLAPSIBLE AUDIO SETTINGS PANEL */}
+                            <div className="bg-slate-950 border border-slate-800 rounded-3xl p-5 shadow-2xl space-y-4">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowAudioSettings(!showAudioSettings)}
+                                    className="w-full flex items-center justify-between text-sm font-bold text-slate-350 hover:text-white transition-colors"
+                                >
+                                    <div className="flex items-center gap-2">
+                                        <Volume2 size={16} className="text-blue-400" />
+                                        <span>Pengaturan Audio &amp; Suara</span>
+                                    </div>
+                                    <span className="text-xs text-slate-500 font-normal">
+                                        {showAudioSettings ? 'Sembunyikan' : 'Tampilkan'}
+                                    </span>
+                                </button>
+
+                                {showAudioSettings && (
+                                    <div className="pt-3 border-t border-slate-800 space-y-4 text-xs">
+                                        {/* Speech Rate Control */}
+                                        <div className="space-y-1.5">
+                                            <div className="flex justify-between font-semibold text-slate-400">
+                                                <span>Kecepatan Pembacaan Suara (TTS Rate)</span>
+                                                <span className="text-blue-400 font-mono font-bold">{speechRate.toFixed(2)}x</span>
+                                            </div>
+                                            <input
+                                                type="range"
+                                                min="0.5"
+                                                max="2.0"
+                                                step="0.1"
+                                                value={speechRate}
+                                                onChange={(e) => setSpeechRate(parseFloat(e.target.value))}
+                                                className="w-full accent-blue-500 bg-slate-800 h-1.5 rounded-lg appearance-none cursor-pointer"
+                                            />
+                                            <p className="text-[10px] text-slate-500 leading-tight">
+                                                Sesuaikan kecepatan pembacaan urutan koli suara agar sejalan dengan ritme kerja Anda.
+                                            </p>
+                                        </div>
+
+                                        {/* Custom Warning Voice Inputs */}
+                                        <div className="space-y-3 pt-2 border-t border-slate-800">
+                                            <span className="font-semibold text-slate-400 block mb-1">Kustomisasi Teks Peringatan TTS</span>
+                                            
+                                            <div className="flex flex-col gap-1.5">
+                                                <label className="text-[10px] font-bold text-slate-500 uppercase">Suara Kode Salah / Lebih</label>
+                                                <input
+                                                    type="text"
+                                                    value={wrongScanText}
+                                                    onChange={(e) => setWrongScanText(e.target.value)}
+                                                    placeholder="Salah"
+                                                    className="bg-slate-900 border border-slate-800 focus:border-blue-600 rounded-xl px-3 py-2 text-white outline-none transition-all font-medium"
+                                                />
+                                            </div>
+
+                                            <div className="flex flex-col gap-1.5">
+                                                <label className="text-[10px] font-bold text-slate-500 uppercase">Suara Duplikat (Normal)</label>
+                                                <input
+                                                    type="text"
+                                                    value={duplicateText}
+                                                    onChange={(e) => setDuplicateText(e.target.value)}
+                                                    placeholder="Duplikat"
+                                                    className="bg-slate-900 border border-slate-800 focus:border-blue-600 rounded-xl px-3 py-2 text-white outline-none transition-all font-medium"
+                                                />
+                                            </div>
+
+                                            <div className="flex flex-col gap-1.5">
+                                                <label className="text-[10px] font-bold text-slate-500 uppercase">Suara Duplikat Selisih Lebih</label>
+                                                <input
+                                                    type="text"
+                                                    value={doubleScanText}
+                                                    onChange={(e) => setDoubleScanText(e.target.value)}
+                                                    placeholder="T O tetap sama"
+                                                    className="bg-slate-900 border border-slate-800 focus:border-blue-600 rounded-xl px-3 py-2 text-white outline-none transition-all font-medium"
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
                             {/* Session control buttons */}
                             <div className="flex gap-4">
                                 <button
@@ -1825,20 +1980,82 @@ export default function ScanDhsPage() {
                                 />
                             </div>
 
+                            {/* Filter Tabs */}
+                            <div className="grid grid-cols-4 gap-1 bg-slate-900/60 p-1 rounded-xl border border-slate-800 text-[10px] font-bold mt-1">
+                                <button
+                                    type="button"
+                                    onClick={() => setActiveFilterTab('all')}
+                                    className={`py-1.5 rounded-lg text-center transition-all ${activeFilterTab === 'all' ? 'bg-slate-800 text-white shadow' : 'text-slate-400 hover:text-slate-200'}`}
+                                >
+                                    Semua ({manifest.length + extraScans.length})
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setActiveFilterTab('pending')}
+                                    className={`py-1.5 rounded-lg text-center transition-all ${activeFilterTab === 'pending' ? 'bg-yellow-950/40 text-yellow-450 border border-yellow-900/30' : 'text-slate-400 hover:text-slate-200'}`}
+                                >
+                                    Pending ({manifest.filter(i => i.status === 'pending').length})
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setActiveFilterTab('scanned')}
+                                    className={`py-1.5 rounded-lg text-center transition-all ${activeFilterTab === 'scanned' ? 'bg-emerald-950/40 text-emerald-450 border border-emerald-900/30' : 'text-slate-400 hover:text-slate-200'}`}
+                                >
+                                    Cocok ({manifest.filter(i => i.status === 'scanned').length})
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setActiveFilterTab('extra')}
+                                    className={`py-1.5 rounded-lg text-center transition-all ${activeFilterTab === 'extra' ? 'bg-red-950/40 text-red-455 border border-red-900/30' : 'text-slate-400 hover:text-slate-200'}`}
+                                >
+                                    Lebih ({extraScans.length})
+                                </button>
+                            </div>
+
                             {/* Realtime Target List */}
                             <div className="flex-1 flex flex-col gap-2.5 overflow-hidden mt-1">
                                 <h3 className="font-bold text-xs text-slate-300 flex justify-between items-center">
-                                    <span>Daftar Manifest ({totalTarget} Koli)</span>
+                                    <span>
+                                        {activeFilterTab === 'all' && `Daftar Manifest (${totalTarget} Koli)`}
+                                        {activeFilterTab === 'pending' && `Barang Belum Scan (${manifest.filter(i => i.status === 'pending').length} Koli)`}
+                                        {activeFilterTab === 'scanned' && `Barang Sudah Cocok (${manifest.filter(i => i.status === 'scanned').length} Koli)`}
+                                        {activeFilterTab === 'extra' && `Barang Selisih Lebih (${extraScans.length} Koli)`}
+                                    </span>
                                     {driverName && <span className="text-[10px] font-bold text-blue-400 bg-blue-950/20 px-2 py-0.5 rounded border border-blue-900/50 uppercase">{sessionType} - TRUK {noPolisi || ''}</span>}
                                 </h3>
 
                                 <div className="flex-1 overflow-y-auto pr-1 space-y-2">
-                                    {filteredManifest.length === 0 ? (
-                                        <div className="text-center py-8 text-slate-600 text-xs italic">
+                                    {displayItems.length === 0 ? (
+                                        <div className="text-center py-8 text-slate-650 text-xs italic">
                                             Tidak ada hasil pencocokan kode TO
                                         </div>
                                     ) : (
-                                        filteredManifest.map((item, idx) => {
+                                        displayItems.map((item, idx) => {
+                                            if (item.status === 'extra') {
+                                                return (
+                                                    <div
+                                                        key={item.id}
+                                                        className="p-2.5 rounded-xl border bg-red-950/10 border-red-900/30 text-red-400 flex items-center justify-between"
+                                                    >
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="text-[10px] font-bold text-red-700 font-mono w-4">+</span>
+                                                            <span className="font-mono font-bold text-xs tracking-wide">{item.code}</span>
+                                                        </div>
+                                                        <div className="flex items-center gap-1.5">
+                                                            <span className="text-[8px] bg-red-950 border border-red-900 px-2 py-0.5 rounded text-red-400 font-bold font-mono">{item.scanTime}</span>
+                                                            <span className="text-[8px] bg-red-600 text-white font-black px-1.5 py-0.5 rounded">LEBIH</span>
+                                                            <button
+                                                                onClick={() => handleDeleteExtraScan(item.id, item.code)}
+                                                                className="p-1 bg-red-950 hover:bg-red-900/60 border border-red-900/30 hover:border-red-800 text-red-450 hover:text-white rounded-lg transition-all"
+                                                                title="Hapus Koli Lebih"
+                                                            >
+                                                                <Trash2 size={10} />
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            }
+
                                             if (item.id === editingItemId) {
                                                 return (
                                                     <div
@@ -1922,13 +2139,15 @@ export default function ScanDhsPage() {
                                                 <div
                                                     key={item.id}
                                                     className={`p-2.5 rounded-xl border flex items-center justify-between transition-all ${item.status === 'scanned'
-                                                            ? 'bg-emerald-950/10 border-emerald-900/30 text-emerald-400'
+                                                            ? 'bg-emerald-950/10 border-emerald-900/30 text-emerald-400 animate-fade-in'
                                                             : 'bg-slate-900/40 border-slate-800/80 text-slate-400'
                                                         }`}
                                                 >
                                                     <div className="flex flex-col gap-0.5">
                                                         <div className="flex items-center gap-2">
-                                                            <span className="text-[10px] font-bold text-slate-650 font-mono w-4">{idx + 1}.</span>
+                                                            <span className="text-[10px] font-bold text-slate-650 font-mono w-4">
+                                                                {item.originalIndex !== -1 ? `${item.originalIndex + 1}.` : `${idx + 1}.`}
+                                                            </span>
                                                             <span className="font-mono font-bold text-xs tracking-wide">{item.code}</span>
                                                         </div>
                                                         {(item.jmlhPaket !== undefined || item.berat !== undefined || item.toType || item.dgType || item.tujuan) && (
@@ -1946,7 +2165,7 @@ export default function ScanDhsPage() {
                                                             <div className="flex items-center gap-1.5">
                                                                 <span className="text-[8px] bg-emerald-950 border border-emerald-900 px-2 py-0.5 rounded text-emerald-400 font-bold font-mono">{item.scanTime}</span>
                                                                 <button
-                                                                    onClick={() => handleStartEditItem(item)}
+                                                                    onClick={() => handleStartEditItem(item as any as ManifestItem)}
                                                                     className="p-1 bg-slate-850 hover:bg-slate-750 border border-slate-750 text-slate-350 hover:text-white rounded-lg transition-all"
                                                                     title="Edit Data TO"
                                                                 >
@@ -1958,7 +2177,7 @@ export default function ScanDhsPage() {
                                                             <div className="flex items-center gap-1.5">
                                                                 <span className="text-[8px] bg-slate-800 border border-slate-700 px-2 py-0.5 rounded text-slate-550 font-bold font-mono">PENDING</span>
                                                                 <button
-                                                                    onClick={() => handleStartEditItem(item)}
+                                                                    onClick={() => handleStartEditItem(item as any as ManifestItem)}
                                                                     className="p-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 rounded-lg transition-all"
                                                                     title="Edit Data TO"
                                                                 >
@@ -1978,33 +2197,6 @@ export default function ScanDhsPage() {
                                             );
                                         })
                                     )}
-
-                                    {/* Display extra scans if any and if it matches search term */}
-                                    {extraScans
-                                        .filter(item => item.code.toLowerCase().includes(searchTerm.toLowerCase()))
-                                        .map((item, idx) => (
-                                            <div
-                                                key={item.id || `extra-${idx}`}
-                                                className="p-2.5 rounded-xl border bg-red-950/10 border-red-900/30 text-red-400 flex items-center justify-between"
-                                            >
-                                                <div className="flex items-center gap-2">
-                                                    <span className="text-[10px] font-bold text-red-700 font-mono w-4">+</span>
-                                                    <span className="font-mono font-bold text-xs tracking-wide">{item.code}</span>
-                                                </div>
-                                                <div className="flex items-center gap-1.5">
-                                                    <span className="text-[8px] bg-red-950 border border-red-900 px-2 py-0.5 rounded text-red-400 font-bold font-mono">{item.scanTime}</span>
-                                                    <span className="text-[8px] bg-red-600 text-white font-black px-1.5 py-0.5 rounded">LEBIH</span>
-                                                    <button
-                                                        onClick={() => handleDeleteExtraScan(item.id, item.code)}
-                                                        className="p-1 bg-red-950 hover:bg-red-900/60 border border-red-900/30 hover:border-red-800 text-red-450 hover:text-white rounded-lg transition-all"
-                                                        title="Hapus Koli Lebih"
-                                                    >
-                                                        <Trash2 size={10} />
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        ))
-                                    }
                                 </div>
                             </div>
                         </div>
