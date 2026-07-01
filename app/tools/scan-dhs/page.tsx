@@ -428,19 +428,32 @@ export default function ScanDhsPage() {
         return () => clearTimeout(timer);
     };
 
-    // Auto-focus the input during the scanning step (only if not editing any item)
+    // Auto-focus the input during the scanning step (only if not editing any item and not focusing other inputs)
     useEffect(() => {
         if (step === 'scan' && inputRef.current && !editingItemId) {
+            const active = document.activeElement;
+            if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) {
+                return;
+            }
             inputRef.current.focus();
         }
     }, [step, scanAlert, editingItemId]);
 
-    // Handle focus loss: automatically refocus to ensure continuous scanning
-    const handleBlur = () => {
+    // Handle focus loss: automatically refocus to ensure continuous scanning unless another input is targeted
+    const handleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+        const target = e.relatedTarget as HTMLElement | null;
+        if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'BUTTON')) {
+            return;
+        }
+
         if (step === 'scan' && !isCameraActive && !editingItemId) {
             setTimeout(() => {
+                const active = document.activeElement;
+                if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.tagName === 'BUTTON')) {
+                    return;
+                }
                 if (inputRef.current && !editingItemId) inputRef.current.focus();
-            }, 100);
+            }, 150);
         }
     };
 
