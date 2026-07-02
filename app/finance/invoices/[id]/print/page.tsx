@@ -36,7 +36,7 @@ function formatTanggal(date: Date | string): string {
     }).toUpperCase();
 }
 
-const MIN_ROWS = 2;
+const MIN_ROWS = 10;
 
 function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
     const { id } = use(params);
@@ -241,105 +241,112 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
                     // ==========================================
                     <>
                         {/* HEADER FAKTUR */}
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '4mm' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '3mm' }}>
-                                <img src="/logo.png" alt="Logo" style={{ width: '18mm', height: '18mm', objectFit: 'contain' }} />
-                                <div>
-                                    <p style={{ fontWeight: 'bold', fontSize: '11pt', lineHeight: 1.3 }}>CV. CAHAYA CARGO EXPRESS</p>
-                                    <p style={{ fontSize: '8pt', lineHeight: 1.5 }}>Jl. KEMUDI NO. 4 - SURABAYA</p>
-                                    <p style={{ fontSize: '8pt', lineHeight: 1.5 }}>Jl. IRIAN NO. 245 B - MAKASSAR</p>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', borderBottom: '2px solid #000', paddingBottom: '6px', marginBottom: '5mm' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '4mm' }}>
+                                <img src="/logo.png" alt="Logo" style={{ width: '22mm', height: '22mm', objectFit: 'contain' }} />
+                                <div style={{ color: '#000', fontFamily: 'Arial, sans-serif' }}>
+                                    <p style={{ fontWeight: 'bold', fontSize: '13pt', marginBottom: '1.5mm', letterSpacing: '0.5px' }}>CV. CAHAYA CARGO EXPRESS</p>
+                                    <p style={{ fontSize: '9pt', fontWeight: 'bold', lineHeight: 1.4 }}>Jl. KEMUDI NO. 4 - SURABAYA</p>
+                                    <p style={{ fontSize: '9pt', fontWeight: 'bold', lineHeight: 1.4 }}>Jl. IRIAN NO. 245 B - MAKASSAR</p>
                                 </div>
                             </div>
-                            <div style={{ fontSize: '8.5pt', lineHeight: 1.8 }}>
+                            <div style={{ fontSize: '20pt', fontWeight: 'bold', letterSpacing: '6px', color: '#000', paddingBottom: '1mm', fontFamily: 'Arial, sans-serif' }}>
+                                INVOICE
+                            </div>
+                        </div>
+
+                        {/* KEPADA YTH & METADATA BLOCK */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '4mm', fontFamily: 'Arial, sans-serif', color: '#000' }}>
+                            <div style={{ fontSize: '10pt', lineHeight: 1.5 }}>
+                                <p>Kepada Yth,</p>
+                                <p contentEditable suppressContentEditableWarning style={{ fontWeight: 'bold', fontSize: '10.5pt', textTransform: 'uppercase', outline: 'none' }}>{invoice.clientName}</p>
+                                {invoice.clientAddress ? (
+                                    <p contentEditable suppressContentEditableWarning style={{ fontWeight: 'bold', fontSize: '10.5pt', textTransform: 'uppercase', outline: 'none' }}>{invoice.clientAddress}</p>
+                                ) : (
+                                    <p contentEditable suppressContentEditableWarning style={{ fontWeight: 'bold', fontSize: '10.5pt', textTransform: 'uppercase', outline: 'none', color: '#94a3b8' }}>ALAMAT CLIENT</p>
+                                )}
+                                <p contentEditable suppressContentEditableWarning style={{ fontWeight: 'bold', fontSize: '10.5pt', outline: 'none' }}>UP BP. FARHAN</p>
+                            </div>
+                            <div style={{ fontSize: '10pt', lineHeight: 1.5, minWidth: '85mm' }}>
                                 <div style={{ display: 'flex', gap: '3mm' }}>
-                                    <span style={{ minWidth: '75px' }}>Nomer</span>
-                                    <span>:</span>
-                                    <span contentEditable suppressContentEditableWarning style={{ fontWeight: 'bold', outline: 'none' }}>{invoice.invoiceNumber}</span>
+                                    <span style={{ minWidth: '85px', fontWeight: 'bold' }}>Nomer</span>
+                                    <span style={{ fontWeight: 'bold' }}>:</span>
+                                    <span contentEditable suppressContentEditableWarning style={{ fontWeight: 'bold', outline: 'none', flex: 1 }}>{invoice.invoiceNumber}</span>
                                 </div>
                                 <div style={{ display: 'flex', gap: '3mm' }}>
-                                    <span style={{ minWidth: '75px' }}>Tanggal</span>
-                                    <span>:</span>
-                                    <span contentEditable suppressContentEditableWarning style={{ fontWeight: 'bold', outline: 'none' }}>{formatTanggal(issueDate)}</span>
+                                    <span style={{ minWidth: '85px', fontWeight: 'bold' }}>Tanggal</span>
+                                    <span style={{ fontWeight: 'bold' }}>:</span>
+                                    <span contentEditable suppressContentEditableWarning style={{ fontWeight: 'bold', outline: 'none', flex: 1 }}>{formatTanggal(issueDate)}</span>
                                 </div>
                                 <div style={{ display: 'flex', gap: '3mm' }}>
-                                    <span style={{ minWidth: '75px' }}>No. NPWP</span>
-                                    <span>:</span>
+                                    <span style={{ minWidth: '85px', fontWeight: 'bold' }}>No. NPWP</span>
+                                    <span style={{ fontWeight: 'bold' }}>:</span>
                                     <span 
                                         contentEditable 
                                         suppressContentEditableWarning 
-                                        style={{ fontWeight: 'bold', outline: 'none' }}
+                                        style={{ fontWeight: 'bold', outline: 'none', flex: 1 }}
                                     >
-                                        031.509.910.1-615.000
+                                        076.049.538.2-618.000
                                     </span>
                                 </div>
                             </div>
-                        </div>
-
-                        {/* JUDUL */}
-                        <div style={{ textAlign: 'center', marginBottom: '3mm' }}>
-                            <span style={{ fontSize: '14pt', fontWeight: 'bold', letterSpacing: '8px' }}>
-                                I N V O I C E
-                            </span>
-                        </div>
-
-                        {/* KEPADA YTH */}
-                        <div style={{ marginBottom: '3mm' }}>
-                            <p style={{ fontSize: '8.5pt' }}>Kepada Yth,</p>
-                            <p contentEditable suppressContentEditableWarning style={{ fontWeight: 'bold', fontSize: '9.5pt', textTransform: 'uppercase', outline: 'none' }}>{invoice.clientName}</p>
-                            {invoice.clientAddress && (
-                                <p contentEditable suppressContentEditableWarning style={{ fontWeight: 'bold', fontSize: '9.5pt', textTransform: 'uppercase', outline: 'none' }}>{invoice.clientAddress}</p>
-                            )}
                         </div>
 
                         {/* TABEL FAKTUR */}
                         <table className="invoice-table">
                             <thead>
                                 <tr>
-                                    <th style={{ width: '5%' }}>NO</th>
-                                    <th style={{ width: '53%' }}>KETERANGAN</th>
-                                    <th style={{ width: '6%' }}>KOLI</th>
-                                    <th style={{ width: '12%' }}>KG/M3</th>
-                                    <th style={{ width: '10%' }}>HARGA</th>
-                                    <th style={{ width: '14%' }}>JUMLAH</th>
+                                    <th style={{ width: '5%', border: '1.5px solid #000' }}>NO</th>
+                                    <th style={{ width: '53%', border: '1.5px solid #000' }}>KETERANGAN</th>
+                                    <th style={{ width: '8%', border: '1.5px solid #000' }}>KOLI</th>
+                                    <th style={{ width: '12%', border: '1.5px solid #000' }}>KG/M3</th>
+                                    <th style={{ width: '10%', border: '1.5px solid #000' }}>HARGA</th>
+                                    <th style={{ width: '12%', border: '1.5px solid #000' }}>JUMLAH</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {/* Baris info keberangkatan (Editable) */}
+                                {/* Description Row 1 */}
                                 <tr>
-                                    <td></td>
-                                    <td style={{ paddingLeft: 4 }}>
+                                    <td style={{ border: '1px solid #000' }}></td>
+                                    <td style={{ paddingLeft: 6, fontWeight: 'bold', border: '1px solid #000' }}>
                                         <div 
                                             contentEditable 
                                             suppressContentEditableWarning 
-                                            style={{ outline: 'none', fontWeight: 'bold' }}
+                                            style={{ outline: 'none' }}
                                         >
-                                            BERANGKAT TGL ... KM. ...
+                                            {invoice.notes ? invoice.notes.toUpperCase() : (transactions.length > 0 ? `PENGIRIMAN BARANG DARI ${transactions[0].branch.toUpperCase()} KE ${transactions[0].tujuan.toUpperCase()}` : 'PENGIRIMAN BARANG')}
                                         </div>
                                     </td>
-                                    <td></td>
-                                    <td></td>
-                                    <td></td>
-                                    <td style={{ textAlign: 'right', paddingRight: 4 }}>-</td>
+                                    <td style={{ border: '1px solid #000' }}></td>
+                                    <td style={{ border: '1px solid #000' }}></td>
+                                    <td style={{ border: '1px solid #000' }}></td>
+                                    <td style={{ textAlign: 'right', paddingRight: 6, border: '1px solid #000', fontWeight: 'bold' }}>-</td>
                                 </tr>
-                                {/* Optional: Notes Row Spanning Columns */}
-                                {invoice.notes && (
-                                    <tr>
-                                        <td></td>
-                                        <td colSpan={5} style={{ fontWeight: 'bold', paddingLeft: 4 }}>
-                                            <span contentEditable suppressContentEditableWarning style={{ outline: 'none' }}>
-                                                {invoice.notes.toUpperCase()}
-                                            </span>
-                                        </td>
-                                    </tr>
-                                )}
+                                {/* Description Row 2 */}
+                                <tr>
+                                    <td style={{ border: '1px solid #000' }}></td>
+                                    <td style={{ paddingLeft: 6, fontWeight: 'bold', border: '1px solid #000' }}>
+                                        <div 
+                                            contentEditable 
+                                            suppressContentEditableWarning 
+                                            style={{ outline: 'none' }}
+                                        >
+                                            BERANGKAT TGL 25 JUNI 2026 KM. DHARMA KENCANA VII
+                                        </div>
+                                    </td>
+                                    <td style={{ border: '1px solid #000' }}></td>
+                                    <td style={{ border: '1px solid #000' }}></td>
+                                    <td style={{ border: '1px solid #000' }}></td>
+                                    <td style={{ textAlign: 'right', paddingRight: 6, border: '1px solid #000', fontWeight: 'bold' }}>-</td>
+                                </tr>
 
                                 {/* Data Rows */}
                                 {transactions.map((t, idx) => {
                                     const baseAmount = t.jumlah;
                                     return (
                                         <tr key={t.id}>
-                                            <td style={{ textAlign: 'center' }}>{idx + 1}.</td>
-                                            <td style={{ paddingLeft: 4 }}>
+                                            <td style={{ textAlign: 'center', border: '1px solid #000' }}>{idx + 1}.</td>
+                                            <td style={{ paddingLeft: 6, border: '1px solid #000' }}>
                                                 <div
                                                     contentEditable
                                                     suppressContentEditableWarning
@@ -349,16 +356,22 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
                                                     {keteranganPerSTT[t.id] ?? `${(t.penerimaName || '').toUpperCase()} - ${(t.tujuan || '').toUpperCase()}`}
                                                 </div>
                                             </td>
-                                            <td style={{ textAlign: 'center' }}>
-                                                <span contentEditable suppressContentEditableWarning style={{ outline: 'none', display: 'block', textAlign: 'center', cursor: 'text' }}>{fmtAngka(t.koli)}</span>
+                                            <td style={{ textAlign: 'center', border: '1px solid #000' }}>
+                                                <span contentEditable suppressContentEditableWarning style={{ outline: 'none', display: 'block', textAlign: 'center', cursor: 'text' }}>
+                                                    {t.koli && t.koli > 0 ? fmtAngka(t.koli) : ''}
+                                                </span>
                                             </td>
-                                            <td style={{ textAlign: 'right', paddingRight: 4 }}>
-                                                <span contentEditable suppressContentEditableWarning style={{ outline: 'none', display: 'block', textAlign: 'right', cursor: 'text' }}>{fmtAngka(t.berat)}</span>
+                                            <td style={{ textAlign: 'right', paddingRight: 6, border: '1px solid #000' }}>
+                                                <span contentEditable suppressContentEditableWarning style={{ outline: 'none', display: 'block', textAlign: 'right', cursor: 'text' }}>
+                                                    {t.berat && t.berat > 0 ? fmtAngka(t.berat) : ''}
+                                                </span>
                                             </td>
-                                            <td style={{ textAlign: 'right', paddingRight: 4 }}>
-                                                {t.tipeTransaksi === 'regular' ? fmtAngka(t.harga) : '-'}
+                                            <td style={{ textAlign: 'right', paddingRight: 6, border: '1px solid #000' }}>
+                                                {t.tipeTransaksi === 'regular' && t.harga > 0 ? fmtAngka(t.harga) : ''}
                                             </td>
-                                            <td style={{ textAlign: 'right', paddingRight: 4 }}>{fmtAngka(baseAmount)}</td>
+                                            <td style={{ textAlign: 'right', paddingRight: 6, border: '1px solid #000', fontWeight: 'bold' }}>
+                                                {baseAmount && baseAmount > 0 ? fmtAngka(baseAmount) : ''}
+                                            </td>
                                         </tr>
                                     );
                                 })}
@@ -366,57 +379,61 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
                                 {/* Additional Manual Fee Row */}
                                 {additionalFee > 0 && (
                                     <tr>
-                                        <td style={{ textAlign: 'center' }}>{transactions.length + 1}.</td>
-                                        <td colSpan={4} style={{ paddingLeft: 4, textTransform: 'uppercase', fontWeight: 'bold' }}>
+                                        <td style={{ textAlign: 'center', border: '1px solid #000' }}>{transactions.length + 1}.</td>
+                                        <td colSpan={4} style={{ paddingLeft: 6, textTransform: 'uppercase', fontWeight: 'bold', border: '1px solid #000' }}>
                                             <span contentEditable suppressContentEditableWarning style={{ outline: 'none' }}>
                                                 {feeLabel.toUpperCase()}
                                             </span>
                                         </td>
-                                        <td style={{ textAlign: 'right', paddingRight: 4, fontWeight: 'bold' }}>{fmtAngka(additionalFee)}</td>
+                                        <td style={{ textAlign: 'right', paddingRight: 6, fontWeight: 'bold', border: '1px solid #000' }}>{fmtAngka(additionalFee)}</td>
                                     </tr>
                                 )}
 
                                 {/* TOTAL TAGIHAN Row */}
                                 <tr>
-                                    <td colSpan={2} style={{ textAlign: 'center', fontWeight: 'bold', fontSize: '8.5pt' }}>
+                                    <td colSpan={2} style={{ textAlign: 'center', fontWeight: 'bold', fontSize: '9.5pt', border: '1px solid #000' }}>
                                         TOTAL TAGIHAN
                                     </td>
-                                    <td style={{ textAlign: 'center', fontWeight: 'bold' }}>
-                                        <span contentEditable suppressContentEditableWarning style={{ outline: 'none', display: 'block', textAlign: 'center', cursor: 'text' }}>{fmtAngka(totalKoli)}</span>
+                                    <td style={{ textAlign: 'center', fontWeight: 'bold', border: '1px solid #000' }}>
+                                        {totalKoli && totalKoli > 0 ? fmtAngka(totalKoli) : ''}
                                     </td>
-                                    <td style={{ textAlign: 'right', fontWeight: 'bold', paddingRight: 4 }}>
-                                        <span contentEditable suppressContentEditableWarning style={{ outline: 'none', display: 'block', textAlign: 'right', cursor: 'text' }}>{fmtAngka(totalBerat)}</span>
+                                    <td style={{ textAlign: 'right', fontWeight: 'bold', paddingRight: 6, border: '1px solid #000' }}>
+                                        {totalBerat && totalBerat > 0 ? fmtAngka(totalBerat) : ''}
                                     </td>
-                                    <td></td>
-                                    <td style={{ textAlign: 'right', fontWeight: 'bold', paddingRight: 4 }}>{fmtAngka(subtotalTagihan)}</td>
+                                    <td style={{ border: '1px solid #000' }}></td>
+                                    <td style={{ textAlign: 'right', fontWeight: 'bold', paddingRight: 6, border: '1px solid #000' }}>{fmtAngka(subtotalTagihan)}</td>
                                 </tr>
 
                                 {/* PPN Row */}
                                 <tr>
-                                    <td style={{ textAlign: 'center' }}>{transactions.length + (additionalFee > 0 ? 2 : 1)}.</td>
-                                    <td colSpan={4} style={{ paddingLeft: 4 }}>
+                                    <td style={{ textAlign: 'center', border: '1px solid #000' }}>{transactions.length + (additionalFee > 0 ? 2 : 1)}.</td>
+                                    <td colSpan={4} style={{ paddingLeft: 6, border: '1px solid #000' }}>
                                         <span contentEditable suppressContentEditableWarning style={{ outline: 'none' }}>PPN 1.1%</span>
                                     </td>
-                                    <td style={{ textAlign: 'right', paddingRight: 4 }}>{fmtAngka(totalPPN)}</td>
+                                    <td style={{ textAlign: 'right', paddingRight: 6, border: '1px solid #000' }}>{fmtAngka(totalPPN)}</td>
                                 </tr>
 
                                 {/* Baris kosong tambahan jika kurang dari minimum */}
                                 {Array.from({ length: emptyRowsCount }).map((_, i) => (
-                                    <tr key={`empty-tax-${i}`} style={{ height: '6mm' }}>
-                                        <td></td><td></td><td></td><td></td><td></td>
-                                        <td style={{ textAlign: 'right', paddingRight: 4 }}>-</td>
+                                    <tr key={`empty-tax-${i}`} style={{ height: '7.5mm' }}>
+                                        <td style={{ border: '1px solid #000' }}></td>
+                                        <td style={{ border: '1px solid #000' }}></td>
+                                        <td style={{ border: '1px solid #000' }}></td>
+                                        <td style={{ border: '1px solid #000' }}></td>
+                                        <td style={{ border: '1px solid #000' }}></td>
+                                        <td style={{ textAlign: 'right', paddingRight: 6, border: '1px solid #000' }}></td>
                                     </tr>
                                 ))}
 
                                 {/* Terbilang + TOTAL AKHIR */}
                                 <tr>
-                                    <td colSpan={3} style={{ fontSize: '7.5pt', fontStyle: 'italic', paddingLeft: 4 }}>
+                                    <td colSpan={4} style={{ fontSize: '8.5pt', fontStyle: 'italic', paddingLeft: 6, border: '1px solid #000', borderRight: 'none' }}>
                                         Terbilang : # {terbilang(totalAkhirDisplay)} #
                                     </td>
-                                    <td colSpan={2} style={{ textAlign: 'center', fontWeight: 'bold', letterSpacing: '2px', fontSize: '9pt' }}>
-                                        T O T A L
+                                    <td style={{ textAlign: 'center', fontWeight: 'bold', fontSize: '10pt', border: '1px solid #000', borderLeft: 'none' }}>
+                                        TOTAL
                                     </td>
-                                    <td style={{ textAlign: 'right', fontWeight: 'bold', paddingRight: 4 }}>
+                                    <td style={{ textAlign: 'right', fontWeight: 'bold', paddingRight: 6, fontSize: '11.5pt', border: '2.5px solid #000' }}>
                                         {fmtAngka(totalAkhirDisplay)}
                                     </td>
                                 </tr>
@@ -424,24 +441,21 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
                         </table>
 
                         {/* FOOTER FAKTUR */}
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginTop: '6mm' }}>
-                            <div style={{ fontSize: '8.5pt', lineHeight: 1.8 }}>
-                                <p contentEditable suppressContentEditableWarning style={{ fontWeight: 'bold', textDecoration: 'underline', marginBottom: '1mm', fontSize: '10.5pt', outline: 'none' }}>TRANSFER :</p>
-                                {COMPANY_INFO.bankAccounts.map((acc, i) => (
-                                    <p 
-                                        key={i}
-                                        contentEditable
-                                        suppressContentEditableWarning
-                                        style={{ outline: 'none', fontSize: '10.5pt', fontWeight: 'bold' }}
-                                    >
-                                        {acc.bank} {acc.accountNumber}  a/n {acc.accountName} CV
-                                    </p>
-                                ))}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginTop: '6mm', color: '#000', fontFamily: 'Arial, sans-serif' }}>
+                            <div style={{ fontSize: '9pt', lineHeight: 1.6 }}>
+                                <p style={{ fontWeight: 'bold', textDecoration: 'underline', marginBottom: '1.5mm', fontSize: '10.5pt' }}>TRANSFER :</p>
+                                <p 
+                                    contentEditable
+                                    suppressContentEditableWarning
+                                    style={{ outline: 'none', fontSize: '10.5pt', fontWeight: 'bold' }}
+                                >
+                                    BCA 187 1414 187 a/n CAHAYA CARGO EXPRESS CV
+                                </p>
                             </div>
-                            <div style={{ textAlign: 'center', minWidth: '45mm', paddingTop: '2mm' }}>
-                                <p style={{ fontSize: '8.5pt', marginBottom: '1mm' }}>Hormat Kami,</p>
-                                <div style={{ height: '26mm' }}></div>
-                                <p style={{ fontSize: '8.5pt', fontWeight: 'bold', display: 'inline-block', paddingTop: '2mm' }}>{COMPANY_INFO.signatureName}</p>
+                            <div style={{ textAlign: 'center', minWidth: '50mm', paddingTop: '2mm' }}>
+                                <p style={{ fontSize: '10pt', marginBottom: '1mm' }}>Hormat Kami,</p>
+                                <div style={{ height: '28mm' }}></div>
+                                <p style={{ fontSize: '10pt', fontWeight: 'bold', display: 'inline-block', textTransform: 'uppercase' }}>HILAL BAFAGIH</p>
                             </div>
                         </div>
                     </>

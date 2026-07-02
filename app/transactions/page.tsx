@@ -438,6 +438,7 @@ export default function TransactionsPage() {
                                             <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Pengirim / Penerima</th>
                                             <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Tujuan</th>
                                             <th className="px-6 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Koli</th>
+                                            <th className="px-6 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Berat/Vol</th>
                                             <th className="px-6 py-4 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Total</th>
                                             <th className="px-6 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
                                             <th className="px-6 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Aksi</th>
@@ -484,6 +485,9 @@ export default function TransactionsPage() {
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-600">
                                                         {transaction.koli}
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium text-gray-700">
+                                                        {transaction.berat} <span className="text-[10px] text-gray-450 font-normal">{transaction.beratUnit}</span>
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-bold text-gray-800">
                                                         {formatRupiah(transaction.jumlah)}
