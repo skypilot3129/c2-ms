@@ -21,7 +21,9 @@ import {
     VolumeX,
     Trash2,
     Search,
-    Edit
+    Edit,
+    MessageSquare,
+    Headphones
 } from 'lucide-react';
 
 interface ManifestItem {
@@ -34,13 +36,51 @@ interface ManifestItem {
     toType?: string;
     dgType?: string;
     tujuan?: string;
+    note?: string;
 }
 
 interface ExtraScan {
     id: string;
     code: string;
     scanTime: string;
+    note?: string;
 }
+
+type SoundProfileKey = 'gudang' | 'kantor' | 'headphone' | 'custom';
+
+interface SoundProfile {
+    label: string;
+    icon: string;
+    speechRate: number;
+    beepVolume: number;
+    description: string;
+}
+
+const SOUND_PROFILES: Record<Exclude<SoundProfileKey, 'custom'>, SoundProfile> = {
+    gudang: {
+        label: 'Gudang Bising',
+        icon: '🔊',
+        speechRate: 1.6,
+        beepVolume: 0.2,
+        description: 'Suara cepat & keras untuk lingkungan bising',
+    },
+    kantor: {
+        label: 'Kantor Tenang',
+        icon: '🔉',
+        speechRate: 1.0,
+        beepVolume: 0.05,
+        description: 'Suara pelan & lambat untuk ruang kantor',
+    },
+    headphone: {
+        label: 'Headphone',
+        icon: '🎧',
+        speechRate: 1.25,
+        beepVolume: 0.08,
+        description: 'Optimasi untuk earphone/headset',
+    },
+};
+
+const NOTE_PRESETS = ['Karung Sobek', 'Basah', 'Barcode Rusak', 'Packing Ulang', 'Tertinggal'];
 
 interface HistoryItem {
     id: string;
@@ -102,6 +142,14 @@ export default function ScanDhsPage() {
     const [speechRate, setSpeechRate] = useState<number>(1.25);
     const [showAudioSettings, setShowAudioSettings] = useState<boolean>(false);
     const [pendingRecovery, setPendingRecovery] = useState<any>(null);
+
+    // Sound profile states
+    const [soundProfile, setSoundProfile] = useState<SoundProfileKey>('gudang');
+    const [beepVolume, setBeepVolume] = useState<number>(0.2);
+
+    // Per-item notes states
+    const [noteEditingItemId, setNoteEditingItemId] = useState<string | null>(null);
+    const [noteText, setNoteText] = useState<string>('');
 
     // Berita Acara states
     const [showBaForm, setShowBaForm] = useState<boolean>(false);
@@ -311,7 +359,7 @@ export default function ScanDhsPage() {
 
                 // Use simple linear values to avoid exponential to/from 0 errors
                 gainNode.gain.setValueAtTime(0.001, audioCtx.currentTime + delay);
-                gainNode.gain.linearRampToValueAtTime(0.1, audioCtx.currentTime + delay + 0.02);
+                gainNode.gain.linearRampToValueAtTime(beepVolume, audioCtx.currentTime + delay + 0.02);
                 gainNode.gain.linearRampToValueAtTime(0.001, audioCtx.currentTime + delay + duration);
 
                 oscillator.start(audioCtx.currentTime + delay);
@@ -428,6 +476,39 @@ export default function ScanDhsPage() {
         return () => clearTimeout(timer);
     };
 
+    // Apply a sound profile preset
+    const applySoundProfile = (profile: Exclude<SoundProfileKey, 'custom'>) => {
+        const p = SOUND_PROFILES[profile];
+        setSpeechRate(p.speechRate);
+        setBeepVolume(p.beepVolume);
+        setSoundProfile(profile);
+    };
+
+    // Save note to a manifest item
+    const handleSaveNote = (itemId: string, text: string) => {
+        const inManifest = manifest.findIndex(i => i.id === itemId);
+        if (inManifest !== -1) {
+            const updated = [...manifest];
+            updated[inManifest].note = text || undefined;
+            setManifest(updated);
+        } else {
+            const inExtra = extraScans.findIndex(i => i.id === itemId);
+            if (inExtra !== -1) {
+                const updated = [...extraScans];
+                updated[inExtra].note = text || undefined;
+                setExtraScans(updated);
+            }
+        }
+        setNoteEditingItemId(null);
+        setNoteText('');
+    };
+
+    // Start editing note for an item
+    const handleStartNote = (itemId: string, currentNote?: string) => {
+        setNoteEditingItemId(itemId);
+        setNoteText(currentNote || '');
+    };
+
     // Auto-focus the input during the scanning step (only if not editing any item and not focusing other inputs)
     useEffect(() => {
         if (step === 'scan' && inputRef.current && !editingItemId) {
@@ -469,6 +550,16 @@ export default function ScanDhsPage() {
             }
         }
 
+        // Load audio settings
+        const rate = localStorage.getItem('cce_audio_speech_rate');
+        if (rate) setSpeechRate(parseFloat(rate));
+
+        const vol = localStorage.getItem('cce_audio_beep_volume');
+        if (vol) setBeepVolume(parseFloat(vol));
+
+        const profile = localStorage.getItem('cce_audio_sound_profile');
+        if (profile) setSoundProfile(profile as SoundProfileKey);
+
         // Check for active unsaved session
         const savedActive = localStorage.getItem('cce_active_scan_session');
         if (savedActive) {
@@ -504,6 +595,14 @@ export default function ScanDhsPage() {
             localStorage.removeItem('cce_active_scan_session');
         }
     }, [step, sessionType, driverName, noPolisi, manifest, extraScans]);
+
+    // Save audio config on change
+    useEffect(() => {
+        if (isInitialLoad.current) return;
+        localStorage.setItem('cce_audio_speech_rate', speechRate.toString());
+        localStorage.setItem('cce_audio_beep_volume', beepVolume.toString());
+        localStorage.setItem('cce_audio_sound_profile', soundProfile);
+    }, [speechRate, beepVolume, soundProfile]);
 
     // Handle recovering active session
     const handleConfirmRecovery = () => {
@@ -1248,14 +1347,24 @@ export default function ScanDhsPage() {
                 if (missingItem.jmlhPaket !== undefined) detail += ` [${missingItem.jmlhPaket} Pkt`;
                 if (missingItem.berat !== undefined) detail += detail ? `, ${missingItem.berat} kg` : ` [${missingItem.berat} kg`;
                 if (detail) detail += ']';
-                report += `${index + 1}. ${missingItem.code}${detail}\n`;
+                const noteStr = missingItem.note ? ` *Catatan: ${missingItem.note}*` : '';
+                report += `${index + 1}. ${missingItem.code}${detail}${noteStr}\n`;
             });
         }
 
         if (target.totalExtra > 0) {
             report += `\n*DAFTAR SELISIH LEBIH (TIDAK ADA DI MANIFEST) [${target.totalExtra}]:*\n`;
             target.extraScans.forEach((extraItem: any, index: number) => {
-                report += `${index + 1}. ${extraItem.code} (${extraItem.scanTime})\n`;
+                const noteStr = extraItem.note ? ` *Catatan: ${extraItem.note}*` : '';
+                report += `${index + 1}. ${extraItem.code} (${extraItem.scanTime})${noteStr}\n`;
+            });
+        }
+
+        const scannedWithNotes = target.manifest.filter((i: any) => i.status === 'scanned' && i.note);
+        if (scannedWithNotes.length > 0) {
+            report += `\n*CATATAN KOLI COCOK [${scannedWithNotes.length}]:*\n`;
+            scannedWithNotes.forEach((scannedItem: any, index: number) => {
+                report += `${index + 1}. ${scannedItem.code} - 📝 *${scannedItem.note}*\n`;
             });
         }
 
@@ -1411,6 +1520,7 @@ export default function ScanDhsPage() {
             code: item.code,
             status: 'extra' as const,
             scanTime: item.scanTime,
+            note: item.note,
             originalIndex: -1
         })).filter(item => 
             item.code.toLowerCase().includes(search)
@@ -1454,6 +1564,7 @@ export default function ScanDhsPage() {
         toType?: string;
         dgType?: string;
         tujuan?: string;
+        note?: string;
         originalIndex: number;
     }[];
 
@@ -1753,33 +1864,33 @@ export default function ScanDhsPage() {
                             )}
 
                             {/* Flash Alert Box */}
-                            <div className={`border rounded-3xl p-6 shadow-2xl transition-all duration-300 relative overflow-hidden flex flex-col items-center text-center gap-4 ${flashEffect === 'green' ? 'bg-emerald-950/90 border-emerald-500 scale-[1.01] shadow-emerald-950/30' :
+                            <div className={`border rounded-3xl p-6 shadow-2xl transition-all duration-300 relative overflow-hidden flex flex-col items-center text-center gap-3 ${flashEffect === 'green' ? 'bg-emerald-950/90 border-emerald-500 scale-[1.01] shadow-emerald-950/30' :
                                     flashEffect === 'yellow' ? 'bg-yellow-950/90 border-yellow-500 scale-[1.01] shadow-yellow-950/30' :
                                         flashEffect === 'red' ? 'bg-red-950/90 border-red-500 scale-[1.01] shadow-red-950/30' :
                                             'bg-slate-950 border-slate-800'
                                 }`}>
-                                {/* Icon display */}
-                                {scanAlert.type === 'success' && <CheckCircle className="text-emerald-400 animate-bounce" size={48} />}
-                                {scanAlert.type === 'duplicate' && <AlertTriangle className="text-yellow-400 animate-pulse" size={48} />}
-                                {scanAlert.type === 'error' && <AlertCircle className="text-red-400 animate-shake" size={48} />}
-                                {scanAlert.type === 'idle' && <Barcode className="text-blue-500" size={48} />}
+                                {/* Icon display — larger */}
+                                {scanAlert.type === 'success' && <CheckCircle className="text-emerald-400 animate-bounce" size={64} />}
+                                {scanAlert.type === 'duplicate' && <AlertTriangle className="text-yellow-400 animate-pulse" size={64} />}
+                                {scanAlert.type === 'error' && <AlertCircle className="text-red-400 animate-shake" size={64} />}
+                                {scanAlert.type === 'idle' && <Barcode className="text-blue-500" size={56} />}
 
                                 <div>
-                                    <p className={`text-xs font-bold uppercase tracking-widest ${scanAlert.type === 'success' ? 'text-emerald-400' :
+                                    <p className={`text-sm font-extrabold uppercase tracking-[4px] ${scanAlert.type === 'success' ? 'text-emerald-400' :
                                             scanAlert.type === 'duplicate' ? 'text-yellow-400' :
                                                 scanAlert.type === 'error' ? 'text-red-400' :
                                                     'text-blue-400'
                                         }`}>
-                                        {scanAlert.type === 'success' ? 'COCOK' :
-                                            scanAlert.type === 'duplicate' ? 'DUPLIKAT' :
-                                                scanAlert.type === 'error' ? 'SELISIH LEBIH' :
+                                        {scanAlert.type === 'success' ? '✅ COCOK' :
+                                            scanAlert.type === 'duplicate' ? '⚠️ DUPLIKAT' :
+                                                scanAlert.type === 'error' ? '❌ SELISIH LEBIH' :
                                                     'STATUS'}
                                     </p>
                                     <h3 className="text-lg md:text-xl font-bold text-white mt-1">
                                         {scanAlert.message}
                                     </h3>
                                     {scanAlert.code && (
-                                        <p className="mt-2 font-mono text-2xl font-black bg-slate-900 border border-slate-800 px-4 py-1.5 rounded-xl inline-block text-white shadow-inner">
+                                        <p className="mt-2 font-mono text-3xl font-black bg-slate-900 border border-slate-800 px-5 py-2 rounded-xl inline-block text-white shadow-inner tracking-wider">
                                             {scanAlert.code}
                                         </p>
                                     )}
@@ -1870,10 +1981,39 @@ export default function ScanDhsPage() {
 
                                 {showAudioSettings && (
                                     <div className="pt-3 border-t border-slate-800 space-y-4 text-xs">
+                                        {/* Sound Profile Selector */}
+                                        <div className="space-y-2">
+                                            <span className="font-semibold text-slate-400 block">Profil Suara</span>
+                                            <div className="grid grid-cols-3 gap-2">
+                                                {(Object.keys(SOUND_PROFILES) as Exclude<SoundProfileKey, 'custom'>[]).map((key) => {
+                                                    const p = SOUND_PROFILES[key];
+                                                    return (
+                                                        <button
+                                                            key={key}
+                                                            type="button"
+                                                            onClick={() => applySoundProfile(key)}
+                                                            className={`p-2 rounded-xl border text-center transition-all ${soundProfile === key
+                                                                ? 'bg-blue-950/40 border-blue-600 text-blue-400 ring-1 ring-blue-600/30'
+                                                                : 'bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-200'
+                                                            }`}
+                                                        >
+                                                            <span className="text-lg block">{p.icon}</span>
+                                                            <span className="text-[10px] font-bold block mt-0.5">{p.label}</span>
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                            {soundProfile === 'custom' && (
+                                                <p className="text-[10px] text-amber-400 font-medium flex items-center gap-1">
+                                                    ⚙️ Profil Custom — Anda mengatur setting secara manual
+                                                </p>
+                                            )}
+                                        </div>
+
                                         {/* Speech Rate Control */}
                                         <div className="space-y-1.5">
                                             <div className="flex justify-between font-semibold text-slate-400">
-                                                <span>Kecepatan Pembacaan Suara (TTS Rate)</span>
+                                                <span>Kecepatan Suara (TTS Rate)</span>
                                                 <span className="text-blue-400 font-mono font-bold">{speechRate.toFixed(2)}x</span>
                                             </div>
                                             <input
@@ -1882,12 +2022,26 @@ export default function ScanDhsPage() {
                                                 max="2.0"
                                                 step="0.1"
                                                 value={speechRate}
-                                                onChange={(e) => setSpeechRate(parseFloat(e.target.value))}
+                                                onChange={(e) => { setSpeechRate(parseFloat(e.target.value)); setSoundProfile('custom'); }}
                                                 className="w-full accent-blue-500 bg-slate-800 h-1.5 rounded-lg appearance-none cursor-pointer"
                                             />
-                                            <p className="text-[10px] text-slate-500 leading-tight">
-                                                Sesuaikan kecepatan pembacaan urutan koli suara agar sejalan dengan ritme kerja Anda.
-                                            </p>
+                                        </div>
+
+                                        {/* Beep Volume Control */}
+                                        <div className="space-y-1.5">
+                                            <div className="flex justify-between font-semibold text-slate-400">
+                                                <span>Volume Beep</span>
+                                                <span className="text-blue-400 font-mono font-bold">{Math.round(beepVolume * 100)}%</span>
+                                            </div>
+                                            <input
+                                                type="range"
+                                                min="0.01"
+                                                max="0.3"
+                                                step="0.01"
+                                                value={beepVolume}
+                                                onChange={(e) => { setBeepVolume(parseFloat(e.target.value)); setSoundProfile('custom'); }}
+                                                className="w-full accent-blue-500 bg-slate-800 h-1.5 rounded-lg appearance-none cursor-pointer"
+                                            />
                                         </div>
 
                                         {/* Custom Warning Voice Inputs */}
@@ -1953,29 +2107,44 @@ export default function ScanDhsPage() {
                         {/* RIGHT PANEL: REALTIME MANIFEST LIST */}
                         <div className="lg:col-span-5 bg-slate-950 border border-slate-800 rounded-3xl p-6 shadow-2xl flex flex-col gap-4 max-h-[85vh] sticky top-28">
 
-                            {/* Target stats summary card */}
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="bg-slate-900 border border-slate-800 p-3.5 rounded-2xl flex flex-col">
-                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Scanned</span>
-                                    <span className="text-3xl font-black text-emerald-400 mt-1">{totalScanned} <span className="text-xs font-bold text-slate-500">/ {totalTarget}</span></span>
+                            {/* Target stats with SVG progress ring */}
+                            <div className="flex items-center gap-4">
+                                {/* SVG Progress Ring */}
+                                <div className="relative flex-shrink-0">
+                                    <svg width="80" height="80" viewBox="0 0 80 80" className="transform -rotate-90">
+                                        <circle cx="40" cy="40" r="34" fill="none" stroke="#1e293b" strokeWidth="8" />
+                                        <circle
+                                            cx="40" cy="40" r="34" fill="none"
+                                            stroke={scanPercentage >= 80 ? '#10b981' : scanPercentage >= 40 ? '#eab308' : '#ef4444'}
+                                            strokeWidth="8"
+                                            strokeLinecap="round"
+                                            strokeDasharray={`${2 * Math.PI * 34}`}
+                                            strokeDashoffset={`${2 * Math.PI * 34 * (1 - scanPercentage / 100)}`}
+                                            className="transition-all duration-500"
+                                        />
+                                    </svg>
+                                    <div className="absolute inset-0 flex flex-col items-center justify-center">
+                                        <span className="text-lg font-black text-white">{scanPercentage}%</span>
+                                    </div>
                                 </div>
-                                <div className="bg-slate-900 border border-slate-800 p-3.5 rounded-2xl flex flex-col">
-                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Unlisted (Lebih)</span>
-                                    <span className="text-3xl font-black text-red-400 mt-1">{totalExtra}</span>
-                                </div>
-                            </div>
-
-                            {/* Progress bar */}
-                            <div className="space-y-1">
-                                <div className="flex justify-between text-xs font-bold text-slate-400 uppercase tracking-wider">
-                                    <span>Penyelesaian</span>
-                                    <span>{scanPercentage}%</span>
-                                </div>
-                                <div className="w-full bg-slate-800 h-2.5 rounded-full overflow-hidden">
-                                    <div
-                                        className="bg-emerald-500 h-full rounded-full transition-all duration-300"
-                                        style={{ width: `${scanPercentage}%` }}
-                                    />
+                                {/* Stats cards */}
+                                <div className="flex-1 grid grid-cols-2 gap-2">
+                                    <div className="bg-slate-900 border border-slate-800 p-2.5 rounded-xl flex flex-col">
+                                        <span className="text-[9px] font-bold text-slate-500 uppercase">Scanned</span>
+                                        <span className="text-xl font-black text-emerald-400">{totalScanned} <span className="text-[10px] font-bold text-slate-500">/ {totalTarget}</span></span>
+                                    </div>
+                                    <div className="bg-slate-900 border border-slate-800 p-2.5 rounded-xl flex flex-col">
+                                        <span className="text-[9px] font-bold text-slate-500 uppercase">Lebih</span>
+                                        <span className={`text-xl font-black ${totalExtra > 0 ? 'text-red-400' : 'text-slate-500'}`}>{totalExtra}</span>
+                                    </div>
+                                    <div className="bg-slate-900 border border-slate-800 p-2.5 rounded-xl flex flex-col">
+                                        <span className="text-[9px] font-bold text-slate-500 uppercase">Pending</span>
+                                        <span className={`text-xl font-black ${totalPending > 0 ? 'text-yellow-400' : 'text-slate-500'}`}>{totalPending}</span>
+                                    </div>
+                                    <div className="bg-slate-900 border border-slate-800 p-2.5 rounded-xl flex flex-col">
+                                        <span className="text-[9px] font-bold text-slate-500 uppercase">Profil</span>
+                                        <span className="text-sm font-bold text-blue-400 mt-0.5">{soundProfile === 'custom' ? '⚙️' : SOUND_PROFILES[soundProfile as Exclude<SoundProfileKey, 'custom'>]?.icon} {soundProfile === 'custom' ? 'Custom' : SOUND_PROFILES[soundProfile as Exclude<SoundProfileKey, 'custom'>]?.label}</span>
+                                    </div>
                                 </div>
                             </div>
 
@@ -1998,29 +2167,33 @@ export default function ScanDhsPage() {
                                 <button
                                     type="button"
                                     onClick={() => setActiveFilterTab('all')}
-                                    className={`py-1.5 rounded-lg text-center transition-all ${activeFilterTab === 'all' ? 'bg-slate-800 text-white shadow' : 'text-slate-400 hover:text-slate-200'}`}
+                                    className={`py-1.5 rounded-lg text-center transition-all flex items-center justify-center gap-1 ${activeFilterTab === 'all' ? 'bg-slate-800 text-white shadow' : 'text-slate-400 hover:text-slate-200'}`}
                                 >
+                                    <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
                                     Semua ({manifest.length + extraScans.length})
                                 </button>
                                 <button
                                     type="button"
                                     onClick={() => setActiveFilterTab('pending')}
-                                    className={`py-1.5 rounded-lg text-center transition-all ${activeFilterTab === 'pending' ? 'bg-yellow-950/40 text-yellow-450 border border-yellow-900/30' : 'text-slate-400 hover:text-slate-200'}`}
+                                    className={`py-1.5 rounded-lg text-center transition-all flex items-center justify-center gap-1 ${activeFilterTab === 'pending' ? 'bg-yellow-950/40 text-yellow-455 border border-yellow-900/30' : 'text-slate-400 hover:text-slate-200'}`}
                                 >
+                                    <span className="w-1.5 h-1.5 rounded-full bg-yellow-500"></span>
                                     Pending ({manifest.filter(i => i.status === 'pending').length})
                                 </button>
                                 <button
                                     type="button"
                                     onClick={() => setActiveFilterTab('scanned')}
-                                    className={`py-1.5 rounded-lg text-center transition-all ${activeFilterTab === 'scanned' ? 'bg-emerald-950/40 text-emerald-450 border border-emerald-900/30' : 'text-slate-400 hover:text-slate-200'}`}
+                                    className={`py-1.5 rounded-lg text-center transition-all flex items-center justify-center gap-1 ${activeFilterTab === 'scanned' ? 'bg-emerald-950/40 text-emerald-450 border border-emerald-900/30' : 'text-slate-400 hover:text-slate-200'}`}
                                 >
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
                                     Cocok ({manifest.filter(i => i.status === 'scanned').length})
                                 </button>
                                 <button
                                     type="button"
                                     onClick={() => setActiveFilterTab('extra')}
-                                    className={`py-1.5 rounded-lg text-center transition-all ${activeFilterTab === 'extra' ? 'bg-red-950/40 text-red-455 border border-red-900/30' : 'text-slate-400 hover:text-slate-200'}`}
+                                    className={`py-1.5 rounded-lg text-center transition-all flex items-center justify-center gap-1 ${activeFilterTab === 'extra' ? 'bg-red-950/40 text-red-455 border border-red-900/30' : 'text-slate-400 hover:text-slate-200'}`}
                                 >
+                                    <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>
                                     Lebih ({extraScans.length})
                                 </button>
                             </div>
@@ -2039,32 +2212,114 @@ export default function ScanDhsPage() {
 
                                 <div className="flex-1 overflow-y-auto pr-1 space-y-2">
                                     {displayItems.length === 0 ? (
-                                        <div className="text-center py-8 text-slate-650 text-xs italic">
-                                            Tidak ada hasil pencocokan kode TO
+                                        <div className="text-center py-10 text-slate-500 text-xs flex flex-col items-center justify-center gap-2">
+                                            {activeFilterTab === 'pending' ? (
+                                                <>
+                                                    <span className="text-2xl animate-bounce">🎉</span>
+                                                    <span className="font-bold text-emerald-400">Semua koli sudah ter-scan!</span>
+                                                    <span className="text-[10px] text-slate-600">Manifest telah selesai diproses.</span>
+                                                </>
+                                            ) : activeFilterTab === 'extra' ? (
+                                                <>
+                                                    <span className="text-2xl">✅</span>
+                                                    <span className="font-semibold text-slate-400">Tidak ada koli selisih lebih</span>
+                                                </>
+                                            ) : activeFilterTab === 'scanned' ? (
+                                                <>
+                                                    <span className="text-2xl">📦</span>
+                                                    <span>Belum ada koli yang di-scan cocok.</span>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <span className="text-2xl">🔍</span>
+                                                    <span>Tidak ada hasil pencocokan kode TO</span>
+                                                </>
+                                            )}
                                         </div>
                                     ) : (
                                         displayItems.map((item, idx) => {
+                                            // Inline Note Editor
+                                            if (noteEditingItemId === item.id) {
+                                                return (
+                                                    <div key={item.id} className="p-3.5 bg-slate-900 border border-slate-800 rounded-2xl space-y-3 flex flex-col shadow-xl animate-fade-in">
+                                                        <div className="flex justify-between items-center text-[10px] font-bold text-slate-400">
+                                                            <span>CATATAN KOLI:</span>
+                                                            <span className="font-mono text-blue-400 font-bold">{item.code}</span>
+                                                        </div>
+                                                        <input
+                                                            type="text"
+                                                            value={noteText}
+                                                            onChange={(e) => setNoteText(e.target.value)}
+                                                            placeholder="Tulis catatan (misal: karung sobek, basah)..."
+                                                            className="bg-slate-950 border border-slate-850 focus:border-blue-600 rounded-xl px-3 py-2 text-xs text-white outline-none w-full transition-all"
+                                                            autoFocus
+                                                        />
+                                                        {/* Presets */}
+                                                        <div className="flex flex-wrap gap-1">
+                                                            {NOTE_PRESETS.map((preset) => (
+                                                                <button
+                                                                    key={preset}
+                                                                    type="button"
+                                                                    onClick={() => setNoteText(preset)}
+                                                                    className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 text-[9px] font-semibold rounded-lg transition-colors"
+                                                                >
+                                                                    {preset}
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                        <div className="flex justify-end gap-2 pt-1.5 border-t border-slate-800/60 mt-1">
+                                                            <button
+                                                                onClick={() => { setNoteEditingItemId(null); setNoteText(''); }}
+                                                                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-750 text-slate-300 text-xs font-bold rounded-lg transition-colors"
+                                                            >
+                                                                Batal
+                                                            </button>
+                                                            <button
+                                                                onClick={() => handleSaveNote(item.id, noteText)}
+                                                                className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg transition-colors"
+                                                            >
+                                                                Simpan
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            }
+
                                             if (item.status === 'extra') {
                                                 return (
                                                     <div
                                                         key={item.id}
-                                                        className="p-2.5 rounded-xl border bg-red-950/10 border-red-900/30 text-red-400 flex items-center justify-between"
+                                                        className="p-2.5 rounded-xl border bg-red-950/10 border-red-900/30 text-red-400 flex flex-col gap-1.5"
                                                     >
-                                                        <div className="flex items-center gap-2">
-                                                            <span className="text-[10px] font-bold text-red-700 font-mono w-4">+</span>
-                                                            <span className="font-mono font-bold text-xs tracking-wide">{item.code}</span>
+                                                        <div className="flex items-center justify-between">
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="text-[10px] font-bold text-red-700 font-mono w-4">+</span>
+                                                                <span className="font-mono font-bold text-xs tracking-wide">{item.code}</span>
+                                                            </div>
+                                                            <div className="flex items-center gap-1.5">
+                                                                <span className="text-[8px] bg-red-950 border border-red-900 px-2 py-0.5 rounded text-red-400 font-bold font-mono">{item.scanTime}</span>
+                                                                <span className="text-[8px] bg-red-600 text-white font-black px-1.5 py-0.5 rounded">LEBIH</span>
+                                                                <button
+                                                                    onClick={() => handleStartNote(item.id, item.note)}
+                                                                    className="p-1 bg-red-950 hover:bg-red-900/60 border border-red-900/30 hover:border-red-800 text-red-450 hover:text-white rounded-lg transition-all"
+                                                                    title="Tambah Catatan"
+                                                                >
+                                                                    <MessageSquare size={10} />
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => handleDeleteExtraScan(item.id, item.code)}
+                                                                    className="p-1 bg-red-950 hover:bg-red-900/60 border border-red-900/30 hover:border-red-800 text-red-450 hover:text-white rounded-lg transition-all"
+                                                                    title="Hapus Koli Lebih"
+                                                                >
+                                                                    <Trash2 size={10} />
+                                                                </button>
+                                                            </div>
                                                         </div>
-                                                        <div className="flex items-center gap-1.5">
-                                                            <span className="text-[8px] bg-red-950 border border-red-900 px-2 py-0.5 rounded text-red-400 font-bold font-mono">{item.scanTime}</span>
-                                                            <span className="text-[8px] bg-red-600 text-white font-black px-1.5 py-0.5 rounded">LEBIH</span>
-                                                            <button
-                                                                onClick={() => handleDeleteExtraScan(item.id, item.code)}
-                                                                className="p-1 bg-red-950 hover:bg-red-900/60 border border-red-900/30 hover:border-red-800 text-red-450 hover:text-white rounded-lg transition-all"
-                                                                title="Hapus Koli Lebih"
-                                                            >
-                                                                <Trash2 size={10} />
-                                                            </button>
-                                                        </div>
+                                                        {item.note && (
+                                                            <div className="text-[9px] bg-amber-950/40 text-amber-400 border border-amber-900/30 px-2 py-0.5 rounded font-medium self-start">
+                                                                📝 {item.note}
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 );
                                             }
@@ -2151,61 +2406,82 @@ export default function ScanDhsPage() {
                                             return (
                                                 <div
                                                     key={item.id}
-                                                    className={`p-2.5 rounded-xl border flex items-center justify-between transition-all ${item.status === 'scanned'
+                                                    className={`p-2.5 rounded-xl border flex flex-col gap-1.5 transition-all ${item.status === 'scanned'
                                                             ? 'bg-emerald-950/10 border-emerald-900/30 text-emerald-400 animate-fade-in'
                                                             : 'bg-slate-900/40 border-slate-800/80 text-slate-400'
                                                         }`}
                                                 >
-                                                    <div className="flex flex-col gap-0.5">
-                                                        <div className="flex items-center gap-2">
-                                                            <span className="text-[10px] font-bold text-slate-650 font-mono w-4">
-                                                                {item.originalIndex !== -1 ? `${item.originalIndex + 1}.` : `${idx + 1}.`}
-                                                            </span>
-                                                            <span className="font-mono font-bold text-xs tracking-wide">{item.code}</span>
+                                                    <div className="flex items-center justify-between w-full">
+                                                        <div className="flex flex-col gap-0.5">
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="text-[10px] font-bold text-slate-650 font-mono w-4">
+                                                                    {item.originalIndex !== -1 ? `${item.originalIndex + 1}.` : `${idx + 1}.`}
+                                                                </span>
+                                                                <span className="font-mono font-bold text-xs tracking-wide">{item.code}</span>
+                                                            </div>
+                                                            {(item.jmlhPaket !== undefined || item.berat !== undefined || item.toType || item.dgType || item.tujuan) && (
+                                                                <div className="flex flex-wrap gap-x-2 gap-y-0.5 text-[9px] text-slate-500 font-medium pl-6">
+                                                                    {item.jmlhPaket !== undefined && <span>{item.jmlhPaket} Pkt</span>}
+                                                                    {item.berat !== undefined && <span>{item.berat} kg</span>}
+                                                                    {item.tujuan && <span className="bg-blue-950/40 text-blue-455 border border-blue-900/30 px-1 rounded text-[8px]">{item.tujuan}</span>}
+                                                                    {item.toType && <span className="bg-slate-800/50 px-1 rounded text-[8px]">{item.toType}</span>}
+                                                                    {item.dgType && <span className="bg-slate-800/50 px-1 rounded text-[8px]">{item.dgType}</span>}
+                                                                </div>
+                                                            )}
                                                         </div>
-                                                        {(item.jmlhPaket !== undefined || item.berat !== undefined || item.toType || item.dgType || item.tujuan) && (
-                                                            <div className="flex flex-wrap gap-x-2 gap-y-0.5 text-[9px] text-slate-500 font-medium pl-6">
-                                                                {item.jmlhPaket !== undefined && <span>{item.jmlhPaket} Pkt</span>}
-                                                                {item.berat !== undefined && <span>{item.berat} kg</span>}
-                                                                {item.tujuan && <span className="bg-blue-950/40 text-blue-455 border border-blue-900/30 px-1 rounded text-[8px]">{item.tujuan}</span>}
-                                                                {item.toType && <span className="bg-slate-800/50 px-1 rounded text-[8px]">{item.toType}</span>}
-                                                                {item.dgType && <span className="bg-slate-800/50 px-1 rounded text-[8px]">{item.dgType}</span>}
-                                                            </div>
-                                                        )}
+                                                        <div className="flex items-center gap-2">
+                                                            {item.status === 'scanned' ? (
+                                                                <div className="flex items-center gap-1.5">
+                                                                    <span className="text-[8px] bg-emerald-950 border border-emerald-900 px-2 py-0.5 rounded text-emerald-400 font-bold font-mono">{item.scanTime}</span>
+                                                                    <button
+                                                                        onClick={() => handleStartNote(item.id, item.note)}
+                                                                        className="p-1 bg-slate-850 hover:bg-slate-750 border border-slate-750 text-slate-350 hover:text-white rounded-lg transition-all"
+                                                                        title="Tambah/Edit Catatan"
+                                                                    >
+                                                                        <MessageSquare size={10} />
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={() => handleStartEditItem(item as any as ManifestItem)}
+                                                                        className="p-1 bg-slate-850 hover:bg-slate-750 border border-slate-750 text-slate-350 hover:text-white rounded-lg transition-all"
+                                                                        title="Edit Data TO"
+                                                                    >
+                                                                        <Edit size={10} />
+                                                                    </button>
+                                                                    <Check size={14} className="text-emerald-400" />
+                                                                </div>
+                                                            ) : (
+                                                                <div className="flex items-center gap-1.5">
+                                                                    <span className="text-[8px] bg-slate-800 border border-slate-700 px-2 py-0.5 rounded text-slate-550 font-bold font-mono">PENDING</span>
+                                                                    <button
+                                                                        onClick={() => handleStartNote(item.id, item.note)}
+                                                                        className="p-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 rounded-lg transition-all"
+                                                                        title="Tambah/Edit Catatan"
+                                                                    >
+                                                                        <MessageSquare size={10} />
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={() => handleStartEditItem(item as any as ManifestItem)}
+                                                                        className="p-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 rounded-lg transition-all"
+                                                                        title="Edit Data TO"
+                                                                    >
+                                                                        <Edit size={10} />
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={() => handleManualBypass(item.id)}
+                                                                        className="p-1 bg-blue-600/20 hover:bg-blue-650 border border-blue-500/30 hover:border-blue-500 text-blue-400 hover:text-white rounded-lg transition-all"
+                                                                        title="Verifikasi Manual (Bypass)"
+                                                                    >
+                                                                        <Check size={10} />
+                                                                    </button>
+                                                                </div>
+                                                            )}
+                                                        </div>
                                                     </div>
-                                                    <div className="flex items-center gap-2">
-                                                        {item.status === 'scanned' ? (
-                                                            <div className="flex items-center gap-1.5">
-                                                                <span className="text-[8px] bg-emerald-950 border border-emerald-900 px-2 py-0.5 rounded text-emerald-400 font-bold font-mono">{item.scanTime}</span>
-                                                                <button
-                                                                    onClick={() => handleStartEditItem(item as any as ManifestItem)}
-                                                                    className="p-1 bg-slate-850 hover:bg-slate-750 border border-slate-750 text-slate-350 hover:text-white rounded-lg transition-all"
-                                                                    title="Edit Data TO"
-                                                                >
-                                                                    <Edit size={10} />
-                                                                </button>
-                                                                <Check size={14} className="text-emerald-400" />
-                                                            </div>
-                                                        ) : (
-                                                            <div className="flex items-center gap-1.5">
-                                                                <span className="text-[8px] bg-slate-800 border border-slate-700 px-2 py-0.5 rounded text-slate-550 font-bold font-mono">PENDING</span>
-                                                                <button
-                                                                    onClick={() => handleStartEditItem(item as any as ManifestItem)}
-                                                                    className="p-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 rounded-lg transition-all"
-                                                                    title="Edit Data TO"
-                                                                >
-                                                                    <Edit size={10} />
-                                                                </button>
-                                                                <button
-                                                                    onClick={() => handleManualBypass(item.id)}
-                                                                    className="p-1 bg-blue-600/20 hover:bg-blue-650 border border-blue-500/30 hover:border-blue-500 text-blue-400 hover:text-white rounded-lg transition-all"
-                                                                    title="Verifikasi Manual (Bypass)"
-                                                                >
-                                                                    <Check size={10} />
-                                                                </button>
-                                                            </div>
-                                                        )}
-                                                    </div>
+                                                    {item.note && (
+                                                        <div className="text-[9px] bg-amber-950/40 text-amber-400 border border-amber-900/30 px-2 py-0.5 rounded font-medium self-start ml-6">
+                                                            📝 {item.note}
+                                                        </div>
+                                                    )}
                                                 </div>
                                             );
                                         })
@@ -2280,57 +2556,64 @@ export default function ScanDhsPage() {
                                     </div>
                                 </div>
 
-                                {/* Statistics Cards */}
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-                                    <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl flex flex-col items-center">
-                                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Target Manifest</span>
-                                        <span className="text-3xl font-black text-white mt-1">{totalTarget}</span>
+                                {/* Statistics Summary Row */}
+                                <div className="grid grid-cols-4 border border-slate-800 rounded-2xl overflow-hidden divide-x divide-slate-800 text-center bg-slate-900/60 no-print">
+                                    <div className="p-3 flex flex-col items-center justify-center">
+                                        <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Target Manifest</span>
+                                        <span className="text-xl font-black text-white mt-0.5">{totalTarget}</span>
                                     </div>
-                                    <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl flex flex-col items-center">
-                                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Cocok (Terverifikasi)</span>
-                                        <span className="text-3xl font-black text-emerald-400 mt-1">{totalScanned}</span>
+                                    <div className="p-3 flex flex-col items-center justify-center">
+                                        <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Cocok</span>
+                                        <span className="text-xl font-black text-emerald-400 mt-0.5">{totalScanned}</span>
                                     </div>
-                                    <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl flex flex-col items-center">
-                                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Selisih Kurang</span>
-                                        <span className={`text-3xl font-black mt-1 ${totalPending > 0 ? 'text-red-400' : 'text-slate-400'}`}>{totalPending}</span>
+                                    <div className="p-3 flex flex-col items-center justify-center">
+                                        <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Kurang</span>
+                                        <span className={`text-xl font-black mt-0.5 ${totalPending > 0 ? 'text-red-400' : 'text-slate-500'}`}>{totalPending}</span>
                                     </div>
-                                    <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl flex flex-col items-center">
-                                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Selisih Lebih</span>
-                                        <span className={`text-3xl font-black mt-1 ${totalExtra > 0 ? 'text-yellow-400' : 'text-slate-400'}`}>{totalExtra}</span>
+                                    <div className="p-3 flex flex-col items-center justify-center">
+                                        <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Lebih</span>
+                                        <span className={`text-xl font-black mt-0.5 ${totalExtra > 0 ? 'text-yellow-400' : 'text-slate-500'}`}>{totalExtra}</span>
                                     </div>
                                 </div>
 
+                                {/* Printable Compact Summary Row (For paper/print only) */}
+                                <div className="hidden print:block p-3 border border-slate-300 bg-slate-50 rounded text-center text-xs font-bold text-slate-800">
+                                    Target Manifest: {totalTarget} Koli | Cocok Terverifikasi: {totalScanned} Koli | Selisih Kurang: {totalPending} Koli | Selisih Lebih: {totalExtra} Koli
+                                </div>
+
                                 {/* Table of Results */}
-                                <div className="space-y-4 pt-4 border-t border-slate-800">
-                                    <h3 className="font-bold text-sm text-slate-300">Rincian Hasil Pengecekan Koli:</h3>
+                                <div className="space-y-3 pt-2 border-t border-slate-800">
+                                    <h3 className="font-bold text-xs text-slate-350">Rincian Hasil Pengecekan Koli:</h3>
 
                                     <div className="border border-slate-800 rounded-2xl overflow-hidden text-xs">
                                         <table className="w-full text-left">
                                             <thead>
                                                 <tr className="bg-slate-900 border-b border-slate-800 text-slate-400 font-semibold uppercase text-[9px] md:text-[10px]">
-                                                    <th className="p-3 text-center w-[5%]">No</th>
-                                                    <th className="p-3 w-[20%]">Nomor TO</th>
-                                                    <th className="p-3 text-center w-[10%]">Jmlh Paket</th>
-                                                    <th className="p-3 text-center w-[10%]">Berat (kg)</th>
-                                                    <th className="p-3 w-[16%]">Tujuan</th>
-                                                    <th className="p-3 text-center w-[10%]">TO Type</th>
-                                                    <th className="p-3 text-center w-[10%]">DG Type</th>
-                                                    <th className="p-3 w-[12%]">Waktu Scan</th>
-                                                    <th className="p-3 text-right w-[7%]">Status</th>
+                                                    <th className="p-2.5 text-center w-[4%] font-bold">No</th>
+                                                    <th className="p-2.5 w-[18%] font-bold">Nomor TO</th>
+                                                    <th className="p-2.5 text-center w-[8%] font-bold">Paket</th>
+                                                    <th className="p-2.5 text-center w-[10%] font-bold">Berat (kg)</th>
+                                                    <th className="p-2.5 w-[14%] font-bold">Tujuan</th>
+                                                    <th className="p-2.5 text-center w-[8%] font-bold">TO Type</th>
+                                                    <th className="p-2.5 text-center w-[8%] font-bold">DG Type</th>
+                                                    <th className="p-2.5 w-[10%] font-bold">Scan Time</th>
+                                                    <th className="p-2.5 w-[13%] font-bold">Catatan</th>
+                                                    <th className="p-2.5 text-right w-[7%] font-bold">Status</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
                                                 {manifest.map((item, idx) => (
-                                                    <tr key={item.id} className="border-b border-slate-800/50 hover:bg-slate-900/30">
-                                                        <td className="p-3 text-center text-slate-500 font-mono">{idx + 1}.</td>
-                                                        <td className="p-3 font-mono font-bold text-white tracking-wide">{item.code}</td>
-                                                        <td className="p-3 text-center font-mono text-slate-350">{item.jmlhPaket !== undefined ? item.jmlhPaket : '-'}</td>
-                                                        <td className="p-3 text-center font-mono text-slate-350">{item.berat !== undefined ? item.berat.toFixed(3) : '-'}</td>
-                                                        <td className="p-3 text-slate-300 font-medium">{item.tujuan || '-'}</td>
-                                                        <td className="p-3 text-center text-slate-350">{item.toType || '-'}</td>
-                                                        <td className="p-3 text-center text-slate-350">{item.dgType || '-'}</td>
-                                                        <td className="p-3 font-mono text-slate-400">{item.scanTime || '-'}</td>
-                                                        <td className="p-3 text-right">
+                                                    <tr key={item.id} className="border-b border-slate-800/50 hover:bg-slate-900/30 odd:bg-slate-950/20 even:bg-slate-900/10">
+                                                        <td className="p-2.5 text-center text-slate-500 font-mono">{idx + 1}.</td>
+                                                        <td className="p-2.5 font-mono font-bold text-white tracking-wide">{item.code}</td>
+                                                        <td className="p-2.5 text-center font-mono text-slate-350">{item.jmlhPaket !== undefined ? item.jmlhPaket : '-'}</td>
+                                                        <td className="p-2.5 text-center font-mono text-slate-350">{item.berat !== undefined ? item.berat.toFixed(3) : '-'}</td>
+                                                        <td className="p-2.5 text-slate-300 font-medium">{item.tujuan || '-'}</td>
+                                                        <td className="p-2.5 text-center text-slate-350">{item.toType || '-'}</td>
+                                                        <td className="p-2.5 text-center text-slate-350">{item.dgType || '-'}</td>
+                                                        <td className="p-2.5 font-mono text-slate-400">{item.scanTime || '-'}</td>
+                                                        <td className="p-2.5 text-amber-400 font-medium italic text-[10px]" title={item.note}>{item.note || '-'}</td>
+                                                        <td className="p-2.5 text-right">
                                                             {item.status === 'scanned' ? (
                                                                 <span className="text-[9px] bg-emerald-950 border border-emerald-900 text-emerald-400 font-black px-2 py-0.5 rounded">COCOK</span>
                                                             ) : (
@@ -2340,16 +2623,17 @@ export default function ScanDhsPage() {
                                                     </tr>
                                                 ))}
                                                 {extraScans.map((item, idx) => (
-                                                    <tr key={`extra-report-${idx}`} className="border-b border-slate-800/50 hover:bg-slate-900/30 bg-red-950/5">
-                                                        <td className="p-3 text-center text-red-500 font-mono">+</td>
-                                                        <td className="p-3 font-mono font-bold text-red-400 tracking-wide">{item.code}</td>
-                                                        <td className="p-3 text-center font-mono text-slate-500">-</td>
-                                                        <td className="p-3 text-center font-mono text-slate-500">-</td>
-                                                        <td className="p-3 text-slate-500 font-medium">-</td>
-                                                        <td className="p-3 text-center text-slate-500">-</td>
-                                                        <td className="p-3 text-center text-slate-500">-</td>
-                                                        <td className="p-3 font-mono text-slate-400">{item.scanTime}</td>
-                                                        <td className="p-3 text-right">
+                                                    <tr key={`extra-report-${idx}`} className="border-b border-slate-800/50 hover:bg-slate-900/30 bg-red-950/5 odd:bg-red-950/5 even:bg-red-950/10">
+                                                        <td className="p-2.5 text-center text-red-500 font-mono">+</td>
+                                                        <td className="p-2.5 font-mono font-bold text-red-400 tracking-wide">{item.code}</td>
+                                                        <td className="p-2.5 text-center font-mono text-slate-500">-</td>
+                                                        <td className="p-2.5 text-center font-mono text-slate-500">-</td>
+                                                        <td className="p-2.5 text-slate-500 font-medium">-</td>
+                                                        <td className="p-2.5 text-center text-slate-500">-</td>
+                                                        <td className="p-2.5 text-center text-slate-500">-</td>
+                                                        <td className="p-2.5 font-mono text-slate-400">{item.scanTime}</td>
+                                                        <td className="p-2.5 text-amber-400 font-medium italic text-[10px]" title={item.note}>{item.note || '-'}</td>
+                                                        <td className="p-2.5 text-right">
                                                             <span className="text-[9px] bg-red-600 text-white font-black px-1.5 py-0.5 rounded">LEBIH</span>
                                                         </td>
                                                     </tr>
@@ -2362,6 +2646,10 @@ export default function ScanDhsPage() {
                                 {/* Document Footer Note */}
                                 <div className="pt-4 border-t border-slate-800 text-[10px] text-slate-500 italic leading-snug">
                                     Laporan ini dihasilkan secara otomatis oleh sistem C2-MS CV. Cahaya Cargo Express pada saat penyelesaian sesi pemindaian real-time. Penilaian selisih didasarkan pada kecocokan manifes resmi yang diunggah.
+                                </div>
+                                <div className="hidden print:flex justify-between items-center pt-2 text-[8px] text-slate-400 border-t border-slate-200 mt-2 font-mono">
+                                    <span>Dicetak pada: {new Date().toLocaleString('id-ID', { dateStyle: 'long', timeStyle: 'medium' })} WIB</span>
+                                    <span>Halaman 1 dari 1</span>
                                 </div>
 
                             </div>
@@ -2843,10 +3131,25 @@ export default function ScanDhsPage() {
                     /* Table print tweaks */
                     #print-dhs-report table {
                         font-size: 8pt !important;
+                        border-collapse: collapse !important;
+                        width: 100% !important;
                     }
                     #print-dhs-report table th {
-                        background: #e2e8f0 !important;
+                        background: #f1f5f9 !important;
                         font-weight: 700 !important;
+                        border-bottom: 2px solid #cbd5e1 !important;
+                    }
+                    #print-dhs-report table td,
+                    #print-dhs-report table th {
+                        border: 1px solid #cbd5e1 !important;
+                        padding: 6px 8px !important;
+                    }
+                    #print-dhs-report table tr:nth-child(even) {
+                        background: #f8fafc !important;
+                    }
+                    #print-dhs-report table tr {
+                        page-break-inside: avoid !important;
+                        break-inside: avoid !important;
                     }
                     @page {
                         size: A4 portrait;
