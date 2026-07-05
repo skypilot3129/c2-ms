@@ -15,6 +15,7 @@ import { getAllBranches, getActiveBranch } from '@/types/branch';
 import CurrencyInput from '@/components/CurrencyInput';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { ArrowLeft, Save, Package, Users, FileText, CheckCircle, AlertCircle, Trash2, Plus, History, Zap } from 'lucide-react';
+import VoiceTransactionPanel from '@/components/VoiceTransactionPanel';
 
 export default function NewTransactionPage() {
     const router = useRouter();
@@ -23,6 +24,8 @@ export default function NewTransactionPage() {
     const [clients, setClients] = useState<Client[]>([]);
     const [previousPrices, setPreviousPrices] = useState<Array<{ harga: number; tujuan: string; beratUnit: string; tipeTransaksi: string; count: number }>>([]);
     const [loadingPrices, setLoadingPrices] = useState(false);
+    const [voiceAlert, setVoiceAlert] = useState<string | null>(null);
+    const [speechFeedback, setSpeechFeedback] = useState('');
 
 
     const [formData, setFormData] = useState<TransactionFormData>({
@@ -284,6 +287,102 @@ export default function NewTransactionPage() {
         setFormData(prev => ({ ...prev, [field]: value }));
     };
 
+    const handleVoiceTransactionParsed = (parsed: any) => {
+        setVoiceAlert(null);
+        setSpeechFeedback('');
+
+        // Fuzzy matching for sender client
+        let matchedSenderId = '';
+        let matchedSenderName = '';
+        if (parsed.senderName) {
+            const senderClean = parsed.senderName.toLowerCase().trim();
+            const match = clients.find(c => c.name.toLowerCase().includes(senderClean));
+            if (match) {
+                matchedSenderId = match.id;
+                matchedSenderName = match.name;
+            }
+        }
+
+        // Fuzzy matching for receiver client
+        let matchedReceiverClient: Client | undefined;
+        if (parsed.receiverName) {
+            const receiverClean = parsed.receiverName.toLowerCase().trim();
+            matchedReceiverClient = clients.find(c => c.name.toLowerCase().includes(receiverClean));
+        }
+
+        // Update sender ID if matched
+        if (matchedSenderId) {
+            setFormData(prev => ({ ...prev, pengirimId: matchedSenderId }));
+        }
+
+        // Update receiver list (first entry)
+        setPenerimaList(prev => {
+            const updated = [...prev];
+            const first = { ...updated[0] };
+            
+            if (matchedReceiverClient) {
+                first.name = matchedReceiverClient.name;
+                first.phone = matchedReceiverClient.phone || '';
+                first.address = matchedReceiverClient.address || '';
+                first.city = matchedReceiverClient.city || '';
+                first.tujuan = matchedReceiverClient.city || parsed.tujuan || '';
+            } else {
+                first.name = parsed.receiverName || first.name;
+                first.tujuan = parsed.tujuan || first.tujuan;
+            }
+
+            first.koli = parsed.koli || first.koli;
+            first.berat = parsed.berat || first.berat;
+            first.beratUnit = (parsed.beratUnit as BeratUnit) || first.beratUnit;
+            first.harga = parsed.harga || first.harga;
+            first.pembayaran = (parsed.pembayaran as MetodePembayaran) || first.pembayaran;
+            first.pelunasan = (parsed.pelunasan as CaraPelunasan) || first.pelunasan;
+
+            // Recalculate subtotal & tax logic for first recipient
+            if (formData.tipeTransaksi === 'regular') {
+                const subtotal = (first.harga || 0) * (first.berat || 0);
+                const rate = first.isPKP ? taxSettings.defaultPPNRate : 0;
+                const ppn = Math.round(subtotal * rate);
+                first.jumlah = subtotal;
+                (first as any).ppnAmount = ppn;
+                (first as any).ppnRate = rate;
+            } else {
+                const rate = first.isPKP ? taxSettings.defaultPPNRate : 0;
+                const total = first.jumlah || 0;
+                const ppn = Math.round(total * rate);
+                (first as any).ppnAmount = ppn;
+                (first as any).ppnRate = rate;
+            }
+
+            updated[0] = first;
+            return updated;
+        });
+
+        // Set common data
+        setCommonData(prev => ({
+            ...prev,
+            isiBarang: parsed.isiBarang || prev.isiBarang,
+            keterangan: parsed.keterangan || prev.keterangan,
+        }));
+
+        // Audio TTS & visual feedback messages
+        let feedback = 'Pengisian selesai. ';
+        if (matchedSenderName) {
+            feedback += `Pengirim cocok dengan ${matchedSenderName}. `;
+        } else if (parsed.senderName) {
+            feedback += `Pengirim ${parsed.senderName} tidak ditemukan. `;
+        }
+
+        if (matchedReceiverClient) {
+            feedback += `Penerima cocok dengan ${matchedReceiverClient.name}. `;
+        } else if (parsed.receiverName) {
+            feedback += `Penerima ${parsed.receiverName} tidak ditemukan. `;
+        }
+
+        setVoiceAlert(feedback);
+        setSpeechFeedback(feedback);
+    };
+
     return (
         <ProtectedRoute>
             <div className="min-h-screen bg-gray-50 pb-20">
@@ -300,6 +399,22 @@ export default function NewTransactionPage() {
 
                 <div className="container mx-auto max-w-4xl px-4 py-8">
                     <form onSubmit={handleSubmit} className="space-y-6">
+
+                        {/* AI Voice Agent Panel */}
+                        <VoiceTransactionPanel 
+                            onItemParsed={handleVoiceTransactionParsed} 
+                            speechFeedbackText={speechFeedback}
+                        />
+
+                        {voiceAlert && (
+                            <div className={`p-4 rounded-xl border flex items-start gap-3 shadow-sm animate-in fade-in duration-300 ${voiceAlert.includes('tidak ditemukan') ? 'bg-amber-50 border-amber-200 text-amber-800' : 'bg-green-50 border-green-200 text-green-800'}`}>
+                                <Zap className={voiceAlert.includes('tidak ditemukan') ? 'text-amber-500 shrink-0 mt-0.5' : 'text-green-500 shrink-0 mt-0.5'} size={20} />
+                                <div>
+                                    <h4 className="font-bold text-sm">Status Input AI Voice</h4>
+                                    <p className="text-xs mt-1 leading-relaxed">{voiceAlert}</p>
+                                </div>
+                            </div>
+                        )}
 
                         {/* Section 1: Info Dasar */}
                         <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
