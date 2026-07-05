@@ -112,7 +112,8 @@ export const getDashboardStats = async (
     const txQuery = query(collection(db, 'transactions'));
     // const txQuery = query(collection(db, 'transactions'), where('userId', '==', userId));
     const txSnapshot = await getDocs(txQuery);
-    const allTransactions = txSnapshot.docs.map(doc => ({
+    const activeBranch = process.env.NEXT_PUBLIC_ACTIVE_BRANCH;
+    let allTransactions = txSnapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data(),
         // Map 'tanggal' or 'createdAt' to 'date' for uniform filtering
@@ -120,6 +121,7 @@ export const getDashboardStats = async (
         amount: doc.data().jumlah || 0,
         status: doc.data().status,
         pengirimName: doc.data().pengirimName || 'Unknown',
+        branch: doc.data().branch,
         // We really should link transactions to routes/voyages for route profitability
         // But transactions don't strictly have a route field on themselves in the current model, 
         // they are assigned to voyages. 
@@ -129,18 +131,33 @@ export const getDashboardStats = async (
         noSTT: doc.data().noSTT
     })) as any[];
 
+    if (activeBranch) {
+        allTransactions = allTransactions.filter(tx => {
+            if (tx.branch) return tx.branch === activeBranch;
+            return activeBranch === 'surabaya'; // Default legacy to surabaya
+        });
+    }
+
     const expQuery = query(collection(db, 'expenses'));
     // const expQuery = query(collection(db, 'expenses'), where('userId', '==', userId));
     const expSnapshot = await getDocs(expQuery);
-    const allExpenses = expSnapshot.docs.map(doc => ({
+    let allExpenses = expSnapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data(),
         date: doc.data().date?.toDate() || new Date(),
         createdAt: doc.data().createdAt?.toDate() || new Date(),
         amount: doc.data().amount || 0,
         category: doc.data().category,
-        voyageId: doc.data().voyageId // Linked to voyage
+        voyageId: doc.data().voyageId, // Linked to voyage
+        branch: doc.data().branch
     })) as any[];
+
+    if (activeBranch) {
+        allExpenses = allExpenses.filter(exp => {
+            if (exp.branch) return exp.branch === activeBranch;
+            return activeBranch === 'surabaya'; // Default legacy to surabaya
+        });
+    }
 
 
     // --- Current Period Data ---

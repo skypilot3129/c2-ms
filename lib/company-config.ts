@@ -1,6 +1,6 @@
-// Company information for invoices and app branding
+const activeBranch = process.env.NEXT_PUBLIC_ACTIVE_BRANCH;
 
-export const COMPANY_INFO = {
+const baseCompanyInfo = {
     name: 'CAHAYA CARGO EXPRESS',
     address: 'Jalan Kemudi No 4',
     city: 'Surabaya',
@@ -13,6 +13,7 @@ export const COMPANY_INFO = {
     branch2Phone: '081 2954 777',
     branch3Address: 'Jl. Gandasari (PS Sentra Bisnis Warlob) G 1',
     branch3City: 'Bandung',
+    branch3Phone: '081 337 878 138',
     email: '',
 
     // Bank account details for transfer
@@ -38,6 +39,22 @@ export const COMPANY_INFO = {
     signatureName: 'HILAL BAFAGIH',
     signatureTitle: 'Hormat Kami',
 };
+
+// Override primary info if in branch-specific deployment
+if (activeBranch === 'makassar') {
+    baseCompanyInfo.address = baseCompanyInfo.branchAddress;
+    baseCompanyInfo.city = baseCompanyInfo.branchCity;
+    baseCompanyInfo.phone = baseCompanyInfo.branchPhone;
+    baseCompanyInfo.name = 'CAHAYA CARGO EXPRESS (MAKASSAR)';
+} else if (activeBranch === 'bandung') {
+    baseCompanyInfo.address = baseCompanyInfo.branch3Address;
+    baseCompanyInfo.city = baseCompanyInfo.branch3City;
+    baseCompanyInfo.phone = baseCompanyInfo.branch3Phone;
+    baseCompanyInfo.name = 'CAHAYA CARGO EXPRESS (BANDUNG)';
+}
+
+export const COMPANY_INFO = baseCompanyInfo;
+
 
 /**
  * Get formatted bank transfer information for display

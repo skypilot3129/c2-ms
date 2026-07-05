@@ -13,6 +13,7 @@ import {
 import { saveVolumeSession, updateVolumeSession, getVolumeSessionById } from '@/lib/firestore-volume-sessions';
 import type { VolumeCalculatorFormData, VolumeCalculation, KoliItem } from '@/types/volume-calculation';
 import { VOLUMETRIC_DIVISOR } from '@/types/volume-calculation';
+import VoiceAgentPanel from './VoiceAgentPanel';
 
 function parseImportedTxt(text: string): { senderName: string; koliList: KoliItem[] } | null {
     const lines = text.split(/\r?\n/);
@@ -345,6 +346,33 @@ export default function VolumeCalculator() {
         if (itemNameInputRef.current) itemNameInputRef.current.focus();
     };
 
+    const handleVoiceItemParsed = (item: {
+        itemName: string;
+        length: number;
+        width: number;
+        height: number;
+        actualWeight: number;
+        quantity: number;
+    }) => {
+        const calculation = calculateDimensions({
+            length: item.length,
+            width: item.width,
+            height: item.height,
+            actualWeight: item.actualWeight,
+            quantity: item.quantity,
+            itemName: item.itemName,
+            barcode: ''
+        });
+
+        const newKoli: KoliItem = {
+            ...calculation,
+            koliNumber: koliList.length > 0 ? Math.max(...koliList.map(k => k.koliNumber)) + 1 : 1
+        };
+
+        setKoliList(prev => [...prev, newKoli]);
+        setErrors([]);
+    };
+
     const handleCopyPreviousDimensions = () => {
         if (koliList.length === 0) return;
         const lastKoli = koliList[koliList.length - 1];
@@ -649,6 +677,11 @@ export default function VolumeCalculator() {
                         </h3>
                         {editingKoliNumber !== null && <p className="text-xs text-amber-600 font-medium mt-0.5">Mode edit aktif — ubah data lalu simpan</p>}
                     </div>
+                </div>
+
+                {/* AI Voice Input Panel */}
+                <div className="relative z-10">
+                    <VoiceAgentPanel onItemParsed={handleVoiceItemParsed} />
                 </div>
 
                 {/* Barcode Scanner Section */}

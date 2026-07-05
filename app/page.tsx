@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
+import { isModuleActive } from "@/types/branch";
 import { LogOut, User as UserIcon, LogIn, UserPlus, Package, Users, Ship, BarChart3, Plus, Search, FileText, ArrowRight, Wallet, Crown, Truck, Clock, UserCircle, TrendingUp, MessageCircle, Calendar, CheckSquare, Calculator, MapPin, Barcode, FileSpreadsheet } from "lucide-react";
 import InstallPrompt from "@/components/InstallPrompt";
 import { useState, useEffect } from "react";
@@ -111,87 +112,97 @@ export default function Home() {
                     {/* Quick Actions (Shortcut Bar) - Owner & Admin only */}
                     {user && isManager && (
                         <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-12 max-w-5xl mx-auto">
-                            <Link href="/transactions/new" className="group">
-                                <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md hover:border-blue-200 transition-all flex items-center justify-between">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 group-hover:scale-110 transition-transform">
-                                            <Plus size={20} />
+                            {isModuleActive('transactions') && (
+                                <Link href="/transactions/new" className="group">
+                                    <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md hover:border-blue-200 transition-all flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 group-hover:scale-110 transition-transform">
+                                                <Plus size={20} />
+                                            </div>
+                                            <div className="text-left">
+                                                <p className="text-sm font-bold text-gray-700">Buat Resi</p>
+                                                <p className="text-xs text-gray-400">Transaksi Baru</p>
+                                            </div>
                                         </div>
-                                        <div className="text-left">
-                                            <p className="text-sm font-bold text-gray-700">Buat Resi</p>
-                                            <p className="text-xs text-gray-400">Transaksi Baru</p>
-                                        </div>
+                                        <ArrowRight size={16} className="hidden md:block text-gray-300 group-hover:text-blue-500 group-hover:translate-x-1 transition-all" />
                                     </div>
-                                    <ArrowRight size={16} className="hidden md:block text-gray-300 group-hover:text-blue-500 group-hover:translate-x-1 transition-all" />
-                                </div>
-                            </Link>
+                                </Link>
+                            )}
 
-                            <Link href="/clients/new" className="group">
-                                <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md hover:border-green-200 transition-all flex items-center justify-between">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 rounded-full bg-green-50 flex items-center justify-center text-green-600 group-hover:scale-110 transition-transform">
-                                            <UserPlus size={20} />
+                            {isModuleActive('clients') && (
+                                <Link href="/clients/new" className="group">
+                                    <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md hover:border-green-200 transition-all flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-10 h-10 rounded-full bg-green-50 flex items-center justify-center text-green-600 group-hover:scale-110 transition-transform">
+                                                <UserPlus size={20} />
+                                            </div>
+                                            <div className="text-left">
+                                                <p className="text-sm font-bold text-gray-700">Client Baru</p>
+                                                <p className="text-xs text-gray-400">Database</p>
+                                            </div>
                                         </div>
-                                        <div className="text-left">
-                                            <p className="text-sm font-bold text-gray-700">Client Baru</p>
-                                            <p className="text-xs text-gray-400">Database</p>
-                                        </div>
+                                        <ArrowRight size={16} className="hidden md:block text-gray-300 group-hover:text-green-500 group-hover:translate-x-1 transition-all" />
                                     </div>
-                                    <ArrowRight size={16} className="hidden md:block text-gray-300 group-hover:text-green-500 group-hover:translate-x-1 transition-all" />
-                                </div>
-                            </Link>
+                                </Link>
+                            )}
 
-                            <Link href="/operations/active" className="group">
-                                <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md hover:border-orange-200 transition-all flex items-center justify-between">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 rounded-full bg-orange-50 flex items-center justify-center text-orange-600 group-hover:scale-110 transition-transform">
-                                            <Truck size={20} />
+                            {isModuleActive('operations') && (
+                                <Link href="/operations/active" className="group">
+                                    <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md hover:border-orange-200 transition-all flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-10 h-10 rounded-full bg-orange-50 flex items-center justify-center text-orange-600 group-hover:scale-110 transition-transform">
+                                                <Truck size={20} />
+                                            </div>
+                                            <div className="text-left">
+                                                <p className="text-sm font-bold text-gray-700">Tugas Truk</p>
+                                                <p className="text-xs text-gray-400">Real-time</p>
+                                            </div>
                                         </div>
-                                        <div className="text-left">
-                                            <p className="text-sm font-bold text-gray-700">Tugas Truk</p>
-                                            <p className="text-xs text-gray-400">Real-time</p>
-                                        </div>
+                                        <ArrowRight size={16} className="hidden md:block text-gray-300 group-hover:text-orange-500 group-hover:translate-x-1 transition-all" />
                                     </div>
-                                    <ArrowRight size={16} className="hidden md:block text-gray-300 group-hover:text-orange-500 group-hover:translate-x-1 transition-all" />
-                                </div>
-                            </Link>
+                                </Link>
+                            )}
 
-                            <Link href="/transactions" className="group">
-                                <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md hover:border-purple-200 transition-all flex items-center justify-between">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 rounded-full bg-purple-50 flex items-center justify-center text-purple-600 group-hover:scale-110 transition-transform">
-                                            <Search size={20} />
+                            {isModuleActive('transactions') && (
+                                <Link href="/transactions" className="group">
+                                    <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md hover:border-purple-200 transition-all flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-10 h-10 rounded-full bg-purple-50 flex items-center justify-center text-purple-600 group-hover:scale-110 transition-transform">
+                                                <Search size={20} />
+                                            </div>
+                                            <div className="text-left">
+                                                <p className="text-sm font-bold text-gray-700">Cari Resi</p>
+                                                <p className="text-xs text-gray-400">Lacak Status</p>
+                                            </div>
                                         </div>
-                                        <div className="text-left">
-                                            <p className="text-sm font-bold text-gray-700">Cari Resi</p>
-                                            <p className="text-xs text-gray-400">Lacak Status</p>
-                                        </div>
+                                        <ArrowRight size={16} className="hidden md:block text-gray-300 group-hover:text-purple-500 group-hover:translate-x-1 transition-all" />
                                     </div>
-                                    <ArrowRight size={16} className="hidden md:block text-gray-300 group-hover:text-purple-500 group-hover:translate-x-1 transition-all" />
-                                </div>
-                            </Link>
+                                </Link>
+                            )}
 
-                            <Link href="/transactions/print-bulk" className="group">
-                                <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md hover:border-slate-200 transition-all flex items-center justify-between">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center text-slate-600 group-hover:scale-110 transition-transform">
-                                            <FileText size={20} />
+                            {isModuleActive('transactions') && (
+                                <Link href="/transactions/print-bulk" className="group">
+                                    <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md hover:border-slate-200 transition-all flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center text-slate-600 group-hover:scale-110 transition-transform">
+                                                <FileText size={20} />
+                                            </div>
+                                            <div className="text-left">
+                                                <p className="text-sm font-bold text-gray-700">Cetak Massal</p>
+                                                <p className="text-xs text-gray-400">Invoice</p>
+                                            </div>
                                         </div>
-                                        <div className="text-left">
-                                            <p className="text-sm font-bold text-gray-700">Cetak Massal</p>
-                                            <p className="text-xs text-gray-400">Invoice</p>
-                                        </div>
+                                        <ArrowRight size={16} className="hidden md:block text-gray-300 group-hover:text-slate-500 group-hover:translate-x-1 transition-all" />
                                     </div>
-                                    <ArrowRight size={16} className="hidden md:block text-gray-300 group-hover:text-slate-500 group-hover:translate-x-1 transition-all" />
-                                </div>
-                            </Link>
+                                </Link>
+                            )}
                         </div>
                     )}
 
                     {/* Main Features Grid */}
                     <div className="grid md:grid-cols-2 gap-6 relative z-10">
                         {/* Attendance - Accessible to ALL authenticated users */}
-                        {user && (
+                        {user && isModuleActive('attendance') && (
                             <Link href="/attendance" className="group">
                                 <div className="bg-white rounded-3xl p-8 shadow-xl shadow-gray-200/50 border border-gray-100 hover:border-blue-300 hover:shadow-2xl hover:shadow-blue-500/10 transition-all duration-300 relative overflow-hidden group-hover:-translate-y-1">
                                     <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-blue-50 to-transparent rounded-bl-full opacity-50 group-hover:scale-110 transition-transform origin-top-right"></div>
@@ -212,7 +223,7 @@ export default function Home() {
                         )}
 
                         {/* Monitor Absensi (Admin) - Admin & Pengurus */}
-                        {user && isManager && (
+                        {user && isManager && isModuleActive('attendance') && (
                             <Link href="/attendance/admin" className="group">
                                 <div className="bg-white rounded-3xl p-8 shadow-xl shadow-gray-200/50 border border-gray-100 hover:border-cyan-300 hover:shadow-2xl hover:shadow-cyan-500/10 transition-all duration-300 relative overflow-hidden group-hover:-translate-y-1">
                                     <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-cyan-50 to-transparent rounded-bl-full opacity-50 group-hover:scale-110 transition-transform origin-top-right"></div>
@@ -233,7 +244,7 @@ export default function Home() {
                         )}
 
                         {/* Operasional Truk & Jadwal Muat - Accessible to ALL */}
-                        {user && (
+                        {user && isModuleActive('operations') && (
                             <>
                                 {isManager && (
                                     <Link href="/operations/active" className="group">
@@ -299,12 +310,12 @@ export default function Home() {
 
 
                         {/* Owner Dashboard (Executive) - Admin ONLY */}
-                        {user && isAdmin && (
+                        {user && isAdmin && isModuleActive('finance') && (
                             <Link href="/dashboard/owner" className="group md:col-span-2">
                                 <div className="bg-slate-900 rounded-3xl p-8 shadow-xl shadow-slate-900/20 border border-slate-700 hover:border-indigo-500 hover:shadow-2xl hover:shadow-indigo-500/20 transition-all duration-300 relative overflow-hidden group-hover:-translate-y-1">
                                     <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-600/20 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none"></div>
                                     <div className="absolute bottom-0 left-0 w-64 h-64 bg-blue-600/10 rounded-full blur-3xl -ml-16 -mb-16 pointer-events-none"></div>
-
+ 
                                     <div className="relative flex flex-col md:flex-row items-center justify-between gap-8">
                                         <div className="flex-1">
                                             <div className="w-16 h-16 bg-indigo-500/20 rounded-2xl flex items-center justify-center text-indigo-400 mb-6 border border-indigo-500/30 group-hover:bg-indigo-500 group-hover:text-white transition-all duration-500">
@@ -334,14 +345,14 @@ export default function Home() {
                                 </div>
                             </Link>
                         )}
-
+ 
                         {/* Bagas Dashboard (Marketing Manager) - bagas@gmail.com ONLY */}
-                        {user && user.email === 'bagas@gmail.com' && (
+                        {user && user.email === 'bagas@gmail.com' && isModuleActive('marketing_dashboard') && (
                             <Link href="/dashboard/bagas" className="group md:col-span-2">
                                 <div className="bg-gradient-to-br from-purple-900 to-blue-900 rounded-3xl p-8 shadow-xl shadow-purple-900/20 border border-purple-700 hover:border-purple-500 hover:shadow-2xl hover:shadow-purple-500/20 transition-all duration-300 relative overflow-hidden group-hover:-translate-y-1">
                                     <div className="absolute top-0 right-0 w-64 h-64 bg-purple-600/20 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none"></div>
                                     <div className="absolute bottom-0 left-0 w-64 h-64 bg-blue-600/10 rounded-full blur-3xl -ml-16 -mb-16 pointer-events-none"></div>
-
+ 
                                     <div className="relative flex flex-col md:flex-row items-center justify-between gap-8">
                                         <div className="flex-1">
                                             <div className="w-16 h-16 bg-purple-500/20 rounded-2xl flex items-center justify-center text-purple-400 mb-6 border border-purple-500/30 group-hover:bg-purple-500 group-hover:text-white transition-all duration-500">
@@ -375,9 +386,9 @@ export default function Home() {
                                 </div>
                             </Link>
                         )}
-
+ 
                         {/* Resi & Transaksi - Owner & Admin only */}
-                        {user && isAdmin && (
+                        {user && isAdmin && isModuleActive('transactions') && (
                             <Link href="/transactions" className="group">
                                 <div className="bg-white rounded-3xl p-8 shadow-xl shadow-gray-200/50 border border-gray-100 hover:border-blue-300 hover:shadow-2xl hover:shadow-blue-500/10 transition-all duration-300 relative overflow-hidden group-hover:-translate-y-1">
                                     <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-blue-50 to-transparent rounded-bl-full opacity-50 group-hover:scale-110 transition-transform origin-top-right"></div>
@@ -396,9 +407,9 @@ export default function Home() {
                                 </div>
                             </Link>
                         )}
-
+ 
                         {/* Database Client - Owner & Admin only */}
-                        {user && isAdmin && (
+                        {user && isAdmin && isModuleActive('clients') && (
                             <Link href="/clients" className="group">
                                 <div className="bg-white rounded-3xl p-8 shadow-xl shadow-gray-200/50 border border-gray-100 hover:border-green-300 hover:shadow-2xl hover:shadow-green-500/10 transition-all duration-300 relative overflow-hidden group-hover:-translate-y-1">
                                     <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-green-50 to-transparent rounded-bl-full opacity-50 group-hover:scale-110 transition-transform origin-top-right"></div>
@@ -417,9 +428,9 @@ export default function Home() {
                                 </div>
                             </Link>
                         )}
-
+ 
                         {/* Volume Calculator - All authenticated users */}
-                        {user && (
+                        {user && isModuleActive('volume_calculator') && (
                             <Link href="/tools/volume-calculator" className="group">
                                 <div className="bg-white rounded-3xl p-8 shadow-xl shadow-gray-200/50 border border-gray-100 hover:border-orange-300 hover:shadow-2xl hover:shadow-orange-500/10 transition-all duration-300 relative overflow-hidden group-hover:-translate-y-1">
                                     <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-orange-50 to-transparent rounded-bl-full opacity-50 group-hover:scale-110 transition-transform origin-top-right"></div>
@@ -440,7 +451,7 @@ export default function Home() {
                         )}
 
                         {/* Manifest Cargo - All authenticated users */}
-                        {user && (
+                        {user && isModuleActive('manifest') && (
                             <Link href="/tools/manifest" className="group">
                                 <div className="bg-white rounded-3xl p-8 shadow-xl shadow-gray-200/50 border border-gray-100 hover:border-blue-300 hover:shadow-2xl hover:shadow-blue-500/10 transition-all duration-300 relative overflow-hidden group-hover:-translate-y-1">
                                     <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-blue-50 to-transparent rounded-bl-full opacity-50 group-hover:scale-110 transition-transform origin-top-right"></div>
@@ -461,7 +472,7 @@ export default function Home() {
                         )}
 
                         {/* Cetak Label Resi A6 - All authenticated users */}
-                        {user && (
+                        {user && isModuleActive('label_resi') && (
                             <Link href="/tools/label-resi" className="group">
                                 <div className="bg-white rounded-3xl p-8 shadow-xl shadow-gray-200/50 border border-gray-100 hover:border-indigo-300 hover:shadow-2xl hover:shadow-indigo-500/10 transition-all duration-300 relative overflow-hidden group-hover:-translate-y-1">
                                     <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-indigo-50 to-transparent rounded-bl-full opacity-50 group-hover:scale-110 transition-transform origin-top-right"></div>
@@ -482,7 +493,7 @@ export default function Home() {
                         )}
 
                         {/* Cetak Dokumen Legal - All authenticated users */}
-                        {user && (
+                        {user && isModuleActive('dokumen_legal') && (
                             <Link href="/tools/dokumen-legal" className="group">
                                 <div className="bg-white rounded-3xl p-8 shadow-xl shadow-gray-200/50 border border-gray-100 hover:border-emerald-300 hover:shadow-2xl hover:shadow-emerald-500/10 transition-all duration-300 relative overflow-hidden group-hover:-translate-y-1">
                                     <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-emerald-50 to-transparent rounded-bl-full opacity-50 group-hover:scale-110 transition-transform origin-top-right"></div>
@@ -503,7 +514,7 @@ export default function Home() {
                         )}
 
                         {/* Scan Barcode DHS - All authenticated users */}
-                        {user && (
+                        {user && isModuleActive('scan_dhs') && (
                             <Link href="/tools/scan-dhs" className="group">
                                 <div className="bg-white rounded-3xl p-8 shadow-xl shadow-gray-200/50 border border-gray-100 hover:border-blue-300 hover:shadow-2xl hover:shadow-blue-500/10 transition-all duration-300 relative overflow-hidden group-hover:-translate-y-1">
                                     <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-blue-50 to-transparent rounded-bl-full opacity-50 group-hover:scale-110 transition-transform origin-top-right"></div>
@@ -524,7 +535,7 @@ export default function Home() {
                         )}
 
                         {/* Detail Invoice AML - All authenticated users */}
-                        {user && (
+                        {user && isModuleActive('invoice_aml') && (
                             <Link href="/tools/detail-invoice-aml" className="group">
                                 <div className="bg-white rounded-3xl p-8 shadow-xl shadow-gray-200/50 border border-gray-100 hover:border-indigo-300 hover:shadow-2xl hover:shadow-indigo-500/10 transition-all duration-300 relative overflow-hidden group-hover:-translate-y-1">
                                     <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-indigo-50 to-transparent rounded-bl-full opacity-50 group-hover:scale-110 transition-transform origin-top-right"></div>
@@ -545,7 +556,7 @@ export default function Home() {
                         )}
 
                         {/* Cetak Slip & SKK Karyawan - All authenticated users */}
-                        {user && (
+                        {user && isModuleActive('slip_skk') && (
                             <Link href="/tools/cetak-slip-skk" className="group">
                                 <div className="bg-white rounded-3xl p-8 shadow-xl shadow-gray-200/50 border border-gray-100 hover:border-emerald-300 hover:shadow-2xl hover:shadow-emerald-500/10 transition-all duration-300 relative overflow-hidden group-hover:-translate-y-1">
                                     <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-emerald-50 to-transparent rounded-bl-full opacity-50 group-hover:scale-110 transition-transform origin-top-right"></div>
@@ -566,7 +577,7 @@ export default function Home() {
                         )}
 
                         {/* Pemberangkatan - Owner & Admin only */}
-                        {user && isAdmin && (
+                        {user && isAdmin && isModuleActive('voyages') && (
                             <Link href="/voyages" className="group">
                                 <div className="bg-white rounded-3xl p-8 shadow-xl shadow-gray-200/50 border border-gray-100 hover:border-purple-300 hover:shadow-2xl hover:shadow-purple-500/10 transition-all duration-300 relative overflow-hidden group-hover:-translate-y-1">
                                     <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-purple-50 to-transparent rounded-bl-full opacity-50 group-hover:scale-110 transition-transform origin-top-right"></div>
@@ -587,7 +598,7 @@ export default function Home() {
                         )}
 
                         {/* Dashboard BI - Owner & Admin only */}
-                        {user && isAdmin && (
+                        {user && isAdmin && isModuleActive('finance') && (
                             <Link href="/dashboard" className="group">
                                 <div className="bg-white rounded-3xl p-8 shadow-xl shadow-gray-200/50 border border-gray-100 hover:border-orange-300 hover:shadow-2xl hover:shadow-orange-500/10 transition-all duration-300 relative overflow-hidden group-hover:-translate-y-1">
                                     <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-orange-50 to-transparent rounded-bl-full opacity-50 group-hover:scale-110 transition-transform origin-top-right"></div>
@@ -608,7 +619,7 @@ export default function Home() {
                         )}
 
                         {/* Finance Module - Owner & Admin only */}
-                        {user && isAdmin && (
+                        {user && isAdmin && isModuleActive('finance') && (
                             <Link href="/finance/receivables" className="group">
                                 <div className="bg-white rounded-3xl p-8 shadow-xl shadow-gray-200/50 border border-gray-100 hover:border-teal-300 hover:shadow-2xl hover:shadow-teal-500/10 transition-all duration-300 relative overflow-hidden group-hover:-translate-y-1">
                                     <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-teal-50 to-transparent rounded-bl-full opacity-50 group-hover:scale-110 transition-transform origin-top-right"></div>
@@ -629,7 +640,7 @@ export default function Home() {
                         )}
 
                         {/* Armada & Maintenance - Owner & Admin only */}
-                        {user && isAdmin && (
+                        {user && isAdmin && isModuleActive('fleets') && (
                             <Link href="/fleets" className="group">
                                 <div className="bg-white rounded-3xl p-8 shadow-xl shadow-gray-200/50 border border-gray-100 hover:border-rose-300 hover:shadow-2xl hover:shadow-rose-500/10 transition-all duration-300 relative overflow-hidden group-hover:-translate-y-1">
                                     <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-rose-50 to-transparent rounded-bl-full opacity-50 group-hover:scale-110 transition-transform origin-top-right"></div>
@@ -650,7 +661,7 @@ export default function Home() {
                         )}
 
                         {/* Payroll & Gaji Module - Admin & Pengurus */}
-                        {user && isManager && (
+                        {user && isManager && isModuleActive('payroll') && (
                             <Link href="/payroll" className="group">
                                 <div className="bg-white rounded-3xl p-8 shadow-xl shadow-gray-200/50 border border-gray-100 hover:border-emerald-300 hover:shadow-2xl hover:shadow-emerald-500/10 transition-all duration-300 relative overflow-hidden group-hover:-translate-y-1">
                                     <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-emerald-50 to-transparent rounded-bl-full opacity-50 group-hover:scale-110 transition-transform origin-top-right"></div>
@@ -671,7 +682,7 @@ export default function Home() {
                         )}
 
                         {/* HRD & Karyawan Module - Admin & Pengurus */}
-                        {user && isManager && (
+                        {user && isManager && isModuleActive('employees') && (
                             <Link href="/employees" className="group">
                                 <div className="bg-white rounded-3xl p-8 shadow-xl shadow-gray-200/50 border border-gray-100 hover:border-amber-300 hover:shadow-2xl hover:shadow-amber-500/10 transition-all duration-300 relative overflow-hidden group-hover:-translate-y-1">
                                     <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-amber-50 to-transparent rounded-bl-full opacity-50 group-hover:scale-110 transition-transform origin-top-right"></div>

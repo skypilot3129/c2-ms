@@ -7,6 +7,7 @@ import { createAuthUser } from '@/app/actions/user-management';
 import type { Employee, EmployeeFormData, EmployeeRole, EmployeeStatus, DocumentType, EmployeeDocument } from '@/types/employee';
 import { EMPLOYEE_ROLE_LABELS, EMPLOYEE_STATUS_LABELS, DOCUMENT_TYPE_LABELS, GENDER_LABELS, MARITAL_STATUS_LABELS } from '@/types/employee';
 import { generateEmployeeEmail } from '@/types/roles';
+import { getActiveBranch, getAllBranches, type Branch } from '@/types/branch';
 
 interface EmployeeFormProps {
     employee?: Employee | null;
@@ -22,6 +23,7 @@ export default function EmployeeForm({ employee, onClose, onSuccess }: EmployeeF
         fullName: '',
         role: 'helper',
         status: 'active',
+        branch: getActiveBranch(),
         joinDate: new Date(),
         contact: {
             phone: '',
@@ -85,6 +87,7 @@ export default function EmployeeForm({ employee, onClose, onSuccess }: EmployeeF
                 email: employee.email || '',
                 authUid: employee.authUid,
                 accountStatus: employee.accountStatus || 'pending',
+                branch: employee.branch || getActiveBranch(),
                 ktpIdentity: employee.ktpIdentity || {
                     nik: '',
                     namaLengkap: '',
@@ -275,6 +278,22 @@ export default function EmployeeForm({ employee, onClose, onSuccess }: EmployeeF
                                     required
                                     className="w-full px-3 py-2 border rounded-lg"
                                 />
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-3 gap-4 mt-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Cabang *</label>
+                                <select
+                                    value={formData.branch || 'surabaya'}
+                                    disabled={!!process.env.NEXT_PUBLIC_ACTIVE_BRANCH}
+                                    onChange={(e) => setFormData(prev => ({ ...prev, branch: e.target.value as Branch }))}
+                                    className="w-full px-3 py-2 border rounded-lg disabled:bg-gray-100 disabled:text-gray-500"
+                                >
+                                    {getAllBranches().map(branch => (
+                                        <option key={branch.id} value={branch.id}>{branch.displayName}</option>
+                                    ))}
+                                </select>
                             </div>
                         </div>
                     </div>

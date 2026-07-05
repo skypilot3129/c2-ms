@@ -1,5 +1,6 @@
 import { Timestamp } from 'firebase/firestore';
 import type { UserRole } from './roles';
+import type { Branch } from './branch';
 
 // Employee Roles (using UserRole from roles.ts)
 export type EmployeeRole = UserRole;
@@ -105,6 +106,7 @@ export interface EmployeeFormData {
     authUid?: string | null; // Firebase Auth UID
     email: string; // Generated from name
     accountStatus: AccountStatus; // Auth account status
+    branch?: Branch; // Assigned branch
 }
 
 // Firestore Document (what's actually stored)

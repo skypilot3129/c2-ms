@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Truck, Play, CheckSquare, Plus, Clock, Users } from 'lucide-react';
 import ProtectedRoute from '@/components/ProtectedRoute';
+import RouteGuard from '@/components/RouteGuard';
 import { useAuth } from '@/context/AuthContext';
 import { getEmployees } from '@/lib/firestore-employees';
 import { getAttendanceByDate } from '@/lib/firestore-attendance';
@@ -142,6 +143,7 @@ export default function ActiveOperationsPage() {
 
     return (
         <ProtectedRoute>
+            <RouteGuard module="operations">
             <div className="max-w-6xl mx-auto p-4 sm:p-6 space-y-6">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                     <div>
@@ -341,6 +343,7 @@ export default function ActiveOperationsPage() {
                     </div>
                 </div>
             )}
+            </RouteGuard>
         </ProtectedRoute>
     );
 }

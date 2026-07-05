@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { COMPANY_INFO } from '@/lib/company-config';
+import RouteGuard from '@/components/RouteGuard';
 import { 
     Printer, 
     ArrowLeft, 
@@ -522,7 +523,8 @@ export default function DokumenLegalPage() {
     };
 
     return (
-        <div className="min-h-screen bg-slate-100 flex flex-col md:flex-row">
+        <RouteGuard module="dokumen_legal">
+            <div className="min-h-screen bg-slate-100 flex flex-col md:flex-row">
             {/* Embed print styles */}
             <style dangerouslySetInnerHTML={{
                 __html: `
@@ -967,6 +969,7 @@ export default function DokumenLegalPage() {
                 </div>
 
             </div>
-        </div>
+            </div>
+        </RouteGuard>
     );
 }

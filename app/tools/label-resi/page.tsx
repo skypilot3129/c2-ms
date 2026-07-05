@@ -6,6 +6,7 @@ import { useAuth } from '@/context/AuthContext';
 import { subscribeToTransactions } from '@/lib/firestore-transactions';
 import type { Transaction } from '@/types/transaction';
 import ProtectedRoute from '@/components/ProtectedRoute';
+import RouteGuard from '@/components/RouteGuard';
 import Code39Barcode from '@/components/Code39Barcode';
 import { ArrowLeft, Printer, Search, Barcode, User, MapPin, Package, RefreshCw, Layers } from 'lucide-react';
 
@@ -195,6 +196,7 @@ export default function LabelResiPage() {
 
     return (
         <ProtectedRoute>
+            <RouteGuard module="label_resi">
             <style dangerouslySetInnerHTML={{ __html: `
                 @media print {
                     @page {
@@ -528,6 +530,7 @@ export default function LabelResiPage() {
                     })}
                 </div>
             )}
+            </RouteGuard>
         </ProtectedRoute>
     );
 }

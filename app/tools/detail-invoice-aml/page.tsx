@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import ProtectedRoute from '@/components/ProtectedRoute';
+import RouteGuard from '@/components/RouteGuard';
 import { 
     Calculator, 
     ArrowLeft, 
@@ -537,6 +538,7 @@ export default function DetailInvoiceAmlPage() {
 
     return (
         <ProtectedRoute>
+            <RouteGuard module="invoice_aml">
             {/* dynamic print landscape stylesheets */}
             <style dangerouslySetInnerHTML={{ __html: `
                 @media print {
@@ -1235,6 +1237,7 @@ export default function DetailInvoiceAmlPage() {
                     </table>
                 </div>
             )}
+            </RouteGuard>
         </ProtectedRoute>
     );
 }

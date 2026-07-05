@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import ProtectedRoute from '@/components/ProtectedRoute';
+import RouteGuard from '@/components/RouteGuard';
 import { COMPANY_INFO } from '@/lib/company-config';
 import { 
     Printer, 
@@ -166,6 +167,7 @@ export default function CetakSlipSkkPage() {
 
     return (
         <ProtectedRoute>
+            <RouteGuard module="slip_skk">
             {/* dynamic print landscape stylesheets */}
             <style dangerouslySetInnerHTML={{ __html: `
                 @media print {
@@ -816,6 +818,7 @@ export default function CetakSlipSkkPage() {
                     </div>
                 </div>
             </div>
+            </RouteGuard>
         </ProtectedRoute>
     );
 }

@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
+import RouteGuard from '@/components/RouteGuard';
 import { 
     Ship, Truck, Calendar, User, Users, FileText, ArrowLeft, 
     Plus, Trash2, Printer, Save, RotateCcw, Search, 
@@ -356,8 +357,9 @@ export default function ManifestCargoPage() {
     }, [importTransactions, txFilter]);
 
     return (
-        <div className="space-y-6 max-w-6xl mx-auto pb-12 animate-in fade-in duration-500">
-            {/* Header Toolbar */}
+        <RouteGuard module="manifest">
+            <div className="space-y-6 max-w-6xl mx-auto pb-12 animate-in fade-in duration-500">
+                {/* Header Toolbar */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight flex items-center gap-2">
@@ -926,6 +928,7 @@ export default function ManifestCargoPage() {
                     </div>
                 </div>
             )}
-        </div>
+            </div>
+        </RouteGuard>
     );
 }

@@ -45,3 +45,60 @@ export function getBranchInfo(branchId: Branch): BranchInfo {
 export function getAllBranches(): BranchInfo[] {
     return Object.values(BRANCHES);
 }
+
+export type AppModule = 
+    | 'attendance'
+    | 'finance'
+    | 'scan_dhs'
+    | 'transactions'
+    | 'volume_calculator'
+    | 'voyages'
+    | 'employees'
+    | 'payroll'
+    | 'clients'
+    | 'operations'
+    | 'fleets'
+    | 'manifest'
+    | 'label_resi'
+    | 'dokumen_legal'
+    | 'invoice_aml'
+    | 'slip_skk'
+    | 'marketing_dashboard';
+
+export const BRANCH_MODULES: Record<Branch, AppModule[]> = {
+    surabaya: [
+        'attendance', 'finance', 'scan_dhs', 'transactions', 'volume_calculator',
+        'voyages', 'employees', 'payroll', 'clients', 'operations', 'fleets',
+        'manifest', 'label_resi', 'dokumen_legal', 'invoice_aml', 'slip_skk', 'marketing_dashboard'
+    ],
+    bandung: [
+        'attendance', 'finance', 'scan_dhs', 'transactions', 'volume_calculator',
+        'voyages', 'employees', 'payroll', 'clients', 'operations', 'fleets',
+        'manifest', 'label_resi', 'dokumen_legal', 'invoice_aml', 'slip_skk', 'marketing_dashboard'
+    ],
+    makassar: [
+        'attendance',
+        'finance',
+        'scan_dhs',
+        'transactions',
+        'volume_calculator',
+        'voyages',
+        'employees',
+        'payroll',
+        'clients' // Enabled per user request
+    ]
+};
+
+export function getActiveBranch(): Branch {
+    const envBranch = process.env.NEXT_PUBLIC_ACTIVE_BRANCH;
+    if (envBranch === 'makassar') return 'makassar';
+    if (envBranch === 'bandung') return 'bandung';
+    return 'surabaya';
+}
+
+export function isModuleActive(moduleName: AppModule): boolean {
+    const activeBranch = getActiveBranch();
+    const activeModules = BRANCH_MODULES[activeBranch];
+    return activeModules.includes(moduleName);
+}
+

@@ -11,7 +11,7 @@ import { formatRupiah } from '@/lib/currency';
 import type { Client } from '@/types/client';
 import type { TransactionFormData, TipeTransaksi, MetodePembayaran, CaraPelunasan, BeratUnit, StatusTransaksi } from '@/types/transaction';
 import type { Branch } from '@/types/branch';
-import { getAllBranches } from '@/types/branch';
+import { getAllBranches, getActiveBranch } from '@/types/branch';
 import CurrencyInput from '@/components/CurrencyInput';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { ArrowLeft, Save, Package, Users, FileText, CheckCircle, AlertCircle, Trash2, Plus, History, Zap } from 'lucide-react';
@@ -26,7 +26,7 @@ export default function NewTransactionPage() {
 
 
     const [formData, setFormData] = useState<TransactionFormData>({
-        branch: 'surabaya',  // Default to Surabaya branch
+        branch: getActiveBranch(),  // Default to active branch
         tanggal: new Date().toISOString().split('T')[0],
         tujuan: '',
         pengirimId: '',
@@ -315,7 +315,8 @@ export default function NewTransactionPage() {
                                         value={formData.branch}
                                         onChange={(e) => handleChange('branch', e.target.value as Branch)}
                                         required
-                                        className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all bg-white"
+                                        disabled={!!process.env.NEXT_PUBLIC_ACTIVE_BRANCH}
+                                        className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all bg-white disabled:bg-gray-100 disabled:text-gray-500"
                                     >
                                         {getAllBranches().map(branch => (
                                             <option key={branch.id} value={branch.id}>

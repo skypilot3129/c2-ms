@@ -40,6 +40,7 @@ export const docToEmployee = (id: string, data: EmployeeDoc): Employee => {
         authUid: data.authUid || null,
         email: data.email || '',
         accountStatus: data.accountStatus || 'pending',
+        branch: data.branch,
         createdAt: data.createdAt?.toDate() || new Date(),
         updatedAt: data.updatedAt?.toDate() || new Date(),
     };
@@ -115,10 +116,20 @@ export const subscribeToEmployees = (
         q = query(collection(db, COLLECTION_NAME), where('role', '==', role), orderBy('fullName', 'asc'));
     }
 
+    const activeBranch = process.env.NEXT_PUBLIC_ACTIVE_BRANCH;
+
     const unsubscribe = onSnapshot(q, (snapshot) => {
-        const employees = snapshot.docs.map(doc =>
+        let employees = snapshot.docs.map(doc =>
             docToEmployee(doc.id, doc.data() as EmployeeDoc)
         );
+
+        if (activeBranch) {
+            employees = employees.filter(emp => {
+                if (emp.branch) return emp.branch === activeBranch;
+                return activeBranch === 'surabaya'; // Default legacy to surabaya
+            });
+        }
+
         callback(employees);
     });
 
@@ -135,8 +146,18 @@ export const getEmployees = async (role?: EmployeeRole): Promise<Employee[]> => 
         q = query(collection(db, COLLECTION_NAME), where('role', '==', role), orderBy('fullName', 'asc'));
     }
 
+    const activeBranch = process.env.NEXT_PUBLIC_ACTIVE_BRANCH;
     const snapshot = await getDocs(q);
-    return snapshot.docs.map(doc => docToEmployee(doc.id, doc.data() as EmployeeDoc));
+    let employees = snapshot.docs.map(doc => docToEmployee(doc.id, doc.data() as EmployeeDoc));
+
+    if (activeBranch) {
+        employees = employees.filter(emp => {
+            if (emp.branch) return emp.branch === activeBranch;
+            return activeBranch === 'surabaya'; // Default legacy to surabaya
+        });
+    }
+
+    return employees;
 };
 
 /**

@@ -11,7 +11,7 @@ import { formatRupiah } from '@/lib/currency';
 import type { Client } from '@/types/client';
 import type { Transaction, TransactionFormData, TipeTransaksi, MetodePembayaran, CaraPelunasan, BeratUnit, StatusTransaksi } from '@/types/transaction';
 import type { Branch } from '@/types/branch';
-import { getAllBranches } from '@/types/branch';
+import { getAllBranches, getActiveBranch } from '@/types/branch';
 import CurrencyInput from '@/components/CurrencyInput';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { ArrowLeft, Save, Package, Users, FileText, CheckCircle, Clock } from 'lucide-react';
@@ -33,7 +33,7 @@ export default function EditTransactionPage({ params }: { params: Promise<{ id: 
     const [taxSettings, setTaxSettings] = useState({ isPKP: false, defaultPPNRate: 0.011 });
 
     const [formData, setFormData] = useState<TransactionFormData>({
-        branch: 'surabaya',  // Default, will be set from transaction
+        branch: getActiveBranch(),  // Default, will be set from transaction
         tanggal: new Date().toISOString().split('T')[0],
         tujuan: '',
         pengirimId: '',
@@ -266,11 +266,12 @@ export default function EditTransactionPage({ params }: { params: Promise<{ id: 
                                         <button
                                             key={branch.id}
                                             type="button"
+                                            disabled={!!process.env.NEXT_PUBLIC_ACTIVE_BRANCH}
                                             onClick={() => handleChange('branch', branch.id as Branch)}
                                             className={`flex-1 py-2.5 px-4 rounded-xl border-2 font-semibold text-sm transition-all ${
                                                 formData.branch === branch.id
                                                     ? 'border-blue-600 bg-blue-600 text-white shadow-lg shadow-blue-600/20'
-                                                    : 'border-gray-200 bg-white text-gray-600 hover:border-blue-300 hover:text-blue-600'
+                                                    : 'border-gray-200 bg-white text-gray-600 hover:border-blue-300 hover:text-blue-600 disabled:opacity-50 disabled:cursor-not-allowed'
                                             }`}
                                         >
                                             {branch.displayName}

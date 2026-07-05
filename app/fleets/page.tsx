@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import ProtectedRoute from '@/components/ProtectedRoute';
+import RouteGuard from '@/components/RouteGuard';
 import {
     Truck,
     Plus,
@@ -196,10 +197,10 @@ export default function FleetsPage() {
             default: return 'bg-slate-100 text-slate-700 border-slate-200';
         }
     };
-
     return (
         <ProtectedRoute>
-            <div className="min-h-screen bg-slate-50 pb-20">
+            <RouteGuard module="fleets">
+                <div className="min-h-screen bg-slate-50 pb-20">
                 {/* Header */}
                 <div className="bg-white border-b border-slate-200 sticky top-0 z-30 transition-shadow duration-200">
                     <div className="container mx-auto px-4 sm:px-6 py-4">
@@ -548,6 +549,7 @@ export default function FleetsPage() {
                 )}
 
             </div>
+            </RouteGuard>
         </ProtectedRoute>
     );
 }
