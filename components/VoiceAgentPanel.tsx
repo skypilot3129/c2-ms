@@ -23,8 +23,16 @@ export default function VoiceAgentPanel({ onItemParsed }: VoiceAgentPanelProps) 
     const [isOpen, setIsOpen] = useState(false);
 
     const recognitionRef = useRef<any>(null);
+    const transcriptRef = useRef('');
+    const statusRef = useRef<'idle' | 'listening' | 'processing' | 'success' | 'error'>('idle');
+    const onItemParsedRef = useRef(onItemParsed);
 
-    // Initialize Web Speech API
+    // Sync refs on every render
+    transcriptRef.current = transcript;
+    statusRef.current = status;
+    onItemParsedRef.current = onItemParsed;
+
+    // Initialize Web Speech API once
     useEffect(() => {
         if (typeof window !== 'undefined') {
             const SpeechRecognition =
@@ -63,10 +71,13 @@ export default function VoiceAgentPanel({ onItemParsed }: VoiceAgentPanelProps) 
 
                 recognition.onend = () => {
                     setIsListening(false);
+                    const currentTranscript = transcriptRef.current;
+                    const currentStatus = statusRef.current;
+                    
                     // Trigger parsing if transcript is not empty
-                    if (status === 'listening' && transcript.trim() !== '') {
-                        parseTextWithGemini(transcript);
-                    } else if (transcript.trim() === '') {
+                    if (currentStatus === 'listening' && currentTranscript.trim() !== '') {
+                        parseTextWithGemini(currentTranscript);
+                    } else if (currentTranscript.trim() === '') {
                         setStatus('idle');
                     }
                 };
@@ -74,7 +85,15 @@ export default function VoiceAgentPanel({ onItemParsed }: VoiceAgentPanelProps) 
                 recognitionRef.current = recognition;
             }
         }
-    }, [transcript, status]);
+
+        return () => {
+            if (recognitionRef.current) {
+                try {
+                    recognitionRef.current.abort();
+                } catch (e) {}
+            }
+        };
+    }, []);
 
     // Text to Speech Helper
     const speakText = (text: string) => {
@@ -107,7 +126,7 @@ export default function VoiceAgentPanel({ onItemParsed }: VoiceAgentPanelProps) 
             }
 
             // Successfully parsed! Add it
-            onItemParsed({
+            onItemParsedRef.current({
                 itemName: data.itemName || 'Paket',
                 length: Number(data.length) || 0,
                 width: Number(data.width) || 0,

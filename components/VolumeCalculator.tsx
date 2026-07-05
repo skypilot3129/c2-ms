@@ -364,12 +364,14 @@ export default function VolumeCalculator() {
             barcode: ''
         });
 
-        const newKoli: KoliItem = {
-            ...calculation,
-            koliNumber: koliList.length > 0 ? Math.max(...koliList.map(k => k.koliNumber)) + 1 : 1
-        };
-
-        setKoliList(prev => [...prev, newKoli]);
+        setKoliList(prev => {
+            const nextKoliNumber = prev.length > 0 ? Math.max(...prev.map(k => k.koliNumber)) + 1 : 1;
+            const newKoli: KoliItem = {
+                ...calculation,
+                koliNumber: nextKoliNumber
+            };
+            return [...prev, newKoli];
+        });
         setErrors([]);
     };
 
