@@ -310,10 +310,14 @@ export default function NewTransactionPage() {
             matchedReceiverClient = clients.find(c => c.name.toLowerCase().includes(receiverClean));
         }
 
-        // Update sender ID if matched
-        if (matchedSenderId) {
-            setFormData(prev => ({ ...prev, pengirimId: matchedSenderId }));
-        }
+        const targetTipeTransaksi = (parsed.tipeTransaksi as TipeTransaksi) || formData.tipeTransaksi;
+
+        // Update form state (branch, pengirimId, tipeTransaksi)
+        setFormData(prev => ({ 
+            ...prev, 
+            pengirimId: matchedSenderId || prev.pengirimId,
+            tipeTransaksi: targetTipeTransaksi
+        }));
 
         // Update receiver list (first entry)
         setPenerimaList(prev => {
@@ -334,12 +338,15 @@ export default function NewTransactionPage() {
             first.koli = parsed.koli || first.koli;
             first.berat = parsed.berat || first.berat;
             first.beratUnit = (parsed.beratUnit as BeratUnit) || first.beratUnit;
-            first.harga = parsed.harga || first.harga;
-            first.pembayaran = (parsed.pembayaran as MetodePembayaran) || first.pembayaran;
-            first.pelunasan = (parsed.pelunasan as CaraPelunasan) || first.pelunasan;
+            
+            // Map tax status (Jasa Kena Pajak)
+            if (parsed.isPKP !== undefined) {
+                first.isPKP = parsed.isPKP;
+            }
 
-            // Recalculate subtotal & tax logic for first recipient
-            if (formData.tipeTransaksi === 'regular') {
+            // Map price / total depending on the transaction type
+            if (targetTipeTransaksi === 'regular') {
+                first.harga = parsed.harga || first.harga;
                 const subtotal = (first.harga || 0) * (first.berat || 0);
                 const rate = first.isPKP ? taxSettings.defaultPPNRate : 0;
                 const ppn = Math.round(subtotal * rate);
@@ -347,12 +354,18 @@ export default function NewTransactionPage() {
                 (first as any).ppnAmount = ppn;
                 (first as any).ppnRate = rate;
             } else {
+                // Borongan
+                first.jumlah = parsed.harga || first.jumlah;
+                first.harga = 0;
                 const rate = first.isPKP ? taxSettings.defaultPPNRate : 0;
                 const total = first.jumlah || 0;
                 const ppn = Math.round(total * rate);
                 (first as any).ppnAmount = ppn;
                 (first as any).ppnRate = rate;
             }
+
+            first.pembayaran = (parsed.pembayaran as MetodePembayaran) || first.pembayaran;
+            first.pelunasan = (parsed.pelunasan as CaraPelunasan) || first.pelunasan;
 
             updated[0] = first;
             return updated;
@@ -367,6 +380,11 @@ export default function NewTransactionPage() {
 
         // Audio TTS & visual feedback messages
         let feedback = 'Pengisian selesai. ';
+        feedback += `Tipe hitungan diset ke ${targetTipeTransaksi === 'regular' ? 'Reguler' : 'Borongan'}. `;
+        if (parsed.isPKP) {
+            feedback += 'Pajak PPN diaktifkan. ';
+        }
+
         if (matchedSenderName) {
             feedback += `Pengirim cocok dengan ${matchedSenderName}. `;
         } else if (parsed.senderName) {

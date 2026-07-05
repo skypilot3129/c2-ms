@@ -49,11 +49,11 @@ export async function POST(request: Request) {
                         },
                         tipeTransaksi: {
                             type: 'STRING' as any,
-                            description: 'Tipe pengiriman. Pilihan: "regular", "express", "cargo". Default ke "regular" jika tidak ada.',
+                            description: 'Tipe pengiriman. Pilihan: "regular", "borongan". Default ke "regular" jika tidak ada.',
                         },
                         harga: {
                             type: 'NUMBER' as any,
-                            description: 'Tarif atau harga pengiriman. Default ke 0 jika tidak ada.',
+                            description: 'Tarif atau harga pengiriman. Jika tipeTransaksi adalah "borongan", ini mewakili harga total borongan. Default ke 0 jika tidak ada.',
                         },
                         pembayaran: {
                             type: 'STRING' as any,
@@ -62,6 +62,10 @@ export async function POST(request: Request) {
                         pelunasan: {
                             type: 'STRING' as any,
                             description: 'Status pelunasan. Pilihan: "Lunas", "Belum Lunas". Default ke "Belum Lunas" jika tidak ada.',
+                        },
+                        isPKP: {
+                            type: 'BOOLEAN' as any,
+                            description: 'Apakah pengiriman ini dikenai pajak PPN (Jasa Kena Pajak)? Kembalikan true jika ada kata "pajak", "pkp", "ppn", "kena pajak", atau sejenisnya. Default ke false.',
                         },
                         isiBarang: {
                             type: 'STRING' as any,
@@ -74,7 +78,7 @@ export async function POST(request: Request) {
                     },
                     required: [
                         'senderName', 'receiverName', 'tujuan', 'koli', 'berat', 'beratUnit',
-                        'tipeTransaksi', 'harga', 'pembayaran', 'pelunasan', 'isiBarang', 'keterangan'
+                        'tipeTransaksi', 'harga', 'pembayaran', 'pelunasan', 'isPKP', 'isiBarang', 'keterangan'
                     ],
                 },
             },
@@ -86,9 +90,10 @@ export async function POST(request: Request) {
 Ketentuan parsing:
 1. Pilihan pembayaran HANYA "Tunai" atau "Tagihan".
 2. Pilihan pelunasan HANYA "Lunas" atau "Belum Lunas".
-3. Pilihan tipeTransaksi HANYA "regular", "express", atau "cargo".
+3. Pilihan tipeTransaksi HANYA "regular" atau "borongan" (tidak boleh "express" atau "cargo").
 4. Pilihan beratUnit HANYA "KG", "M3", atau "TON".
-5. Jika pengguna menyebut angka nominal harga (seperti "seratus lima puluh ribu" atau "150 ribu"), konversikan ke angka penuh (150000).`;
+5. Jika ada penyebutan "pajak", "pkp", atau "ppn", set isPKP ke true.
+6. Jika pengguna menyebut angka nominal harga (seperti "seratus lima puluh ribu" atau "150 ribu"), konversikan ke angka penuh (150000).`;
 
         const result = await model.generateContent(prompt);
         const responseText = result.response.text();
