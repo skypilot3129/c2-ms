@@ -360,7 +360,7 @@ export default function VolumeCalculator() {
             height: item.height,
             actualWeight: item.actualWeight,
             quantity: item.quantity,
-            itemName: item.itemName,
+            itemName: item.itemName.toUpperCase(),
             barcode: ''
         });
 

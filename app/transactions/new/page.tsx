@@ -312,11 +312,12 @@ export default function NewTransactionPage() {
 
         const targetTipeTransaksi = (parsed.tipeTransaksi as TipeTransaksi) || formData.tipeTransaksi;
 
-        // Update form state (branch, pengirimId, tipeTransaksi)
+        // Update form state (branch, pengirimId, tipeTransaksi, tujuan)
         setFormData(prev => ({ 
             ...prev, 
             pengirimId: matchedSenderId || prev.pengirimId,
-            tipeTransaksi: targetTipeTransaksi
+            tipeTransaksi: targetTipeTransaksi,
+            tujuan: (parsed.tujuan || prev.tujuan).toUpperCase()
         }));
 
         // Update receiver list (first entry)
@@ -325,14 +326,14 @@ export default function NewTransactionPage() {
             const first = { ...updated[0] };
             
             if (matchedReceiverClient) {
-                first.name = matchedReceiverClient.name;
+                first.name = matchedReceiverClient.name.toUpperCase();
                 first.phone = matchedReceiverClient.phone || '';
-                first.address = matchedReceiverClient.address || '';
-                first.city = matchedReceiverClient.city || '';
-                first.tujuan = matchedReceiverClient.city || parsed.tujuan || '';
+                first.address = (matchedReceiverClient.address || '').toUpperCase();
+                first.city = (matchedReceiverClient.city || '').toUpperCase();
+                first.tujuan = (matchedReceiverClient.city || parsed.tujuan || '').toUpperCase();
             } else {
-                first.name = parsed.receiverName || first.name;
-                first.tujuan = parsed.tujuan || first.tujuan;
+                first.name = (parsed.receiverName || first.name).toUpperCase();
+                first.tujuan = (parsed.tujuan || first.tujuan).toUpperCase();
             }
 
             first.koli = parsed.koli || first.koli;
@@ -374,8 +375,8 @@ export default function NewTransactionPage() {
         // Set common data
         setCommonData(prev => ({
             ...prev,
-            isiBarang: parsed.isiBarang || prev.isiBarang,
-            keterangan: parsed.keterangan || prev.keterangan,
+            isiBarang: (parsed.isiBarang || prev.isiBarang).toUpperCase(),
+            keterangan: (parsed.keterangan || prev.keterangan).toUpperCase(),
         }));
 
         // Audio TTS & visual feedback messages
