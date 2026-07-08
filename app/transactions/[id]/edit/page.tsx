@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { getTaxSettings } from '@/lib/firestore-settings';
-import { getTransactionById, updateTransaction } from '@/lib/firestore-transactions';
+import { getTransactionById, updateTransaction, getPreviousPricesForSender } from '@/lib/firestore-transactions';
 import { subscribeToClients } from '@/lib/firestore';
 import { formatRupiah } from '@/lib/currency';
 import type { Client } from '@/types/client';
@@ -14,7 +14,7 @@ import type { Branch } from '@/types/branch';
 import { getAllBranches, getActiveBranch } from '@/types/branch';
 import CurrencyInput from '@/components/CurrencyInput';
 import ProtectedRoute from '@/components/ProtectedRoute';
-import { ArrowLeft, Save, Package, Users, FileText, CheckCircle, Clock } from 'lucide-react';
+import { ArrowLeft, Save, Package, Users, FileText, CheckCircle, Clock, History, Zap } from 'lucide-react';
 
 // ...
 
@@ -28,6 +28,8 @@ export default function EditTransactionPage({ params }: { params: Promise<{ id: 
     const [saving, setSaving] = useState(false);
     const [transaction, setTransaction] = useState<Transaction | null>(null);
     const [clients, setClients] = useState<Client[]>([]);
+    const [previousPrices, setPreviousPrices] = useState<Array<{ harga: number; tujuan: string; beratUnit: string; tipeTransaksi: string; count: number }>>([]);
+    const [loadingPrices, setLoadingPrices] = useState(false);
 
     // Tax Settings State
     const [taxSettings, setTaxSettings] = useState({ isPKP: false, defaultPPNRate: 0.011 });
@@ -165,6 +167,18 @@ export default function EditTransactionPage({ params }: { params: Promise<{ id: 
             setJumlah(Math.round(subtotal));
         }
     }, [formData.harga, formData.berat, formData.tipeTransaksi, isPKP, taxSettings.defaultPPNRate]);
+
+    useEffect(() => {
+        if (!formData.pengirimId) {
+            setPreviousPrices([]);
+            return;
+        }
+        setLoadingPrices(true);
+        getPreviousPricesForSender(formData.pengirimId).then(prices => {
+            setPreviousPrices(prices);
+            setLoadingPrices(false);
+        });
+    }, [formData.pengirimId]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -460,6 +474,36 @@ export default function EditTransactionPage({ params }: { params: Promise<{ id: 
                                         disabled={formData.tipeTransaksi === 'borongan'}
                                         helperText={formData.tipeTransaksi === 'borongan' ? 'Tidak diisi untuk borongan' : undefined}
                                     />
+                                    {/* Price History Suggestions */}
+                                    {formData.tipeTransaksi === 'regular' && previousPrices.length > 0 && (
+                                        <div className="mt-2">
+                                            <p className="text-xs text-gray-405 flex items-center gap-1 mb-1.5">
+                                                <History size={11} />
+                                                Harga sebelumnya untuk client ini:
+                                            </p>
+                                            <div className="flex flex-wrap gap-1.5">
+                                                {previousPrices.slice(0, 6).map((p, pi) => (
+                                                    <button
+                                                        key={pi}
+                                                        type="button"
+                                                        onClick={() => {
+                                                            handleChange('harga', p.harga);
+                                                            if (!penerimaData.tujuan && p.tujuan) {
+                                                                setPenerimaData(prev => ({ ...prev, tujuan: p.tujuan }));
+                                                            }
+                                                        }}
+                                                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold border transition-all hover:scale-105 active:scale-95 bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100 hover:border-blue-400 shadow-sm cursor-pointer"
+                                                        title={`Tujuan: ${p.tujuan || '-'} | Dipakai ${p.count}x`}
+                                                    >
+                                                        <Zap size={10} className="text-blue-500" />
+                                                        {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(p.harga)}
+                                                        {p.tujuan && <span className="opacity-70">· {p.tujuan}</span>}
+                                                        {p.count > 1 && <span className="bg-blue-200 text-blue-800 text-[10px] px-1 rounded-full">{p.count}x</span>}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                                 <div>
                                     <label className="block text-sm font-semibold text-gray-700 mb-2">

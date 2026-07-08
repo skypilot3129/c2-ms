@@ -9,7 +9,7 @@ import type { Transaction, StatusTransaksi } from '@/types/transaction';
 import { formatRupiah } from '@/lib/currency';
 import StatusBadge from '@/components/StatusBadge';
 import ProtectedRoute from '@/components/ProtectedRoute';
-import { Plus, Search, Eye, Edit2, Trash2, Filter, Printer, X, Download, Package, TrendingUp, AlertCircle, CheckCircle, ArrowUpDown, Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, Search, Eye, Edit2, Trash2, Filter, Printer, X, Download, Package, TrendingUp, AlertCircle, CheckCircle, ArrowUpDown, Calendar, ChevronLeft, ChevronRight, Upload } from 'lucide-react';
 import BulkInvoiceModal, { type BulkInvoiceFormData } from '@/components/BulkInvoiceModal';
 
 type SortOption = 'date-newest' | 'date-oldest' | 'amount-highest' | 'amount-lowest';
@@ -291,6 +291,12 @@ export default function TransactionsPage() {
                                     <Printer size={18} />
                                     Cetak PDF
                                 </button>
+                                <Link href="/transactions/import" className="flex-1 md:flex-none">
+                                    <button className="w-full border border-blue-600 hover:bg-blue-50 text-blue-600 px-5 py-2.5 rounded-xl font-medium flex items-center justify-center gap-2 transition-all hover:scale-105">
+                                        <Upload size={18} />
+                                        Import CSV/Excel
+                                    </button>
+                                </Link>
                                 <Link href="/transactions/new" className="flex-1 md:flex-none">
                                     <button className="w-full bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-medium flex items-center justify-center gap-2 shadow-lg shadow-blue-600/20 transition-all hover:scale-105">
                                         <Plus size={20} />
