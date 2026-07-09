@@ -616,7 +616,13 @@ export default function ScanDhsPage() {
     useEffect(() => {
         if (isInitialLoad.current) return;
 
-        if (step === 'scan') {
+        if (step === 'import') {
+            localStorage.removeItem('cce_active_scan_session');
+            return;
+        }
+
+        // Debounce saving active session to localStorage by 1000ms to prevent blocking the main thread during rapid scans
+        const timer = setTimeout(() => {
             const sessionData = {
                 sessionType,
                 driverName,
@@ -626,10 +632,9 @@ export default function ScanDhsPage() {
                 step
             };
             localStorage.setItem('cce_active_scan_session', JSON.stringify(sessionData));
-        } else if (step === 'import') {
-            // Clear active session when returned to import screen
-            localStorage.removeItem('cce_active_scan_session');
-        }
+        }, 1000);
+
+        return () => clearTimeout(timer);
     }, [step, sessionType, driverName, noPolisi, manifest, extraScans]);
 
     // Save audio config on change
@@ -1688,6 +1693,8 @@ export default function ScanDhsPage() {
         originalIndex: number;
     }[];
 
+    const displayItemsToRender = displayItems.slice(0, 50);
+
     return (
         <div className="min-h-screen bg-slate-900 text-white flex flex-col font-sans">
 
@@ -2379,7 +2386,8 @@ export default function ScanDhsPage() {
                                             )}
                                         </div>
                                     ) : (
-                                        displayItems.map((item, idx) => {
+                                        <>
+                                            {displayItemsToRender.map((item, idx) => {
                                             // Inline Note Editor
                                             if (noteEditingItemId === item.id) {
                                                 return (
@@ -2641,8 +2649,14 @@ export default function ScanDhsPage() {
                                                     )}
                                                 </div>
                                             );
-                                        })
-                                    )}
+                                        })}
+                                        {displayItems.length > 50 && (
+                                            <div className="p-3 bg-slate-900/60 border border-slate-800 rounded-2xl text-center text-[10px] text-slate-500 font-semibold tracking-wide">
+                                                Menampilkan 50 dari {displayItems.length} koli teratas. Gunakan kotak pencarian untuk melihat koli lainnya.
+                                            </div>
+                                        )}
+                                    </>
+                                )}
                                 </div>
                             </div>
                         </div>
