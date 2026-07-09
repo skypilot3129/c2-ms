@@ -114,7 +114,7 @@ export default function PrintInvoicePage() {
                             <th style={{ border: '1px solid black', width: '30%', textAlign: 'left' }}>KETERANGAN</th>
                             <th style={{ border: '1px solid black', width: '10%' }}>STT</th>
                             <th style={{ border: '1px solid black', width: '6%' }}>KO LI</th>
-                            <th style={{ border: '1px solid black', width: '9%' }}>KG/M3</th>
+                            <th style={{ border: '1px solid black', width: '9%' }}>{transaction.beratUnit === 'KG/VOLUME' ? 'KG VOLUME' : 'KG/M3'}</th>
                             <th style={{ border: '1px solid black', width: '16%', textAlign: 'right' }}>HARGA</th>
                             <th style={{ border: '1px solid black', width: '18%', textAlign: 'right' }}>JUMLAH</th>
                         </tr>

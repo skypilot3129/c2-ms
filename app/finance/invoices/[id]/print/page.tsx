@@ -87,6 +87,7 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
 
     const emptyRowsCount = Math.max(0, MIN_ROWS - transactions.length);
     const isTaxableInvoice = transactions.some(t => t.isTaxable || (t.ppn && t.ppn > 0));
+    const hasKgVolume = transactions.some(t => t.beratUnit === 'KG/VOLUME');
 
     // Calculate totals for tax layout dynamically to enforce 1.1% PPN rule on all invoices (including historical)
     const subtotalTagihan = transactions.reduce((acc, t) => acc + t.jumlah, 0);
@@ -299,7 +300,7 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
                                     <th style={{ width: '5%', border: '1.5px solid #000' }}>NO</th>
                                     <th style={{ width: '53%', border: '1.5px solid #000' }}>KETERANGAN</th>
                                     <th style={{ width: '8%', border: '1.5px solid #000' }}>KOLI</th>
-                                    <th style={{ width: '12%', border: '1.5px solid #000' }}>KG/M3</th>
+                                    <th style={{ width: '12%', border: '1.5px solid #000' }}>{hasKgVolume ? 'KG VOLUME' : 'KG/M3'}</th>
                                     <th style={{ width: '10%', border: '1.5px solid #000' }}>HARGA</th>
                                     <th style={{ width: '12%', border: '1.5px solid #000' }}>JUMLAH</th>
                                 </tr>
@@ -515,7 +516,7 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
                                     <th style={{ width: '45%' }}>KETERANGAN</th>
                                     <th style={{ width: '9%' }}>NO STT</th>
                                     <th style={{ width: '6%' }}>KOLI</th>
-                                    <th style={{ width: '11%' }}>KG/M3</th>
+                                    <th style={{ width: '11%' }}>{hasKgVolume ? 'KG VOLUME' : 'KG/M3'}</th>
                                     <th style={{ width: '10%' }}>HARGA</th>
                                     <th style={{ width: '14%' }}>JUMLAH</th>
                                 </tr>

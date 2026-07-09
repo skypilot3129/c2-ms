@@ -125,6 +125,7 @@ function PrintBulkInvoiceContent() {
     const totalJumlah = transactions.reduce((sum, t) => sum + t.jumlah, 0);
     const ppnAmount = invoiceData.includePPN ? totalJumlah * 0.011 : 0;
     const totalAkhir = totalJumlah + ppnAmount;
+    const hasKgVolume = transactions.some(t => t.beratUnit === 'KG/VOLUME');
 
     const bulkInvoiceNo = transactions[0].noInvoice || transactions[0].noSTT;
     const tanggalStr = formatTanggal(transactions[0].tanggal);
@@ -290,7 +291,7 @@ function PrintBulkInvoiceContent() {
                             <th style={{ width: '32%', textAlign: 'center' }}>KETERANGAN</th>
                             <th style={{ width: '9%' }}>NO STT</th>
                             <th style={{ width: '7%' }}>KOLI</th>
-                            <th style={{ width: '10%' }}>KG/M3</th>
+                            <th style={{ width: '10%' }}>{hasKgVolume ? 'KG VOLUME' : 'KG/M3'}</th>
                             <th style={{ width: '14%' }}>HARGA</th>
                             <th style={{ width: '14%' }}>JUMLAH</th>
                         </tr>
