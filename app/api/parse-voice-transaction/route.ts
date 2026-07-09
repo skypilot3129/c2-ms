@@ -45,7 +45,7 @@ export async function POST(request: Request) {
                         },
                         beratUnit: {
                             type: 'STRING' as any,
-                            description: 'Satuan berat. Pilihan: "KG", "M3", "TON". Default ke "KG" jika tidak ada.',
+                            description: 'Satuan berat. Pilihan: "KG", "KG/VOLUME", "M3", "TON". Default ke "KG" jika tidak ada.',
                         },
                         tipeTransaksi: {
                             type: 'STRING' as any,
@@ -91,7 +91,7 @@ Ketentuan parsing:
 1. Pilihan pembayaran HANYA "Tunai" atau "Tagihan".
 2. Pilihan pelunasan HANYA "Lunas" atau "Belum Lunas".
 3. Pilihan tipeTransaksi HANYA "regular" atau "borongan" (tidak boleh "express" atau "cargo").
-4. Pilihan beratUnit HANYA "KG", "M3", atau "TON".
+4. Pilihan beratUnit HANYA "KG", "KG/VOLUME", "M3", atau "TON".
 5. Jika ada penyebutan "pajak", "pkp", atau "ppn", set isPKP ke true.
 6. Jika pengguna menyebut angka nominal harga (seperti "seratus lima puluh ribu" atau "150 ribu"), konversikan ke angka penuh (150000).`;
 

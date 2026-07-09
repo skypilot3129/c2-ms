@@ -5,7 +5,7 @@ import type { Branch } from './branch';
 export type TipeTransaksi = 'regular' | 'borongan';
 export type MetodePembayaran = 'Tunai' | 'Kredit' | 'DP';
 export type CaraPelunasan = 'Cash' | 'TF' | 'Pending';
-export type BeratUnit = 'KG' | 'M3';
+export type BeratUnit = 'KG' | 'M3' | 'KG/VOLUME';
 export type StatusTransaksi = 'pending' | 'diproses' | 'dikirim' | 'selesai' | 'dibatalkan';
 
 export interface StatusHistoryEntry {

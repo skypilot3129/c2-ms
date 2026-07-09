@@ -625,6 +625,7 @@ export default function NewTransactionPage() {
                                                             className="bg-gray-50 border border-l-0 border-gray-200 rounded-r-lg px-2 text-xs font-medium text-gray-600 outline-none"
                                                         >
                                                             <option value="KG">KG</option>
+                                                            <option value="KG/VOLUME">KG/Volume</option>
                                                             <option value="M3">M3</option>
                                                         </select>
                                                     </div>

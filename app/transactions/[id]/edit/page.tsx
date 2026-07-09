@@ -457,6 +457,7 @@ export default function EditTransactionPage({ params }: { params: Promise<{ id: 
                                             className="bg-gray-50 border border-gray-200 border-l-0 rounded-r-xl px-4 text-sm font-medium text-gray-600 outline-none"
                                         >
                                             <option value="KG">KG</option>
+                                            <option value="KG/VOLUME">KG/Volume</option>
                                             <option value="M3">M3</option>
                                         </select>
                                     </div>

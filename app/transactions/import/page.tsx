@@ -457,6 +457,7 @@ export default function ImportTransactionsPage() {
                                     className="w-full bg-gray-50 border rounded-xl px-3.5 py-2 text-sm focus:border-blue-500 outline-none text-gray-700 font-medium"
                                 >
                                     <option value="KG">Kilogram (KG)</option>
+                                    <option value="KG/VOLUME">KG/Volume</option>
                                     <option value="M3">Kubikasi (M3)</option>
                                 </select>
                             </div>

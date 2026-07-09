@@ -108,7 +108,7 @@ const tools: any[] = [
                         penerimaCity: { type: "STRING", description: "City of the receiver (optional)." },
                         koli: { type: "NUMBER", description: "Number of packages/koli (default is 1)." },
                         berat: { type: "NUMBER", description: "Weight or volume size (default is 0)." },
-                        beratUnit: { type: "STRING", description: "Unit: 'KG' or 'M3' (default is 'KG')." },
+                        beratUnit: { type: "STRING", description: "Unit: 'KG', 'KG/VOLUME', or 'M3' (default is 'KG')." },
                         tipeTransaksi: { type: "STRING", description: "Type: 'regular' (by weight) or 'borongan' (manual/flat price). Default is 'regular'." },
                         harga: { type: "NUMBER", description: "Price per unit (optional, regular only). Keep 0 or empty for new client (without history)." },
                         jumlah: { type: "NUMBER", description: "Total flat price (optional, borongan only). Leave empty or ask user first." },
