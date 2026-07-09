@@ -43,6 +43,7 @@ interface ExtraScan {
     id: string;
     code: string;
     scanTime: string;
+    tujuan?: string;
     note?: string;
 }
 
@@ -150,6 +151,7 @@ export default function ScanDhsPage() {
     // Per-item notes states
     const [noteEditingItemId, setNoteEditingItemId] = useState<string | null>(null);
     const [noteText, setNoteText] = useState<string>('');
+    const [tujuanText, setTujuanText] = useState<string>('');
 
     // Berita Acara states
     const [showBaForm, setShowBaForm] = useState<boolean>(false);
@@ -232,6 +234,29 @@ export default function ScanDhsPage() {
         });
         return combined;
     }, [baSelectedTOs, baManualTOs, extraScans]);
+
+    // Group manifest items and extra scans by destination (tujuan) for printing
+    const groupedData = useMemo(() => {
+        const groups: Record<string, { manifestItems: ManifestItem[]; extraItems: ExtraScan[] }> = {};
+        
+        manifest.forEach(item => {
+            const dest = (item.tujuan || 'LAINNYA').trim().toUpperCase();
+            if (!groups[dest]) {
+                groups[dest] = { manifestItems: [], extraItems: [] };
+            }
+            groups[dest].manifestItems.push(item);
+        });
+
+        extraScans.forEach(item => {
+            const dest = (item.tujuan || 'LAINNYA').trim().toUpperCase();
+            if (!groups[dest]) {
+                groups[dest] = { manifestItems: [], extraItems: [] };
+            }
+            groups[dest].extraItems.push(item);
+        });
+
+        return groups;
+    }, [manifest, extraScans]);
 
     const handlePrintOnlyBa = () => {
         setIsPrintingOnlyBa(true);
@@ -484,29 +509,40 @@ export default function ScanDhsPage() {
         setSoundProfile(profile);
     };
 
-    // Save note to a manifest item
-    const handleSaveNote = (itemId: string, text: string) => {
+    // Save note and destination to a manifest item
+    const handleSaveNote = (itemId: string, text: string, tujuanVal?: string) => {
         const inManifest = manifest.findIndex(i => i.id === itemId);
         if (inManifest !== -1) {
             const updated = [...manifest];
             updated[inManifest].note = text || undefined;
+            updated[inManifest].tujuan = tujuanVal || undefined;
             setManifest(updated);
         } else {
             const inExtra = extraScans.findIndex(i => i.id === itemId);
             if (inExtra !== -1) {
                 const updated = [...extraScans];
                 updated[inExtra].note = text || undefined;
+                updated[inExtra].tujuan = tujuanVal || undefined;
                 setExtraScans(updated);
             }
         }
         setNoteEditingItemId(null);
         setNoteText('');
+        setTujuanText('');
     };
 
-    // Start editing note for an item
+    // Start editing note and destination for an item
     const handleStartNote = (itemId: string, currentNote?: string) => {
         setNoteEditingItemId(itemId);
         setNoteText(currentNote || '');
+        
+        const inManifest = manifest.find(i => i.id === itemId);
+        if (inManifest) {
+            setTujuanText(inManifest.tujuan || '');
+        } else {
+            const inExtra = extraScans.find(i => i.id === itemId);
+            setTujuanText(inExtra?.tujuan || '');
+        }
     };
 
     // Auto-focus the input during the scanning step (only if not editing any item and not focusing other inputs)
@@ -982,36 +1018,120 @@ export default function ScanDhsPage() {
         setNoPolisi('DD 8250 LQ');
     };
 
-    // Drag-and-drop file uploader parsing
+    // Drag-and-drop file uploader parsing (supports multiple files at once)
     const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = e.target.files;
+        if (!files || files.length === 0) return;
+
+        const fileList = Array.from(files);
+        const readPromises = fileList.map(file => {
+            return new Promise<{ text: string; name: string }>((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    resolve({
+                        text: event.target?.result as string,
+                        name: file.name
+                    });
+                };
+                reader.onerror = (err) => reject(err);
+                reader.readAsText(file);
+            });
+        });
+
+        Promise.all(readPromises).then(results => {
+            const combinedText = results.map(r => r.text).join('\n\n');
+            setRawInput(combinedText);
+
+            const allItems: ManifestItem[] = [];
+            const seenCodes = new Set<string>();
+            let driver = '';
+            let nopol = '';
+            let sessionTypeVal: 'BONGKAR' | 'MUAT' | '' = '';
+
+            results.forEach(res => {
+                try {
+                    const rows = parseCSVText(res.text);
+                    const csvResult = processCSVData(rows);
+                    if (csvResult && csvResult.items.length > 0) {
+                        csvResult.items.forEach(item => {
+                            if (!seenCodes.has(item.code)) {
+                                seenCodes.add(item.code);
+                                allItems.push(item);
+                            }
+                        });
+                        if (csvResult.driver && !driver) driver = csvResult.driver;
+                        if (csvResult.nopol && !nopol) nopol = csvResult.nopol;
+                        if (csvResult.sessionType && !sessionTypeVal) sessionTypeVal = csvResult.sessionType;
+                    }
+                } catch (err) {
+                    console.warn(`Failed parsing file ${res.name}:`, err);
+                }
+            });
+
+            if (allItems.length > 0) {
+                setManifest(allItems);
+                setExtraScans([]);
+                setCurrentSessionId(null);
+                setSearchTerm('');
+                if (driver) setDriverName(driver);
+                if (nopol) setNoPolisi(nopol);
+                if (sessionTypeVal) setSessionType(sessionTypeVal);
+
+                setScanAlert({
+                    type: 'success',
+                    message: `Berhasil menggabungkan ${allItems.length} TO dari ${fileList.length} berkas manifest!`
+                });
+            } else {
+                alert('Tidak berhasil mengekstrak data TO yang valid dari file-file tersebut.');
+            }
+        }).catch(err => {
+            console.error('Error reading multiple files:', err);
+            alert('Terjadi kesalahan saat membaca file-file tersebut.');
+        });
+    };
+
+    // Add additional files to an active scanning session
+    const handleAdditionalFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
 
         const reader = new FileReader();
         reader.onload = (event) => {
             const text = event.target?.result as string;
-            setRawInput(text);
-
-            // Try to parse CSV manifest directly to help the user pre-fill details
+            
             try {
                 const rows = parseCSVText(text);
                 const csvResult = processCSVData(rows);
                 if (csvResult && csvResult.items.length > 0) {
-                    setManifest(csvResult.items);
-                    if (csvResult.driver) setDriverName(csvResult.driver);
-                    if (csvResult.nopol) setNoPolisi(csvResult.nopol);
-                    setSessionType(csvResult.sessionType);
-                    
-                    setScanAlert({
-                        type: 'success',
-                        message: `Berhasil mengekstrak ${csvResult.items.length} TO dari berkas CSV! Driver: ${csvResult.driver || '-'}, Plat Truk: ${csvResult.nopol || '-'}`
+                    const currentCodes = new Set(manifest.map(item => item.code));
+                    const newItems: ManifestItem[] = [];
+
+                    csvResult.items.forEach(item => {
+                        if (!currentCodes.has(item.code)) {
+                            newItems.push(item);
+                        }
                     });
+
+                    if (newItems.length > 0) {
+                        setManifest(prev => [...prev, ...newItems]);
+                        setScanAlert({
+                            type: 'success',
+                            message: `Berhasil menambahkan ${newItems.length} TO baru ke dalam manifest aktif!`
+                        });
+                        speakText(`Berhasil menambahkan ${newItems.length} resi baru`);
+                    } else {
+                        alert('Semua TO dalam file tambahan ini sudah terdaftar di manifest aktif.');
+                    }
+                } else {
+                    alert('Tidak berhasil mengekstrak data TO yang valid dari file tambahan.');
                 }
             } catch (err) {
-                console.warn('Auto-parsing CSV on upload failed, user can still submit manually.', err);
+                console.error('Error parsing additional file:', err);
+                alert('Gagal membaca file tambahan. Pastikan formatnya valid.');
             }
         };
         reader.readAsText(file);
+        e.target.value = '';
     };
 
     // Main scanning / matching logic
@@ -1732,18 +1852,18 @@ export default function ScanDhsPage() {
                                 />
                             </div>
 
-                            {/* Drag-and-drop / Select file */}
                             <div className="border-2 border-dashed border-slate-800 hover:border-blue-500/50 rounded-2xl p-6 text-center cursor-pointer transition-colors relative group">
                                 <input
                                     type="file"
+                                    multiple={true}
                                     accept=".txt,.csv"
                                     onChange={handleFileUpload}
                                     className="absolute inset-0 opacity-0 cursor-pointer"
                                 />
                                 <div className="flex flex-col items-center gap-2 text-slate-400 group-hover:text-blue-400 transition-colors">
                                     <Upload size={32} />
-                                    <p className="text-sm font-semibold">Tarik &amp; lepas file teks (.txt / .csv) di sini</p>
-                                    <p className="text-xs text-slate-500">Atau klik untuk menelusuri file dari penyimpanan Anda</p>
+                                    <p className="text-sm font-semibold">Tarik &amp; lepas satu atau beberapa file teks (.txt / .csv) di sini</p>
+                                    <p className="text-xs text-slate-500">Atau klik untuk memilih file-file dari penyimpanan Anda</p>
                                 </div>
                             </div>
 
@@ -2085,6 +2205,28 @@ export default function ScanDhsPage() {
                                 )}
                             </div>
 
+                            {/* Upload File Tambahan */}
+                            <div className="bg-slate-900/60 border border-slate-800 p-4 rounded-2xl space-y-2.5">
+                                <div className="flex items-center gap-1.5 text-xs font-bold text-slate-350">
+                                    <Upload size={14} className="text-blue-400" />
+                                    <span>Tambahkan File Manifest (.txt / .csv)</span>
+                                </div>
+                                <p className="text-[10px] text-slate-500 leading-snug">
+                                    Unggah file manifest tambahan untuk digabungkan ke sesi aktif tanpa menghapus data scan saat ini.
+                                </p>
+                                <div className="relative border border-dashed border-slate-800 hover:border-blue-500/50 rounded-xl p-3 text-center cursor-pointer transition-all bg-slate-950/40 hover:bg-slate-950/80 group">
+                                    <input
+                                        type="file"
+                                        accept=".txt,.csv"
+                                        onChange={handleAdditionalFileUpload}
+                                        className="absolute inset-0 opacity-0 cursor-pointer"
+                                    />
+                                    <span className="text-[10px] font-bold text-slate-450 group-hover:text-blue-450 transition-colors">
+                                        Pilih Berkas Manifest Tambahan
+                                    </span>
+                                </div>
+                            </div>
+
                             {/* Session control buttons */}
                             <div className="flex gap-4">
                                 <button
@@ -2246,14 +2388,29 @@ export default function ScanDhsPage() {
                                                             <span>CATATAN KOLI:</span>
                                                             <span className="font-mono text-blue-400 font-bold">{item.code}</span>
                                                         </div>
-                                                        <input
-                                                            type="text"
-                                                            value={noteText}
-                                                            onChange={(e) => setNoteText(e.target.value)}
-                                                            placeholder="Tulis catatan (misal: karung sobek, basah)..."
-                                                            className="bg-slate-950 border border-slate-850 focus:border-blue-600 rounded-xl px-3 py-2 text-xs text-white outline-none w-full transition-all"
-                                                            autoFocus
-                                                        />
+                                                        <div className="grid grid-cols-2 gap-3">
+                                                            <div className="space-y-1 flex-1">
+                                                                <label className="text-[8px] font-bold text-slate-500 uppercase tracking-wider block">Catatan Koli</label>
+                                                                <input
+                                                                    type="text"
+                                                                    value={noteText}
+                                                                    onChange={(e) => setNoteText(e.target.value)}
+                                                                    placeholder="Tulis catatan..."
+                                                                    className="bg-slate-950 border border-slate-850 focus:border-blue-600 rounded-xl px-3 py-2 text-xs text-white outline-none w-full transition-all"
+                                                                    autoFocus
+                                                                />
+                                                            </div>
+                                                            <div className="space-y-1 w-full">
+                                                                <label className="text-[8px] font-bold text-slate-500 uppercase tracking-wider block">Tujuan / Rute</label>
+                                                                <input
+                                                                    type="text"
+                                                                    value={tujuanText}
+                                                                    onChange={(e) => setTujuanText(e.target.value)}
+                                                                    placeholder="Misal: TAMALANREA..."
+                                                                    className="bg-slate-950 border border-slate-850 focus:border-blue-600 rounded-xl px-3 py-2 text-xs text-white outline-none w-full transition-all uppercase"
+                                                                />
+                                                            </div>
+                                                        </div>
                                                         {/* Presets */}
                                                         <div className="flex flex-wrap gap-1">
                                                             {NOTE_PRESETS.map((preset) => (
@@ -2269,13 +2426,13 @@ export default function ScanDhsPage() {
                                                         </div>
                                                         <div className="flex justify-end gap-2 pt-1.5 border-t border-slate-800/60 mt-1">
                                                             <button
-                                                                onClick={() => { setNoteEditingItemId(null); setNoteText(''); }}
+                                                                onClick={() => { setNoteEditingItemId(null); setNoteText(''); setTujuanText(''); }}
                                                                 className="px-3 py-1.5 bg-slate-800 hover:bg-slate-750 text-slate-300 text-xs font-bold rounded-lg transition-colors"
                                                             >
                                                                 Batal
                                                             </button>
                                                             <button
-                                                                onClick={() => handleSaveNote(item.id, noteText)}
+                                                                onClick={() => handleSaveNote(item.id, noteText, tujuanText)}
                                                                 className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg transition-colors"
                                                             >
                                                                 Simpan
@@ -2498,160 +2655,225 @@ export default function ScanDhsPage() {
 
                         {/* Printable Report Panel */}
                         <div id="print-dhs-report" className="bg-slate-950 border border-slate-800 rounded-3xl p-6 md:p-8 shadow-2xl space-y-6 text-white max-w-4xl mx-auto">
-                            <div className={isPrintingOnlyBa ? 'print-ba-only-hide space-y-5' : 'space-y-5'}>
-                                {/* Kop Surat */}
-                                <div className="w-full flex items-center gap-4 border-b-[3px] border-double border-slate-700 pb-4 mb-2">
-                                    <img src="/logo.png" alt="Logo" className="w-[20mm] h-[20mm] object-contain flex-shrink-0" />
-                                    <div className="flex-1">
-                                        <h1 className="text-xl md:text-2xl font-extrabold text-white tracking-wider font-serif">CV. CAHAYA CARGO EXPRESS</h1>
-                                        <p className="text-[7.5pt] font-semibold tracking-wider text-slate-400 uppercase -mt-0.5">
-                                            Jasa Pengiriman Barang - Spesialis &amp; Jawa ke Sulawesi
-                                        </p>
-                                        <div className="grid grid-cols-3 gap-3 mt-2 text-[6.5pt] text-slate-400 leading-tight">
-                                            <div>
-                                                <strong className="text-slate-300">SURABAYA (Pusat):</strong>
-                                                <p>Jl. Kemudi No. 4, Surabaya</p>
-                                                <p>Telp: 081 337 878 138</p>
+                            <div className={isPrintingOnlyBa ? 'print-ba-only-hide space-y-8' : 'space-y-8'}>
+                                {Object.entries(groupedData).map(([tujuanName, data], groupIdx) => {
+                                    // Calculate stats for this specific destination
+                                    const groupTotalTarget = data.manifestItems.length;
+                                    const groupTotalScanned = data.manifestItems.filter(i => i.status === 'scanned').length;
+                                    const groupTotalPending = data.manifestItems.filter(i => i.status === 'pending').length;
+                                    const groupTotalExtra = data.extraItems.length;
+                                    
+                                    // Sum weights and packages
+                                    const targetPaket = data.manifestItems.reduce((sum, i) => sum + (i.jmlhPaket || 0), 0);
+                                    const scannedPaket = data.manifestItems.filter(i => i.status === 'scanned').reduce((sum, i) => sum + (i.jmlhPaket || 0), 0);
+                                    
+                                    const targetBerat = data.manifestItems.reduce((sum, i) => sum + (i.berat || 0), 0);
+                                    const scannedBerat = data.manifestItems.filter(i => i.status === 'scanned').reduce((sum, i) => sum + (i.berat || 0), 0);
+                                    
+                                    const groupPercentage = groupTotalTarget > 0 ? Math.round((groupTotalScanned / groupTotalTarget) * 100) : 100;
+                                    const destinationGroups = Object.entries(groupedData);
+
+                                    return (
+                                        <div key={tujuanName} className={`space-y-5 ${groupIdx > 0 ? 'page-break pt-8 border-t border-dashed border-slate-800/40 print:border-none print:pt-0' : ''}`}>
+                                            {/* Kop Surat (Printed on every page/destination sheet) */}
+                                            <div className="w-full flex items-center gap-4 border-b-[3px] border-double border-slate-700 pb-4 mb-2">
+                                                <img src="/logo.png" alt="Logo" className="w-[20mm] h-[20mm] object-contain flex-shrink-0" />
+                                                <div className="flex-1">
+                                                    <h1 className="text-xl md:text-2xl font-extrabold text-white tracking-wider font-serif">CV. CAHAYA CARGO EXPRESS</h1>
+                                                    <p className="text-[7.5pt] font-semibold tracking-wider text-slate-400 uppercase -mt-0.5">
+                                                        Jasa Pengiriman Barang - Spesialis &amp; Jawa ke Sulawesi
+                                                    </p>
+                                                    <div className="grid grid-cols-3 gap-3 mt-2 text-[6.5pt] text-slate-400 leading-tight">
+                                                        <div>
+                                                            <strong className="text-slate-300">SURABAYA (Pusat):</strong>
+                                                            <p>Jl. Kemudi No. 4, Surabaya</p>
+                                                            <p>Telp: 081 337 878 138</p>
+                                                        </div>
+                                                        <div>
+                                                            <strong className="text-slate-300">MAKASSAR:</strong>
+                                                            <p>Jl. Irian No. 245 B, Makassar</p>
+                                                            <p>Telp: 0852 4228 0396</p>
+                                                        </div>
+                                                        <div>
+                                                            <strong className="text-slate-300">BANDUNG:</strong>
+                                                            <p>Jl. Gandasari (PS Sentra Bisnis Warlob) G 1, Bandung</p>
+                                                        </div>
+                                                    </div>
+                                                </div>
                                             </div>
-                                            <div>
-                                                <strong className="text-slate-300">MAKASSAR:</strong>
-                                                <p>Jl. Irian No. 245 B, Makassar</p>
-                                                <p>Telp: 0852 4228 0396</p>
+
+                                            {/* Document Title */}
+                                            <div className="text-center mb-2">
+                                                <h2 className="text-sm font-extrabold tracking-[2px] uppercase text-white underline underline-offset-4 decoration-slate-700">
+                                                    LAPORAN PEMINDAIAN BARCODE DHS - TUJUAN: {tujuanName}
+                                                </h2>
+                                                <p className="text-[10px] text-slate-500 mt-1">
+                                                    Tanggal: {new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                                                </p>
                                             </div>
-                                            <div>
-                                                <strong className="text-slate-300">BANDUNG:</strong>
-                                                <p>Jl. Gandasari (PS Sentra Bisnis Warlob) G 1, Bandung</p>
+
+                                            {/* Session Information Details */}
+                                            <div className="grid grid-cols-2 md:grid-cols-5 gap-3 p-3 bg-slate-900/80 rounded-xl border border-slate-800 text-[10px]">
+                                                <div>
+                                                    <span className="text-slate-500 uppercase font-bold text-[8px] tracking-wider">Tipe Operasi</span>
+                                                    <p className="font-bold text-xs text-white mt-0.5">{sessionType} KOLI</p>
+                                                </div>
+                                                <div>
+                                                    <span className="text-slate-500 uppercase font-bold text-[8px] tracking-wider">Nama Driver</span>
+                                                    <p className="font-bold text-xs text-white mt-0.5">{driverName.toUpperCase() || '-'}</p>
+                                                </div>
+                                                <div>
+                                                    <span className="text-slate-500 uppercase font-bold text-[8px] tracking-wider">No. Polisi (Plat)</span>
+                                                    <p className="font-bold text-xs text-white mt-0.5">{noPolisi.toUpperCase() || '-'}</p>
+                                                </div>
+                                                <div>
+                                                    <span className="text-slate-500 uppercase font-bold text-[8px] tracking-wider">Kota Tujuan</span>
+                                                    <p className="font-bold text-xs text-blue-400 mt-0.5">{tujuanName}</p>
+                                                </div>
+                                                <div>
+                                                    <span className="text-slate-500 uppercase font-bold text-[8px] tracking-wider">Penyelesaian Rute</span>
+                                                    <p className="font-bold text-xs text-white mt-0.5">{groupPercentage}% Selesai</p>
+                                                </div>
+                                            </div>
+
+                                            {/* Calculations & Summary stats */}
+                                            <div className="grid grid-cols-2 md:grid-cols-4 border border-slate-800 rounded-2xl overflow-hidden divide-x divide-slate-800 text-center bg-slate-900/60 no-print">
+                                                <div className="p-2.5 flex flex-col items-center justify-center">
+                                                    <span className="text-[8px] font-bold text-slate-500 uppercase tracking-wider">Target Manifest</span>
+                                                    <span className="text-lg font-black text-white mt-0.5">{groupTotalTarget} TO</span>
+                                                </div>
+                                                <div className="p-2.5 flex flex-col items-center justify-center">
+                                                    <span className="text-[8px] font-bold text-slate-500 uppercase tracking-wider">Cocok</span>
+                                                    <span className="text-lg font-black text-emerald-400 mt-0.5">{groupTotalScanned} TO</span>
+                                                </div>
+                                                <div className="p-2.5 flex flex-col items-center justify-center">
+                                                    <span className="text-[8px] font-bold text-slate-500 uppercase tracking-wider">Kurang</span>
+                                                    <span className={`text-lg font-black mt-0.5 ${groupTotalPending > 0 ? 'text-red-400' : 'text-slate-500'}`}>{groupTotalPending} TO</span>
+                                                </div>
+                                                <div className="p-2.5 flex flex-col items-center justify-center">
+                                                    <span className="text-[8px] font-bold text-slate-500 uppercase tracking-wider">Lebih</span>
+                                                    <span className={`text-lg font-black mt-0.5 ${groupTotalExtra > 0 ? 'text-yellow-400' : 'text-slate-500'}`}>{groupTotalExtra} TO</span>
+                                                </div>
+                                            </div>
+
+                                            {/* Calculations of Weight and Packages (CRITICAL STATS DISPLAY) */}
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-3.5 bg-blue-950/20 border border-blue-900/30 rounded-2xl">
+                                                <div className="space-y-1">
+                                                    <span className="text-[9px] font-extrabold text-blue-400 uppercase tracking-wider block">Laporan Perhitungan Jumlah Paket (Koli)</span>
+                                                    <div className="flex justify-between items-baseline text-xs text-slate-350">
+                                                        <span>Target Manifest Paket:</span>
+                                                        <span className="font-mono font-bold text-white">{targetPaket} Koli</span>
+                                                    </div>
+                                                    <div className="flex justify-between items-baseline text-xs text-slate-350">
+                                                        <span>Cocok Terverifikasi:</span>
+                                                        <span className="font-mono font-bold text-emerald-400">{scannedPaket} Koli</span>
+                                                    </div>
+                                                    {groupTotalExtra > 0 && (
+                                                        <div className="flex justify-between items-baseline text-xs text-slate-350">
+                                                            <span>Selisih Lebih (Extra):</span>
+                                                            <span className="font-mono font-bold text-yellow-400">+{groupTotalExtra} Koli</span>
+                                                        </div>
+                                                    )}
+                                                    <div className="flex justify-between items-baseline border-t border-slate-800/80 pt-1 text-xs font-bold text-slate-200">
+                                                        <span>Total Fisik Koli Ter-scan:</span>
+                                                        <span className="font-mono text-white">{scannedPaket + groupTotalExtra} Koli</span>
+                                                    </div>
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <span className="text-[9px] font-extrabold text-blue-400 uppercase tracking-wider block">Laporan Perhitungan Berat Kargo (kg)</span>
+                                                    <div className="flex justify-between items-baseline text-xs text-slate-350">
+                                                        <span>Target Manifest Berat:</span>
+                                                        <span className="font-mono font-bold text-white">{targetBerat.toFixed(3)} kg</span>
+                                                    </div>
+                                                    <div className="flex justify-between items-baseline text-xs text-slate-350">
+                                                        <span>Cocok Terverifikasi:</span>
+                                                        <span className="font-mono font-bold text-emerald-400">{scannedBerat.toFixed(3)} kg</span>
+                                                    </div>
+                                                    <div className="flex justify-between items-baseline border-t border-slate-800/80 pt-1 text-xs font-bold text-slate-200">
+                                                        <span>Total Berat Fisik Ter-scan:</span>
+                                                        <span className="font-mono text-white">{scannedBerat.toFixed(3)} kg</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* Printable Compact Summary Row (For paper/print only) */}
+                                            <div className="hidden print:block p-3 border border-slate-300 bg-slate-50 rounded text-center text-xs font-bold text-slate-800">
+                                                Tujuan: {tujuanName} | Target: {groupTotalTarget} TO ({targetPaket} Koli, {targetBerat.toFixed(3)} kg) | Cocok: {groupTotalScanned} TO ({scannedPaket} Koli, {scannedBerat.toFixed(3)} kg) | Kurang: {groupTotalPending} TO | Lebih: {groupTotalExtra} TO
+                                            </div>
+
+                                            {/* Table of Results */}
+                                            <div className="space-y-3 pt-2 border-t border-slate-800/80">
+                                                <h3 className="font-bold text-xs text-slate-350">Rincian Hasil Pengecekan Koli ({tujuanName}):</h3>
+
+                                                <div className="border border-slate-800 rounded-2xl overflow-hidden text-xs">
+                                                    <table className="w-full text-left">
+                                                        <thead>
+                                                            <tr className="bg-slate-900 border-b border-slate-800 text-slate-400 font-semibold uppercase text-[9px] md:text-[10px]">
+                                                                <th className="p-2.5 text-center w-[4%] font-bold">No</th>
+                                                                <th className="p-2.5 w-[18%] font-bold">Nomor TO</th>
+                                                                <th className="p-2.5 text-center w-[8%] font-bold">Paket</th>
+                                                                <th className="p-2.5 text-center w-[10%] font-bold">Berat (kg)</th>
+                                                                <th className="p-2.5 w-[14%] font-bold">Tujuan</th>
+                                                                <th className="p-2.5 text-center w-[8%] font-bold">TO Type</th>
+                                                                <th className="p-2.5 text-center w-[8%] font-bold">DG Type</th>
+                                                                <th className="p-2.5 w-[10%] font-bold">Scan Time</th>
+                                                                <th className="p-2.5 w-[13%] font-bold">Catatan</th>
+                                                                <th className="p-2.5 text-right w-[7%] font-bold">Status</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            {data.manifestItems.map((item, idx) => (
+                                                                <tr key={item.id} className="border-b border-slate-800/50 hover:bg-slate-900/30 odd:bg-slate-950/20 even:bg-slate-900/10">
+                                                                    <td className="p-2.5 text-center text-slate-500 font-mono">{idx + 1}.</td>
+                                                                    <td className="p-2.5 font-mono font-bold text-white tracking-wide">{item.code}</td>
+                                                                    <td className="p-2.5 text-center font-mono text-slate-350">{item.jmlhPaket !== undefined ? item.jmlhPaket : '-'}</td>
+                                                                    <td className="p-2.5 text-center font-mono text-slate-350">{item.berat !== undefined ? item.berat.toFixed(3) : '-'}</td>
+                                                                    <td className="p-2.5 text-slate-300 font-medium">{item.tujuan || '-'}</td>
+                                                                    <td className="p-2.5 text-center text-slate-350">{item.toType || '-'}</td>
+                                                                    <td className="p-2.5 text-center text-slate-350">{item.dgType || '-'}</td>
+                                                                    <td className="p-2.5 font-mono text-slate-400">{item.scanTime || '-'}</td>
+                                                                    <td className="p-2.5 text-amber-400 font-medium italic text-[10px]" title={item.note}>{item.note || '-'}</td>
+                                                                    <td className="p-2.5 text-right">
+                                                                        {item.status === 'scanned' ? (
+                                                                            <span className="text-[9px] bg-emerald-950 border border-emerald-900 text-emerald-400 font-black px-2 py-0.5 rounded">COCOK</span>
+                                                                        ) : (
+                                                                            <span className="text-[9px] bg-red-950 border border-red-900 text-red-400 font-black px-2 py-0.5 rounded">KURANG</span>
+                                                                        )}
+                                                                    </td>
+                                                                </tr>
+                                                            ))}
+                                                            {data.extraItems.map((item, idx) => (
+                                                                <tr key={`extra-report-${idx}`} className="border-b border-slate-800/50 hover:bg-slate-900/30 bg-red-950/5 odd:bg-red-950/5 even:bg-red-950/10">
+                                                                    <td className="p-2.5 text-center text-red-500 font-mono">+</td>
+                                                                    <td className="p-2.5 font-mono font-bold text-red-400 tracking-wide">{item.code}</td>
+                                                                    <td className="p-2.5 text-center font-mono text-slate-500">-</td>
+                                                                    <td className="p-2.5 text-center font-mono text-slate-500">-</td>
+                                                                    <td className="p-2.5 text-slate-300 font-medium">{item.tujuan || '-'}</td>
+                                                                    <td className="p-2.5 text-center text-slate-500">-</td>
+                                                                    <td className="p-2.5 text-center text-slate-500">-</td>
+                                                                    <td className="p-2.5 font-mono text-slate-400">{item.scanTime}</td>
+                                                                    <td className="p-2.5 text-amber-400 font-medium italic text-[10px]" title={item.note}>{item.note || '-'}</td>
+                                                                    <td className="p-2.5 text-right">
+                                                                        <span className="text-[9px] bg-red-600 text-white font-black px-1.5 py-0.5 rounded">LEBIH</span>
+                                                                    </td>
+                                                                </tr>
+                                                            ))}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+
+                                            {/* Document Footer Note */}
+                                            <div className="pt-4 border-t border-slate-800 text-[10px] text-slate-500 italic leading-snug">
+                                                Laporan ini dihasilkan secara otomatis oleh sistem C2-MS CV. Cahaya Cargo Express pada saat penyelesaian sesi pemindaian real-time. Penilaian selisih didasarkan pada kecocokan manifes resmi yang diunggah.
+                                            </div>
+                                            <div className="hidden print:flex justify-between items-center pt-2 text-[8px] text-slate-400 border-t border-slate-200 mt-2 font-mono">
+                                                <span>Dicetak pada: {new Date().toLocaleString('id-ID', { dateStyle: 'long', timeStyle: 'medium' })} WIB</span>
+                                                <span>Halaman {groupIdx + 1} dari {destinationGroups.length}</span>
                                             </div>
                                         </div>
-                                    </div>
-                                </div>
-
-                                {/* Document Title */}
-                                <div className="text-center mb-2">
-                                    <h2 className="text-sm font-extrabold tracking-[3px] uppercase text-white underline underline-offset-4 decoration-slate-700">
-                                        LAPORAN HASIL PEMINDAIAN BARCODE DHS
-                                    </h2>
-                                    <p className="text-[10px] text-slate-500 mt-1">
-                                        Tanggal: {new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
-                                    </p>
-                                </div>
-
-                                {/* Session Information Details */}
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 p-3 bg-slate-900/80 rounded-xl border border-slate-800 text-[10px]">
-                                    <div>
-                                        <span className="text-slate-500 uppercase font-bold text-[8px] tracking-wider">Tipe Operasi</span>
-                                        <p className="font-bold text-xs text-white mt-0.5">{sessionType} KOLI</p>
-                                    </div>
-                                    <div>
-                                        <span className="text-slate-500 uppercase font-bold text-[8px] tracking-wider">Nama Driver</span>
-                                        <p className="font-bold text-xs text-white mt-0.5">{driverName.toUpperCase() || '-'}</p>
-                                    </div>
-                                    <div>
-                                        <span className="text-slate-500 uppercase font-bold text-[8px] tracking-wider">No. Polisi (Plat)</span>
-                                        <p className="font-bold text-xs text-white mt-0.5">{noPolisi.toUpperCase() || '-'}</p>
-                                    </div>
-                                    <div>
-                                        <span className="text-slate-500 uppercase font-bold text-[8px] tracking-wider">Status Penyelesaian</span>
-                                        <p className="font-bold text-xs text-white mt-0.5">{scanPercentage}% Selesai</p>
-                                    </div>
-                                </div>
-
-                                {/* Statistics Summary Row */}
-                                <div className="grid grid-cols-4 border border-slate-800 rounded-2xl overflow-hidden divide-x divide-slate-800 text-center bg-slate-900/60 no-print">
-                                    <div className="p-3 flex flex-col items-center justify-center">
-                                        <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Target Manifest</span>
-                                        <span className="text-xl font-black text-white mt-0.5">{totalTarget}</span>
-                                    </div>
-                                    <div className="p-3 flex flex-col items-center justify-center">
-                                        <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Cocok</span>
-                                        <span className="text-xl font-black text-emerald-400 mt-0.5">{totalScanned}</span>
-                                    </div>
-                                    <div className="p-3 flex flex-col items-center justify-center">
-                                        <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Kurang</span>
-                                        <span className={`text-xl font-black mt-0.5 ${totalPending > 0 ? 'text-red-400' : 'text-slate-500'}`}>{totalPending}</span>
-                                    </div>
-                                    <div className="p-3 flex flex-col items-center justify-center">
-                                        <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Lebih</span>
-                                        <span className={`text-xl font-black mt-0.5 ${totalExtra > 0 ? 'text-yellow-400' : 'text-slate-500'}`}>{totalExtra}</span>
-                                    </div>
-                                </div>
-
-                                {/* Printable Compact Summary Row (For paper/print only) */}
-                                <div className="hidden print:block p-3 border border-slate-300 bg-slate-50 rounded text-center text-xs font-bold text-slate-800">
-                                    Target Manifest: {totalTarget} Koli | Cocok Terverifikasi: {totalScanned} Koli | Selisih Kurang: {totalPending} Koli | Selisih Lebih: {totalExtra} Koli
-                                </div>
-
-                                {/* Table of Results */}
-                                <div className="space-y-3 pt-2 border-t border-slate-800">
-                                    <h3 className="font-bold text-xs text-slate-350">Rincian Hasil Pengecekan Koli:</h3>
-
-                                    <div className="border border-slate-800 rounded-2xl overflow-hidden text-xs">
-                                        <table className="w-full text-left">
-                                            <thead>
-                                                <tr className="bg-slate-900 border-b border-slate-800 text-slate-400 font-semibold uppercase text-[9px] md:text-[10px]">
-                                                    <th className="p-2.5 text-center w-[4%] font-bold">No</th>
-                                                    <th className="p-2.5 w-[18%] font-bold">Nomor TO</th>
-                                                    <th className="p-2.5 text-center w-[8%] font-bold">Paket</th>
-                                                    <th className="p-2.5 text-center w-[10%] font-bold">Berat (kg)</th>
-                                                    <th className="p-2.5 w-[14%] font-bold">Tujuan</th>
-                                                    <th className="p-2.5 text-center w-[8%] font-bold">TO Type</th>
-                                                    <th className="p-2.5 text-center w-[8%] font-bold">DG Type</th>
-                                                    <th className="p-2.5 w-[10%] font-bold">Scan Time</th>
-                                                    <th className="p-2.5 w-[13%] font-bold">Catatan</th>
-                                                    <th className="p-2.5 text-right w-[7%] font-bold">Status</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {manifest.map((item, idx) => (
-                                                    <tr key={item.id} className="border-b border-slate-800/50 hover:bg-slate-900/30 odd:bg-slate-950/20 even:bg-slate-900/10">
-                                                        <td className="p-2.5 text-center text-slate-500 font-mono">{idx + 1}.</td>
-                                                        <td className="p-2.5 font-mono font-bold text-white tracking-wide">{item.code}</td>
-                                                        <td className="p-2.5 text-center font-mono text-slate-350">{item.jmlhPaket !== undefined ? item.jmlhPaket : '-'}</td>
-                                                        <td className="p-2.5 text-center font-mono text-slate-350">{item.berat !== undefined ? item.berat.toFixed(3) : '-'}</td>
-                                                        <td className="p-2.5 text-slate-300 font-medium">{item.tujuan || '-'}</td>
-                                                        <td className="p-2.5 text-center text-slate-350">{item.toType || '-'}</td>
-                                                        <td className="p-2.5 text-center text-slate-350">{item.dgType || '-'}</td>
-                                                        <td className="p-2.5 font-mono text-slate-400">{item.scanTime || '-'}</td>
-                                                        <td className="p-2.5 text-amber-400 font-medium italic text-[10px]" title={item.note}>{item.note || '-'}</td>
-                                                        <td className="p-2.5 text-right">
-                                                            {item.status === 'scanned' ? (
-                                                                <span className="text-[9px] bg-emerald-950 border border-emerald-900 text-emerald-400 font-black px-2 py-0.5 rounded">COCOK</span>
-                                                            ) : (
-                                                                <span className="text-[9px] bg-red-950 border border-red-900 text-red-400 font-black px-2 py-0.5 rounded">KURANG</span>
-                                                            )}
-                                                        </td>
-                                                    </tr>
-                                                ))}
-                                                {extraScans.map((item, idx) => (
-                                                    <tr key={`extra-report-${idx}`} className="border-b border-slate-800/50 hover:bg-slate-900/30 bg-red-950/5 odd:bg-red-950/5 even:bg-red-950/10">
-                                                        <td className="p-2.5 text-center text-red-500 font-mono">+</td>
-                                                        <td className="p-2.5 font-mono font-bold text-red-400 tracking-wide">{item.code}</td>
-                                                        <td className="p-2.5 text-center font-mono text-slate-500">-</td>
-                                                        <td className="p-2.5 text-center font-mono text-slate-500">-</td>
-                                                        <td className="p-2.5 text-slate-500 font-medium">-</td>
-                                                        <td className="p-2.5 text-center text-slate-500">-</td>
-                                                        <td className="p-2.5 text-center text-slate-500">-</td>
-                                                        <td className="p-2.5 font-mono text-slate-400">{item.scanTime}</td>
-                                                        <td className="p-2.5 text-amber-400 font-medium italic text-[10px]" title={item.note}>{item.note || '-'}</td>
-                                                        <td className="p-2.5 text-right">
-                                                            <span className="text-[9px] bg-red-600 text-white font-black px-1.5 py-0.5 rounded">LEBIH</span>
-                                                        </td>
-                                                    </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </div>
-
-                                {/* Document Footer Note */}
-                                <div className="pt-4 border-t border-slate-800 text-[10px] text-slate-500 italic leading-snug">
-                                    Laporan ini dihasilkan secara otomatis oleh sistem C2-MS CV. Cahaya Cargo Express pada saat penyelesaian sesi pemindaian real-time. Penilaian selisih didasarkan pada kecocokan manifes resmi yang diunggah.
-                                </div>
-                                <div className="hidden print:flex justify-between items-center pt-2 text-[8px] text-slate-400 border-t border-slate-200 mt-2 font-mono">
-                                    <span>Dicetak pada: {new Date().toLocaleString('id-ID', { dateStyle: 'long', timeStyle: 'medium' })} WIB</span>
-                                    <span>Halaman 1 dari 1</span>
-                                </div>
-
+                                    );
+                                })}
                             </div>
 
                             {/* Render Berita Acara Document inside Report (only if created) */}
