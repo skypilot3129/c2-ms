@@ -443,7 +443,13 @@ export default function ScanDhsPage() {
     const isDgItem = (item: { dgType?: string }) => {
         if (!item.dgType) return false;
         const cleanDg = item.dgType.toLowerCase().trim();
-        return cleanDg !== '' && cleanDg !== '-' && !cleanDg.includes('non-dg') && !cleanDg.includes('non dg');
+        if (cleanDg.includes('non-dg') || cleanDg.includes('non dg')) return false;
+        return cleanDg !== '' && cleanDg !== '-' && (
+            cleanDg.includes('dg') ||
+            cleanDg.includes('ype') ||
+            cleanDg.includes('danger') ||
+            cleanDg.includes('type')
+        );
     };
 
     // Helper to check if an item is a Special item (Liquid or DG)
@@ -806,8 +812,10 @@ export default function ScanDhsPage() {
                     tempMap.tujuanIdx = c;
                 } else if (val.includes('to type') || val === 'to_type' || val === 'type' || val === 'tipe') {
                     tempMap.typeIdx = c;
-                } else if (val.includes('dg type') || val === 'dg_type' || val === 'dg') {
-                    tempMap.dgIdx = c;
+                } else if (val.includes('dg') || val.includes('danger') || val.includes('ype') || val.includes('hazardous') || val.includes('berbahaya')) {
+                    if (!val.includes('to type') && val !== 'type') {
+                        tempMap.dgIdx = c;
+                    }
                 }
             }
             if (foundTOHeader) {
@@ -876,8 +884,14 @@ export default function ScanDhsPage() {
                         if (['bag', 'bulky', 'liquid', 'karung', 'box'].includes(val.toLowerCase())) {
                             type = val;
                         }
-                        if (['non-dg', 'dg type a', 'dg type b', 'dg'].includes(val.toLowerCase())) {
+                        const lowerVal = val.toLowerCase();
+                        const isProbablyDg = lowerVal.includes('dg') || lowerVal.includes('ype') || lowerVal.includes('danger') || lowerVal.includes('type');
+                        const isNonDg = lowerVal.includes('non-dg') || lowerVal.includes('non dg');
+                        
+                        if (isProbablyDg && !isNonDg) {
                             dg = val;
+                        } else if (isNonDg) {
+                            dg = 'Non-DG';
                         }
                     }
 
@@ -905,7 +919,7 @@ export default function ScanDhsPage() {
                     jmlhPaket: (paket !== undefined && !isNaN(paket)) ? paket : undefined,
                     berat: (berat !== undefined && !isNaN(berat)) ? berat : undefined,
                     toType: (type === "" || type === "-") ? undefined : type,
-                    dgType: (dg === "" || dg === "-" || dg.toLowerCase() === "non-dg") ? undefined : dg,
+                    dgType: (dg === "" || dg === "-" || dg.toLowerCase().includes("non-dg") || dg.toLowerCase().includes("non dg")) ? undefined : dg,
                     tujuan: (tujuan === "" || tujuan === "-") ? undefined : tujuan
                 });
             }
@@ -992,7 +1006,7 @@ export default function ScanDhsPage() {
                     jmlhPaket: (jmlhPaket !== undefined && !isNaN(jmlhPaket)) ? jmlhPaket : undefined,
                     berat: (berat !== undefined && !isNaN(berat)) ? berat : undefined,
                     toType: toType || undefined,
-                    dgType: dgType || undefined
+                    dgType: (dgType === "" || dgType === "-" || dgType.toLowerCase().includes("non-dg") || dgType.toLowerCase().includes("non dg")) ? undefined : dgType
                 });
             } else {
                 // Fallback: search the whole line for TO or SPXID pattern just in case it's not tabular
