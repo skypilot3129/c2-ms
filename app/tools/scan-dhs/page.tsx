@@ -1530,6 +1530,24 @@ export default function ScanDhsPage() {
         report += `• Status Selesai: *${target.scanPercentage}%*\n`;
         report += `-------------------------------------------\n`;
 
+        // Special handling kolis stats (Liquid & DG)
+        const targetManifest = target.manifest || [];
+        const totalLiquid = targetManifest.filter(isLiquidItem).length;
+        const scannedLiquid = targetManifest.filter((i: any) => isLiquidItem(i) && i.status === 'scanned').length;
+        const totalDg = targetManifest.filter((i: any) => isDgItem(i) && !isLiquidItem(i)).length;
+        const scannedDg = targetManifest.filter((i: any) => isDgItem(i) && !isLiquidItem(i) && i.status === 'scanned').length;
+
+        if (totalLiquid > 0 || totalDg > 0) {
+            report += `*INFO PENANGANAN KHUSUS*\n`;
+            if (totalLiquid > 0) {
+                report += `• 💧 Kargo Cairan (Liquid): *${scannedLiquid} / ${totalLiquid} Koli ter-scan*\n`;
+            }
+            if (totalDg > 0) {
+                report += `• ⚠️ Kargo Berbahaya (DG Non-Cair): *${scannedDg} / ${totalDg} Koli ter-scan*\n`;
+            }
+            report += `-------------------------------------------\n`;
+        }
+
         if (pendingCount > 0) {
             report += `\n*DAFTAR SELISIH KURANG (BELUM DI-SCAN) [${pendingCount}]:*\n`;
             const missingCodes = target.manifest.filter((i: any) => i.status === 'pending');
@@ -2894,7 +2912,7 @@ export default function ScanDhsPage() {
                                             </div>
 
                                             {/* Calculations of Weight and Packages (CRITICAL STATS DISPLAY) */}
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-3.5 bg-blue-950/20 border border-blue-900/30 rounded-2xl">
+                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-3.5 bg-blue-950/20 border border-blue-900/30 rounded-2xl">
                                                 <div className="space-y-1">
                                                     <span className="text-[9px] font-extrabold text-blue-400 uppercase tracking-wider block">Laporan Perhitungan Jumlah Paket (Koli)</span>
                                                     <div className="flex justify-between items-baseline text-xs text-slate-350">
@@ -2929,6 +2947,27 @@ export default function ScanDhsPage() {
                                                     <div className="flex justify-between items-baseline border-t border-slate-800/80 pt-1 text-xs font-bold text-slate-200">
                                                         <span>Total Berat Fisik Ter-scan:</span>
                                                         <span className="font-mono text-white">{scannedBerat.toFixed(3)} kg</span>
+                                                    </div>
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <span className="text-[9px] font-extrabold text-amber-400 uppercase tracking-wider block">Laporan Koli Khusus (Cairan &amp; DG)</span>
+                                                    <div className="flex justify-between items-baseline text-xs text-slate-350">
+                                                        <span>Kargo Cairan (Liquid):</span>
+                                                        <span className="font-mono font-bold text-amber-400">
+                                                            {data.manifestItems.filter(isLiquidItem).filter(i => i.status === 'scanned').length} / {data.manifestItems.filter(isLiquidItem).length} Koli
+                                                        </span>
+                                                    </div>
+                                                    <div className="flex justify-between items-baseline text-xs text-slate-350">
+                                                        <span>Kargo Berbahaya (DG Non-Cair):</span>
+                                                        <span className="font-mono font-bold text-red-400">
+                                                            {data.manifestItems.filter(i => isDgItem(i) && !isLiquidItem(i)).filter(i => i.status === 'scanned').length} / {data.manifestItems.filter(i => isDgItem(i) && !isLiquidItem(i)).length} Koli
+                                                        </span>
+                                                    </div>
+                                                    <div className="flex justify-between items-baseline border-t border-slate-800/80 pt-1 text-xs font-bold text-slate-200">
+                                                        <span>Total Ter-scan Khusus:</span>
+                                                        <span className="font-mono text-white">
+                                                            {data.manifestItems.filter(i => isSpecialItem(i) && i.status === 'scanned').length} / {data.manifestItems.filter(isSpecialItem).length} Koli
+                                                        </span>
                                                     </div>
                                                 </div>
                                             </div>
@@ -2966,8 +3005,24 @@ export default function ScanDhsPage() {
                                                                     <td className="p-2.5 text-center font-mono text-slate-350">{item.jmlhPaket !== undefined ? item.jmlhPaket : '-'}</td>
                                                                     <td className="p-2.5 text-center font-mono text-slate-350">{item.berat !== undefined ? item.berat.toFixed(3) : '-'}</td>
                                                                     <td className="p-2.5 text-slate-300 font-medium">{item.tujuan || '-'}</td>
-                                                                    <td className="p-2.5 text-center text-slate-350">{item.toType || '-'}</td>
-                                                                    <td className="p-2.5 text-center text-slate-350">{item.dgType || '-'}</td>
+                                                                    <td className="p-2.5 text-center">
+                                                                        {isLiquidItem(item) ? (
+                                                                            <span className="text-amber-400 font-bold flex items-center justify-center gap-0.5">
+                                                                                💧 {item.toType}
+                                                                            </span>
+                                                                        ) : (
+                                                                            item.toType || '-'
+                                                                        )}
+                                                                    </td>
+                                                                    <td className="p-2.5 text-center">
+                                                                        {isDgItem(item) ? (
+                                                                            <span className="text-red-400 font-black flex items-center justify-center gap-0.5">
+                                                                                ⚠️ {item.dgType}
+                                                                            </span>
+                                                                        ) : (
+                                                                            item.dgType || '-'
+                                                                        )}
+                                                                    </td>
                                                                     <td className="p-2.5 font-mono text-slate-400">{item.scanTime || '-'}</td>
                                                                     <td className="p-2.5 text-amber-400 font-medium italic text-[10px]" title={item.note}>{item.note || '-'}</td>
                                                                     <td className="p-2.5 text-right">
@@ -3068,6 +3123,18 @@ export default function ScanDhsPage() {
                                                 <span className="col-span-4 font-semibold text-slate-400">Tipe Sesi</span>
                                                 <span className="col-span-8 font-bold text-white">: {sessionType} DHS</span>
                                             </div>
+                                            {manifest.filter(isSpecialItem).length > 0 && (
+                                                <>
+                                                    <div className="grid grid-cols-12 gap-1 border-t border-slate-800/80 pt-1.5 mt-1">
+                                                        <span className="col-span-4 font-semibold text-slate-400">Koli Cairan (Liquid)</span>
+                                                        <span className="col-span-8 font-bold text-amber-400">: {manifest.filter(isLiquidItem).filter(i => i.status === 'scanned').length} / {manifest.filter(isLiquidItem).length} Koli Ter-scan</span>
+                                                    </div>
+                                                    <div className="grid grid-cols-12 gap-1">
+                                                        <span className="col-span-4 font-semibold text-slate-400">Koli Berbahaya (DG Non-Cair)</span>
+                                                        <span className="col-span-8 font-bold text-red-400">: {manifest.filter(i => isDgItem(i) && !isLiquidItem(i)).filter(i => i.status === 'scanned').length} / {manifest.filter(i => isDgItem(i) && !isLiquidItem(i)).length} Koli Ter-scan</span>
+                                                    </div>
+                                                </>
+                                            )}
                                         </div>
                                     </div>
 
