@@ -136,7 +136,7 @@ export default function ScanDhsPage() {
     const [showRecoveryModal, setShowRecoveryModal] = useState<boolean>(false);
 
     // Custom filter tabs & audio settings states
-    const [activeFilterTab, setActiveFilterTab] = useState<'all' | 'pending' | 'scanned' | 'extra' | 'special'>('all');
+    const [activeFilterTab, setActiveFilterTab] = useState<'all' | 'pending' | 'scanned' | 'liquid' | 'dg' | 'extra'>('all');
     const [wrongScanText, setWrongScanText] = useState<string>('Salah');
     const [duplicateText, setDuplicateText] = useState<string>('Duplikat');
     const [doubleScanText, setDoubleScanText] = useState<string>('T O tetap sama');
@@ -1703,8 +1703,19 @@ export default function ScanDhsPage() {
             item.code.toLowerCase().includes(search)
         );
 
-        if (activeFilterTab === 'special') {
-            return filteredManifest.filter(isSpecialItem).sort((a, b) => {
+        if (activeFilterTab === 'liquid') {
+            return filteredManifest.filter(isLiquidItem).sort((a, b) => {
+                if (a.status === 'scanned' && b.status === 'pending') return -1;
+                if (a.status === 'pending' && b.status === 'scanned') return 1;
+                if (a.status === 'scanned' && b.status === 'scanned') {
+                    const timeA = getLastScanTime(a.scanTime);
+                    const timeB = getLastScanTime(b.scanTime);
+                    return timeB.localeCompare(timeA);
+                }
+                return 0;
+            });
+        } else if (activeFilterTab === 'dg') {
+            return filteredManifest.filter(item => isDgItem(item) && !isLiquidItem(item)).sort((a, b) => {
                 if (a.status === 'scanned' && b.status === 'pending') return -1;
                 if (a.status === 'pending' && b.status === 'scanned') return 1;
                 if (a.status === 'scanned' && b.status === 'scanned') {
@@ -2375,7 +2386,7 @@ export default function ScanDhsPage() {
                             </div>
 
                             {/* Filter Tabs */}
-                            <div className="grid grid-cols-5 gap-1 bg-slate-900/60 p-1 rounded-xl border border-slate-800 text-[10px] font-bold mt-1">
+                            <div className="grid grid-cols-6 gap-1 bg-slate-900/60 p-1 rounded-xl border border-slate-800 text-[9px] font-bold mt-1">
                                 <button
                                     type="button"
                                     onClick={() => setActiveFilterTab('all')}
@@ -2402,18 +2413,26 @@ export default function ScanDhsPage() {
                                 </button>
                                 <button
                                     type="button"
-                                    onClick={() => setActiveFilterTab('special')}
-                                    className={`py-1.5 rounded-lg text-center transition-all flex items-center justify-center gap-1 ${activeFilterTab === 'special' ? 'bg-amber-950/40 text-amber-450 border border-amber-900/30' : 'text-slate-400 hover:text-slate-200'}`}
+                                    onClick={() => setActiveFilterTab('liquid')}
+                                    className={`py-1.5 rounded-lg text-center transition-all flex items-center justify-center gap-1 ${activeFilterTab === 'liquid' ? 'bg-amber-950/40 text-amber-450 border border-amber-900/30' : 'text-slate-400 hover:text-slate-200'}`}
                                 >
                                     <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
-                                    Liquid/DG ({manifest.filter(isSpecialItem).length})
+                                    Liquid ({manifest.filter(isLiquidItem).length})
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setActiveFilterTab('dg')}
+                                    className={`py-1.5 rounded-lg text-center transition-all flex items-center justify-center gap-1 ${activeFilterTab === 'dg' ? 'bg-red-950/40 text-red-450 border border-red-900/30' : 'text-slate-400 hover:text-slate-200'}`}
+                                >
+                                    <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>
+                                    DG Non-Cair ({manifest.filter(item => isDgItem(item) && !isLiquidItem(item)).length})
                                 </button>
                                 <button
                                     type="button"
                                     onClick={() => setActiveFilterTab('extra')}
-                                    className={`py-1.5 rounded-lg text-center transition-all flex items-center justify-center gap-1 ${activeFilterTab === 'extra' ? 'bg-red-950/40 text-red-455 border border-red-900/30' : 'text-slate-400 hover:text-slate-200'}`}
+                                    className={`py-1.5 rounded-lg text-center transition-all flex items-center justify-center gap-1 ${activeFilterTab === 'extra' ? 'bg-slate-800/40 text-slate-300 border border-slate-700/30' : 'text-slate-400 hover:text-slate-200'}`}
                                 >
-                                    <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>
+                                    <span className="w-1.5 h-1.5 rounded-full bg-slate-500"></span>
                                     Lebih ({extraScans.length})
                                 </button>
                             </div>
@@ -2425,7 +2444,8 @@ export default function ScanDhsPage() {
                                         {activeFilterTab === 'all' && `Daftar Manifest (${totalTarget} Koli)`}
                                         {activeFilterTab === 'pending' && `Barang Belum Scan (${manifest.filter(i => i.status === 'pending').length} Koli)`}
                                         {activeFilterTab === 'scanned' && `Barang Sudah Cocok (${manifest.filter(i => i.status === 'scanned').length} Koli)`}
-                                        {activeFilterTab === 'special' && `Barang Khusus Liquid/DG (${manifest.filter(isSpecialItem).length} Koli)`}
+                                        {activeFilterTab === 'liquid' && `Barang Cairan (${manifest.filter(isLiquidItem).length} Koli)`}
+                                        {activeFilterTab === 'dg' && `Barang Berbahaya Non-Cair (${manifest.filter(item => isDgItem(item) && !isLiquidItem(item)).length} Koli)`}
                                         {activeFilterTab === 'extra' && `Barang Selisih Lebih (${extraScans.length} Koli)`}
                                     </span>
                                     {driverName && <span className="text-[10px] font-bold text-blue-400 bg-blue-950/20 px-2 py-0.5 rounded border border-blue-900/50 uppercase">{sessionType} - TRUK {noPolisi || ''}</span>}
@@ -2440,11 +2460,17 @@ export default function ScanDhsPage() {
                                                     <span className="font-bold text-emerald-400">Semua koli sudah ter-scan!</span>
                                                     <span className="text-[10px] text-slate-600">Manifest telah selesai diproses.</span>
                                                 </>
-                                            ) : activeFilterTab === 'special' ? (
+                                            ) : activeFilterTab === 'liquid' ? (
+                                                <>
+                                                    <span className="text-2xl">💧</span>
+                                                    <span className="font-semibold text-slate-400">Tidak ada koli Liquid</span>
+                                                    <span className="text-[10px] text-slate-600">Sesi pemindaian tidak memiliki kargo cairan.</span>
+                                                </>
+                                            ) : activeFilterTab === 'dg' ? (
                                                 <>
                                                     <span className="text-2xl">⚠️</span>
-                                                    <span className="font-semibold text-slate-400">Tidak ada koli Liquid / DG</span>
-                                                    <span className="text-[10px] text-slate-650">Sesi pemindaian aman dari barang cairan atau berbahaya.</span>
+                                                    <span className="font-semibold text-slate-400">Tidak ada koli Berbahaya (Non-Cair)</span>
+                                                    <span className="text-[10px] text-slate-600">Sesi pemindaian tidak memiliki kargo berbahaya non-cair.</span>
                                                 </>
                                             ) : activeFilterTab === 'extra' ? (
                                                 <>
