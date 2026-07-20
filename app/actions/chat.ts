@@ -255,3 +255,56 @@ export async function chatWithGemini(history: ChatMessage[], message: string, us
         return { error: `Terjadi kesalahan (${errorMessage}). Silakan coba lagi.` };
     }
 }
+
+export async function translateVoiceAlerts(targetLanguage: string) {
+    if (!apiKey) {
+        return { error: 'API Key Gemini tidak dikonfigurasi di server.' };
+    }
+
+    try {
+        const model = genAI.getGenerativeModel({
+            model: 'gemini-1.5-flash',
+            generationConfig: { responseMimeType: 'application/json' }
+        });
+
+        const prompt = `You are a translator assisting a warehouse logistics operator. We need to translate the Indonesian TTS voice alert prompts of a barcode scan checking system into the target language: "${targetLanguage}".
+We need a JSON response containing two fields:
+1. "numbers": A dictionary mapping numbers from 1 to 50 (as string keys "1", "2", etc. up to "50") to their spoken word representations in the target language. For regional languages (like Javanese, Bugis, Sundanese, Makassar) or foreign languages (like English, Chinese, Japanese, etc.), provide their natural phonetic/pronounceable words.
+2. "warnings": A dictionary with the following keys and their spoken translations in the target language:
+   - "cairan": Spoken translation for "Awas, cairan!" (indicating a scanned item has liquid cargo)
+   - "dg": Spoken translation for "Awas, barang berbahaya!" (indicating dangerous goods)
+   - "cairan_dg": Spoken translation for "Awas, cairan berbahaya!" (both liquid and dangerous goods)
+   - "salah": Spoken translation for "Salah" (wrong barcode / not in manifest)
+   - "duplikat": Spoken translation for "Duplikat" (already scanned koli)
+   - "dobel": Spoken translation for "T O tetap sama" (duplicate barcode scan on same TO)
+
+Example JSON structure:
+{
+  "numbers": {
+    "1": "one",
+    "2": "two",
+    "50": "fifty"
+  },
+  "warnings": {
+    "cairan": "Caution, liquid!",
+    "dg": "Caution, dangerous goods!",
+    "cairan_dg": "Caution, dangerous liquid!",
+    "salah": "Wrong scan",
+    "duplikat": "Duplicate scan",
+    "dobel": "T O remains the same"
+  }
+}
+Please return ONLY the JSON object. Do not include markdown code block formatting or other text.`;
+
+        const result = await model.generateContent(prompt);
+        const responseText = result.response.text();
+        
+        // Clean up formatting if any
+        const cleanJson = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
+        const data = JSON.parse(cleanJson);
+        return { success: true, data };
+    } catch (error: any) {
+        console.error('Error translating with Gemini:', error);
+        return { error: `Gagal menerjemahkan: ${error?.message || error}` };
+    }
+}

@@ -25,6 +25,7 @@ import {
     MessageSquare,
     Headphones
 } from 'lucide-react';
+import { translateVoiceAlerts } from '@/app/actions/chat';
 
 interface ManifestItem {
     id: string;
@@ -147,6 +148,11 @@ export default function ScanDhsPage() {
     // Sound profile states
     const [soundProfile, setSoundProfile] = useState<SoundProfileKey>('gudang');
     const [beepVolume, setBeepVolume] = useState<number>(0.2);
+    
+    // Translation with Gemini states
+    const [selectedLanguage, setSelectedLanguage] = useState<string>('id');
+    const [translatedSpeech, setTranslatedSpeech] = useState<{ numbers: Record<string, string>; warnings: Record<string, string> } | null>(null);
+    const [isTranslating, setIsTranslating] = useState<boolean>(false);
 
     // Per-item notes states
     const [noteEditingItemId, setNoteEditingItemId] = useState<string | null>(null);
@@ -455,6 +461,31 @@ export default function ScanDhsPage() {
     // Helper to check if an item is a Special item (Liquid or DG)
     const isSpecialItem = (item: { toType?: string; dgType?: string }) => {
         return isLiquidItem(item) || isDgItem(item);
+    };
+
+    const getSpokenWarningText = (sequenceNumber: number, isLiquid: boolean, isDangerous: boolean) => {
+        if (translatedSpeech && translatedSpeech.warnings) {
+            const numStr = translatedSpeech.numbers[String(sequenceNumber)] || String(sequenceNumber);
+            let warn = '';
+            if (isLiquid && isDangerous) {
+                warn = translatedSpeech.warnings.cairan_dg || 'cairan berbahaya';
+            } else if (isLiquid) {
+                warn = translatedSpeech.warnings.cairan || 'cairan';
+            } else {
+                warn = translatedSpeech.warnings.dg || 'barang berbahaya';
+            }
+            return `${numStr}. ${warn}`;
+        } else {
+            let warn = '';
+            if (isLiquid && isDangerous) {
+                warn = 'cairan berbahaya';
+            } else if (isLiquid) {
+                warn = 'cairan';
+            } else {
+                warn = 'barang berbahaya';
+            }
+            return `${numberToIndonesianWords(sequenceNumber)}. Awas, ${warn}!`;
+        }
     };
 
     // Voice TTS helper using Web Speech API
@@ -1214,16 +1245,8 @@ export default function ScanDhsPage() {
                 playBeep(660, 0.25, true); // Distinct alarm beep sequence
                 triggerVibration([100, 100, 100]);
 
-                let warningSpeech = '';
-                if (isLiquid && isDangerous) {
-                    warningSpeech = 'cairan berbahaya';
-                } else if (isLiquid) {
-                    warningSpeech = 'cairan';
-                } else {
-                    warningSpeech = 'barang berbahaya';
-                }
-
-                speakText(`${numberToIndonesianWords(sequenceNumber)}. Awas, ${warningSpeech}!`);
+                const warnTxt = getSpokenWarningText(sequenceNumber, isLiquid, isDangerous);
+                speakText(warnTxt);
             } else {
                 // Normal item handling
                 setScanAlert({
@@ -1234,7 +1257,7 @@ export default function ScanDhsPage() {
                 triggerFlash('green');
                 playBeep(880, 0.12, true); // Double high beep
                 triggerVibration(100);
-                speakText(numberToIndonesianWords(sequenceNumber));
+                speakText(translatedSpeech?.numbers[String(sequenceNumber)] || numberToIndonesianWords(sequenceNumber));
             }
             return;
         }
@@ -1334,7 +1357,7 @@ export default function ScanDhsPage() {
             triggerVibration(100);
 
             // Speak the sequence number
-            speakText(numberToIndonesianWords(sequenceNumber));
+            speakText(translatedSpeech?.numbers[String(sequenceNumber)] || numberToIndonesianWords(sequenceNumber));
         }
     };
 
@@ -1685,6 +1708,53 @@ export default function ScanDhsPage() {
         }
     };
 
+    const handleDeleteManifestItem = (id: string, code: string) => {
+        if (confirm(`Hapus koli manifest: ${code} dari daftar manifest? Tindakan ini tidak dapat dibatalkan.`)) {
+            const updated = manifest.filter(item => item.id !== id);
+            setManifest(updated);
+            if (editingItemId === id) {
+                setEditingItemId(null);
+            }
+            setScanAlert({
+                type: 'success',
+                message: `Berhasil menghapus koli manifest: ${code}`
+            });
+        }
+    };
+
+    const handleTranslateSpeech = async (langName: string, langCode: string) => {
+        if (langCode === 'id') {
+            setTranslatedSpeech(null);
+            setSelectedLanguage('id');
+            return;
+        }
+
+        setIsTranslating(true);
+        try {
+            const res = await translateVoiceAlerts(langName);
+            if (res.error) {
+                alert(`Gagal menerjemahkan: ${res.error}`);
+            } else if (res.success && res.data) {
+                setTranslatedSpeech(res.data);
+                setSelectedLanguage(langCode);
+                
+                // Override default texts if translated warnings exist
+                if (res.data.warnings) {
+                    if (res.data.warnings.salah) setWrongScanText(res.data.warnings.salah);
+                    if (res.data.warnings.duplikat) setDuplicateText(res.data.warnings.duplikat);
+                    if (res.data.warnings.dobel) setDoubleScanText(res.data.warnings.dobel);
+                }
+                
+                alert(`Teks suara berhasil diterjemahkan ke ${langName} menggunakan Gemini!`);
+            }
+        } catch (e: any) {
+            console.error('Translation error:', e);
+            alert(`Terjadi kesalahan saat menghubungi Gemini: ${e?.message || e}`);
+        } finally {
+            setIsTranslating(false);
+        }
+    };
+
     // Delete a specific history log item
     const handleDeleteHistoryItem = (id: string) => {
         if (confirm("Hapus item riwayat ini?")) {
@@ -1857,7 +1927,7 @@ export default function ScanDhsPage() {
                             warmupAudio();
                             setTimeout(() => {
                                 playBeep(880, 0.12, true);
-                                speakText("Satu");
+                                speakText(translatedSpeech?.numbers["1"] || "Satu");
                             }, 100);
                         }}
                         className="bg-blue-600 hover:bg-blue-500 text-white px-3 py-2.5 rounded-xl flex items-center justify-center gap-1.5 transition-colors border border-blue-500"
@@ -2277,6 +2347,51 @@ export default function ScanDhsPage() {
                                             />
                                         </div>
 
+                                        {/* Gemini Translation Selector */}
+                                        <div className="space-y-2 pt-2 border-t border-slate-800">
+                                            <div className="flex items-center gap-1.5 font-semibold text-slate-400">
+                                                <Headphones size={14} className="text-amber-400" />
+                                                <span>Bahasa Suara (Gemini AI)</span>
+                                            </div>
+                                            <div className="grid grid-cols-3 gap-1.5">
+                                                {[
+                                                    { code: 'id', name: 'Bahasa Indonesia', label: '🇮🇩 Indonesia' },
+                                                    { code: 'en', name: 'English (US)', label: '🇺🇸 English' },
+                                                    { code: 'jv', name: 'Jawa', label: '🇮🇩 Jawa' },
+                                                    { code: 'bug', name: 'Bugis', label: '🇮🇩 Bugis' },
+                                                    { code: 'mk', name: 'Makassar', label: '🇮🇩 Makassar' },
+                                                    { code: 'su', name: 'Sunda', label: '🇮🇩 Sunda' },
+                                                    { code: 'jp', name: 'Japanese', label: '🇯🇵 Japanese' },
+                                                    { code: 'cn', name: 'Mandarin Chinese', label: '🇨🇳 Mandarin' },
+                                                    { code: 'ar', name: 'Arabic', label: '🇸🇦 Arabic' }
+                                                ].map((lang) => (
+                                                    <button
+                                                        key={lang.code}
+                                                        type="button"
+                                                        disabled={isTranslating}
+                                                        onClick={() => handleTranslateSpeech(lang.name, lang.code)}
+                                                        className={`py-1.5 rounded-lg border text-center transition-all text-[10px] font-bold ${
+                                                            selectedLanguage === lang.code
+                                                                ? 'bg-amber-950/40 border-amber-500 text-amber-400 ring-1 ring-amber-500/30'
+                                                                : 'bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-200'
+                                                        } ${isTranslating ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                                    >
+                                                        {lang.label}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                            {isTranslating && (
+                                                <p className="text-[10px] text-amber-400 animate-pulse font-medium">
+                                                    ⏳ Menghubungi Gemini AI untuk menerjemahkan prompts suara...
+                                                </p>
+                                            )}
+                                            {selectedLanguage !== 'id' && !isTranslating && (
+                                                <p className="text-[10px] text-emerald-400 font-medium">
+                                                    ✨ Terjemahan Aktif: Prompts suara telah dialihkan ke {selectedLanguage.toUpperCase()}!
+                                                </p>
+                                            )}
+                                        </div>
+
                                         {/* Custom Warning Voice Inputs */}
                                         <div className="space-y-3 pt-2 border-t border-slate-800">
                                             <span className="font-semibold text-slate-400 block mb-1">Kustomisasi Teks Peringatan TTS</span>
@@ -2686,19 +2801,27 @@ export default function ScanDhsPage() {
                                                                 />
                                                             </div>
                                                         </div>
-                                                        <div className="flex gap-2 justify-end pt-1 border-t border-slate-800/60 mt-1">
+                                                        <div className="flex gap-2 justify-between pt-1 border-t border-slate-800/60 mt-1">
                                                             <button
-                                                                onClick={handleCancelEditItem}
-                                                                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-750 text-slate-300 text-xs font-bold rounded-lg transition-colors"
+                                                                onClick={() => handleDeleteManifestItem(item.id, item.code)}
+                                                                className="px-3 py-1.5 bg-red-950/40 hover:bg-red-900 border border-red-900/30 text-red-400 hover:text-white text-xs font-bold rounded-lg transition-colors flex items-center gap-1"
                                                             >
-                                                                Batal
+                                                                <Trash2 size={12} /> Hapus
                                                             </button>
-                                                            <button
-                                                                onClick={() => handleSaveEditItem(item.id)}
-                                                                className="px-3 py-1.5 bg-yellow-600 hover:bg-yellow-700 text-white text-xs font-bold rounded-lg transition-colors"
-                                                            >
-                                                                Simpan
-                                                            </button>
+                                                            <div className="flex gap-2">
+                                                                <button
+                                                                    onClick={handleCancelEditItem}
+                                                                    className="px-3 py-1.5 bg-slate-800 hover:bg-slate-750 text-slate-300 text-xs font-bold rounded-lg transition-colors"
+                                                                >
+                                                                    Batal
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => handleSaveEditItem(item.id)}
+                                                                    className="px-3 py-1.5 bg-yellow-600 hover:bg-yellow-700 text-white text-xs font-bold rounded-lg transition-colors"
+                                                                >
+                                                                    Simpan
+                                                                </button>
+                                                            </div>
                                                         </div>
                                                     </div>
                                                 );
@@ -2753,6 +2876,13 @@ export default function ScanDhsPage() {
                                                                     >
                                                                         <Edit size={10} />
                                                                     </button>
+                                                                    <button
+                                                                        onClick={() => handleDeleteManifestItem(item.id, item.code)}
+                                                                        className="p-1 bg-slate-850 hover:bg-red-900 border border-slate-750 hover:border-red-800 text-slate-350 hover:text-white rounded-lg transition-all"
+                                                                        title="Hapus Koli Manifest"
+                                                                    >
+                                                                        <Trash2 size={10} />
+                                                                    </button>
                                                                     <Check size={14} className="text-emerald-400" />
                                                                 </div>
                                                             ) : (
@@ -2771,6 +2901,13 @@ export default function ScanDhsPage() {
                                                                         title="Edit Data TO"
                                                                     >
                                                                         <Edit size={10} />
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={() => handleDeleteManifestItem(item.id, item.code)}
+                                                                        className="p-1 bg-slate-800 hover:bg-red-900 border border-slate-700 hover:border-red-800 text-slate-300 hover:text-white rounded-lg transition-all"
+                                                                        title="Hapus Koli Manifest"
+                                                                    >
+                                                                        <Trash2 size={10} />
                                                                     </button>
                                                                     <button
                                                                         onClick={() => handleManualBypass(item.id)}
