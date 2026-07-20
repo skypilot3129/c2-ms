@@ -1722,6 +1722,21 @@ export default function ScanDhsPage() {
         }
     };
 
+    const handleDeleteAllPending = () => {
+        const pendingCount = manifest.filter(item => item.status === 'pending').length;
+        if (pendingCount === 0) return;
+
+        if (confirm(`Apakah Anda yakin ingin menghapus SEMUA koli pending (${pendingCount} koli) dari manifest? Tindakan ini tidak dapat dibatalkan.`)) {
+            const updated = manifest.filter(item => item.status !== 'pending');
+            setManifest(updated);
+            setEditingItemId(null);
+            setScanAlert({
+                type: 'success',
+                message: `Berhasil menghapus seluruh koli pending (${pendingCount} koli)`
+            });
+        }
+    };
+
     const handleTranslateSpeech = async (langName: string, langCode: string) => {
         if (langCode === 'id') {
             setTranslatedSpeech(null);
@@ -2361,6 +2376,7 @@ export default function ScanDhsPage() {
                                                     { code: 'bug', name: 'Bugis', label: '🇮🇩 Bugis' },
                                                     { code: 'mk', name: 'Makassar', label: '🇮🇩 Makassar' },
                                                     { code: 'su', name: 'Sunda', label: '🇮🇩 Sunda' },
+                                                    { code: 'mad', name: 'Madura', label: '🇮🇩 Madura' },
                                                     { code: 'jp', name: 'Japanese', label: '🇯🇵 Japanese' },
                                                     { code: 'cn', name: 'Mandarin Chinese', label: '🇨🇳 Mandarin' },
                                                     { code: 'ar', name: 'Arabic', label: '🇸🇦 Arabic' }
@@ -2595,7 +2611,18 @@ export default function ScanDhsPage() {
                                         {activeFilterTab === 'dg' && `Barang Berbahaya Non-Cair (${manifest.filter(item => isDgItem(item) && !isLiquidItem(item)).length} Koli)`}
                                         {activeFilterTab === 'extra' && `Barang Selisih Lebih (${extraScans.length} Koli)`}
                                     </span>
-                                    {driverName && <span className="text-[10px] font-bold text-blue-400 bg-blue-950/20 px-2 py-0.5 rounded border border-blue-900/50 uppercase">{sessionType} - TRUK {noPolisi || ''}</span>}
+                                    <div className="flex items-center gap-2">
+                                        {manifest.filter(i => i.status === 'pending').length > 0 && (
+                                            <button
+                                                type="button"
+                                                onClick={handleDeleteAllPending}
+                                                className="text-[9px] font-bold bg-red-950/40 text-red-400 border border-red-900/35 hover:bg-red-900 hover:text-white px-2 py-0.5 rounded transition-all shadow-sm"
+                                            >
+                                                🗑️ Hapus Semua Pending
+                                            </button>
+                                        )}
+                                        {driverName && <span className="text-[10px] font-bold text-blue-400 bg-blue-950/20 px-2 py-0.5 rounded border border-blue-900/50 uppercase">{sessionType} - TRUK {noPolisi || ''}</span>}
+                                    </div>
                                 </h3>
 
                                 <div className="flex-1 overflow-y-auto pr-1 space-y-2">
