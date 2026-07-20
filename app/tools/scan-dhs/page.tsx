@@ -299,6 +299,14 @@ export default function ScanDhsPage() {
     const audioCtxRef = useRef<AudioContext | null>(null);
     const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
 
+    // Stale closure prevention refs
+    const processBarcodeRef = useRef<(scannedCode: string) => void>(() => {});
+    const geminiAudioCacheRef = useRef<Record<string, { data: string; mimeType: string }>>({});
+    const soundEnabledRef = useRef<boolean>(false);
+    const speechRateRef = useRef<number>(1);
+    const selectedVoiceNameRef = useRef<string>('');
+    const selectedLanguageRef = useRef<string>('');
+
     // Warm up/Resume AudioContext and speech synthesis helper
     const warmupAudio = () => {
         try {
@@ -498,11 +506,11 @@ export default function ScanDhsPage() {
 
     // Voice TTS helper using Gemini AI Audio (primary) or Web Speech API (fallback)
     const speakText = (text: string) => {
-        if (!soundEnabled) return;
+        if (!soundEnabledRef.current) return;
         try {
             // --- Gemini TTS Audio Cache Playback (PRIORITY) ---
-            if (geminiAudioCache[text]) {
-                const cached = geminiAudioCache[text];
+            if (geminiAudioCacheRef.current[text]) {
+                const cached = geminiAudioCacheRef.current[text];
                 try {
                     const mime = cached.mimeType;
                     // Check if it's raw PCM (L16) format — need to convert to playable WAV
@@ -532,7 +540,7 @@ export default function ScanDhsPage() {
                         const wavBlob = new Blob([wavHeader, rawBytes], { type: 'audio/wav' });
                         const wavUrl = URL.createObjectURL(wavBlob);
                         const audio = new Audio(wavUrl);
-                        audio.playbackRate = speechRate;
+                        audio.playbackRate = speechRateRef.current;
                         audio.onended = () => URL.revokeObjectURL(wavUrl);
                         audio.onerror = () => URL.revokeObjectURL(wavUrl);
                         audio.play().catch(() => {});
@@ -540,7 +548,7 @@ export default function ScanDhsPage() {
                         // Direct playback for other audio formats (mp3, ogg, wav, etc.)
                         const audioUrl = `data:${mime};base64,${cached.data}`;
                         const audio = new Audio(audioUrl);
-                        audio.playbackRate = speechRate;
+                        audio.playbackRate = speechRateRef.current;
                         audio.play().catch(() => {});
                     }
                     return; // Successfully played Gemini audio, skip Web Speech API
@@ -562,19 +570,19 @@ export default function ScanDhsPage() {
                     let chosenVoice: SpeechSynthesisVoice | undefined;
 
                     // 1. Check if user explicitly selected a voice
-                    if (selectedVoiceName) {
-                        chosenVoice = voices.find(v => v.name === selectedVoiceName);
+                    if (selectedVoiceNameRef.current) {
+                        chosenVoice = voices.find(v => v.name === selectedVoiceNameRef.current);
                     }
 
                     // 2. If not selected, try to match the active selectedLanguage prefix
-                    if (!chosenVoice && selectedLanguage !== 'id') {
+                    if (!chosenVoice && selectedLanguageRef.current !== 'id') {
                         const langMap: Record<string, string> = {
                             en: 'en',
                             jp: 'ja',
                             cn: 'zh',
                             ar: 'ar'
                         };
-                        const targetPrefix = langMap[selectedLanguage];
+                        const targetPrefix = langMap[selectedLanguageRef.current];
                         if (targetPrefix) {
                             chosenVoice = voices.find(v => v.lang.toLowerCase().startsWith(targetPrefix));
                         }
@@ -592,7 +600,7 @@ export default function ScanDhsPage() {
                         utterance.lang = 'id-ID';
                     }
                     
-                    utterance.rate = speechRate;
+                    utterance.rate = speechRateRef.current;
 
                     // Keep a reference to prevent garbage collection mid-speech
                     utteranceRef.current = utterance;
@@ -1549,7 +1557,7 @@ export default function ScanDhsPage() {
                 { facingMode: "environment" },
                 config,
                 (decodedText: string) => {
-                    processBarcode(decodedText);
+                    processBarcodeRef.current(decodedText);
                 },
                 () => {
                     // Ignore verbose scanner noise
@@ -2030,6 +2038,14 @@ export default function ScanDhsPage() {
         note?: string;
         originalIndex: number;
     }[];
+
+    // Sync refs on every render to prevent stale closures in camera/event callbacks
+    processBarcodeRef.current = processBarcode;
+    geminiAudioCacheRef.current = geminiAudioCache;
+    soundEnabledRef.current = soundEnabled;
+    speechRateRef.current = speechRate;
+    selectedVoiceNameRef.current = selectedVoiceName;
+    selectedLanguageRef.current = selectedLanguage;
 
     const displayItemsToRender = displayItems.slice(0, 50);
 
