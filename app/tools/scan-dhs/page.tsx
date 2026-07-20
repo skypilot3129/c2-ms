@@ -153,6 +153,8 @@ export default function ScanDhsPage() {
     const [selectedLanguage, setSelectedLanguage] = useState<string>('id');
     const [translatedSpeech, setTranslatedSpeech] = useState<{ numbers: Record<string, string>; warnings: Record<string, string> } | null>(null);
     const [isTranslating, setIsTranslating] = useState<boolean>(false);
+    const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
+    const [selectedVoiceName, setSelectedVoiceName] = useState<string>('');
 
     // Per-item notes states
     const [noteEditingItemId, setNoteEditingItemId] = useState<string | null>(null);
@@ -500,14 +502,37 @@ export default function ScanDhsPage() {
                 setTimeout(() => {
                     const utterance = new SpeechSynthesisUtterance(text);
                     
-                    // Explicitly fetch available voices to find the best Indonesian voice if available
                     const voices = window.speechSynthesis.getVoices();
-                    const idVoice = voices.find(v => v.lang.startsWith('id') || v.lang.includes('ID'));
-                    if (idVoice) {
-                        utterance.voice = idVoice;
-                        utterance.lang = idVoice.lang;
+                    let chosenVoice: SpeechSynthesisVoice | undefined;
+
+                    // 1. Check if user explicitly selected a voice
+                    if (selectedVoiceName) {
+                        chosenVoice = voices.find(v => v.name === selectedVoiceName);
+                    }
+
+                    // 2. If not selected, try to match the active selectedLanguage prefix
+                    if (!chosenVoice && selectedLanguage !== 'id') {
+                        const langMap: Record<string, string> = {
+                            en: 'en',
+                            jp: 'ja',
+                            cn: 'zh',
+                            ar: 'ar'
+                        };
+                        const targetPrefix = langMap[selectedLanguage];
+                        if (targetPrefix) {
+                            chosenVoice = voices.find(v => v.lang.toLowerCase().startsWith(targetPrefix));
+                        }
+                    }
+
+                    // 3. Fallback to Indonesian if Javanese, Sundanese, Makassar, Bugis, Madura, or fallback is needed
+                    if (!chosenVoice) {
+                        chosenVoice = voices.find(v => v.lang.startsWith('id') || v.lang.includes('ID'));
+                    }
+
+                    if (chosenVoice) {
+                        utterance.voice = chosenVoice;
+                        utterance.lang = chosenVoice.lang;
                     } else {
-                        // Fallback lang
                         utterance.lang = 'id-ID';
                     }
                     
@@ -671,6 +696,9 @@ export default function ScanDhsPage() {
         const savedDouble = localStorage.getItem('cce_audio_double_scan_text');
         if (savedDouble) setDoubleScanText(savedDouble);
 
+        const savedVoice = localStorage.getItem('cce_audio_selected_voice');
+        if (savedVoice) setSelectedVoiceName(savedVoice);
+
         // Check for active unsaved session
         const savedActive = localStorage.getItem('cce_active_scan_session');
         if (savedActive) {
@@ -727,7 +755,8 @@ export default function ScanDhsPage() {
         localStorage.setItem('cce_audio_wrong_scan_text', wrongScanText);
         localStorage.setItem('cce_audio_duplicate_text', duplicateText);
         localStorage.setItem('cce_audio_double_scan_text', doubleScanText);
-    }, [speechRate, beepVolume, soundProfile, selectedLanguage, translatedSpeech, wrongScanText, duplicateText, doubleScanText]);
+        localStorage.setItem('cce_audio_selected_voice', selectedVoiceName);
+    }, [speechRate, beepVolume, soundProfile, selectedLanguage, translatedSpeech, wrongScanText, duplicateText, doubleScanText, selectedVoiceName]);
 
     // Handle recovering active session
     const handleConfirmRecovery = () => {
@@ -751,6 +780,23 @@ export default function ScanDhsPage() {
         setPendingRecovery(null);
         setShowRecoveryModal(false);
     };
+
+    // Load available voice models from system/browser text-to-speech engine
+    useEffect(() => {
+        if (typeof window !== 'undefined' && window.speechSynthesis) {
+            const updateVoices = () => {
+                const voices = window.speechSynthesis.getVoices();
+                // Filter duplicates and sort
+                const uniqueVoices = Array.from(new Map(voices.map(v => [v.name, v])).values())
+                    .sort((a, b) => a.name.localeCompare(b.name));
+                setAvailableVoices(uniqueVoices);
+            };
+            updateVoices();
+            if (window.speechSynthesis.onvoiceschanged !== undefined) {
+                window.speechSynthesis.onvoiceschanged = updateVoices;
+            }
+        }
+    }, []);
 
     // Helper function to parse CSV text into a 2D array of strings, supporting commas, semicolons, and tabs
     const parseCSVText = (text: string): string[][] => {
@@ -2437,6 +2483,28 @@ export default function ScanDhsPage() {
                                                 </p>
                                             )}
                                         </div>
+
+                                        {/* Device Voice Model Selector */}
+                                        {availableVoices.length > 0 && (
+                                            <div className="space-y-1.5 pt-2 border-t border-slate-800">
+                                                <label className="font-semibold text-slate-400 block">Model Suara Perangkat (Device TTS Voice)</label>
+                                                <select
+                                                    value={selectedVoiceName}
+                                                    onChange={(e) => setSelectedVoiceName(e.target.value)}
+                                                    className="w-full bg-slate-900 border border-slate-800 text-white rounded-xl px-2.5 py-2 text-[10px] font-bold outline-none focus:border-blue-600 transition-all cursor-pointer"
+                                                >
+                                                    <option value="">-- Suara Default Sistem / Otomatis --</option>
+                                                    {availableVoices.map((voice) => (
+                                                        <option key={voice.name} value={voice.name}>
+                                                            {voice.name} ({voice.lang}) {voice.localService ? '• Lokal' : ''}
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                                <p className="text-[9px] text-slate-500 leading-normal">
+                                                    💡 Pilih model suara berkualitas tinggi (seperti <strong>Google Bahasa Indonesia</strong> atau <strong>Microsoft Natural Voice</strong>) untuk pelafalan yang tidak terdengar seperti robot.
+                                                </p>
+                                            </div>
+                                        )}
 
                                         {/* Custom Warning Voice Inputs */}
                                         <div className="space-y-3 pt-2 border-t border-slate-800">
