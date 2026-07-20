@@ -25,7 +25,7 @@ import {
     MessageSquare,
     Headphones
 } from 'lucide-react';
-import { translateVoiceAlerts } from '@/app/actions/chat';
+import { translateVoiceAlerts, generateAllVoiceClips } from '@/app/actions/chat';
 
 interface ManifestItem {
     id: string;
@@ -155,6 +155,12 @@ export default function ScanDhsPage() {
     const [isTranslating, setIsTranslating] = useState<boolean>(false);
     const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
     const [selectedVoiceName, setSelectedVoiceName] = useState<string>('');
+
+    // Gemini TTS Audio Cache states
+    const [geminiAudioCache, setGeminiAudioCache] = useState<Record<string, { data: string; mimeType: string }>>({});
+    const [geminiVoiceName, setGeminiVoiceName] = useState<string>('');
+    const [isGeneratingAudio, setIsGeneratingAudio] = useState<boolean>(false);
+    const [audioGenProgress, setAudioGenProgress] = useState<string>('');
 
     // Per-item notes states
     const [noteEditingItemId, setNoteEditingItemId] = useState<string | null>(null);
@@ -490,10 +496,60 @@ export default function ScanDhsPage() {
         }
     };
 
-    // Voice TTS helper using Web Speech API
+    // Voice TTS helper using Gemini AI Audio (primary) or Web Speech API (fallback)
     const speakText = (text: string) => {
         if (!soundEnabled) return;
         try {
+            // --- Gemini TTS Audio Cache Playback (PRIORITY) ---
+            if (geminiAudioCache[text]) {
+                const cached = geminiAudioCache[text];
+                try {
+                    const mime = cached.mimeType;
+                    // Check if it's raw PCM (L16) format — need to convert to playable WAV
+                    if (mime.includes('L16') || mime.includes('pcm')) {
+                        const sampleRateMatch = mime.match(/rate=(\d+)/);
+                        const sampleRate = sampleRateMatch ? parseInt(sampleRateMatch[1]) : 24000;
+                        const rawBytes = Uint8Array.from(atob(cached.data), c => c.charCodeAt(0));
+                        
+                        // Create WAV header for 16-bit mono PCM
+                        const wavHeader = new ArrayBuffer(44);
+                        const view = new DataView(wavHeader);
+                        const writeStr = (offset: number, str: string) => { for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i)); };
+                        writeStr(0, 'RIFF');
+                        view.setUint32(4, 36 + rawBytes.length, true);
+                        writeStr(8, 'WAVE');
+                        writeStr(12, 'fmt ');
+                        view.setUint32(16, 16, true);
+                        view.setUint16(20, 1, true); // PCM
+                        view.setUint16(22, 1, true); // mono
+                        view.setUint32(24, sampleRate, true);
+                        view.setUint32(28, sampleRate * 2, true); // byte rate
+                        view.setUint16(32, 2, true); // block align
+                        view.setUint16(34, 16, true); // bits per sample
+                        writeStr(36, 'data');
+                        view.setUint32(40, rawBytes.length, true);
+                        
+                        const wavBlob = new Blob([wavHeader, rawBytes], { type: 'audio/wav' });
+                        const wavUrl = URL.createObjectURL(wavBlob);
+                        const audio = new Audio(wavUrl);
+                        audio.playbackRate = speechRate;
+                        audio.onended = () => URL.revokeObjectURL(wavUrl);
+                        audio.onerror = () => URL.revokeObjectURL(wavUrl);
+                        audio.play().catch(() => {});
+                    } else {
+                        // Direct playback for other audio formats (mp3, ogg, wav, etc.)
+                        const audioUrl = `data:${mime};base64,${cached.data}`;
+                        const audio = new Audio(audioUrl);
+                        audio.playbackRate = speechRate;
+                        audio.play().catch(() => {});
+                    }
+                    return; // Successfully played Gemini audio, skip Web Speech API
+                } catch (e) {
+                    console.warn('Gemini audio playback failed, falling back to Web Speech API:', e);
+                }
+            }
+
+            // --- Web Speech API Fallback ---
             if (typeof window !== 'undefined' && window.speechSynthesis) {
                 // Cancel any ongoing speaking to prioritize the new scan result
                 window.speechSynthesis.cancel();
@@ -698,6 +754,21 @@ export default function ScanDhsPage() {
 
         const savedVoice = localStorage.getItem('cce_audio_selected_voice');
         if (savedVoice) setSelectedVoiceName(savedVoice);
+
+        // Restore Gemini TTS voice name and cached audio
+        const savedGeminiVoice = localStorage.getItem('dhs_gemini_voice_name');
+        if (savedGeminiVoice) setGeminiVoiceName(savedGeminiVoice);
+        
+        try {
+            const savedGeminiCache = localStorage.getItem('dhs_gemini_audio_cache');
+            const savedGeminiCacheVoice = localStorage.getItem('dhs_gemini_audio_cache_voice');
+            if (savedGeminiCache && savedGeminiCacheVoice) {
+                setGeminiAudioCache(JSON.parse(savedGeminiCache));
+                setAudioGenProgress(`✅ ${Object.keys(JSON.parse(savedGeminiCache)).length} audio clips dimuat dari cache (${savedGeminiCacheVoice}).`);
+            }
+        } catch (e) {
+            console.error('Failed to load Gemini audio cache:', e);
+        }
 
         // Check for active unsaved session
         const savedActive = localStorage.getItem('cce_active_scan_session');
@@ -2505,6 +2576,174 @@ export default function ScanDhsPage() {
                                                 </p>
                                             </div>
                                         )}
+
+                                        {/* Gemini AI Premium Voice */}
+                                        <div className="space-y-2 pt-3 border-t border-slate-800">
+                                            <div className="flex items-center justify-between">
+                                                <label className="font-semibold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400 block">
+                                                    ✨ Gemini AI TTS Voice (Premium)
+                                                </label>
+                                                {Object.keys(geminiAudioCache).length > 0 && (
+                                                    <span className="text-[9px] bg-emerald-600/20 text-emerald-400 px-2 py-0.5 rounded-full font-bold">
+                                                        {Object.keys(geminiAudioCache).length} clips cached
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <p className="text-[9px] text-slate-500 leading-normal">
+                                                🎙️ Suara AI premium dari Gemini — terdengar seperti manusia, bukan robot. Pilih model suara, lalu klik Generate.
+                                            </p>
+                                            <select
+                                                value={geminiVoiceName}
+                                                onChange={(e) => {
+                                                    setGeminiVoiceName(e.target.value);
+                                                    if (typeof window !== 'undefined') {
+                                                        localStorage.setItem('dhs_gemini_voice_name', e.target.value);
+                                                    }
+                                                }}
+                                                className="w-full bg-slate-900 border border-purple-800/50 text-white rounded-xl px-2.5 py-2 text-[10px] font-bold outline-none focus:border-purple-500 transition-all cursor-pointer"
+                                            >
+                                                <option value="">-- Pilih Model Suara Gemini --</option>
+                                                {[
+                                                    { name: 'Kore', desc: 'Tegas' }, { name: 'Puck', desc: 'Ceria' },
+                                                    { name: 'Zephyr', desc: 'Cerah' }, { name: 'Aoede', desc: 'Santai' },
+                                                    { name: 'Charon', desc: 'Informatif' }, { name: 'Achernar', desc: 'Lembut' },
+                                                    { name: 'Achird', desc: 'Ramah' }, { name: 'Algenib', desc: 'Berat' },
+                                                    { name: 'Algieba', desc: 'Halus' }, { name: 'Alnilam', desc: 'Tegas' },
+                                                    { name: 'Autonoe', desc: 'Cerah' }, { name: 'Callirrhoe', desc: 'Santai' },
+                                                    { name: 'Despina', desc: 'Halus' }, { name: 'Enceladus', desc: 'Berbisik' },
+                                                    { name: 'Erinome', desc: 'Jernih' }, { name: 'Fenrir', desc: 'Bersemangat' },
+                                                    { name: 'Gacrux', desc: 'Dewasa' }, { name: 'Iapetus', desc: 'Jernih' },
+                                                    { name: 'Laomedeia', desc: 'Ceria' }, { name: 'Leda', desc: 'Muda' },
+                                                    { name: 'Orus', desc: 'Tegas' }, { name: 'Pulcherrima', desc: 'Maju' },
+                                                    { name: 'Rasalgethi', desc: 'Informatif' }, { name: 'Sadachbia', desc: 'Hidup' },
+                                                    { name: 'Sadaltager', desc: 'Berpengalaman' }, { name: 'Schedar', desc: 'Rata' },
+                                                    { name: 'Sulafat', desc: 'Hangat' }, { name: 'Umbriel', desc: 'Santai' },
+                                                    { name: 'Vindemiatrix', desc: 'Lembut' }, { name: 'Zubenelgenubi', desc: 'Kasual' }
+                                                ].map(v => (
+                                                    <option key={v.name} value={v.name}>
+                                                        {v.name} — {v.desc}
+                                                    </option>
+                                                ))}
+                                            </select>
+
+                                            {/* Generate Button */}
+                                            <button
+                                                disabled={!geminiVoiceName || isGeneratingAudio}
+                                                onClick={async () => {
+                                                    if (!geminiVoiceName) return;
+                                                    setIsGeneratingAudio(true);
+                                                    setAudioGenProgress('Mempersiapkan teks...');
+                                                    try {
+                                                        // Collect all texts to generate: numbers 1-50 + warning texts
+                                                        const allTexts: string[] = [];
+                                                        
+                                                        // Get translated numbers if available, else generate Indonesian
+                                                        if (translatedSpeech && translatedSpeech.numbers) {
+                                                            for (let i = 1; i <= 50; i++) {
+                                                                allTexts.push(translatedSpeech.numbers[String(i)] || String(i));
+                                                            }
+                                                        } else {
+                                                            for (let i = 1; i <= 50; i++) {
+                                                                allTexts.push(String(i));
+                                                            }
+                                                        }
+
+                                                        // Add warning texts
+                                                        const warningTexts = [wrongScanText, duplicateText, doubleScanText].filter(Boolean);
+                                                        if (translatedSpeech && translatedSpeech.warnings) {
+                                                            Object.values(translatedSpeech.warnings).forEach(w => {
+                                                                if (w && !allTexts.includes(w)) allTexts.push(w);
+                                                            });
+                                                        }
+                                                        warningTexts.forEach(w => {
+                                                            if (!allTexts.includes(w)) allTexts.push(w);
+                                                        });
+
+                                                        // Also add DHS warning texts
+                                                        const dhsWarnings = ['Barang Berbahaya', 'Dangerous Goods', 'B3', 'HATI-HATI BARANG BERBAHAYA'];
+                                                        dhsWarnings.forEach(w => {
+                                                            if (!allTexts.includes(w)) allTexts.push(w);
+                                                        });
+
+                                                        setAudioGenProgress(`Generating 0/${allTexts.length} audio clips...`);
+
+                                                        // Process in small batches for progress updates
+                                                        const BATCH = 5;
+                                                        const newCache: Record<string, { data: string; mimeType: string }> = {};
+                                                        let doneCount = 0;
+                                                        
+                                                        for (let i = 0; i < allTexts.length; i += BATCH) {
+                                                            const batch = allTexts.slice(i, i + BATCH);
+                                                            const result = await generateAllVoiceClips(batch, geminiVoiceName);
+                                                            Object.assign(newCache, result.clips);
+                                                            doneCount += batch.length;
+                                                            setAudioGenProgress(`Generating ${doneCount}/${allTexts.length} audio clips...`);
+                                                        }
+                                                        
+                                                        setGeminiAudioCache(newCache);
+                                                        setAudioGenProgress(`✅ Selesai! ${Object.keys(newCache).length} audio clips tersedia.`);
+                                                        
+                                                        // Save to localStorage (only voice name, cache is too large)
+                                                        if (typeof window !== 'undefined') {
+                                                            try {
+                                                                // Try to save cache to localStorage (may fail if too large)
+                                                                const cacheStr = JSON.stringify(newCache);
+                                                                if (cacheStr.length < 4_000_000) { // ~4MB limit
+                                                                    localStorage.setItem('dhs_gemini_audio_cache', cacheStr);
+                                                                    localStorage.setItem('dhs_gemini_audio_cache_voice', geminiVoiceName);
+                                                                }
+                                                            } catch { /* cache too large for localStorage, that's ok */ }
+                                                        }
+                                                    } catch (error: any) {
+                                                        setAudioGenProgress(`❌ Error: ${error?.message || error}`);
+                                                    } finally {
+                                                        setIsGeneratingAudio(false);
+                                                    }
+                                                }}
+                                                className={`w-full py-2.5 rounded-xl font-bold text-xs transition-all ${
+                                                    !geminiVoiceName || isGeneratingAudio
+                                                        ? 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                                                        : 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white shadow-lg shadow-purple-900/30 active:scale-[0.98]'
+                                                }`}
+                                            >
+                                                {isGeneratingAudio ? (
+                                                    <span className="flex items-center justify-center gap-2">
+                                                        <span className="inline-block w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                                                        Generating...
+                                                    </span>
+                                                ) : (
+                                                    `🎙️ Generate Suara AI (Angka 1-50 + Peringatan)`
+                                                )}
+                                            </button>
+
+                                            {/* Progress */}
+                                            {audioGenProgress && (
+                                                <p className={`text-[10px] font-medium leading-normal px-1 ${
+                                                    audioGenProgress.startsWith('✅') ? 'text-emerald-400' :
+                                                    audioGenProgress.startsWith('❌') ? 'text-red-400' :
+                                                    'text-purple-400'
+                                                }`}>
+                                                    {audioGenProgress}
+                                                </p>
+                                            )}
+
+                                            {/* Clear cache button */}
+                                            {Object.keys(geminiAudioCache).length > 0 && (
+                                                <button
+                                                    onClick={() => {
+                                                        setGeminiAudioCache({});
+                                                        setAudioGenProgress('');
+                                                        if (typeof window !== 'undefined') {
+                                                            localStorage.removeItem('dhs_gemini_audio_cache');
+                                                            localStorage.removeItem('dhs_gemini_audio_cache_voice');
+                                                        }
+                                                    }}
+                                                    className="w-full py-1.5 rounded-lg bg-slate-800 hover:bg-red-900/40 text-slate-400 hover:text-red-400 text-[10px] font-bold transition-all"
+                                                >
+                                                    🗑️ Hapus Cache Audio Gemini
+                                                </button>
+                                            )}
+                                        </div>
 
                                         {/* Custom Warning Voice Inputs */}
                                         <div className="space-y-3 pt-2 border-t border-slate-800">

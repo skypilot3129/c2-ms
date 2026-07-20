@@ -308,3 +308,77 @@ Please return ONLY the JSON object. Do not include markdown code block formattin
         return { error: `Gagal menerjemahkan: ${error?.message || error}` };
     }
 }
+
+// --- Gemini TTS Audio Generation ---
+import { GoogleGenAI } from '@google/genai';
+
+const genAINew = new GoogleGenAI({ apiKey: apiKey || '' });
+
+export async function generateVoiceAudio(text: string, voiceName: string): Promise<{ data?: string; mimeType?: string; error?: string }> {
+    if (!apiKey) {
+        return { error: 'API Key Gemini tidak dikonfigurasi.' };
+    }
+    try {
+        const response = await genAINew.models.generateContent({
+            model: 'gemini-2.5-flash-tts',
+            contents: text,
+            config: {
+                responseModalities: ['AUDIO'],
+                speechConfig: {
+                    voiceConfig: {
+                        prebuiltVoiceConfig: {
+                            voiceName: voiceName
+                        }
+                    }
+                }
+            }
+        });
+
+        const part = response?.candidates?.[0]?.content?.parts?.[0];
+        if (part?.inlineData?.data) {
+            return { data: part.inlineData.data, mimeType: part.inlineData.mimeType || 'audio/L16;rate=24000' };
+        }
+        return { error: 'Tidak ada data audio dalam respons Gemini.' };
+    } catch (error: any) {
+        console.error('Gemini TTS error:', error);
+        return { error: `TTS error: ${error?.message || error}` };
+    }
+}
+
+export async function generateAllVoiceClips(
+    texts: string[],
+    voiceName: string
+): Promise<{ clips: Record<string, { data: string; mimeType: string }>; errors: string[] }> {
+    if (!apiKey) {
+        return { clips: {}, errors: ['API Key Gemini tidak dikonfigurasi.'] };
+    }
+
+    const clips: Record<string, { data: string; mimeType: string }> = {};
+    const errors: string[] = [];
+    const BATCH_SIZE = 5;
+
+    for (let i = 0; i < texts.length; i += BATCH_SIZE) {
+        const batch = texts.slice(i, i + BATCH_SIZE);
+        const results = await Promise.allSettled(
+            batch.map(async (text) => {
+                const res = await generateVoiceAudio(text, voiceName);
+                return { text, res };
+            })
+        );
+
+        for (const result of results) {
+            if (result.status === 'fulfilled') {
+                const { text, res } = result.value;
+                if (res.data && res.mimeType) {
+                    clips[text] = { data: res.data, mimeType: res.mimeType };
+                } else {
+                    errors.push(`${text}: ${res.error || 'Unknown error'}`);
+                }
+            } else {
+                errors.push(`Batch error: ${result.reason}`);
+            }
+        }
+    }
+
+    return { clips, errors };
+}
