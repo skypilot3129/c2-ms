@@ -269,7 +269,7 @@ export async function translateVoiceAlerts(targetLanguage: string) {
 
         const prompt = `You are a translator assisting a warehouse logistics operator. We need to translate the Indonesian TTS voice alert prompts of a barcode scan checking system into the target language: "${targetLanguage}".
 We need a JSON response containing two fields:
-1. "numbers": A dictionary mapping numbers from 1 to 50 (as string keys "1", "2", etc. up to "50") to their spoken word representations in the target language. For regional languages (like Javanese, Bugis, Sundanese, Makassar, Madura) or foreign languages (like English, Chinese, Japanese, etc.), provide their natural phonetic/pronounceable words.
+1. "numbers": A dictionary mapping numbers from 1 to 300 (as string keys "1", "2", etc. up to "300") to their spoken word representations in the target language. For regional languages (like Javanese, Bugis, Sundanese, Makassar, Madura) or foreign languages (like English, Chinese, Japanese, etc.), provide their natural phonetic/pronounceable words.
 2. "warnings": A dictionary with the following keys and their spoken translations in the target language:
    - "cairan": Spoken translation for "Awas, cairan!" (indicating a scanned item has liquid cargo)
    - "dg": Spoken translation for "Awas, barang berbahaya!" (indicating dangerous goods)
@@ -283,7 +283,7 @@ Example JSON structure:
   "numbers": {
     "1": "one",
     "2": "two",
-    "50": "fifty"
+    "300": "three hundred"
   },
   "warnings": {
     "cairan": "Caution, liquid!",

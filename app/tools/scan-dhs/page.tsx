@@ -650,6 +650,27 @@ export default function ScanDhsPage() {
         const profile = localStorage.getItem('cce_audio_sound_profile');
         if (profile) setSoundProfile(profile as SoundProfileKey);
 
+        const savedLang = localStorage.getItem('cce_audio_selected_language');
+        if (savedLang) setSelectedLanguage(savedLang);
+
+        const savedTranslation = localStorage.getItem('cce_audio_translated_speech');
+        if (savedTranslation) {
+            try {
+                setTranslatedSpeech(JSON.parse(savedTranslation));
+            } catch (e) {
+                console.error('Failed to load saved translation:', e);
+            }
+        }
+
+        const savedWrong = localStorage.getItem('cce_audio_wrong_scan_text');
+        if (savedWrong) setWrongScanText(savedWrong);
+
+        const savedDup = localStorage.getItem('cce_audio_duplicate_text');
+        if (savedDup) setDuplicateText(savedDup);
+
+        const savedDouble = localStorage.getItem('cce_audio_double_scan_text');
+        if (savedDouble) setDoubleScanText(savedDouble);
+
         // Check for active unsaved session
         const savedActive = localStorage.getItem('cce_active_scan_session');
         if (savedActive) {
@@ -697,7 +718,16 @@ export default function ScanDhsPage() {
         localStorage.setItem('cce_audio_speech_rate', speechRate.toString());
         localStorage.setItem('cce_audio_beep_volume', beepVolume.toString());
         localStorage.setItem('cce_audio_sound_profile', soundProfile);
-    }, [speechRate, beepVolume, soundProfile]);
+        localStorage.setItem('cce_audio_selected_language', selectedLanguage);
+        if (translatedSpeech) {
+            localStorage.setItem('cce_audio_translated_speech', JSON.stringify(translatedSpeech));
+        } else {
+            localStorage.removeItem('cce_audio_translated_speech');
+        }
+        localStorage.setItem('cce_audio_wrong_scan_text', wrongScanText);
+        localStorage.setItem('cce_audio_duplicate_text', duplicateText);
+        localStorage.setItem('cce_audio_double_scan_text', doubleScanText);
+    }, [speechRate, beepVolume, soundProfile, selectedLanguage, translatedSpeech, wrongScanText, duplicateText, doubleScanText]);
 
     // Handle recovering active session
     const handleConfirmRecovery = () => {
