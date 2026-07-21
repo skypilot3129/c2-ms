@@ -3,8 +3,9 @@
 import React, { useEffect, useState, Suspense, useMemo } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { subscribeToInvoices } from '@/lib/firestore-invoices';
-import { getTransactionById } from '@/lib/firestore-transactions';
+import { subscribeToTransactions, getTransactionById } from '@/lib/firestore-transactions';
 import type { Invoice } from '@/types/invoice';
+import type { Transaction } from '@/types/transaction';
 import { formatRupiah, terbilang } from '@/lib/currency';
 import { COMPANY_INFO } from '@/lib/company-config';
 
@@ -19,7 +20,7 @@ interface ManualRow {
 function PrintRekapContent() {
     const { user } = useAuth();
     const [invoices, setInvoices] = useState<Invoice[]>([]);
-    const [sttNumbers, setSttNumbers] = useState<Record<string, string>>({});
+    const [transactions, setTransactions] = useState<Transaction[]>([]);
     const [loading, setLoading] = useState(true);
     const [selectedClient, setSelectedClient] = useState<string>('');
 
@@ -33,54 +34,51 @@ function PrintRekapContent() {
     useEffect(() => {
         if (!user) return;
 
-        const unsubscribe = subscribeToInvoices(user.uid, (data) => {
+        const unsubscribeInvoices = subscribeToInvoices(user.uid, (data) => {
             const unpaidInvoices = data.filter(inv => inv.status !== 'Paid');
             unpaidInvoices.sort((a, b) => new Date(a.issueDate).getTime() - new Date(b.issueDate).getTime());
-            
             setInvoices(unpaidInvoices);
-            if (loading) {
-                const loadSttNumbers = async () => {
-                    const mapping: Record<string, string> = {};
-                    const updatedInvoices: Invoice[] = [];
-                    for (const inv of unpaidInvoices) {
-                        if (inv.transactionIds && inv.transactionIds.length > 0) {
-                            try {
-                                const txs = await Promise.all(inv.transactionIds.map(tid => getTransactionById(tid)));
-                                const validTxs = txs.filter((t): t is any => t !== null);
-                                mapping[inv.id] = validTxs.map(t => t.noSTT.replace(/^STT/i, '')).join(', ');
-
-                                if (validTxs.length > 0) {
-                                    const primaryTx = validTxs[0];
-                                    const liveClientName = primaryTx.pengirimName || inv.clientName;
-                                    const subtotal = validTxs.reduce((sum, t) => sum + (t.jumlah || 0), 0);
-                                    const isTaxable = validTxs.some(t => t.isTaxable || (t.ppn && t.ppn > 0));
-                                    const liveTotalAmount = subtotal + (isTaxable ? Math.round(subtotal * 0.011) : 0);
-                                    updatedInvoices.push({
-                                        ...inv,
-                                        clientName: liveClientName,
-                                        totalAmount: liveTotalAmount
-                                    });
-                                } else {
-                                    updatedInvoices.push(inv);
-                                }
-                            } catch (error) {
-                                console.error('Failed to load STT for invoice', inv.id, error);
-                                updatedInvoices.push(inv);
-                            }
-                        } else {
-                            updatedInvoices.push(inv);
-                        }
-                    }
-                    setSttNumbers(mapping);
-                    setInvoices(updatedInvoices);
-                    setLoading(false);
-                };
-                loadSttNumbers();
-            }
+            setLoading(false);
         });
 
-        return () => unsubscribe();
-    }, [user, loading]);
+        const unsubscribeTx = subscribeToTransactions((txData) => {
+            setTransactions(txData);
+        }, user.uid);
+
+        return () => {
+            unsubscribeInvoices();
+            unsubscribeTx();
+        };
+    }, [user]);
+
+    // Live reconciliation of invoice details (clientName, totalAmount, sttNumbers) using real-time transactions
+    const { liveInvoices, sttNumbers } = useMemo(() => {
+        const txMap = new Map(transactions.map(t => [t.id, t]));
+        const mapping: Record<string, string> = {};
+
+        const processed = invoices.map(inv => {
+            if (!inv.transactionIds || inv.transactionIds.length === 0) return inv;
+            const linked = inv.transactionIds.map(tid => txMap.get(tid)).filter((t): t is Transaction => t !== undefined);
+            if (linked.length === 0) return inv;
+
+            mapping[inv.id] = linked.map(t => t.noSTT.replace(/^STT/i, '')).join(', ');
+
+            const primaryTx = linked[0];
+            const liveClientName = primaryTx.pengirimName || inv.clientName;
+            const subtotal = linked.reduce((sum, t) => sum + (t.jumlah || 0), 0);
+            const isTaxable = linked.some(t => t.isTaxable || (t.ppn && t.ppn > 0));
+            const liveTotalAmount = subtotal + (isTaxable ? Math.round(subtotal * 0.011) : 0);
+
+            return {
+                ...inv,
+                clientName: liveClientName,
+                clientAddress: primaryTx.pengirimAddress || inv.clientAddress,
+                totalAmount: liveTotalAmount,
+            };
+        });
+
+        return { liveInvoices: processed, sttNumbers: mapping };
+    }, [invoices, transactions]);
 
     // Reset manual rows when selected customer changes
     useEffect(() => {
@@ -88,14 +86,14 @@ function PrintRekapContent() {
     }, [selectedClient]);
 
     const clients = useMemo(() => {
-        const uniqueClients = new Set(invoices.map(inv => inv.clientName));
+        const uniqueClients = new Set(liveInvoices.map(inv => inv.clientName));
         return Array.from(uniqueClients).sort();
-    }, [invoices]);
+    }, [liveInvoices]);
 
     const clientInvoices = useMemo(() => {
         if (!selectedClient) return [];
-        return invoices.filter(inv => inv.clientName === selectedClient);
-    }, [invoices, selectedClient]);
+        return liveInvoices.filter(inv => inv.clientName === selectedClient);
+    }, [liveInvoices, selectedClient]);
 
     // Combine standard invoices and manual rows
     const combinedInvoices = useMemo(() => {
