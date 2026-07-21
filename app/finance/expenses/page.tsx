@@ -16,7 +16,8 @@ import {
     Banknote, TrendingDown, ArrowDownRight, CalendarDays,
     ArrowUpRight, CheckCircle2, XCircle, Clock, BarChart3,
     Target, ChevronDown, ChevronUp, Image as ImageIcon,
-    Search, Filter, ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronRight
+    Search, Filter, ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronRight,
+    Sparkles
 } from 'lucide-react';
 import ProtectedRoute from '@/components/ProtectedRoute';
 
@@ -379,8 +380,8 @@ export default function GeneralExpensesPage() {
                         <p className="text-gray-500 text-xs sm:text-sm">Pencatatan pengeluaran operasional harian</p>
                     </div>
                     <div className="flex items-center gap-2 flex-wrap">
-                        <button onClick={() => router.push('/finance/expenses/analytics')} className="flex items-center gap-1.5 bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 px-3 py-2 rounded-xl text-sm font-medium shadow-sm transition-all">
-                            <BarChart3 size={15} /> Analitik
+                        <button onClick={() => router.push('/finance/expenses/analytics')} className="flex items-center gap-1.5 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 text-blue-800 hover:bg-blue-100 px-3.5 py-2 rounded-xl text-sm font-bold shadow-xs transition-all">
+                            <Sparkles size={15} className="text-blue-600 animate-pulse" /> Analisa AI & PDF
                         </button>
                         <button onClick={() => router.push('/finance/expenses/budget')} className="flex items-center gap-1.5 bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 px-3 py-2 rounded-xl text-sm font-medium shadow-sm transition-all">
                             <Target size={15} /> Anggaran
