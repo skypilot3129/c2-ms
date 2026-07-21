@@ -38,6 +38,7 @@ interface ManifestItem {
     dgType?: string;
     tujuan?: string;
     note?: string;
+    originalIndex?: number;
 }
 
 interface ExtraScan {
@@ -96,12 +97,14 @@ interface HistoryItem {
     scanPercentage: number;
     manifest: ManifestItem[];
     extraScans: ExtraScan[];
+    isNoManifestMode?: boolean;
 }
 
 export default function ScanDhsPage() {
     // Session state: 'import' | 'scan' | 'report'
     const [step, setStep] = useState<'import' | 'scan' | 'report'>('import');
     const [sessionType, setSessionType] = useState<'BONGKAR' | 'MUAT'>('BONGKAR');
+    const [isNoManifestMode, setIsNoManifestMode] = useState<boolean>(false);
 
     // Manifest details
     const [driverName, setDriverName] = useState<string>('');
@@ -254,7 +257,8 @@ export default function ScanDhsPage() {
         const groups: Record<string, { manifestItems: ManifestItem[]; extraItems: ExtraScan[] }> = {};
         
         manifest.forEach(item => {
-            const dest = (item.tujuan || 'LAINNYA').trim().toUpperCase();
+            const defaultDest = isNoManifestMode ? 'OPERASIONAL BEBAS' : 'LAINNYA';
+            const dest = (item.tujuan || defaultDest).trim().toUpperCase();
             if (!groups[dest]) {
                 groups[dest] = { manifestItems: [], extraItems: [] };
             }
@@ -262,7 +266,8 @@ export default function ScanDhsPage() {
         });
 
         extraScans.forEach(item => {
-            const dest = (item.tujuan || 'LAINNYA').trim().toUpperCase();
+            const defaultDest = isNoManifestMode ? 'OPERASIONAL BEBAS' : 'LAINNYA';
+            const dest = (item.tujuan || defaultDest).trim().toUpperCase();
             if (!groups[dest]) {
                 groups[dest] = { manifestItems: [], extraItems: [] };
             }
@@ -270,7 +275,7 @@ export default function ScanDhsPage() {
         });
 
         return groups;
-    }, [manifest, extraScans]);
+    }, [manifest, extraScans, isNoManifestMode]);
 
     const handlePrintOnlyBa = () => {
         setIsPrintingOnlyBa(true);
@@ -306,6 +311,7 @@ export default function ScanDhsPage() {
     const speechRateRef = useRef<number>(1);
     const selectedVoiceNameRef = useRef<string>('');
     const selectedLanguageRef = useRef<string>('');
+    const isNoManifestModeRef = useRef<boolean>(false);
 
     // Warm up/Resume AudioContext and speech synthesis helper
     const warmupAudio = () => {
@@ -811,13 +817,14 @@ export default function ScanDhsPage() {
                 noPolisi,
                 manifest,
                 extraScans,
-                step
+                step,
+                isNoManifestMode
             };
             localStorage.setItem('cce_active_scan_session', JSON.stringify(sessionData));
         }, 1000);
 
         return () => clearTimeout(timer);
-    }, [step, sessionType, driverName, noPolisi, manifest, extraScans]);
+    }, [step, sessionType, driverName, noPolisi, manifest, extraScans, isNoManifestMode]);
 
     // Save audio config on change
     useEffect(() => {
@@ -845,6 +852,7 @@ export default function ScanDhsPage() {
             setNoPolisi(pendingRecovery.noPolisi || '');
             setManifest(pendingRecovery.manifest);
             setExtraScans(pendingRecovery.extraScans || []);
+            setIsNoManifestMode(!!pendingRecovery.isNoManifestMode);
             setStep(pendingRecovery.step);
             setShowRecoveryModal(false);
             setPendingRecovery(null);
@@ -1119,6 +1127,20 @@ export default function ScanDhsPage() {
         };
     };
 
+    const handleStartNoManifestSession = () => {
+        setManifest([]);
+        setExtraScans([]);
+        setCurrentSessionId(null);
+        setSearchTerm('');
+        setIsNoManifestMode(true);
+        setStep('scan');
+        setScanAlert({
+            type: 'idle',
+            message: 'Sesi scan bebas tanpa manifes dimulai! Silakan scan barcode barang.'
+        });
+        warmupAudio();
+    };
+
     // Parse pasted/input text for TO & SPXID resi numbers and additional columns
     const handleParseManifest = () => {
         if (!rawInput.trim()) {
@@ -1140,6 +1162,7 @@ export default function ScanDhsPage() {
                 if (csvResult.driver) setDriverName(csvResult.driver);
                 if (csvResult.nopol) setNoPolisi(csvResult.nopol);
                 setSessionType(csvResult.sessionType);
+                setIsNoManifestMode(false);
 
                 setStep('scan');
                 setScanAlert({ 
@@ -1221,6 +1244,7 @@ export default function ScanDhsPage() {
         setExtraScans([]);
         setCurrentSessionId(null);
         setSearchTerm('');
+        setIsNoManifestMode(false);
         setStep('scan');
         setScanAlert({ type: 'idle', message: 'Sesi scan siap. Mulailah memindai barcode.' });
         warmupAudio();
@@ -1362,6 +1386,57 @@ export default function ScanDhsPage() {
         if (!code) return;
 
         const nowStr = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+        // --- NO-MANIFEST MODE (FREE SCAN MODE) ---
+        if (isNoManifestModeRef.current) {
+            const existingIdx = manifest.findIndex(item => item.code === code);
+            
+            if (existingIdx !== -1) {
+                // Duplicate scan in No-Manifest Mode
+                const updated = [...manifest];
+                const currentScanTime = updated[existingIdx].scanTime || '';
+                updated[existingIdx].scanTime = currentScanTime ? `${currentScanTime}, ${nowStr} (Dup)` : `${nowStr} (Dup)`;
+                setManifest(updated);
+
+                setScanAlert({
+                    type: 'duplicate',
+                    message: `DUPLIKAT! Kode ini sudah discan sebelumnya (Koli #${existingIdx + 1})`,
+                    code
+                });
+                triggerFlash('yellow');
+                playBeep(440, 0.2); // Normal warning beep
+                triggerVibration([80, 80]);
+                speakText(duplicateText);
+            } else {
+                // New scan in No-Manifest Mode - append dynamically to manifest list
+                const sequenceNumber = manifest.length + 1;
+                const newItem: ManifestItem = {
+                    id: `scanned-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+                    code,
+                    status: 'scanned',
+                    scanTime: nowStr,
+                    originalIndex: manifest.length,
+                    jmlhPaket: 1,
+                    berat: 0,
+                    toType: 'REGULER',
+                    dgType: '',
+                    tujuan: '',
+                    note: ''
+                };
+                setManifest(prev => [...prev, newItem]);
+
+                setScanAlert({
+                    type: 'success',
+                    message: `BERHASIL! Koli #${sequenceNumber} ditambahkan`,
+                    code
+                });
+                triggerFlash('green');
+                playBeep(880, 0.12, true); // Double high beep
+                triggerVibration(100);
+                speakText(translatedSpeech?.numbers[String(sequenceNumber)] || numberToIndonesianWords(sequenceNumber));
+            }
+            return;
+        }
 
         // 1. Check if the code is in the manifest and is still 'pending'
         const pendingItemIdx = manifest.findIndex(item => item.code === code && item.status === 'pending');
@@ -1613,7 +1688,8 @@ export default function ScanDhsPage() {
                         totalExtra,
                         scanPercentage,
                         manifest,
-                        extraScans
+                        extraScans,
+                        isNoManifestMode
                     };
                 } else {
                     // Fallback
@@ -1628,7 +1704,8 @@ export default function ScanDhsPage() {
                         totalExtra,
                         scanPercentage,
                         manifest,
-                        extraScans
+                        extraScans,
+                        isNoManifestMode
                     };
                     updatedHistory = [newHistoryItem, ...updatedHistory];
                 }
@@ -1645,7 +1722,8 @@ export default function ScanDhsPage() {
                     totalExtra,
                     scanPercentage,
                     manifest,
-                    extraScans
+                    extraScans,
+                    isNoManifestMode
                 };
                 updatedHistory = [newHistoryItem, ...updatedHistory];
             }
@@ -1785,6 +1863,7 @@ export default function ScanDhsPage() {
         setNoPolisi(item.noPolisi || '');
         setManifest(item.manifest);
         setExtraScans(item.extraScans || []);
+        setIsNoManifestMode(!!item.isNoManifestMode);
         setStep('report');
     };
 
@@ -1803,6 +1882,7 @@ export default function ScanDhsPage() {
         setNoPolisi(item.noPolisi || '');
         setManifest(item.manifest);
         setExtraScans(item.extraScans || []);
+        setIsNoManifestMode(!!item.isNoManifestMode);
         setStep('scan');
         setScanAlert({ type: 'idle', message: 'Melanjutkan pemindaian sesi ini.' });
         warmupAudio();
@@ -2046,6 +2126,7 @@ export default function ScanDhsPage() {
     speechRateRef.current = speechRate;
     selectedVoiceNameRef.current = selectedVoiceName;
     selectedLanguageRef.current = selectedLanguage;
+    isNoManifestModeRef.current = isNoManifestMode;
 
     const displayItemsToRender = displayItems.slice(0, 50);
 
@@ -2153,19 +2234,36 @@ export default function ScanDhsPage() {
                             </div>
 
                             {/* Session details */}
-                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 bg-slate-900/50 rounded-2xl border border-slate-800">
+                            <div className="grid grid-cols-1 md:grid-cols-5 gap-4 p-4 bg-slate-900/50 rounded-2xl border border-slate-800">
+                                <div className="flex flex-col gap-1.5">
+                                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Mode Pemindaian</label>
+                                    <div className="grid grid-cols-2 bg-slate-800 p-1 rounded-xl">
+                                        <button
+                                            onClick={() => setIsNoManifestMode(false)}
+                                            className={`py-2 text-[10px] font-bold rounded-lg transition-all ${!isNoManifestMode ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'}`}
+                                        >
+                                            Manifes
+                                        </button>
+                                        <button
+                                            onClick={() => setIsNoManifestMode(true)}
+                                            className={`py-2 text-[10px] font-bold rounded-lg transition-all ${isNoManifestMode ? 'bg-purple-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'}`}
+                                        >
+                                            Bebas (DG)
+                                        </button>
+                                    </div>
+                                </div>
                                 <div className="flex flex-col gap-1.5">
                                     <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Tipe Sesi</label>
                                     <div className="grid grid-cols-2 bg-slate-800 p-1 rounded-xl">
                                         <button
                                             onClick={() => setSessionType('BONGKAR')}
-                                            className={`py-2 text-xs font-bold rounded-lg transition-all ${sessionType === 'BONGKAR' ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'}`}
+                                            className={`py-2 text-[10px] font-bold rounded-lg transition-all ${sessionType === 'BONGKAR' ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'}`}
                                         >
                                             Bongkar
                                         </button>
                                         <button
                                             onClick={() => setSessionType('MUAT')}
-                                            className={`py-2 text-xs font-bold rounded-lg transition-all ${sessionType === 'MUAT' ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'}`}
+                                            className={`py-2 text-[10px] font-bold rounded-lg transition-all ${sessionType === 'MUAT' ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'}`}
                                         >
                                             Muat
                                         </button>
@@ -2193,49 +2291,67 @@ export default function ScanDhsPage() {
                                 </div>
                             </div>
 
-                            {/* File Upload / Paste Box */}
-                            <div className="space-y-3">
-                                <div className="flex justify-between items-center">
-                                    <label className="text-sm font-semibold text-slate-300">Tempelkan Data Manifes TO:</label>
-                                    <button
-                                        onClick={handleLoadSample}
-                                        className="text-xs font-semibold text-blue-400 hover:text-blue-300 flex items-center gap-1.5 bg-blue-950/30 px-3 py-1.5 rounded-lg border border-blue-900/50 hover:border-blue-800 transition-all"
-                                    >
-                                        <RefreshCcw size={12} /> Gunakan Contoh Data TO
-                                    </button>
-                                </div>
-                                <textarea
-                                    rows={8}
-                                    placeholder="Tempelkan data TO/resi di sini (sistem akan otomatis membaca kode seperti TO202605293D9ZG dari baris mana pun)..."
-                                    value={rawInput}
-                                    onChange={(e) => setRawInput(e.target.value)}
-                                    className="w-full bg-slate-900 border border-slate-800 focus:border-blue-600 rounded-2xl p-4 text-sm font-mono text-white placeholder-slate-600 outline-none transition-all"
-                                />
-                            </div>
+                            {!isNoManifestMode ? (
+                                <>
+                                    {/* File Upload / Paste Box */}
+                                    <div className="space-y-3">
+                                        <div className="flex justify-between items-center">
+                                            <label className="text-sm font-semibold text-slate-300">Tempelkan Data Manifes TO:</label>
+                                            <button
+                                                onClick={handleLoadSample}
+                                                className="text-xs font-semibold text-blue-400 hover:text-blue-300 flex items-center gap-1.5 bg-blue-950/30 px-3 py-1.5 rounded-lg border border-blue-900/50 hover:border-blue-800 transition-all"
+                                            >
+                                                <RefreshCcw size={12} /> Gunakan Contoh Data TO
+                                            </button>
+                                        </div>
+                                        <textarea
+                                            rows={8}
+                                            placeholder="Tempelkan data TO/resi di sini (sistem akan otomatis membaca kode seperti TO202605293D9ZG dari baris mana pun)..."
+                                            value={rawInput}
+                                            onChange={(e) => setRawInput(e.target.value)}
+                                            className="w-full bg-slate-900 border border-slate-800 focus:border-blue-600 rounded-2xl p-4 text-sm font-mono text-white placeholder-slate-600 outline-none transition-all"
+                                        />
+                                    </div>
 
-                            <div className="border-2 border-dashed border-slate-800 hover:border-blue-500/50 rounded-2xl p-6 text-center cursor-pointer transition-colors relative group">
-                                <input
-                                    type="file"
-                                    multiple={true}
-                                    accept=".txt,.csv"
-                                    onChange={handleFileUpload}
-                                    className="absolute inset-0 opacity-0 cursor-pointer"
-                                />
-                                <div className="flex flex-col items-center gap-2 text-slate-400 group-hover:text-blue-400 transition-colors">
-                                    <Upload size={32} />
-                                    <p className="text-sm font-semibold">Tarik &amp; lepas satu atau beberapa file teks (.txt / .csv) di sini</p>
-                                    <p className="text-xs text-slate-500">Atau klik untuk memilih file-file dari penyimpanan Anda</p>
+                                    <div className="border-2 border-dashed border-slate-800 hover:border-blue-500/50 rounded-2xl p-6 text-center cursor-pointer transition-colors relative group">
+                                        <input
+                                            type="file"
+                                            multiple={true}
+                                            accept=".txt,.csv"
+                                            onChange={handleFileUpload}
+                                            className="absolute inset-0 opacity-0 cursor-pointer"
+                                        />
+                                        <div className="flex flex-col items-center gap-2 text-slate-400 group-hover:text-blue-400 transition-colors">
+                                            <Upload size={32} />
+                                            <p className="text-sm font-semibold">Tarik &amp; lepas satu atau beberapa file teks (.txt / .csv) di sini</p>
+                                            <p className="text-xs text-slate-500">Atau klik untuk memilih file-file dari penyimpanan Anda</p>
+                                        </div>
+                                    </div>
+                                </>
+                            ) : (
+                                <div className="bg-purple-950/20 border border-purple-900/30 rounded-2xl p-8 text-center space-y-3">
+                                    <div className="inline-flex p-3 bg-purple-900/30 text-purple-400 rounded-2xl">
+                                        <Volume2 size={32} className="animate-pulse" />
+                                    </div>
+                                    <h3 className="font-bold text-lg text-purple-300">Mode Scan Bebas Aktif</h3>
+                                    <p className="text-xs text-slate-400 max-w-md mx-auto leading-relaxed">
+                                        Anda tidak perlu mengimpor data manifest. Semua kode resi yang di-scan akan langsung dicatat sebagai barang masuk dan dihitung urutan suaranya.
+                                    </p>
                                 </div>
-                            </div>
+                            )}
 
                             {/* Actions */}
                             <div className="pt-4 border-t border-slate-800 flex justify-end">
                                 <button
-                                    onClick={handleParseManifest}
-                                    className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 px-8 rounded-xl shadow-lg shadow-blue-950/20 flex items-center gap-2 hover:scale-[1.02] active:scale-[0.98] transition-all"
+                                    onClick={isNoManifestMode ? handleStartNoManifestSession : handleParseManifest}
+                                    className={`font-bold py-3.5 px-8 rounded-xl shadow-lg flex items-center gap-2 hover:scale-[1.02] active:scale-[0.98] transition-all text-white ${
+                                        isNoManifestMode
+                                            ? 'bg-purple-600 hover:bg-purple-700 shadow-purple-900/20'
+                                            : 'bg-blue-600 hover:bg-blue-700 shadow-blue-900/20'
+                                    }`}
                                 >
                                     <Play size={18} />
-                                    Mulai Sesi Pemindaian
+                                    {isNoManifestMode ? 'Mulai Sesi Scan Bebas' : 'Mulai Sesi Pemindaian'}
                                 </button>
                             </div>
                         </div>
@@ -2269,13 +2385,22 @@ export default function ScanDhsPage() {
                                                     Truk {item.noPolisi || '-'} • Driver: {item.driverName || '-'}
                                                 </p>
                                                 <div className="flex gap-4 text-xs text-slate-400 pt-0.5">
-                                                    <span>Target: <strong>{item.totalTarget} Koli</strong></span>
-                                                    <span>Cocok: <strong className="text-emerald-400">{item.totalScanned} Koli</strong></span>
-                                                    {item.totalTarget - item.totalScanned > 0 && (
-                                                        <span className="text-red-400">Kurang: <strong>{item.totalTarget - item.totalScanned}</strong></span>
-                                                    )}
-                                                    {item.totalExtra > 0 && (
-                                                        <span className="text-yellow-400">Lebih: <strong>{item.totalExtra}</strong></span>
+                                                    {item.isNoManifestMode ? (
+                                                        <>
+                                                            <span className="text-purple-400 font-semibold font-sans">Scan Bebas (Tanpa Manifes)</span>
+                                                            <span>Total Scan: <strong className="text-emerald-400">{item.totalScanned} Koli</strong></span>
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <span>Target: <strong>{item.totalTarget} Koli</strong></span>
+                                                            <span>Cocok: <strong className="text-emerald-400">{item.totalScanned} Koli</strong></span>
+                                                            {item.totalTarget - item.totalScanned > 0 && (
+                                                                <span className="text-red-400">Kurang: <strong>{item.totalTarget - item.totalScanned}</strong></span>
+                                                            )}
+                                                            {item.totalExtra > 0 && (
+                                                                <span className="text-yellow-400">Lebih: <strong>{item.totalExtra}</strong></span>
+                                                            )}
+                                                        </>
                                                     )}
                                                 </div>
                                             </div>
@@ -2850,38 +2975,69 @@ export default function ScanDhsPage() {
                             <div className="flex items-center gap-4">
                                 {/* SVG Progress Ring */}
                                 <div className="relative flex-shrink-0">
-                                    <svg width="80" height="80" viewBox="0 0 80 80" className="transform -rotate-90">
-                                        <circle cx="40" cy="40" r="34" fill="none" stroke="#1e293b" strokeWidth="8" />
-                                        <circle
-                                            cx="40" cy="40" r="34" fill="none"
-                                            stroke={scanPercentage >= 80 ? '#10b981' : scanPercentage >= 40 ? '#eab308' : '#ef4444'}
-                                            strokeWidth="8"
-                                            strokeLinecap="round"
-                                            strokeDasharray={`${2 * Math.PI * 34}`}
-                                            strokeDashoffset={`${2 * Math.PI * 34 * (1 - scanPercentage / 100)}`}
-                                            className="transition-all duration-500"
-                                        />
-                                    </svg>
-                                    <div className="absolute inset-0 flex flex-col items-center justify-center">
-                                        <span className="text-lg font-black text-white">{scanPercentage}%</span>
-                                    </div>
+                                    {isNoManifestMode ? (
+                                        <div className="w-[80px] h-[80px] bg-purple-950/20 border-4 border-purple-500 rounded-full flex flex-col items-center justify-center">
+                                            <span className="text-xl font-black text-purple-400">{totalScanned}</span>
+                                            <span className="text-[8px] font-bold text-purple-500 uppercase tracking-wider">Koli</span>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <svg width="80" height="80" viewBox="0 0 80 80" className="transform -rotate-90">
+                                                <circle cx="40" cy="40" r="34" fill="none" stroke="#1e293b" strokeWidth="8" />
+                                                <circle
+                                                    cx="40" cy="40" r="34" fill="none"
+                                                    stroke={scanPercentage >= 80 ? '#10b981' : scanPercentage >= 40 ? '#eab308' : '#ef4444'}
+                                                    strokeWidth="8"
+                                                    strokeLinecap="round"
+                                                    strokeDasharray={`${2 * Math.PI * 34}`}
+                                                    strokeDashoffset={`${2 * Math.PI * 34 * (1 - scanPercentage / 100)}`}
+                                                    className="transition-all duration-500"
+                                                />
+                                            </svg>
+                                            <div className="absolute inset-0 flex flex-col items-center justify-center">
+                                                <span className="text-lg font-black text-white">{scanPercentage}%</span>
+                                            </div>
+                                        </>
+                                    )}
                                 </div>
                                 {/* Stats cards */}
                                 <div className="flex-1 grid grid-cols-2 gap-2">
-                                    <div className="bg-slate-900 border border-slate-800 p-2.5 rounded-xl flex flex-col">
-                                        <span className="text-[9px] font-bold text-slate-500 uppercase">Scanned</span>
-                                        <span className="text-xl font-black text-emerald-400">{totalScanned} <span className="text-[10px] font-bold text-slate-500">/ {totalTarget}</span></span>
-                                    </div>
-                                    <div className="bg-slate-900 border border-slate-800 p-2.5 rounded-xl flex flex-col">
-                                        <span className="text-[9px] font-bold text-slate-500 uppercase">Lebih</span>
-                                        <span className={`text-xl font-black ${totalExtra > 0 ? 'text-red-400' : 'text-slate-500'}`}>{totalExtra}</span>
-                                    </div>
-                                    <div className="bg-slate-900 border border-slate-800 p-2.5 rounded-xl flex flex-col">
-                                        <span className="text-[9px] font-bold text-slate-500 uppercase">Pending</span>
-                                        <span className={`text-xl font-black ${totalPending > 0 ? 'text-yellow-400' : 'text-slate-500'}`}>{totalPending}</span>
-                                    </div>
-                                    <div className="bg-slate-900 border border-slate-800 p-2.5 rounded-xl flex flex-col">
-                                        <span className="text-[9px] font-bold text-slate-500 uppercase">Profil</span>
+                                    {isNoManifestMode ? (
+                                        <>
+                                            <div className="bg-slate-900 border border-slate-800 p-2.5 rounded-xl flex flex-col">
+                                                <span className="text-[9px] font-bold text-slate-500 uppercase">Cairan (Liquid)</span>
+                                                <span className="text-xl font-black text-amber-400">
+                                                    {manifest.filter(isLiquidItem).length}
+                                                </span>
+                                            </div>
+                                            <div className="bg-slate-900 border border-slate-800 p-2.5 rounded-xl flex flex-col">
+                                                <span className="text-[9px] font-bold text-slate-500 uppercase">DG Non-Cair</span>
+                                                <span className="text-xl font-black text-red-400">
+                                                    {manifest.filter(item => isDgItem(item) && !isLiquidItem(item)).length}
+                                                </span>
+                                            </div>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <div className="bg-slate-900 border border-slate-800 p-2.5 rounded-xl flex flex-col">
+                                                <span className="text-[9px] font-bold text-slate-500 uppercase">Scanned</span>
+                                                <span className="text-xl font-black text-emerald-400">{totalScanned} <span className="text-[10px] font-bold text-slate-500">/ {totalTarget}</span></span>
+                                            </div>
+                                            <div className="bg-slate-900 border border-slate-800 p-2.5 rounded-xl flex flex-col">
+                                                <span className="text-[9px] font-bold text-slate-500 uppercase">Lebih</span>
+                                                <span className={`text-xl font-black ${totalExtra > 0 ? 'text-red-400' : 'text-slate-500'}`}>{totalExtra}</span>
+                                            </div>
+                                        </>
+                                    )}
+                                    
+                                    {!isNoManifestMode && (
+                                        <div className="bg-slate-900 border border-slate-800 p-2.5 rounded-xl flex flex-col">
+                                            <span className="text-[9px] font-bold text-slate-500 uppercase">Pending</span>
+                                            <span className={`text-xl font-black ${totalPending > 0 ? 'text-yellow-400' : 'text-slate-500'}`}>{totalPending}</span>
+                                        </div>
+                                    )}
+                                    <div className={`bg-slate-900 border border-slate-800 p-2.5 rounded-xl flex flex-col ${isNoManifestMode ? 'col-span-2' : ''}`}>
+                                        <span className="text-[9px] font-bold text-slate-500 uppercase font-sans">Profil</span>
                                         <span className="text-sm font-bold text-blue-400 mt-0.5">{soundProfile === 'custom' ? '⚙️' : SOUND_PROFILES[soundProfile as Exclude<SoundProfileKey, 'custom'>]?.icon} {soundProfile === 'custom' ? 'Custom' : SOUND_PROFILES[soundProfile as Exclude<SoundProfileKey, 'custom'>]?.label}</span>
                                     </div>
                                 </div>
@@ -2902,62 +3058,91 @@ export default function ScanDhsPage() {
                             </div>
 
                             {/* Filter Tabs */}
-                            <div className="grid grid-cols-6 gap-1 bg-slate-900/60 p-1 rounded-xl border border-slate-800 text-[9px] font-bold mt-1">
-                                <button
-                                    type="button"
-                                    onClick={() => setActiveFilterTab('all')}
-                                    className={`py-1.5 rounded-lg text-center transition-all flex items-center justify-center gap-1 ${activeFilterTab === 'all' ? 'bg-slate-800 text-white shadow' : 'text-slate-400 hover:text-slate-200'}`}
-                                >
-                                    <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
-                                    Semua ({manifest.length + extraScans.length})
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setActiveFilterTab('pending')}
-                                    className={`py-1.5 rounded-lg text-center transition-all flex items-center justify-center gap-1 ${activeFilterTab === 'pending' ? 'bg-yellow-950/40 text-yellow-455 border border-yellow-900/30' : 'text-slate-400 hover:text-slate-200'}`}
-                                >
-                                    <span className="w-1.5 h-1.5 rounded-full bg-yellow-500"></span>
-                                    Pending ({manifest.filter(i => i.status === 'pending').length})
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setActiveFilterTab('scanned')}
-                                    className={`py-1.5 rounded-lg text-center transition-all flex items-center justify-center gap-1 ${activeFilterTab === 'scanned' ? 'bg-emerald-950/40 text-emerald-450 border border-emerald-900/30' : 'text-slate-400 hover:text-slate-200'}`}
-                                >
-                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                                    Cocok ({manifest.filter(i => i.status === 'scanned').length})
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setActiveFilterTab('liquid')}
-                                    className={`py-1.5 rounded-lg text-center transition-all flex items-center justify-center gap-1 ${activeFilterTab === 'liquid' ? 'bg-amber-950/40 text-amber-450 border border-amber-900/30' : 'text-slate-400 hover:text-slate-200'}`}
-                                >
-                                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
-                                    Liquid ({manifest.filter(isLiquidItem).length})
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setActiveFilterTab('dg')}
-                                    className={`py-1.5 rounded-lg text-center transition-all flex items-center justify-center gap-1 ${activeFilterTab === 'dg' ? 'bg-red-950/40 text-red-450 border border-red-900/30' : 'text-slate-400 hover:text-slate-200'}`}
-                                >
-                                    <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>
-                                    DG Non-Cair ({manifest.filter(item => isDgItem(item) && !isLiquidItem(item)).length})
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setActiveFilterTab('extra')}
-                                    className={`py-1.5 rounded-lg text-center transition-all flex items-center justify-center gap-1 ${activeFilterTab === 'extra' ? 'bg-slate-800/40 text-slate-300 border border-slate-700/30' : 'text-slate-400 hover:text-slate-200'}`}
-                                >
-                                    <span className="w-1.5 h-1.5 rounded-full bg-slate-500"></span>
-                                    Lebih ({extraScans.length})
-                                </button>
-                            </div>
+                            {isNoManifestMode ? (
+                                <div className="grid grid-cols-3 gap-1 bg-slate-900/60 p-1 rounded-xl border border-slate-800 text-[9px] font-bold mt-1">
+                                    <button
+                                        type="button"
+                                        onClick={() => setActiveFilterTab('all')}
+                                        className={`py-1.5 rounded-lg text-center transition-all flex items-center justify-center gap-1 ${activeFilterTab === 'all' ? 'bg-slate-800 text-white shadow' : 'text-slate-400 hover:text-slate-200'}`}
+                                    >
+                                        <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
+                                        Semua ({manifest.length})
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setActiveFilterTab('liquid')}
+                                        className={`py-1.5 rounded-lg text-center transition-all flex items-center justify-center gap-1 ${activeFilterTab === 'liquid' ? 'bg-amber-950/40 text-amber-455 border border-amber-900/30' : 'text-slate-400 hover:text-slate-200'}`}
+                                    >
+                                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                                        Liquid ({manifest.filter(isLiquidItem).length})
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setActiveFilterTab('dg')}
+                                        className={`py-1.5 rounded-lg text-center transition-all flex items-center justify-center gap-1 ${activeFilterTab === 'dg' ? 'bg-red-950/40 text-red-455 border border-red-900/30' : 'text-slate-400 hover:text-slate-200'}`}
+                                    >
+                                        <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>
+                                        DG Non-Cair ({manifest.filter(item => isDgItem(item) && !isLiquidItem(item)).length})
+                                    </button>
+                                </div>
+                            ) : (
+                                <div className="grid grid-cols-6 gap-1 bg-slate-900/60 p-1 rounded-xl border border-slate-800 text-[9px] font-bold mt-1">
+                                    <button
+                                        type="button"
+                                        onClick={() => setActiveFilterTab('all')}
+                                        className={`py-1.5 rounded-lg text-center transition-all flex items-center justify-center gap-1 ${activeFilterTab === 'all' ? 'bg-slate-800 text-white shadow' : 'text-slate-400 hover:text-slate-200'}`}
+                                    >
+                                        <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
+                                        Semua ({manifest.length + extraScans.length})
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setActiveFilterTab('pending')}
+                                        className={`py-1.5 rounded-lg text-center transition-all flex items-center justify-center gap-1 ${activeFilterTab === 'pending' ? 'bg-yellow-950/40 text-yellow-455 border border-yellow-900/30' : 'text-slate-400 hover:text-slate-200'}`}
+                                    >
+                                        <span className="w-1.5 h-1.5 rounded-full bg-yellow-500"></span>
+                                        Pending ({manifest.filter(i => i.status === 'pending').length})
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setActiveFilterTab('scanned')}
+                                        className={`py-1.5 rounded-lg text-center transition-all flex items-center justify-center gap-1 ${activeFilterTab === 'scanned' ? 'bg-emerald-950/40 text-emerald-450 border border-emerald-900/30' : 'text-slate-400 hover:text-slate-200'}`}
+                                    >
+                                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                                        Cocok ({manifest.filter(i => i.status === 'scanned').length})
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setActiveFilterTab('liquid')}
+                                        className={`py-1.5 rounded-lg text-center transition-all flex items-center justify-center gap-1 ${activeFilterTab === 'liquid' ? 'bg-amber-950/40 text-amber-455 border border-amber-900/30' : 'text-slate-400 hover:text-slate-200'}`}
+                                    >
+                                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                                        Liquid ({manifest.filter(isLiquidItem).length})
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setActiveFilterTab('dg')}
+                                        className={`py-1.5 rounded-lg text-center transition-all flex items-center justify-center gap-1 ${activeFilterTab === 'dg' ? 'bg-red-950/40 text-red-455 border border-red-900/30' : 'text-slate-400 hover:text-slate-200'}`}
+                                    >
+                                        <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>
+                                        DG Non-Cair ({manifest.filter(item => isDgItem(item) && !isLiquidItem(item)).length})
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setActiveFilterTab('extra')}
+                                        className={`py-1.5 rounded-lg text-center transition-all flex items-center justify-center gap-1 ${activeFilterTab === 'extra' ? 'bg-slate-800/40 text-slate-300 border border-slate-700/30' : 'text-slate-400 hover:text-slate-200'}`}
+                                    >
+                                        <span className="w-1.5 h-1.5 rounded-full bg-slate-500"></span>
+                                        Lebih ({extraScans.length})
+                                    </button>
+                                </div>
+                            )}
 
                             {/* Realtime Target List */}
                             <div className="flex-1 flex flex-col gap-2.5 overflow-hidden mt-1">
                                 <h3 className="font-bold text-xs text-slate-300 flex justify-between items-center">
                                     <span>
-                                        {activeFilterTab === 'all' && `Daftar Manifest (${totalTarget} Koli)`}
+                                        {activeFilterTab === 'all' && (isNoManifestMode ? `Daftar Hasil Scan (${manifest.length} Koli)` : `Daftar Manifest (${totalTarget} Koli)`)}
                                         {activeFilterTab === 'pending' && `Barang Belum Scan (${manifest.filter(i => i.status === 'pending').length} Koli)`}
                                         {activeFilterTab === 'scanned' && `Barang Sudah Cocok (${manifest.filter(i => i.status === 'scanned').length} Koli)`}
                                         {activeFilterTab === 'liquid' && `Barang Cairan (${manifest.filter(isLiquidItem).length} Koli)`}
