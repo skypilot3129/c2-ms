@@ -18,6 +18,7 @@ import { db } from './firebase';
 import type { Transaction, TransactionFormData, TransactionDoc, StatusTransaksi, SuratJalanData } from '@/types/transaction';
 import type { Branch } from '@/types/branch';
 import { BRANCHES } from '@/types/branch';
+import { syncInvoicesContainingTransaction } from './firestore-invoices';
 
 const COLLECTION_NAME = 'transactions';
 const METADATA_COLLECTION = 'metadata';
@@ -533,6 +534,13 @@ export const updateTransaction = async (
     }
 
     await updateDoc(docRef, updates);
+
+    // Sync any invoices containing this transaction so totalAmount & clientName in invoices stay up to date
+    try {
+        await syncInvoicesContainingTransaction(id);
+    } catch (err) {
+        console.error('Failed to sync linked invoice:', err);
+    }
 };
 
 /**
@@ -562,6 +570,12 @@ export const updateTransactionStatus = async (
         statusHistory: [...(currentData.statusHistory || []), newEntry],
         updatedAt: Timestamp.now(),
     });
+
+    try {
+        await syncInvoicesContainingTransaction(id);
+    } catch (err) {
+        console.error('Failed to sync linked invoice:', err);
+    }
 };
 
 /**

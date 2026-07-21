@@ -5,6 +5,7 @@ import {
     deleteDoc,
     doc,
     getDoc,
+    getDocs,
     query,
     where,
     onSnapshot,
@@ -195,3 +196,73 @@ export const updateInvoiceStatus = async (id: string, status: 'Paid' | 'Unpaid',
 export const deleteInvoice = async (id: string) => {
     await deleteDoc(doc(db, COLLECTION_NAME, id));
 };
+
+export const syncInvoiceWithTransactions = async (invoiceId: string): Promise<Invoice | null> => {
+    try {
+        const invoiceRef = doc(db, COLLECTION_NAME, invoiceId);
+        const invoiceSnap = await getDoc(invoiceRef);
+        if (!invoiceSnap.exists()) return null;
+
+        const invData = invoiceSnap.data() as InvoiceDoc;
+        if (!invData.transactionIds || invData.transactionIds.length === 0) {
+            return docToInvoice(invoiceSnap.id, invData);
+        }
+
+        const txDocs = await Promise.all(
+            invData.transactionIds.map(tid => getDoc(doc(db, 'transactions', tid)))
+        );
+        const loadedTx = txDocs
+            .filter(snap => snap.exists())
+            .map(snap => snap.data() as any);
+
+        if (loadedTx.length === 0) {
+            return docToInvoice(invoiceSnap.id, invData);
+        }
+
+        const primaryTx = loadedTx[0];
+        const liveClientName = primaryTx.pengirimName || invData.clientName;
+        const liveClientAddress = primaryTx.pengirimAddress || invData.clientAddress;
+
+        const subtotal = loadedTx.reduce((sum, t) => sum + (Number(t.jumlah) || 0), 0);
+        const isTaxable = loadedTx.some(t => t.isTaxable || (t.ppn && Number(t.ppn) > 0));
+        const totalPPN = isTaxable ? Math.round(subtotal * 0.011) : 0;
+        const liveTotalAmount = subtotal + totalPPN;
+
+        const needsUpdate = invData.clientName !== liveClientName ||
+            invData.totalAmount !== liveTotalAmount ||
+            invData.clientAddress !== liveClientAddress;
+
+        if (needsUpdate) {
+            await updateDoc(invoiceRef, {
+                clientName: liveClientName,
+                clientAddress: liveClientAddress,
+                totalAmount: liveTotalAmount,
+                updatedAt: Timestamp.now(),
+            });
+            invData.clientName = liveClientName;
+            invData.clientAddress = liveClientAddress;
+            invData.totalAmount = liveTotalAmount;
+        }
+
+        return docToInvoice(invoiceSnap.id, invData);
+    } catch (error) {
+        console.error('Error syncing invoice with transactions:', error);
+        return null;
+    }
+};
+
+export const syncInvoicesContainingTransaction = async (transactionId: string): Promise<void> => {
+    try {
+        const q = query(
+            collection(db, COLLECTION_NAME),
+            where('transactionIds', 'array-contains', transactionId)
+        );
+        const snapshot = await getDocs(q);
+        for (const docSnap of snapshot.docs) {
+            await syncInvoiceWithTransactions(docSnap.id);
+        }
+    } catch (error) {
+        console.error('Error syncing invoices containing transaction:', error);
+    }
+};
+

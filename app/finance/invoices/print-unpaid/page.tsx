@@ -40,20 +40,41 @@ function PrintUnpaidInvoicesContent({
             setInvoices(unpaidInvoices);
             
             if (loading) {
-                // Fetch STT numbers for all unpaid invoices
+                // Fetch STT numbers and live details for all unpaid invoices
                 const loadSttNumbers = async () => {
                     const mapping: Record<string, string> = {};
+                    const updatedInvoices: Invoice[] = [];
                     for (const inv of unpaidInvoices) {
                         if (inv.transactionIds && inv.transactionIds.length > 0) {
                             try {
                                 const txs = await Promise.all(inv.transactionIds.map(tid => getTransactionById(tid)));
-                                mapping[inv.id] = txs.filter(t => t !== null).map(t => t!.noSTT.replace(/^STT/i, '')).join(', ');
+                                const validTxs = txs.filter((t): t is any => t !== null);
+                                mapping[inv.id] = validTxs.map(t => t.noSTT.replace(/^STT/i, '')).join(', ');
+
+                                if (validTxs.length > 0) {
+                                    const primaryTx = validTxs[0];
+                                    const liveClientName = primaryTx.pengirimName || inv.clientName;
+                                    const subtotal = validTxs.reduce((sum, t) => sum + (t.jumlah || 0), 0);
+                                    const isTaxable = validTxs.some(t => t.isTaxable || (t.ppn && t.ppn > 0));
+                                    const liveTotalAmount = subtotal + (isTaxable ? Math.round(subtotal * 0.011) : 0);
+                                    updatedInvoices.push({
+                                        ...inv,
+                                        clientName: liveClientName,
+                                        totalAmount: liveTotalAmount
+                                    });
+                                } else {
+                                    updatedInvoices.push(inv);
+                                }
                             } catch (error) {
                                 console.error('Failed to load STT for invoice', inv.id, error);
+                                updatedInvoices.push(inv);
                             }
+                        } else {
+                            updatedInvoices.push(inv);
                         }
                     }
                     setSttNumbers(mapping);
+                    setInvoices(updatedInvoices);
                     setLoading(false);
                 };
                 loadSttNumbers();

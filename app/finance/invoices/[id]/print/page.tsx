@@ -56,9 +56,6 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
             if (!user) return;
             const inv = await getInvoiceById(id);
             if (inv) {
-                setInvoice(inv);
-                const dateObj = inv.issueDate instanceof Date ? inv.issueDate : new Date(inv.issueDate);
-                setIssueDate(dateObj.toISOString().substring(0, 10));
                 const txItems = await Promise.all(inv.transactionIds.map(tid => getTransactionById(tid)));
                 const loaded = txItems.filter((t): t is Transaction => t !== null);
                 // Sort by noSTT numerically (strip non-numeric prefix if any)
@@ -68,6 +65,17 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
                     return numA - numB;
                 });
                 setTransactions(loaded);
+
+                if (loaded.length > 0 && loaded[0].pengirimName) {
+                    inv.clientName = loaded[0].pengirimName;
+                    if (loaded[0].pengirimAddress) {
+                        inv.clientAddress = loaded[0].pengirimAddress;
+                    }
+                }
+
+                setInvoice(inv);
+                const dateObj = inv.issueDate instanceof Date ? inv.issueDate : new Date(inv.issueDate);
+                setIssueDate(dateObj.toISOString().substring(0, 10));
             }
             setLoading(false);
         };

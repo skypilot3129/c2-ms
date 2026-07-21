@@ -4,7 +4,9 @@ import { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { subscribeToInvoices, deleteInvoice, updateInvoiceStatus } from '@/lib/firestore-invoices';
+import { subscribeToTransactions } from '@/lib/firestore-transactions';
 import type { Invoice } from '@/types/invoice';
+import type { Transaction } from '@/types/transaction';
 import { formatRupiah } from '@/lib/currency';
 import { Plus, Search, Trash2, CheckCircle2, Printer, CheckSquare, Eye, ChevronLeft, ChevronRight, AlertCircle, ArrowUpDown, ArrowUp, ArrowDown, Filter, FileText } from 'lucide-react';
 import ProtectedRoute from '@/components/ProtectedRoute';
@@ -15,6 +17,7 @@ type SortDir = 'asc' | 'desc';
 export default function InvoicesPage() {
     const { user } = useAuth();
     const [invoices, setInvoices] = useState<Invoice[]>([]);
+    const [transactions, setTransactions] = useState<Transaction[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [activeTab, setActiveTab] = useState<'all' | 'paid' | 'unpaid'>('all');
@@ -30,7 +33,7 @@ export default function InvoicesPage() {
 
     useEffect(() => {
         if (!user) return;
-        const unsubscribe = subscribeToInvoices(user.uid, (data) => {
+        const unsubscribeInvoices = subscribeToInvoices(user.uid, (data) => {
             // Convert Firestore Timestamps to Date if necessary
             const processedData = data.map(inv => ({
                 ...inv,
@@ -40,8 +43,39 @@ export default function InvoicesPage() {
             setInvoices(processedData);
             setLoading(false);
         });
-        return () => unsubscribe();
+
+        const unsubscribeTx = subscribeToTransactions((txData) => {
+            setTransactions(txData);
+        }, user.uid);
+
+        return () => {
+            unsubscribeInvoices();
+            unsubscribeTx();
+        };
     }, [user]);
+
+    // Dynamically compute live sender name & total amount for invoices based on their linked transactions
+    const liveInvoices = useMemo(() => {
+        if (transactions.length === 0) return invoices;
+        const txMap = new Map(transactions.map(t => [t.id, t]));
+        return invoices.map(inv => {
+            if (!inv.transactionIds || inv.transactionIds.length === 0) return inv;
+            const linked = inv.transactionIds.map(tid => txMap.get(tid)).filter((t): t is Transaction => t !== undefined);
+            if (linked.length === 0) return inv;
+
+            const primaryTx = linked[0];
+            const liveClientName = primaryTx.pengirimName || inv.clientName;
+            const subtotal = linked.reduce((sum, t) => sum + (t.jumlah || 0), 0);
+            const isTaxable = linked.some(t => t.isTaxable || (t.ppn && t.ppn > 0));
+            const liveTotalAmount = subtotal + (isTaxable ? Math.round(subtotal * 0.011) : 0);
+
+            return {
+                ...inv,
+                clientName: liveClientName,
+                totalAmount: liveTotalAmount,
+            };
+        });
+    }, [invoices, transactions]);
 
     const isOverdue = (inv: Invoice) => {
         if (inv.status === 'Paid') return false;
@@ -63,7 +97,7 @@ export default function InvoicesPage() {
         let unpaidCount = 0;
         let paidCount = 0;
 
-        let filtered = invoices.filter(inv => {
+        let filtered = liveInvoices.filter(inv => {
             const matchesSearch = inv.invoiceNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
                 inv.clientName.toLowerCase().includes(searchTerm.toLowerCase());
 
@@ -123,10 +157,10 @@ export default function InvoicesPage() {
         return {
             filteredInvoices: filtered,
             summary: { totalActive, totalPiutang, countUnpaid, countOverdue },
-            tabCounts: { all: invoices.length, unpaid: unpaidCount, paid: paidCount },
+            tabCounts: { all: liveInvoices.length, unpaid: unpaidCount, paid: paidCount },
             months: monthOptions
         };
-    }, [invoices, searchTerm, activeTab, dateFilter, showOverdueOnly, sortField, sortDir]);
+    }, [liveInvoices, searchTerm, activeTab, dateFilter, showOverdueOnly, sortField, sortDir]);
 
     // Pagination
     const totalPages = Math.ceil(filteredInvoices.length / pageSize);
