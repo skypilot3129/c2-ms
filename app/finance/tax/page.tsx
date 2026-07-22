@@ -7,7 +7,8 @@ import { db } from '@/lib/firebase';
 import { getTaxSettings, updateTaxSettings, type TaxSettings } from '@/lib/firestore-settings';
 import { formatRupiah } from '@/lib/currency';
 import ProtectedRoute from '@/components/ProtectedRoute';
-import { Settings, FileText, Save, Calculator, Calendar } from 'lucide-react';
+import Link from 'next/link';
+import { Settings, FileText, Save, Calculator, Calendar, Receipt } from 'lucide-react';
 import type { Transaction } from '@/types/transaction';
 
 export default function TaxPage() {
@@ -111,27 +112,37 @@ export default function TaxPage() {
         'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
     ];
 
+    if (loading) return <div className="p-8 text-center text-gray-500">Memuat modul pajak...</div>;
+
     return (
         <ProtectedRoute>
             <div className="max-w-6xl mx-auto space-y-6 pb-12">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                     <div>
-                        <h1 className="text-xl sm:text-2xl font-bold text-gray-800">Pajak</h1>
+                        <h1 className="text-xl sm:text-2xl font-bold text-gray-800">Manajemen Pajak & PPN</h1>
                         <p className="text-gray-500 text-sm">Laporan PPN Keluaran & Pengaturan PKP</p>
                     </div>
-                    <div className="bg-white p-1 rounded-xl border border-gray-200 flex w-full sm:w-auto">
-                        <button
-                            onClick={() => setActiveTab('report')}
-                            className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === 'report' ? 'bg-blue-50 text-blue-600' : 'text-gray-600 hover:bg-gray-50'}`}
+                    <div className="flex flex-wrap items-center gap-3">
+                        <Link
+                            href="/finance/invoices/tax-invoices"
+                            className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-sm transition-all flex items-center gap-2"
                         >
-                            Laporan PPN
-                        </button>
-                        <button
-                            onClick={() => setActiveTab('settings')}
-                            className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === 'settings' ? 'bg-blue-50 text-blue-600' : 'text-gray-600 hover:bg-gray-50'}`}
-                        >
-                            Pengaturan
-                        </button>
+                            <Receipt size={16} /> Daftar Invoice Pajak
+                        </Link>
+                        <div className="bg-white p-1 rounded-xl border border-gray-200 flex">
+                            <button
+                                onClick={() => setActiveTab('report')}
+                                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === 'report' ? 'bg-blue-50 text-blue-600' : 'text-gray-600 hover:bg-gray-50'}`}
+                            >
+                                Laporan PPN
+                            </button>
+                            <button
+                                onClick={() => setActiveTab('settings')}
+                                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === 'settings' ? 'bg-blue-50 text-blue-600' : 'text-gray-600 hover:bg-gray-50'}`}
+                            >
+                                Pengaturan
+                            </button>
+                        </div>
                     </div>
                 </div>
 

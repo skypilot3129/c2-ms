@@ -32,6 +32,8 @@ export interface Invoice {
     paidTime?: string; // e.g. "10:11:51 WIB"
     paidBy?: string;   // Operator email / name who marked as Paid
 
+    isTaxable?: boolean;
+
     createdAt: Date;
     updatedAt: Date;
 }
@@ -65,6 +67,7 @@ export interface InvoiceDoc {
     paidAt?: Timestamp;
     paidTime?: string;
     paidBy?: string;
+    isTaxable?: boolean;
     createdAt: Timestamp;
     updatedAt: Timestamp;
 }

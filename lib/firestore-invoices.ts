@@ -39,6 +39,7 @@ const docToInvoice = (id: string, data: InvoiceDoc): Invoice => ({
     paidAt: data.paidAt?.toDate(),
     paidTime: data.paidTime,
     paidBy: data.paidBy,
+    isTaxable: data.isTaxable,
     createdAt: data.createdAt.toDate(),
     updatedAt: data.updatedAt.toDate(),
 });
@@ -213,6 +214,14 @@ export const updateInvoiceStatus = async (
 
 export const deleteInvoice = async (id: string) => {
     await deleteDoc(doc(db, COLLECTION_NAME, id));
+};
+
+export const updateInvoiceNumber = async (id: string, newInvoiceNumber: string): Promise<void> => {
+    const invoiceRef = doc(db, COLLECTION_NAME, id);
+    await updateDoc(invoiceRef, {
+        invoiceNumber: newInvoiceNumber.trim(),
+        updatedAt: Timestamp.now(),
+    });
 };
 
 export const syncInvoiceWithTransactions = async (invoiceId: string): Promise<Invoice | null> => {

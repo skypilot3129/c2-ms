@@ -8,7 +8,7 @@ import { subscribeToTransactions } from '@/lib/firestore-transactions';
 import type { Invoice } from '@/types/invoice';
 import type { Transaction } from '@/types/transaction';
 import { formatRupiah } from '@/lib/currency';
-import { Plus, Search, Trash2, CheckCircle2, Printer, CheckSquare, Eye, ChevronLeft, ChevronRight, AlertCircle, ArrowUpDown, ArrowUp, ArrowDown, Filter, FileText } from 'lucide-react';
+import { Plus, Search, Trash2, CheckCircle2, Printer, CheckSquare, Eye, ChevronLeft, ChevronRight, AlertCircle, ArrowUpDown, ArrowUp, ArrowDown, Filter, FileText, Receipt } from 'lucide-react';
 import ProtectedRoute from '@/components/ProtectedRoute';
 
 type SortField = 'date' | 'totalAmount' | 'clientName' | 'dueDate';
@@ -221,6 +221,13 @@ export default function InvoicesPage() {
                         <p className="text-gray-500 text-sm">Kelola tagihan pelanggan (Consolidated Invoices)</p>
                     </div>
                     <div className="flex flex-wrap gap-2">
+                        <Link
+                            href="/finance/invoices/tax-invoices"
+                            className="bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100 px-4 py-2.5 rounded-xl font-bold flex items-center justify-center gap-2 transition-all active:scale-95 text-xs sm:text-sm"
+                        >
+                            <Receipt size={16} className="text-indigo-600" />
+                            <span>Daftar Invoice Pajak</span>
+                        </Link>
                         <Link
                             href={`/finance/invoices/print-unpaid${dateFilter ? `?month=${dateFilter}` : ''}`}
                             target="_blank"
