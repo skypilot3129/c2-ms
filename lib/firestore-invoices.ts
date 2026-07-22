@@ -36,6 +36,9 @@ const docToInvoice = (id: string, data: InvoiceDoc): Invoice => ({
     paymentMethod: data.paymentMethod,
     paymentRef: data.paymentRef,
     notes: data.notes,
+    paidAt: data.paidAt?.toDate(),
+    paidTime: data.paidTime,
+    paidBy: data.paidBy,
     createdAt: data.createdAt.toDate(),
     updatedAt: data.updatedAt.toDate(),
 });
@@ -138,7 +141,11 @@ export const createInvoice = async (data: InvoiceFormData, userId: string): Prom
     return docRef.id;
 };
 
-export const updateInvoiceStatus = async (id: string, status: 'Paid' | 'Unpaid', paymentDetails?: { date: Date, method: string, ref?: string }) => {
+export const updateInvoiceStatus = async (
+    id: string, 
+    status: 'Paid' | 'Unpaid', 
+    paymentDetails?: { date: Date, method: string, ref?: string, paidBy?: string }
+) => {
     // 1. Get the invoice to find transaction IDs
     const invoiceRef = doc(db, COLLECTION_NAME, id);
 
@@ -160,16 +167,27 @@ export const updateInvoiceStatus = async (id: string, status: 'Paid' | 'Unpaid',
         }
 
         // ===== PHASE 2: ALL WRITES AFTER =====
+        const now = Timestamp.now();
+        const dateObj = paymentDetails?.date || new Date();
+        const formattedTime = dateObj.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) + ' WIB';
+
         const updates: any = {
             status,
-            updatedAt: Timestamp.now()
+            updatedAt: now
         };
 
-        if (status === 'Paid' && paymentDetails) {
-            updates.paymentDate = Timestamp.fromDate(paymentDetails.date);
-            updates.paymentMethod = paymentDetails.method;
-            if (paymentDetails.ref !== undefined) {
-                updates.paymentRef = paymentDetails.ref;
+        if (status === 'Paid') {
+            updates.paidAt = now;
+            updates.paidTime = formattedTime;
+            if (paymentDetails?.paidBy) {
+                updates.paidBy = paymentDetails.paidBy;
+            }
+            if (paymentDetails) {
+                updates.paymentDate = Timestamp.fromDate(paymentDetails.date);
+                updates.paymentMethod = paymentDetails.method;
+                if (paymentDetails.ref !== undefined) {
+                    updates.paymentRef = paymentDetails.ref;
+                }
             }
         }
 

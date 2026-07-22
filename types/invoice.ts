@@ -20,12 +20,17 @@ export interface Invoice {
     issueDate: Date;
     dueDate: Date;
 
-    // Status
+    // Status & Payment details
     status: InvoiceStatus;
     paymentDate?: Date;
     paymentMethod?: string;
     paymentRef?: string; // Bukti Transfer ref
     notes?: string;
+
+    // Detailed Timestamp when marked as Paid / Lunas
+    paidAt?: Date;
+    paidTime?: string; // e.g. "10:11:51 WIB"
+    paidBy?: string;   // Operator email / name who marked as Paid
 
     createdAt: Date;
     updatedAt: Date;
@@ -57,6 +62,9 @@ export interface InvoiceDoc {
     paymentMethod?: string;
     paymentRef?: string;
     notes?: string;
+    paidAt?: Timestamp;
+    paidTime?: string;
+    paidBy?: string;
     createdAt: Timestamp;
     updatedAt: Timestamp;
 }

@@ -181,9 +181,11 @@ export default function InvoicesPage() {
         if (confirm(`Tandai invoice ${inv.invoiceNumber} sebagai LUNAS?`)) {
             setProcessingId(inv.id);
             try {
+                const operatorName = user?.displayName || user?.email || 'Admin';
                 await updateInvoiceStatus(inv.id, 'Paid', {
                     date: new Date(),
                     method: 'Cash',
+                    paidBy: operatorName
                 });
             } catch (error: any) {
                 console.error("Error marking paid:", error);
@@ -222,17 +224,25 @@ export default function InvoicesPage() {
                         <Link
                             href={`/finance/invoices/print-unpaid${dateFilter ? `?month=${dateFilter}` : ''}`}
                             target="_blank"
-                            className="bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 px-4 py-2.5 rounded-xl font-medium flex items-center justify-center gap-2 transition-all active:scale-95"
+                            className="bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 px-4 py-2.5 rounded-xl font-medium flex items-center justify-center gap-2 transition-all active:scale-95 text-xs sm:text-sm"
                         >
-                            <Printer size={18} className="text-red-500" />
+                            <Printer size={16} className="text-red-500" />
                             <span className="hidden sm:inline">Cetak Belum Lunas</span>
+                        </Link>
+                        <Link
+                            href={`/finance/invoices/print-paid${dateFilter ? `?month=${dateFilter}` : ''}`}
+                            target="_blank"
+                            className="bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 px-4 py-2.5 rounded-xl font-medium flex items-center justify-center gap-2 transition-all active:scale-95 text-xs sm:text-sm"
+                        >
+                            <CheckCircle2 size={16} className="text-emerald-600" />
+                            <span className="hidden sm:inline">Cetak Piutang Lunas</span>
                         </Link>
                         <Link
                             href="/finance/invoices/print-rekap"
                             target="_blank"
-                            className="bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 px-4 py-2.5 rounded-xl font-medium flex items-center justify-center gap-2 transition-all active:scale-95"
+                            className="bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 px-4 py-2.5 rounded-xl font-medium flex items-center justify-center gap-2 transition-all active:scale-95 text-xs sm:text-sm"
                         >
-                            <FileText size={18} className="text-emerald-600" />
+                            <FileText size={16} className="text-blue-600" />
                             <span className="hidden sm:inline">Cetak Rekap</span>
                         </Link>
                         <Link
