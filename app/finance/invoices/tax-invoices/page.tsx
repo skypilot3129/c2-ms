@@ -205,12 +205,13 @@ export default function TaxInvoicesPage() {
                         >
                             <Building2 size={16} className="text-indigo-600" /> Pengaturan & Laporan Pajak
                         </Link>
-                        <button
-                            onClick={() => window.print()}
-                            className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs px-5 py-2.5 rounded-xl shadow-md transition-all flex items-center gap-2"
+                        <Link
+                            href={`/finance/invoices/tax-invoices/print-rekap${monthFilter ? `?month=${monthFilter}` : ''}`}
+                            target="_blank"
+                            className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs px-5 py-2.5 rounded-xl shadow-md transition-all flex items-center gap-2 active:scale-95"
                         >
                             <Printer size={16} /> Cetak Rekap Invoice Pajak
-                        </button>
+                        </Link>
                     </div>
                 </div>
 
