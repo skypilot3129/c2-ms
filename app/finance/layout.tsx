@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, FileText, ArrowLeft, PieChart, Wallet, Receipt, Menu, X, BarChart3, Target, ClipboardList } from "lucide-react";
+import { LayoutDashboard, FileText, ArrowLeft, PieChart, Wallet, Receipt, Menu, X, BarChart3, Target, ClipboardList, Send } from "lucide-react";
 
 export default function FinanceLayout({ children }: { children: ReactNode }) {
     const pathname = usePathname();
@@ -17,6 +17,12 @@ export default function FinanceLayout({ children }: { children: ReactNode }) {
 
     const navLinks = [
         {
+            label: 'Penagihan IKA',
+            icon: <Send size={20} />,
+            href: '/finance/penagihan-ika',
+            active: pathname.startsWith('/finance/penagihan-ika')
+        },
+        {
             label: 'Piutang & Penagihan',
             icon: <Wallet size={20} />,
             href: '/finance/receivables',
@@ -26,7 +32,7 @@ export default function FinanceLayout({ children }: { children: ReactNode }) {
             label: 'Invoice',
             icon: <FileText size={20} />,
             href: '/finance/invoices',
-            active: pathname.startsWith('/finance/invoices')
+            active: pathname.startsWith('/finance/invoices') && !pathname.includes('/tax-invoices')
         },
         {
             label: 'Pengeluaran Umum',
