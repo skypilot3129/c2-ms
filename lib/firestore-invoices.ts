@@ -40,6 +40,10 @@ const docToInvoice = (id: string, data: InvoiceDoc): Invoice => ({
     paidTime: data.paidTime,
     paidBy: data.paidBy,
     isTaxable: data.isTaxable,
+    collectionFeedback: data.collectionFeedback ? {
+        ...data.collectionFeedback,
+        updatedAt: data.collectionFeedback.updatedAt?.toDate(),
+    } : undefined,
     createdAt: data.createdAt.toDate(),
     updatedAt: data.updatedAt.toDate(),
 });
@@ -220,6 +224,25 @@ export const updateInvoiceNumber = async (id: string, newInvoiceNumber: string):
     const invoiceRef = doc(db, COLLECTION_NAME, id);
     await updateDoc(invoiceRef, {
         invoiceNumber: newInvoiceNumber.trim(),
+        updatedAt: Timestamp.now(),
+    });
+};
+
+export const updateCollectionFeedback = async (
+    invoiceId: string,
+    feedback: {
+        status: string;
+        notes: string;
+        promisedDate?: string;
+        officer: string;
+    }
+): Promise<void> => {
+    const invoiceRef = doc(db, COLLECTION_NAME, invoiceId);
+    await updateDoc(invoiceRef, {
+        collectionFeedback: {
+            ...feedback,
+            updatedAt: Timestamp.now(),
+        },
         updatedAt: Timestamp.now(),
     });
 };

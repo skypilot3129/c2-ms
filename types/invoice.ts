@@ -33,6 +33,13 @@ export interface Invoice {
     paidBy?: string;   // Operator email / name who marked as Paid
 
     isTaxable?: boolean;
+    collectionFeedback?: {
+        status: string;
+        notes: string;
+        promisedDate?: string;
+        officer: string;
+        updatedAt?: Date;
+    };
 
     createdAt: Date;
     updatedAt: Date;
@@ -68,6 +75,13 @@ export interface InvoiceDoc {
     paidTime?: string;
     paidBy?: string;
     isTaxable?: boolean;
+    collectionFeedback?: {
+        status: string;
+        notes: string;
+        promisedDate?: string;
+        officer: string;
+        updatedAt?: Timestamp;
+    };
     createdAt: Timestamp;
     updatedAt: Timestamp;
 }

@@ -9,7 +9,7 @@ import type { Invoice } from '@/types/invoice';
 import type { Transaction } from '@/types/transaction';
 import { formatRupiah, terbilang } from '@/lib/currency';
 import { COMPANY_INFO } from '@/lib/company-config';
-import { Printer, ArrowLeft, Send, CheckCircle2, User, Clock } from 'lucide-react';
+import { Printer, ArrowLeft, Send, CheckCircle2, User, Clock, MessageSquare, AlertTriangle } from 'lucide-react';
 
 function PrintDailyCollectionContent() {
     const router = useRouter();
@@ -27,8 +27,7 @@ function PrintDailyCollectionContent() {
         if (!user) return;
 
         const unsubInvoices = subscribeToInvoices(user.uid, (invData) => {
-            const paidInvoices = invData.filter(inv => inv.status === 'Paid');
-            setInvoices(paidInvoices);
+            setInvoices(invData);
             setLoading(false);
         });
 
@@ -42,8 +41,8 @@ function PrintDailyCollectionContent() {
         };
     }, [user]);
 
-    // Filter paid invoices for the target collection date & officer
-    const { dailyPaidInvoices, sttNumbersMap, summary } = useMemo(() => {
+    // Live reconciliation of daily collection data & customer feedback notes
+    const { dailyPaidInvoices, unpaidFeedbackInvoices, sttNumbersMap, summary } = useMemo(() => {
         const txMap = new Map(transactions.map(t => [t.id, t]));
         const sttMapping: Record<string, string> = {};
 
@@ -51,19 +50,11 @@ function PrintDailyCollectionContent() {
         let cashAmount = 0;
         let transferAmount = 0;
 
-        const filtered = invoices.filter(inv => {
-            // Check paid date
-            const dateObj = inv.paidAt || inv.paymentDate || inv.updatedAt;
-            const dateStr = dateObj.toISOString().split('T')[0];
+        const paidList: Invoice[] = [];
+        const unpaidFeedbackList: Invoice[] = [];
 
-            if (dateStr !== targetDateParam) return false;
-
-            // Check officer filter if specified
-            if (officerParam && inv.paidBy && !inv.paidBy.toLowerCase().includes(officerParam.toLowerCase())) {
-                return false;
-            }
-
-            // Linked transactions
+        invoices.forEach(inv => {
+            // STT mapping
             const linked = (inv.transactionIds || [])
                 .map(tid => txMap.get(tid))
                 .filter((t): t is Transaction => t !== undefined);
@@ -72,32 +63,45 @@ function PrintDailyCollectionContent() {
                 sttMapping[inv.id] = linked.map(t => t.noSTT.replace(/^STT/i, '')).join(', ');
             }
 
-            // Amounts
-            totalAmount += inv.totalAmount;
-            if (inv.paymentMethod === 'Transfer') {
-                transferAmount += inv.totalAmount;
-            } else {
-                cashAmount += inv.totalAmount;
+            // 1. Paid invoices for target date
+            if (inv.status === 'Paid') {
+                const dateObj = inv.paidAt || inv.paymentDate || inv.updatedAt;
+                const dateStr = dateObj.toISOString().split('T')[0];
+                if (dateStr === targetDateParam) {
+                    if (!officerParam || (inv.paidBy && inv.paidBy.toLowerCase().includes(officerParam.toLowerCase()))) {
+                        paidList.push(inv);
+                        totalAmount += inv.totalAmount;
+                        if (inv.paymentMethod === 'Transfer') transferAmount += inv.totalAmount;
+                        else cashAmount += inv.totalAmount;
+                    }
+                }
             }
 
-            return true;
+            // 2. Unpaid invoices with collection feedback logged on or active for target date
+            if (inv.status !== 'Paid' && inv.collectionFeedback) {
+                const feedbackDate = inv.collectionFeedback.updatedAt ? new Date(inv.collectionFeedback.updatedAt).toISOString().split('T')[0] : '';
+                // Show if feedback logged today or if promised date matches/active
+                if (feedbackDate === targetDateParam || inv.collectionFeedback.promisedDate === targetDateParam || !targetDateParam) {
+                    if (!officerParam || (inv.collectionFeedback.officer && inv.collectionFeedback.officer.toLowerCase().includes(officerParam.toLowerCase()))) {
+                        unpaidFeedbackList.push(inv);
+                    }
+                }
+            }
         });
 
-        // Sort by paid time ascending
-        filtered.sort((a, b) => {
-            const timeA = a.paidAt?.getTime() || a.updatedAt.getTime();
-            const timeB = b.paidAt?.getTime() || b.updatedAt.getTime();
-            return timeA - timeB;
-        });
+        // Sort lists
+        paidList.sort((a, b) => (a.paidAt?.getTime() || a.updatedAt.getTime()) - (b.paidAt?.getTime() || b.updatedAt.getTime()));
 
         return {
-            dailyPaidInvoices: filtered,
+            dailyPaidInvoices: paidList,
+            unpaidFeedbackInvoices: unpaidFeedbackList,
             sttNumbersMap: sttMapping,
             summary: {
                 totalAmount,
                 cashAmount,
                 transferAmount,
-                count: filtered.length
+                countPaid: paidList.length,
+                countFeedback: unpaidFeedbackList.length
             }
         };
     }, [invoices, transactions, targetDateParam, officerParam]);
@@ -127,7 +131,7 @@ function PrintDailyCollectionContent() {
                 .daily-table th { font-weight: bold; text-align: center; background: #f8fafc; text-transform: uppercase; }
             `}} />
 
-            {/* Print Controls Topbar (Hidden in Print) */}
+            {/* Print Controls Topbar */}
             <div className="no-print bg-white p-4 shadow-sm mb-6 border-b border-gray-200 sticky top-0 z-50">
                 <div className="max-w-4xl mx-auto flex items-center justify-between gap-4">
                     <div className="flex items-center gap-3">
@@ -139,15 +143,14 @@ function PrintDailyCollectionContent() {
                         </button>
                         <div>
                             <h2 className="font-bold text-gray-900 text-base flex items-center gap-2">
-                                <Send size={18} className="text-emerald-600" /> Cetak Laporan Penagihan Harian
+                                <Send size={18} className="text-emerald-600" /> Cetak Laporan Penagihan Harian & Respon Customer
                             </h2>
                             <p className="text-xs text-gray-500">Tanggal: {formattedTargetDate}</p>
                         </div>
                     </div>
                     <button
                         onClick={() => window.print()}
-                        disabled={summary.count === 0}
-                        className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-xs px-6 py-2.5 rounded-xl shadow-md transition-all flex items-center gap-2 active:scale-95 cursor-pointer"
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-6 py-2.5 rounded-xl shadow-md transition-all flex items-center gap-2 active:scale-95 cursor-pointer"
                     >
                         <Printer size={16} /> Cetak Dokumen PDF
                     </button>
@@ -178,110 +181,150 @@ function PrintDailyCollectionContent() {
                 {/* 2. Metadata & KPI Summary Banner */}
                 <div className="grid grid-cols-4 gap-3 mb-4 text-[8.5pt]">
                     <div className="bg-gray-50 border border-gray-300 p-2 rounded text-center">
-                        <span className="text-gray-500 font-semibold block text-[7.5pt] uppercase">Total Ditagih</span>
+                        <span className="text-gray-500 font-semibold block text-[7.5pt] uppercase">Total Hasil Ditagih</span>
                         <span className="font-black text-emerald-800 text-[10pt]">{formatRupiah(summary.totalAmount)}</span>
                     </div>
                     <div className="bg-gray-50 border border-gray-300 p-2 rounded text-center">
                         <span className="text-gray-500 font-semibold block text-[7.5pt] uppercase">Invoice Lunas</span>
-                        <span className="font-bold text-gray-900 text-[10pt]">{summary.count} Invoice</span>
+                        <span className="font-bold text-gray-900 text-[10pt]">{summary.countPaid} Invoice</span>
                     </div>
                     <div className="bg-gray-50 border border-gray-300 p-2 rounded text-center">
-                        <span className="text-gray-500 font-semibold block text-[7.5pt] uppercase">Non-Tunai (Transfer)</span>
-                        <span className="font-bold text-blue-700 text-[10pt]">{formatRupiah(summary.transferAmount)}</span>
+                        <span className="text-gray-500 font-semibold block text-[7.5pt] uppercase">Transfer vs Cash</span>
+                        <span className="font-bold text-blue-800 text-[8.5pt] block">{formatRupiah(summary.transferAmount)} (TF)</span>
+                        <span className="font-bold text-amber-800 text-[8.5pt] block">{formatRupiah(summary.cashAmount)} (Cash)</span>
                     </div>
                     <div className="bg-gray-50 border border-gray-300 p-2 rounded text-center">
-                        <span className="text-gray-500 font-semibold block text-[7.5pt] uppercase">Tunai (Cash)</span>
-                        <span className="font-bold text-amber-700 text-[10pt]">{formatRupiah(summary.cashAmount)}</span>
+                        <span className="text-gray-500 font-semibold block text-[7.5pt] uppercase">Respon Customer Unpaid</span>
+                        <span className="font-bold text-indigo-900 text-[10pt]">{summary.countFeedback} Catatan Field</span>
                     </div>
                 </div>
 
-                {/* 3. Daily Collections Table */}
-                <table className="daily-table mb-4">
-                    <thead>
-                        <tr>
-                            <th style={{ width: '4%' }}>NO</th>
-                            <th style={{ width: '15%' }}>WAKTU & JAM</th>
-                            <th style={{ width: '15%' }}>NO. INVOICE</th>
-                            <th style={{ width: '24%' }}>KLIEN / PENGIRIM</th>
-                            <th style={{ width: '17%' }}>NOMOR STT (RESI)</th>
-                            <th style={{ width: '15%' }}>METODE & BUKTI</th>
-                            <th style={{ width: '10%' }}>PETUGAS</th>
-                            <th style={{ width: '15%' }}>NOMINAL (RP)</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {dailyPaidInvoices.length === 0 ? (
+                {/* 3. SECTION 1: TABEL PENAGIHAN LUNAS (PAID COLLECTIONS) */}
+                <div className="mb-5">
+                    <h3 className="font-black text-[9.5pt] uppercase tracking-wide text-gray-900 mb-1.5 flex items-center gap-1.5">
+                        <CheckCircle2 size={15} className="text-emerald-700" /> I. DAFTAR INVOICE BERHASIL DITAGIH (LUNAS)
+                    </h3>
+                    <table className="daily-table">
+                        <thead>
                             <tr>
-                                <td colSpan={8} className="text-center py-6 text-gray-500 italic">
-                                    Tidak ada data pelunasan penagihan yang tercatat pada tanggal ini.
-                                </td>
+                                <th style={{ width: '4%' }}>NO</th>
+                                <th style={{ width: '14%' }}>WAKTU & JAM</th>
+                                <th style={{ width: '16%' }}>NO. INVOICE</th>
+                                <th style={{ width: '24%' }}>KLIEN / PENGIRIM</th>
+                                <th style={{ width: '16%' }}>NOMOR STT (RESI)</th>
+                                <th style={{ width: '14%' }}>METODE & BUKTI</th>
+                                <th style={{ width: '12%' }}>PETUGAS</th>
+                                <th style={{ width: '14%' }}>NOMINAL (RP)</th>
                             </tr>
-                        ) : (
-                            dailyPaidInvoices.map((inv, idx) => {
-                                const dateObj = inv.paidAt || inv.paymentDate || inv.updatedAt;
-                                const timeStr = inv.paidTime || dateObj.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) + ' WIB';
+                        </thead>
+                        <tbody>
+                            {dailyPaidInvoices.length === 0 ? (
+                                <tr>
+                                    <td colSpan={8} className="text-center py-4 text-gray-500 italic">
+                                        Belum ada pelunasan penagihan yang tercatat pada tanggal ini.
+                                    </td>
+                                </tr>
+                            ) : (
+                                dailyPaidInvoices.map((inv, idx) => {
+                                    const dateObj = inv.paidAt || inv.paymentDate || inv.updatedAt;
+                                    const timeStr = inv.paidTime || dateObj.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) + ' WIB';
 
-                                return (
-                                    <tr key={inv.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}>
-                                        <td className="text-center font-medium text-gray-600">{idx + 1}</td>
-                                        <td className="text-center font-mono font-bold text-emerald-800 text-[8pt]">
-                                            ⏱️ {timeStr}
-                                        </td>
-                                        <td className="font-mono font-bold text-center text-gray-900">{inv.invoiceNumber}</td>
-                                        <td>
-                                            <div className="font-bold text-gray-900 text-[8.5pt] uppercase">{inv.clientName}</div>
-                                            {inv.clientAddress && (
-                                                <div className="text-[7.5pt] text-gray-600 truncate max-w-[170px]">{inv.clientAddress}</div>
-                                            )}
-                                        </td>
-                                        <td className="font-mono text-[8pt] leading-tight max-w-[140px] break-words">
-                                            {sttNumbersMap[inv.id] || '-'}
-                                        </td>
-                                        <td className="text-center">
-                                            <span className="font-bold text-gray-800 text-[8pt] block">
-                                                {inv.paymentMethod || 'Cash'}
-                                            </span>
-                                            {inv.paymentRef && (
-                                                <span className="text-[7.5pt] text-gray-500 truncate block max-w-[100px] mx-auto font-mono">
-                                                    Ref: {inv.paymentRef}
+                                    return (
+                                        <tr key={inv.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}>
+                                            <td className="text-center font-medium text-gray-600">{idx + 1}</td>
+                                            <td className="text-center font-mono font-bold text-emerald-800 text-[8pt]">⏱️ {timeStr}</td>
+                                            <td className="font-mono font-bold text-center text-gray-900">{inv.invoiceNumber}</td>
+                                            <td>
+                                                <div className="font-bold text-gray-900 text-[8.5pt] uppercase">{inv.clientName}</div>
+                                                {inv.clientAddress && <div className="text-[7.5pt] text-gray-600 truncate max-w-[170px]">{inv.clientAddress}</div>}
+                                            </td>
+                                            <td className="font-mono text-[8pt] leading-tight max-w-[140px] break-words">{sttNumbersMap[inv.id] || '-'}</td>
+                                            <td className="text-center">
+                                                <span className="font-bold text-gray-800 text-[8pt] block">{inv.paymentMethod || 'Cash'}</span>
+                                                {inv.paymentRef && <span className="text-[7.5pt] text-gray-500 truncate block max-w-[100px] mx-auto font-mono">Ref: {inv.paymentRef}</span>}
+                                            </td>
+                                            <td className="text-center text-[8pt] font-semibold text-gray-700">{inv.paidBy || 'Officer'}</td>
+                                            <td className="text-right font-mono font-black text-emerald-800 text-[9pt]">{formatRupiah(inv.totalAmount)}</td>
+                                        </tr>
+                                    );
+                                })
+                            )}
+                            <tr className="border-t-2 border-black bg-gray-100 font-black text-[8.5pt]">
+                                <td colSpan={7} className="text-right uppercase py-2 pr-4 italic">TOTAL DITAGIH HARI INI :</td>
+                                <td className="text-right font-mono text-emerald-800 py-2 pr-2 font-black text-[9.5pt]">{formatRupiah(summary.totalAmount)}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                {/* 4. SECTION 2: TABEL RESPO / CATATAN CUSTOMER UNPAID (CUSTOMER FEEDBACK LOGS) */}
+                <div className="mb-4">
+                    <h3 className="font-black text-[9.5pt] uppercase tracking-wide text-gray-900 mb-1.5 flex items-center gap-1.5">
+                        <MessageSquare size={15} className="text-indigo-700" /> II. DAFTAR HASIL / FEEDBACK ALASAN PENAGIHAN CUSTOMER (BELUM LUNAS)
+                    </h3>
+                    <table className="daily-table">
+                        <thead>
+                            <tr>
+                                <th style={{ width: '4%' }}>NO</th>
+                                <th style={{ width: '16%' }}>NO. INVOICE</th>
+                                <th style={{ width: '22%' }}>KLIEN / CUSTOMER</th>
+                                <th style={{ width: '18%' }}>STATUS HASIL PENAGIHAN</th>
+                                <th style={{ width: '26%' }}>CATATAN / DETAIL ALASAN CUSTOMER</th>
+                                <th style={{ width: '14%' }}>JANJI BAYAR TGL</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {unpaidFeedbackInvoices.length === 0 ? (
+                                <tr>
+                                    <td colSpan={6} className="text-center py-4 text-gray-500 italic">
+                                        Tidak ada catatan feedback / alasan penagihan customer yang tercatat.
+                                    </td>
+                                </tr>
+                            ) : (
+                                unpaidFeedbackInvoices.map((inv, idx) => {
+                                    const fb = inv.collectionFeedback!;
+                                    const promisedStr = fb.promisedDate ? new Date(fb.promisedDate).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '-';
+
+                                    return (
+                                        <tr key={inv.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}>
+                                            <td className="text-center font-medium text-gray-600">{idx + 1}</td>
+                                            <td className="font-mono font-bold text-center text-gray-900">{inv.invoiceNumber}</td>
+                                            <td>
+                                                <div className="font-bold text-gray-900 uppercase text-[8.5pt]">{inv.clientName}</div>
+                                                <div className="text-[7.5pt] font-mono text-gray-600">Tagihan: {formatRupiah(inv.totalAmount)}</div>
+                                            </td>
+                                            <td className="text-center">
+                                                <span className="font-bold text-indigo-900 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded text-[8pt] block uppercase">
+                                                    {fb.status}
                                                 </span>
-                                            )}
-                                        </td>
-                                        <td className="text-center text-[8pt] font-semibold text-gray-700">
-                                            {inv.paidBy || 'Officer'}
-                                        </td>
-                                        <td className="text-right font-mono font-black text-emerald-800 text-[9pt]">
-                                            {formatRupiah(inv.totalAmount)}
-                                        </td>
-                                    </tr>
-                                );
-                            })
-                        )}
+                                                <span className="text-[7pt] text-gray-500 block mt-0.5">Oleh: {fb.officer}</span>
+                                            </td>
+                                            <td className="text-[8pt] text-gray-800 leading-snug">
+                                                "{fb.notes || 'Belum ada catatan khusus.'}"
+                                            </td>
+                                            <td className="text-center font-mono font-bold text-amber-800 text-[8.5pt]">
+                                                {promisedStr}
+                                            </td>
+                                        </tr>
+                                    );
+                                })
+                            )}
+                        </tbody>
+                    </table>
+                </div>
 
-                        {/* Grand Total Row */}
-                        <tr className="border-t-2 border-black bg-gray-100 font-black text-[9pt]">
-                            <td colSpan={7} className="text-right uppercase py-2.5 pr-4 italic">
-                                TOTAL HASIL PENAGIHAN HARIAN :
-                            </td>
-                            <td className="text-right font-mono text-emerald-800 py-2.5 pr-2 font-black text-[10pt]">
-                                {formatRupiah(summary.totalAmount)}
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
-
-                {/* 4. Terbilang Box */}
+                {/* 5. Terbilang Box */}
                 <div className="bg-emerald-50/50 border border-emerald-300 p-2.5 rounded mb-6 font-mono text-[8.5pt] italic">
                     <span className="font-bold mr-2 not-italic text-black">Terbilang Total Penagihan Harian:</span>
                     # {terbilang(summary.totalAmount)} #
                 </div>
 
-                {/* 5. Signatures Block */}
+                {/* 6. Signatures Block */}
                 <div className="flex justify-between items-end text-[8.5pt] pt-2 border-t border-gray-300">
                     <div className="leading-relaxed text-[8pt] text-gray-600">
-                        <p className="font-bold text-gray-900 uppercase">Catatan Petugas Penagihan IKA:</p>
-                        <p>• Rekapitulasi ini memuat seluruh transaksi pelunasan penagihan tanggal {formattedTargetDate}.</p>
-                        <p>• Bukti setoran / transfer fisik terlampir bersama laporan ini.</p>
+                        <p className="font-bold text-gray-900 uppercase">Catatan Verifikasi Penagihan:</p>
+                        <p>• Laporan ini mencakup realisasi uang fisik/transfer & catatan feedback kunjungan penagihan customer.</p>
+                        <p>• Bukti setoran kasir & bukti transfer bank terlampir bersama dokumen ini.</p>
                     </div>
 
                     <div className="grid grid-cols-3 gap-6 text-center text-[8pt] min-w-[340px]">
