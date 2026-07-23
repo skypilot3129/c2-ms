@@ -87,15 +87,20 @@ export default function PenagihanIkaPage() {
                 
                 if (liveClientName) clientsSet.add(liveClientName);
 
-                const subtotal = linked.reduce((sum, t) => sum + (t.jumlah || 0), 0);
-                const isTaxable = linked.some(t => t.isTaxable || (t.ppn && t.ppn > 0));
+                const subtotal = linked.reduce((sum, t) => sum + (Number(t.jumlah) || 0), 0);
+                const isTaxable = linked.some(t => t.isTaxable || (t.ppn && Number(t.ppn) > 0));
                 const liveTotalAmount = subtotal + (isTaxable ? Math.round(subtotal * 0.011) : 0);
+
+                // Live payment status reconciliation: if all linked STTs are marked Cash/TF in transactions
+                const allTxPaid = linked.length > 0 && linked.every(t => t.pelunasan === 'TF' || t.pelunasan === 'Cash');
+                const liveStatus = allTxPaid ? 'Paid' : inv.status;
 
                 return {
                     ...inv,
                     clientName: liveClientName,
                     clientAddress: liveClientAddress,
                     totalAmount: liveTotalAmount,
+                    status: liveStatus,
                 };
             }
 

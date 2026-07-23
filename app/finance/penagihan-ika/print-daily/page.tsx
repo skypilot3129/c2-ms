@@ -54,36 +54,59 @@ function PrintDailyCollectionContent() {
         const unpaidFeedbackList: Invoice[] = [];
 
         invoices.forEach(inv => {
-            // STT mapping
+            // STT mapping & Live transaction details
             const linked = (inv.transactionIds || [])
                 .map(tid => txMap.get(tid))
                 .filter((t): t is Transaction => t !== undefined);
 
+            let liveClientName = inv.clientName;
+            let liveClientAddress = inv.clientAddress;
+            let liveTotalAmount = inv.totalAmount;
+            let liveStatus = inv.status;
+
             if (linked.length > 0) {
                 sttMapping[inv.id] = linked.map(t => t.noSTT.replace(/^STT/i, '')).join(', ');
+                const primaryTx = linked[0];
+                liveClientName = primaryTx.pengirimName || inv.clientName;
+                liveClientAddress = primaryTx.pengirimAddress || inv.clientAddress;
+
+                const subtotal = linked.reduce((sum, t) => sum + (Number(t.jumlah) || 0), 0);
+                const isTaxable = linked.some(t => t.isTaxable || (t.ppn && Number(t.ppn) > 0));
+                liveTotalAmount = subtotal + (isTaxable ? Math.round(subtotal * 0.011) : 0);
+
+                const allTxPaid = linked.every(t => t.pelunasan === 'TF' || t.pelunasan === 'Cash');
+                if (allTxPaid) liveStatus = 'Paid';
             }
 
+            const liveInv: Invoice = {
+                ...inv,
+                clientName: liveClientName,
+                clientAddress: liveClientAddress,
+                totalAmount: liveTotalAmount,
+                status: liveStatus
+            };
+
             // 1. Paid invoices for target date
-            if (inv.status === 'Paid') {
-                const dateObj = inv.paidAt || inv.paymentDate || inv.updatedAt;
+            if (liveInv.status === 'Paid') {
+                const dateObj = liveInv.paidAt || liveInv.paymentDate || liveInv.updatedAt;
                 const dateStr = dateObj.toISOString().split('T')[0];
                 if (dateStr === targetDateParam) {
-                    if (!officerParam || (inv.paidBy && inv.paidBy.toLowerCase().includes(officerParam.toLowerCase()))) {
-                        paidList.push(inv);
-                        totalAmount += inv.totalAmount;
-                        if (inv.paymentMethod === 'Transfer') transferAmount += inv.totalAmount;
-                        else cashAmount += inv.totalAmount;
+                    if (!officerParam || (liveInv.paidBy && liveInv.paidBy.toLowerCase().includes(officerParam.toLowerCase()))) {
+                        paidList.push(liveInv);
+                        totalAmount += liveInv.totalAmount;
+                        if (liveInv.paymentMethod === 'Transfer') transferAmount += liveInv.totalAmount;
+                        else cashAmount += liveInv.totalAmount;
                     }
                 }
             }
 
             // 2. Unpaid invoices with collection feedback logged on or active for target date
-            if (inv.status !== 'Paid' && inv.collectionFeedback) {
-                const feedbackDate = inv.collectionFeedback.updatedAt ? new Date(inv.collectionFeedback.updatedAt).toISOString().split('T')[0] : '';
+            if (liveInv.status !== 'Paid' && liveInv.collectionFeedback) {
+                const feedbackDate = liveInv.collectionFeedback.updatedAt ? new Date(liveInv.collectionFeedback.updatedAt).toISOString().split('T')[0] : '';
                 // Show if feedback logged today or if promised date matches/active
-                if (feedbackDate === targetDateParam || inv.collectionFeedback.promisedDate === targetDateParam || !targetDateParam) {
-                    if (!officerParam || (inv.collectionFeedback.officer && inv.collectionFeedback.officer.toLowerCase().includes(officerParam.toLowerCase()))) {
-                        unpaidFeedbackList.push(inv);
+                if (feedbackDate === targetDateParam || liveInv.collectionFeedback.promisedDate === targetDateParam || !targetDateParam) {
+                    if (!officerParam || (liveInv.collectionFeedback.officer && liveInv.collectionFeedback.officer.toLowerCase().includes(officerParam.toLowerCase()))) {
+                        unpaidFeedbackList.push(liveInv);
                     }
                 }
             }
