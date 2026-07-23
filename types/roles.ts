@@ -28,6 +28,7 @@ export interface FeaturePermissions {
     canManageVoyages: boolean;
     canViewFinance: boolean;
     canManageFinance: boolean;
+    canViewPenagihanIka: boolean;
     canManageFleet: boolean;
     canManageEmployees: boolean;
     canViewOwnAttendance: boolean;
@@ -43,6 +44,7 @@ export const getRolePermissions = (role: UserRole): FeaturePermissions => {
         canManageVoyages: false,
         canViewFinance: false,
         canManageFinance: false,
+        canViewPenagihanIka: false,
         canManageFleet: false,
         canManageEmployees: false,
         canViewOwnAttendance: true, // Everyone can view their own attendance
@@ -58,6 +60,7 @@ export const getRolePermissions = (role: UserRole): FeaturePermissions => {
                 canManageVoyages: true,
                 canViewFinance: true,
                 canManageFinance: true,
+                canViewPenagihanIka: true,
                 canManageFleet: true,
                 canManageEmployees: true,
                 canViewOwnAttendance: true,
@@ -67,6 +70,8 @@ export const getRolePermissions = (role: UserRole): FeaturePermissions => {
         case 'pengurus':
             return {
                 ...permissions,
+                canViewFinance: true,
+                canViewPenagihanIka: true,
                 canManageEmployees: true,
                 canViewOwnAttendance: true,
                 canViewAllAttendance: true

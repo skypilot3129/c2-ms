@@ -1,21 +1,32 @@
 'use client';
 
-import { useState } from 'react';
-import { ReactNode } from 'react';
+import { useEffect, useState, ReactNode } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
+import { useAuth } from '@/context/AuthContext';
 import { LayoutDashboard, FileText, ArrowLeft, PieChart, Wallet, Receipt, Menu, X, BarChart3, Target, ClipboardList, Send } from "lucide-react";
 
 export default function FinanceLayout({ children }: { children: ReactNode }) {
     const pathname = usePathname();
+    const router = useRouter();
+    const { user, role, loading } = useAuth();
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+    useEffect(() => {
+        if (!loading && user) {
+            // For 'pengurus' role: strictly allowed ONLY to open /finance/penagihan-ika
+            if (role === 'pengurus' && !pathname.startsWith('/finance/penagihan-ika')) {
+                router.replace('/finance/penagihan-ika');
+            }
+        }
+    }, [loading, user, role, pathname, router]);
 
     // Halaman cetak tidak memerlukan layout (sidebar / header)
     if (pathname.includes('/print')) {
         return <>{children}</>;
     }
 
-    const navLinks = [
+    const allNavLinks = [
         {
             label: 'Penagihan IKA',
             icon: <Send size={20} />,
@@ -77,6 +88,11 @@ export default function FinanceLayout({ children }: { children: ReactNode }) {
             active: pathname.startsWith('/finance/tax')
         },
     ];
+
+    // For 'pengurus' role, only show Penagihan IKA link in finance navigation
+    const navLinks = role === 'pengurus' 
+        ? allNavLinks.filter(l => l.href === '/finance/penagihan-ika')
+        : allNavLinks;
 
     // Get active page label for mobile header
     const activeLabel = navLinks.find(l => l.active)?.label || 'Keuangan';

@@ -18,7 +18,7 @@ import ProtectedRoute from '@/components/ProtectedRoute';
 import Link from 'next/link';
 
 export default function PenagihanIkaPage() {
-    const { user } = useAuth();
+    const { user, role } = useAuth();
     const [invoices, setInvoices] = useState<Invoice[]>([]);
     const [transactions, setTransactions] = useState<Transaction[]>([]);
     const [loading, setLoading] = useState(true);
@@ -382,12 +382,14 @@ Mohon bantuan untuk segera diproses pelunasannya. Terima kasih banyak atas kerja
                         >
                             <Printer size={16} /> Cetak Laporan Penagihan Harian
                         </Link>
-                        <Link
-                            href="/finance/invoices"
-                            className="bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 px-4 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center gap-2"
-                        >
-                            <FileText size={16} className="text-indigo-600" /> Daftar Invoice
-                        </Link>
+                        {role === 'admin' && (
+                            <Link
+                                href="/finance/invoices"
+                                className="bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 px-4 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center gap-2"
+                            >
+                                <FileText size={16} className="text-indigo-600" /> Daftar Invoice
+                            </Link>
+                        )}
                     </div>
                 </div>
 
