@@ -300,12 +300,22 @@ Mohon bantuan untuk segera diproses pelunasannya. Terima kasih banyak atas kerja
 
         try {
             const officerName = user?.displayName || user?.email || 'Officer Penagihan IKA';
-            await updateCollectionFeedback(selectedInvoiceForFeedback.id, {
+            const feedbackPayload: {
+                status: string;
+                notes: string;
+                officer: string;
+                promisedDate?: string;
+            } = {
                 status: feedbackStatus,
                 notes: feedbackNotes.trim(),
-                promisedDate: feedbackPromisedDate || undefined,
                 officer: officerName,
-            });
+            };
+
+            if (feedbackPromisedDate && feedbackPromisedDate.trim() !== '') {
+                feedbackPayload.promisedDate = feedbackPromisedDate.trim();
+            }
+
+            await updateCollectionFeedback(selectedInvoiceForFeedback.id, feedbackPayload);
 
             showToast(`Catatan penagihan untuk invoice ${selectedInvoiceForFeedback.invoiceNumber} disimpan!`);
             setSelectedInvoiceForFeedback(null);

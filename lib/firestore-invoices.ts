@@ -238,11 +238,20 @@ export const updateCollectionFeedback = async (
     }
 ): Promise<void> => {
     const invoiceRef = doc(db, COLLECTION_NAME, invoiceId);
+
+    const cleanFeedback: Record<string, any> = {
+        status: feedback.status,
+        notes: feedback.notes || '',
+        officer: feedback.officer || 'Petugas',
+        updatedAt: Timestamp.now(),
+    };
+
+    if (feedback.promisedDate && feedback.promisedDate.trim() !== '') {
+        cleanFeedback.promisedDate = feedback.promisedDate.trim();
+    }
+
     await updateDoc(invoiceRef, {
-        collectionFeedback: {
-            ...feedback,
-            updatedAt: Timestamp.now(),
-        },
+        collectionFeedback: cleanFeedback,
         updatedAt: Timestamp.now(),
     });
 };
