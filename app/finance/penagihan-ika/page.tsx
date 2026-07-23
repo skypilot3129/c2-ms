@@ -231,7 +231,11 @@ Mohon konfirmasi setelah melakukan pembayaran. Terima kasih atas kerja samanya. 
         clientInvoices.forEach((inv, index) => {
             const stts = sttNumbersMap[inv.id] || '-';
             const dueStr = new Date(inv.dueDate).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' });
-            invListText += `${index + 1}. *No. Inv:* ${inv.invoiceNumber} (Jt. Tempo: ${dueStr})\n   📦 STT: ${stts}\n   💰 Nominal: ${formatRupiah(inv.totalAmount)}\n\n`;
+            let fbLine = '';
+            if (inv.collectionFeedback) {
+                fbLine = `   💬 *Catatan Respon:* [${inv.collectionFeedback.status}] ${inv.collectionFeedback.notes ? `"${inv.collectionFeedback.notes}"` : ''} ${inv.collectionFeedback.promisedDate ? `(Janji Bayar: ${inv.collectionFeedback.promisedDate})` : ''}\n`;
+            }
+            invListText += `${index + 1}. *No. Inv:* ${inv.invoiceNumber} (Jt. Tempo: ${dueStr})\n   📦 STT: ${stts}\n   💰 Nominal: ${formatRupiah(inv.totalAmount)}\n${fbLine}\n`;
         });
 
         return `Halo Yth. Bpk/Ibu *${clientName}*,
@@ -562,6 +566,59 @@ Mohon bantuan untuk segera diproses pelunasannya. Terima kasih banyak atas kerja
                                                     </Link>
                                                 </div>
                                             </div>
+
+                                            {/* ── CLIENT RECAP CUSTOMER RESPONSE & FEEDBACK BAR ── */}
+                                            {(() => {
+                                                const feedbacks = clientInvoicesList
+                                                    .map(i => ({ invNum: i.invoiceNumber, fb: i.collectionFeedback }))
+                                                    .filter((item): item is { invNum: string; fb: NonNullable<Invoice['collectionFeedback']> } => !!item.fb);
+
+                                                return (
+                                                    <div className="bg-slate-800 border-t border-slate-700 p-4 px-5 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
+                                                        <div className="flex items-start gap-2.5">
+                                                            <MessageSquare className="text-amber-400 shrink-0 mt-0.5" size={16} />
+                                                            <div>
+                                                                <span className="font-extrabold text-amber-300 uppercase tracking-wider text-[11px] block">
+                                                                    Catatan Alasan & Respon Penagihan Client ({clientName}):
+                                                                </span>
+                                                                {feedbacks.length > 0 ? (
+                                                                    <div className="mt-1 space-y-1">
+                                                                        {feedbacks.map(({ invNum, fb }, idx) => (
+                                                                            <div key={idx} className="flex flex-wrap items-center gap-2 text-slate-200 font-medium">
+                                                                                <span className="bg-slate-700 text-slate-300 font-mono text-[10px] px-1.5 py-0.5 rounded font-bold">
+                                                                                    {invNum}
+                                                                                </span>
+                                                                                <span className="bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded font-bold text-[10px] uppercase">
+                                                                                    {fb.status}
+                                                                                </span>
+                                                                                {fb.promisedDate && (
+                                                                                    <span className="bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 px-1.5 py-0.5 rounded text-[10px] font-bold">
+                                                                                        Janji Bayar: {new Date(fb.promisedDate).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' })}
+                                                                                    </span>
+                                                                                )}
+                                                                                {fb.notes && <span className="italic text-slate-300">"{fb.notes}"</span>}
+                                                                                <span className="text-[10px] text-slate-400 font-normal">({fb.officer})</span>
+                                                                            </div>
+                                                                        ))}
+                                                                    </div>
+                                                                ) : (
+                                                                    <p className="text-slate-400 italic text-[11px] mt-0.5">
+                                                                        Belum ada catatan alasan/respon yang dicatat untuk client ini. Klik tombol di samping untuk mencatat.
+                                                                    </p>
+                                                                )}
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Quick Action: Log feedback for first invoice of this client */}
+                                                        <button
+                                                            onClick={() => handleOpenFeedbackModal(clientInvoicesList[0])}
+                                                            className="self-start md:self-center bg-indigo-600/80 hover:bg-indigo-600 text-white font-bold text-[11px] px-3.5 py-1.5 rounded-xl border border-indigo-500/40 transition-all flex items-center gap-1.5 shrink-0 active:scale-95 cursor-pointer"
+                                                        >
+                                                            <MessageSquare size={13} /> + Catat Respon Client
+                                                        </button>
+                                                    </div>
+                                                );
+                                            })()}
 
                                             {/* Invoices List Table for this Client */}
                                             <div className="overflow-x-auto">

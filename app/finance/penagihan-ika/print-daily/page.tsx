@@ -9,7 +9,7 @@ import type { Invoice } from '@/types/invoice';
 import type { Transaction } from '@/types/transaction';
 import { formatRupiah, terbilang } from '@/lib/currency';
 import { COMPANY_INFO } from '@/lib/company-config';
-import { Printer, ArrowLeft, Send, CheckCircle2, User, Clock, MessageSquare, AlertTriangle } from 'lucide-react';
+import { Printer, ArrowLeft, Send, CheckCircle2, User, Clock, MessageSquare, AlertTriangle, Building2 } from 'lucide-react';
 
 function PrintDailyCollectionContent() {
     const router = useRouter();
@@ -128,6 +128,42 @@ function PrintDailyCollectionContent() {
             }
         };
     }, [invoices, transactions, targetDateParam, officerParam]);
+
+    // Group Unpaid Customer Feedbacks by Client for Section III
+    const clientFeedbackRecap = useMemo(() => {
+        interface ClientRecapGroup {
+            clientName: string;
+            invoices: Invoice[];
+            totalAmount: number;
+            feedbacks: Array<{ invNumber: string; status: string; notes: string; promisedDate?: string; officer: string }>;
+        }
+
+        const map: Record<string, ClientRecapGroup> = {};
+
+        unpaidFeedbackInvoices.forEach((inv: Invoice) => {
+            if (!map[inv.clientName]) {
+                map[inv.clientName] = {
+                    clientName: inv.clientName,
+                    invoices: [],
+                    totalAmount: 0,
+                    feedbacks: []
+                };
+            }
+            map[inv.clientName].invoices.push(inv);
+            map[inv.clientName].totalAmount += inv.totalAmount;
+            if (inv.collectionFeedback) {
+                map[inv.clientName].feedbacks.push({
+                    invNumber: inv.invoiceNumber,
+                    status: inv.collectionFeedback.status,
+                    notes: inv.collectionFeedback.notes,
+                    promisedDate: inv.collectionFeedback.promisedDate,
+                    officer: inv.collectionFeedback.officer
+                });
+            }
+        });
+
+        return Object.values(map);
+    }, [unpaidFeedbackInvoices]);
 
     const formattedTargetDate = useMemo(() => {
         const [y, m, d] = targetDateParam.split('-').map(Number);
@@ -280,10 +316,10 @@ function PrintDailyCollectionContent() {
                     </table>
                 </div>
 
-                {/* 4. SECTION 2: TABEL RESPO / CATATAN CUSTOMER UNPAID (CUSTOMER FEEDBACK LOGS) */}
+                {/* 4. SECTION 2: TABEL RESPON / CATATAN CUSTOMER UNPAID (CUSTOMER FEEDBACK LOGS) */}
                 <div className="mb-4">
                     <h3 className="font-black text-[9.5pt] uppercase tracking-wide text-gray-900 mb-1.5 flex items-center gap-1.5">
-                        <MessageSquare size={15} className="text-indigo-700" /> II. DAFTAR HASIL / FEEDBACK ALASAN PENAGIHAN CUSTOMER (BELUM LUNAS)
+                        <MessageSquare size={15} className="text-indigo-700" /> II. DAFTAR HASIL / FEEDBACK ALASAN PENAGIHAN CUSTOMER (DETAIL INVOICE)
                     </h3>
                     <table className="daily-table">
                         <thead>
@@ -331,6 +367,71 @@ function PrintDailyCollectionContent() {
                                         </tr>
                                     );
                                 })
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+
+                {/* 5. SECTION 3: REKAPITULASI CATATAN ALASAN & RESPON PENAGIHAN PER PELANGGAN */}
+                <div className="mb-4">
+                    <h3 className="font-black text-[9.5pt] uppercase tracking-wide text-gray-900 mb-1.5 flex items-center gap-1.5">
+                        <Building2 size={15} className="text-purple-700" /> III. REKAPITULASI CATATAN ALASAN & RESPON PENAGIHAN PER PELANGGAN (REKAP PER PELANGGAN)
+                    </h3>
+                    <table className="daily-table">
+                        <thead>
+                            <tr>
+                                <th style={{ width: '4%' }}>NO</th>
+                                <th style={{ width: '22%' }}>PELANGGAN / KLIEN</th>
+                                <th style={{ width: '18%' }}>TOTAL TAGIHAN UNPAID</th>
+                                <th style={{ width: '20%' }}>STATUS HASIL KONSOLIDASI</th>
+                                <th style={{ width: '36%' }}>RANGKUMAN ALASAN & CATATAN FEEDBACK PELANGGAN</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {clientFeedbackRecap.length === 0 ? (
+                                <tr>
+                                    <td colSpan={5} className="text-center py-3 text-gray-500 italic">
+                                        Belum ada rekapan catatan respon pelanggan yang tercatat.
+                                    </td>
+                                </tr>
+                            ) : (
+                                clientFeedbackRecap.map((cGroup, idx) => (
+                                    <tr key={cGroup.clientName} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}>
+                                        <td className="text-center font-medium text-gray-600">{idx + 1}</td>
+                                        <td className="font-bold text-gray-900 uppercase text-[8.5pt]">
+                                            {cGroup.clientName}
+                                            <span className="block text-[7.5pt] font-normal text-gray-500">
+                                                ({cGroup.invoices.length} Invoice Unpaid)
+                                            </span>
+                                        </td>
+                                        <td className="font-mono font-black text-right text-red-700 text-[8.5pt]">
+                                            {formatRupiah(cGroup.totalAmount)}
+                                        </td>
+                                        <td>
+                                            <div className="flex flex-wrap gap-1">
+                                                {Array.from(new Set(cGroup.feedbacks.map(f => f.status))).map(st => (
+                                                    <span key={st} className="font-bold text-[7.5pt] uppercase bg-amber-50 text-amber-900 border border-amber-200 px-1.5 py-0.5 rounded">
+                                                        {st}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        </td>
+                                        <td className="text-[8pt] leading-snug">
+                                            {cGroup.feedbacks.map((f, fIdx) => (
+                                                <div key={fIdx} className="mb-1 last:mb-0">
+                                                    <span className="font-mono font-bold text-indigo-900">[{f.invNumber}]:</span>{" "}
+                                                    <span className="italic">"{f.notes || 'Tanpa catatan'}"</span>
+                                                    {f.promisedDate && (
+                                                        <span className="font-bold text-amber-800 ml-1">
+                                                            (Janji Bayar Tgl: {new Date(f.promisedDate).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' })})
+                                                        </span>
+                                                    )}
+                                                    <span className="text-[7pt] text-gray-400 font-normal"> — {f.officer}</span>
+                                                </div>
+                                            ))}
+                                        </td>
+                                    </tr>
+                                ))
                             )}
                         </tbody>
                     </table>
