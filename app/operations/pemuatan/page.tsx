@@ -28,10 +28,15 @@ export default function PemuatanDashboardPage() {
 
     // Filtered sessions
     const filteredSessions = sessions.filter(session => {
+        const sessionIdStr = session?.sessionId || '';
+        const fleetNameStr = session?.fleetName || '';
+        const plateNumberStr = session?.plateNumber || '';
+        const searchLower = (searchTerm || '').toLowerCase();
+
         const matchSearch = 
-            session.sessionId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            session.fleetName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            session.plateNumber.toLowerCase().includes(searchTerm.toLowerCase());
+            sessionIdStr.toLowerCase().includes(searchLower) ||
+            fleetNameStr.toLowerCase().includes(searchLower) ||
+            plateNumberStr.toLowerCase().includes(searchLower);
         
         const matchStatus = statusFilter === 'all' || session.status === statusFilter;
         return matchSearch && matchStatus;
