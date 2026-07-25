@@ -5,7 +5,8 @@ import type { CargoStackItem, CargoZone, CargoLayer, CargoSide } from '@/types/l
 import { formatRupiah } from '@/lib/currency';
 import {
     Box, Plus, Trash2, Layers, Truck, AlertTriangle, ShieldCheck,
-    RotateCw, ArrowDown, Eye, CheckCircle2, ChevronRight, Scale, Info
+    RotateCw, ArrowDown, Eye, CheckCircle2, ChevronRight, Scale, Info,
+    Maximize2, Minimize2, Ruler, ArrowUp
 } from 'lucide-react';
 
 interface Truck3dVisualizerProps {
@@ -17,16 +18,16 @@ interface Truck3dVisualizerProps {
 }
 
 const ZONE_LABELS: Record<CargoZone, { label: string; sub: string; color: string }> = {
-    front: { label: 'DEPAN (Kabin)', sub: 'Beban Sumbu Depan', color: 'border-blue-500 bg-blue-500/10' },
+    front: { label: 'DEPAN (Sumbu Depan)', sub: 'Sisi Kabin Truk', color: 'border-blue-500 bg-blue-500/10' },
     middle: { label: 'TENGAH (Pusat Beban)', sub: 'Sumbu Roda Tengah', color: 'border-purple-500 bg-purple-500/10' },
-    rear: { label: 'BELAKANG (Pintu Muat)', sub: 'Sumbu Roda Ganda Belakang', color: 'border-amber-500 bg-amber-500/10' }
+    rear: { label: 'BELAKANG (Pintu Muat)', sub: 'Sumbu Roda Ganda', color: 'border-amber-500 bg-amber-500/10' }
 };
 
-const LAYER_LABELS: Record<CargoLayer, string> = {
-    bottom: 'Layer 1 (Bawah / Lantai Bak)',
-    middle: 'Layer 2 (Tengah)',
-    top: 'Layer 3 (Atas / Pagar Atas)'
-};
+const HEIGHT_TIERS: Array<{ key: CargoLayer; label: string; meters: string; desc: string; color: string }> = [
+    { key: 'atasan', label: 'ATASAN (Puncak Teratas)', meters: '2.20 – 3.30m', desc: 'Muatan Ringan / Busa / Kasur', color: 'border-amber-500/40 text-amber-300' },
+    { key: 'tengah', label: 'TENGAH (Sumbu Pagar)', meters: '1.00 – 2.20m', desc: 'Muatan Karton / Dus / Karung', color: 'border-purple-500/40 text-purple-300' },
+    { key: 'dasaran', label: 'DASARAN (Lantai Bak)', meters: '0.00 – 1.00m', desc: 'Muatan Berat / Besi / Batu / Dus Tebal', color: 'border-blue-500/40 text-blue-300' },
+];
 
 const COLOR_PRESETS = [
     '#3B82F6', '#8B5CF6', '#10B981', '#F59E0B', '#EF4444',
@@ -41,6 +42,7 @@ export default function Truck3dVisualizer({
     readOnly = false
 }: Truck3dVisualizerProps) {
     const [viewMode, setViewMode] = useState<'3d' | 'side' | 'top'>('3d');
+    const [isFullScreen, setIsFullScreen] = useState(false);
     const [selectedItem, setSelectedItem] = useState<CargoStackItem | null>(null);
 
     // Form Modal State for Adding New Cargo Item
@@ -52,7 +54,7 @@ export default function Truck3dVisualizer({
     const [weightKg, setWeightKg] = useState(250);
     const [cbm, setCbm] = useState(1.2);
     const [targetZone, setTargetZone] = useState<CargoZone>('front');
-    const [targetLayer, setTargetLayer] = useState<CargoLayer>('bottom');
+    const [targetLayer, setTargetLayer] = useState<CargoLayer>('dasaran');
     const [targetSide, setTargetSide] = useState<CargoSide>('center');
     const [selectedColor, setSelectedColor] = useState(COLOR_PRESETS[0]);
 
@@ -60,7 +62,7 @@ export default function Truck3dVisualizer({
     const totalKoli = cargoItems.reduce((sum, item) => sum + item.koliCount, 0);
     const totalWeightKg = cargoItems.reduce((sum, item) => sum + item.weightKg, 0);
     const totalCbm = cargoItems.reduce((sum, item) => sum + item.cbm, 0);
-    const maxCapacityCbm = 45; // Standard Fuso Long Bak ~45 CBM
+    const maxCapacityCbm = 52; // Standard CCE Fuso 3.3m High ~52 CBM
     const cbmPercentage = Math.min(100, Math.round((totalCbm / maxCapacityCbm) * 100));
 
     // Balance calculations
@@ -92,6 +94,7 @@ export default function Truck3dVisualizer({
             cbm: Number(cbm) || 0.1,
             zone: targetZone,
             layer: targetLayer,
+            heightLevelMeters: targetLayer === 'dasaran' ? 0.8 : targetLayer === 'tengah' ? 1.8 : 3.0,
             side: targetSide,
             color: selectedColor,
         };
@@ -115,11 +118,22 @@ export default function Truck3dVisualizer({
     };
 
     const getItemsInCell = (zone: CargoZone, layer: CargoLayer) => {
-        return cargoItems.filter(i => i.zone === zone && i.layer === layer);
+        return cargoItems.filter(i => {
+            const matchZone = i.zone === zone;
+            const matchLayer = (i.layer === layer) ||
+                (layer === 'dasaran' && i.layer === 'bottom') ||
+                (layer === 'tengah' && i.layer === 'middle') ||
+                (layer === 'atasan' && i.layer === 'top');
+            return matchZone && matchLayer;
+        });
     };
 
+    const containerStyle = isFullScreen
+        ? "fixed inset-0 z-50 bg-slate-950 p-6 overflow-y-auto space-y-6"
+        : "bg-slate-950 text-white rounded-3xl p-6 border border-slate-800 shadow-2xl space-y-6";
+
     return (
-        <div className="bg-slate-950 text-white rounded-3xl p-6 border border-slate-800 shadow-2xl space-y-6">
+        <div className={containerStyle}>
             
             {/* Header Control Bar */}
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-800 pb-5">
@@ -129,9 +143,9 @@ export default function Truck3dVisualizer({
                     </div>
                     <div>
                         <div className="flex items-center gap-2">
-                            <h3 className="text-xl font-black text-white tracking-wide">SKETSA 3D BAK TRUK</h3>
+                            <h3 className="text-xl font-black text-white tracking-wide">SKETSA 3D BAK TRUK (TINGGI 3.30 METER)</h3>
                             <span className="bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full">
-                                VISUALIZER PENATAAN KOLI
+                                FULL STUDIO KETINGGIAN CCE
                             </span>
                         </div>
                         <p className="text-xs text-slate-400 font-medium">
@@ -152,7 +166,7 @@ export default function Truck3dVisualizer({
                                     : 'text-slate-400 hover:text-white'
                             }`}
                         >
-                            <Box size={14} /> 3D Isometric
+                            <Box size={14} /> 3D Isometric (3 Tier Tinggi)
                         </button>
                         <button
                             type="button"
@@ -163,7 +177,7 @@ export default function Truck3dVisualizer({
                                     : 'text-slate-400 hover:text-white'
                             }`}
                         >
-                            <Eye size={14} /> Tampak Samping (Pagar)
+                            <Eye size={14} /> Elevasi Samping (3.30m)
                         </button>
                         <button
                             type="button"
@@ -174,9 +188,19 @@ export default function Truck3dVisualizer({
                                     : 'text-slate-400 hover:text-white'
                             }`}
                         >
-                            <ArrowDown size={14} /> Tampak Atas (Lantai)
+                            <ArrowDown size={14} /> Denah Atas (Lantai)
                         </button>
                     </div>
+
+                    {/* Fullscreen Toggle */}
+                    <button
+                        type="button"
+                        onClick={() => setIsFullScreen(!isFullScreen)}
+                        className="bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 font-bold text-xs px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5"
+                    >
+                        {isFullScreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
+                        {isFullScreen ? 'Kecilkan Studio' : 'Full Screen Halaman Penuh'}
+                    </button>
 
                     {!readOnly && (
                         <button
@@ -202,7 +226,7 @@ export default function Truck3dVisualizer({
                 </div>
                 <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl">
                     <div className="flex justify-between text-[10px] text-slate-400 font-bold uppercase tracking-wider">
-                        <span>Kapasitas Bak (CBM)</span>
+                        <span>Kapasitas (Max 3.30m)</span>
                         <span className="text-indigo-400">{cbmPercentage}%</span>
                     </div>
                     <p className="text-2xl font-black text-indigo-300 font-mono mt-1">{totalCbm.toFixed(1)} <span className="text-xs text-slate-400 font-sans font-normal">/ {maxCapacityCbm} m³</span></p>
@@ -213,7 +237,7 @@ export default function Truck3dVisualizer({
                 <div className={`border p-4 rounded-2xl ${isUnbalanced ? 'bg-red-950/40 border-red-800 text-red-200' : 'bg-slate-900 border-slate-800 text-slate-200'}`}>
                     <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider">
                         <span className="flex items-center gap-1">
-                            <Scale size={12} className={isUnbalanced ? 'text-red-400' : 'text-emerald-400'} /> Keseimbangan Beban
+                            <Scale size={12} className={isUnbalanced ? 'text-red-400' : 'text-emerald-400'} /> Keseimbangan Beban Sumbu
                         </span>
                         {isUnbalanced && <span className="text-red-400 font-black animate-pulse">BERAT SEBELAH!</span>}
                     </div>
@@ -232,73 +256,78 @@ export default function Truck3dVisualizer({
                 </div>
             </div>
 
-            {/* ── 3D / 2.5D TRUCK CARGO CANVAS CANVAS CONTAINER ── */}
+            {/* ── 3D / ISOMETRIC TRUCK CARGO CANVAS CONTAINER ── */}
             <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 relative overflow-hidden">
-                <div className="absolute top-4 left-4 flex items-center gap-2 bg-slate-950/80 px-3 py-1.5 rounded-xl border border-slate-800 text-[10px] text-slate-400 font-mono">
-                    <Info size={12} className="text-indigo-400" />
-                    <span>Klik pada kotak koli untuk melihat detail invoice/STT</span>
+                <div className="absolute top-4 left-4 flex items-center gap-2 bg-slate-950/80 px-3 py-1.5 rounded-xl border border-slate-800 text-[10px] text-slate-400 font-mono z-20">
+                    <Ruler size={12} className="text-indigo-400" />
+                    <span>Sketsa Presisi CCE: Maksimal Tinggi Bak 3.30 Meter (3 Tier Penataan)</span>
                 </div>
 
-                {/* ── MODE 1: 3D ISOMETRIC TRUCK BED STACKING CANVAS ── */}
+                {/* ── MODE 1: 3D ISOMETRIC TRUCK BED STACKING CANVAS (3.30m HEIGHT) ── */}
                 {viewMode === '3d' && (
                     <div className="py-8 px-4 overflow-x-auto">
-                        <div className="min-w-[760px] max-w-4xl mx-auto relative pt-12 pb-8">
+                        <div className="min-w-[850px] max-w-5xl mx-auto relative pt-10 pb-8">
                             
-                            {/* FRONT CABIN OF THE TRUCK (Replicating user image driver cabin) */}
+                            {/* FRONT CABIN OF THE TRUCK */}
                             <div className="flex items-center mb-4">
-                                <div className="w-36 h-28 bg-gradient-to-r from-slate-800 to-slate-700 border-2 border-slate-600 rounded-l-3xl p-3 flex flex-col justify-between shadow-2xl relative">
-                                    <div className="w-10 h-8 bg-blue-400/30 border border-blue-400/50 rounded-lg self-end flex items-center justify-center text-[9px] font-bold text-blue-200">
-                                        Kabin
+                                <div className="w-36 h-36 bg-gradient-to-r from-slate-800 to-slate-700 border-2 border-slate-600 rounded-l-3xl p-3 flex flex-col justify-between shadow-2xl relative">
+                                    <div className="w-12 h-10 bg-blue-400/30 border border-blue-400/50 rounded-lg self-end flex items-center justify-center text-[9px] font-bold text-blue-200">
+                                        Kabin Fuso
+                                    </div>
+                                    <div className="text-[9px] font-mono text-slate-300">
+                                        <div>TINGGI BAK:</div>
+                                        <div className="text-emerald-400 font-black text-xs">3.30 METER</div>
                                     </div>
                                     <div className="flex justify-between items-center text-[10px] font-bold text-slate-300 font-mono">
                                         <span>DRIVER</span>
                                         <span className="w-4 h-4 rounded-full bg-slate-900 border border-slate-500"></span>
                                     </div>
                                     {/* Wheel Front */}
-                                    <div className="absolute -bottom-4 left-6 w-10 h-10 bg-slate-900 border-4 border-slate-600 rounded-full flex items-center justify-center font-bold text-[8px] text-slate-500">
+                                    <div className="absolute -bottom-5 left-6 w-10 h-10 bg-slate-900 border-4 border-slate-600 rounded-full flex items-center justify-center font-bold text-[8px] text-slate-500">
                                         R1
                                     </div>
                                 </div>
-                                <div className="h-28 w-4 bg-slate-800 border-y border-slate-700"></div>
+                                <div className="h-36 w-4 bg-slate-800 border-y border-slate-700"></div>
 
-                                {/* CARGO TRUCK BED MAIN FRAME (3 ZONES x 3 LAYERS GRID) */}
+                                {/* CARGO TRUCK BED MAIN FRAME (3 ZONES x 3 HEIGHT TIERS) */}
                                 <div className="flex-1 bg-slate-900 border-4 border-slate-700 rounded-r-2xl p-3 relative shadow-inner">
                                     
-                                    {/* Side Wooden/Metal Frame Gate Bars (Replicating user drawing) */}
-                                    <div className="absolute inset-x-0 top-0 h-2 bg-gradient-to-r from-amber-800 via-amber-700 to-amber-800 border-b border-amber-900"></div>
-                                    <div className="absolute inset-x-0 top-8 h-1 bg-slate-600/50"></div>
-                                    <div className="absolute inset-x-0 top-16 h-1 bg-slate-600/50"></div>
-                                    <div className="absolute inset-x-0 bottom-0 h-2 bg-gradient-to-r from-amber-800 via-amber-700 to-amber-800 border-t border-amber-900"></div>
+                                    {/* Side Wooden/Metal Frame Gate Bars with Height Markers */}
+                                    <div className="absolute inset-x-0 top-0 h-2.5 bg-gradient-to-r from-amber-800 via-amber-700 to-amber-800 border-b border-amber-900"></div>
+                                    <div className="absolute inset-x-0 top-12 h-1 bg-amber-500/30 border-t border-dashed border-amber-500/40"></div>
+                                    <div className="absolute inset-x-0 top-24 h-1 bg-purple-500/30 border-t border-dashed border-purple-500/40"></div>
+                                    <div className="absolute inset-x-0 bottom-0 h-2.5 bg-gradient-to-r from-amber-800 via-amber-700 to-amber-800 border-t border-amber-900"></div>
 
                                     {/* 3 ZONES GRID CONTAINER */}
-                                    <div className="grid grid-cols-3 gap-3 relative z-10 my-2">
+                                    <div className="grid grid-cols-3 gap-4 relative z-10 my-2">
                                         {(['front', 'middle', 'rear'] as CargoZone[]).map((zoneKey) => {
                                             const zoneInfo = ZONE_LABELS[zoneKey];
 
                                             return (
-                                                <div key={zoneKey} className={`border-2 rounded-2xl p-2 bg-slate-950/80 backdrop-blur-sm ${zoneInfo.color}`}>
-                                                    <div className="text-center border-b border-slate-800 pb-1.5 mb-2">
+                                                <div key={zoneKey} className={`border-2 rounded-2xl p-3 bg-slate-950/90 backdrop-blur-sm ${zoneInfo.color}`}>
+                                                    <div className="text-center border-b border-slate-800 pb-2 mb-3">
                                                         <span className="text-[11px] font-black text-white tracking-wider block">{zoneInfo.label}</span>
                                                         <span className="text-[9px] text-slate-400 font-mono block">{zoneInfo.sub}</span>
                                                     </div>
 
-                                                    {/* 3 LAYERS (Top, Middle, Bottom) */}
-                                                    <div className="space-y-2">
-                                                        {(['top', 'middle', 'bottom'] as CargoLayer[]).map((layerKey) => {
-                                                            const items = getItemsInCell(zoneKey, layerKey);
+                                                    {/* 3 HEIGHT TIERS: Atasan (2.2-3.3m), Tengah (1-2.2m), Dasaran (0-1m) */}
+                                                    <div className="space-y-2.5">
+                                                        {HEIGHT_TIERS.map((tier) => {
+                                                            const items = getItemsInCell(zoneKey, tier.key);
 
                                                             return (
                                                                 <div
-                                                                    key={layerKey}
-                                                                    className="min-h-[64px] border border-dashed border-slate-800 rounded-xl p-1.5 bg-slate-900/60 hover:border-indigo-500/50 transition-colors flex flex-wrap gap-1.5 content-start relative"
+                                                                    key={tier.key}
+                                                                    className="min-h-[76px] border border-slate-800 rounded-xl p-2 bg-slate-900/80 hover:border-indigo-500/50 transition-colors flex flex-wrap gap-1.5 content-start relative"
                                                                 >
-                                                                    <span className="absolute top-1 right-2 text-[8px] font-bold text-slate-600 uppercase font-mono pointer-events-none">
-                                                                        {layerKey === 'top' ? 'L3' : layerKey === 'middle' ? 'L2' : 'L1'}
-                                                                    </span>
+                                                                    <div className="w-full flex justify-between items-center text-[8px] font-mono font-bold pb-1 border-b border-slate-800/60 mb-1">
+                                                                        <span className={tier.color}>{tier.label}</span>
+                                                                        <span className="text-slate-500 font-black">{tier.meters}</span>
+                                                                    </div>
 
                                                                     {items.length === 0 ? (
                                                                         <div className="w-full text-center py-3 text-[9px] text-slate-600 italic">
-                                                                            Kosong
+                                                                            Kosong ({tier.meters})
                                                                         </div>
                                                                     ) : (
                                                                         items.map(item => (
@@ -339,11 +368,11 @@ export default function Truck3dVisualizer({
                                         })}
                                     </div>
 
-                                    {/* Double Tandem Rear Wheels (Matching Tronton/Fuso Image) */}
-                                    <div className="absolute -bottom-5 right-24 w-10 h-10 bg-slate-900 border-4 border-slate-600 rounded-full flex items-center justify-center font-bold text-[8px] text-slate-500">
+                                    {/* Double Tandem Rear Wheels */}
+                                    <div className="absolute -bottom-6 right-28 w-10 h-10 bg-slate-900 border-4 border-slate-600 rounded-full flex items-center justify-center font-bold text-[8px] text-slate-500">
                                         R2
                                     </div>
-                                    <div className="absolute -bottom-5 right-10 w-10 h-10 bg-slate-900 border-4 border-slate-600 rounded-full flex items-center justify-center font-bold text-[8px] text-slate-500">
+                                    <div className="absolute -bottom-6 right-10 w-10 h-10 bg-slate-900 border-4 border-slate-600 rounded-full flex items-center justify-center font-bold text-[8px] text-slate-500">
                                         R3
                                     </div>
                                 </div>
@@ -352,29 +381,43 @@ export default function Truck3dVisualizer({
                     </div>
                 )}
 
-                {/* ── MODE 2: TAMPAK SAMPING TRUK (SIDE ELEVATION PROFILE) ── */}
+                {/* ── MODE 2: TAMPAK SAMPING ELEVASI TRUK (HEIGHT 3.30m PROFILE) ── */}
                 {viewMode === 'side' && (
                     <div className="py-6 px-4">
-                        <div className="max-w-3xl mx-auto border-2 border-slate-700 rounded-2xl p-4 bg-slate-950">
-                            <h4 className="font-bold text-xs text-slate-300 mb-3 text-center uppercase tracking-wider">
-                                ELEVASI PROFIL SAMPING BAK TRUK (PAGAR TERBUKA)
-                            </h4>
-                            <div className="grid grid-cols-3 gap-2 h-48 border border-slate-800 rounded-xl p-2 bg-slate-900">
+                        <div className="max-w-4xl mx-auto border-2 border-slate-700 rounded-2xl p-5 bg-slate-950 space-y-4">
+                            <div className="text-center">
+                                <h4 className="font-black text-sm text-white uppercase tracking-wider">
+                                    PROFIL ELEVASI TINGGI BAK TRUK (3.30 METER DASAR KE PUNCAK)
+                                </h4>
+                                <p className="text-xs text-slate-400 font-mono mt-0.5">
+                                    Dasaran (0.00-1.00m) • Tengah (1.00-2.20m) • Atasan (2.20-3.30m)
+                                </p>
+                            </div>
+
+                            <div className="grid grid-cols-3 gap-3 h-64 border border-slate-800 rounded-xl p-3 bg-slate-900 relative">
                                 {(['front', 'middle', 'rear'] as CargoZone[]).map(zone => (
-                                    <div key={zone} className="border border-slate-800 rounded-lg p-2 flex flex-col justify-end gap-1.5 bg-slate-950/50">
+                                    <div key={zone} className="border border-slate-800 rounded-lg p-2.5 flex flex-col justify-between bg-slate-950/60 relative">
                                         <span className="text-[10px] font-black text-indigo-400 text-center uppercase border-b border-slate-800 pb-1">
-                                            {zone}
+                                            {zone.toUpperCase()}
                                         </span>
-                                        {cargoItems.filter(i => i.zone === zone).map(item => (
-                                            <div
-                                                key={item.id}
-                                                style={{ backgroundColor: item.color || '#3B82F6' }}
-                                                className="p-1.5 rounded text-[9px] font-bold text-white font-mono flex justify-between items-center"
-                                            >
-                                                <span>{item.sttNumber}</span>
-                                                <span>{item.koliCount} Koli</span>
-                                            </div>
-                                        ))}
+
+                                        <div className="flex-1 flex flex-col justify-between py-2">
+                                            {HEIGHT_TIERS.map(tier => {
+                                                const items = getItemsInCell(zone, tier.key);
+                                                return (
+                                                    <div key={tier.key} className="border border-dashed border-slate-800/80 p-1 rounded bg-slate-900/40 text-[8px]">
+                                                        <span className="text-slate-500 font-mono block">{tier.label} ({tier.meters})</span>
+                                                        <div className="flex flex-wrap gap-1 mt-0.5">
+                                                            {items.map(i => (
+                                                                <span key={i.id} style={{ backgroundColor: i.color || '#3B82F6' }} className="px-1.5 py-0.5 rounded text-white font-mono font-bold">
+                                                                    {i.sttNumber} ({i.koliCount}k)
+                                                                </span>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
                                     </div>
                                 ))}
                             </div>
@@ -382,16 +425,16 @@ export default function Truck3dVisualizer({
                     </div>
                 )}
 
-                {/* ── MODE 3: TAMPAK ATAS LANTAI TRUK (TOP-DOWN FLOOR PLAN) ── */}
+                {/* ── MODE 3: TAMPAK ATAS DENAH LANTAI TRUK ── */}
                 {viewMode === 'top' && (
                     <div className="py-6 px-4">
                         <div className="max-w-3xl mx-auto border-2 border-slate-700 rounded-2xl p-4 bg-slate-950">
                             <h4 className="font-bold text-xs text-slate-300 mb-3 text-center uppercase tracking-wider">
                                 DENAH LANTAI BAK TRUK (TAMPAK ATAS)
                             </h4>
-                            <div className="grid grid-cols-3 gap-3 h-40 border border-slate-800 rounded-xl p-3 bg-slate-900">
+                            <div className="grid grid-cols-3 gap-3 h-44 border border-slate-800 rounded-xl p-3 bg-slate-900">
                                 {(['front', 'middle', 'rear'] as CargoZone[]).map(zone => (
-                                    <div key={zone} className="border border-indigo-500/30 rounded-lg p-2 bg-slate-950/80 flex flex-col justify-center items-center text-center">
+                                    <div key={zone} className="border border-indigo-500/30 rounded-lg p-3 bg-slate-950/80 flex flex-col justify-center items-center text-center">
                                         <span className="text-xs font-black text-white uppercase">{zone}</span>
                                         <span className="text-[10px] text-amber-400 font-mono font-bold mt-1">
                                             {cargoItems.filter(i => i.zone === zone).reduce((s, i) => s + i.koliCount, 0)} Koli
@@ -532,7 +575,7 @@ export default function Truck3dVisualizer({
                                 </div>
                             </div>
 
-                            {/* Zone & Layer Placement Selector */}
+                            {/* Zone & Height Layer Placement Selector */}
                             <div className="grid grid-cols-2 gap-3 pt-2 border-t border-slate-800">
                                 <div>
                                     <label className="block text-[10px] font-bold uppercase text-indigo-400 mb-1">Zona Bak Truk</label>
@@ -547,15 +590,15 @@ export default function Truck3dVisualizer({
                                     </select>
                                 </div>
                                 <div>
-                                    <label className="block text-[10px] font-bold uppercase text-indigo-400 mb-1">Tingkat Layer</label>
+                                    <label className="block text-[10px] font-bold uppercase text-indigo-400 mb-1">Tingkat Tinggi (s/d 3.30m)</label>
                                     <select
                                         value={targetLayer}
                                         onChange={(e) => setTargetLayer(e.target.value as CargoLayer)}
                                         className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white font-bold focus:border-indigo-500 focus:outline-none"
                                     >
-                                        <option value="bottom">Layer 1 (Lantai Bawah)</option>
-                                        <option value="middle">Layer 2 (Tengah)</option>
-                                        <option value="top">Layer 3 (Atas)</option>
+                                        <option value="dasaran">DASARAN (0.00 - 1.00m)</option>
+                                        <option value="tengah">TENGAH (1.00 - 2.20m)</option>
+                                        <option value="atasan">ATASAN (2.20 - 3.30m)</option>
                                     </select>
                                 </div>
                             </div>

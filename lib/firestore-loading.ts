@@ -248,68 +248,42 @@ export const saveCargoStackLayout = async (
     });
 };
 
-// Helper to Calculate Fair Distribution of Uang Muat
+// Helper to Calculate Equal Share of Uang Muat (Sama Rata) with Manual Admin Overrides
 export const calculateUangMuatShare = (
     employees: AssignedEmployee[],
     logs: EmployeeDepartureLog[],
     totalUangMuat: number,
-    sessionDurationMinutes: number
+    sessionDurationMinutes: number = 60
 ): AssignedEmployee[] => {
     if (employees.length === 0) return employees;
     if (totalUangMuat <= 0) return employees.map(e => ({ ...e, uangMuatShare: 0 }));
 
-    // Role weight: Penyusun gets 1.3x ratio, Loader gets 1.0x ratio, Pengawal gets 0.8x ratio
-    const roleWeights: Record<string, number> = {
-        'Penyusun': 1.3,
-        'Loader/Helper': 1.0,
-        'Pengawal': 0.8
-    };
-
-    const effectiveDuration = Math.max(15, sessionDurationMinutes);
-
-    // Calculate effective work score for each employee
-    const scores = employees.map(emp => {
-        const empLogs = logs.filter(l => l.employeeId === emp.employeeId);
-        
-        let penaltyTotalPct = 0;
-        let leaveMinutesTotal = 0;
-
-        empLogs.forEach(l => {
-            const leaveMins = l.durationMinutes || 15;
-            leaveMinutesTotal += leaveMins;
-            penaltyTotalPct += (l.penaltyPercentage || 0);
-
-            // Special penalty: Desertion / Kabur gets 100% penalty
-            if (l.reason.includes('Kabur')) {
-                penaltyTotalPct += 100;
-            }
-        });
-
-        const activeMinutes = Math.max(0, effectiveDuration - leaveMinutesTotal);
-        const attendanceRatio = Math.min(1, activeMinutes / effectiveDuration);
-        const penaltyMultiplier = Math.max(0, 1 - (penaltyTotalPct / 100));
-        
-        const baseRoleWeight = roleWeights[emp.role] || 1.0;
-        const score = baseRoleWeight * attendanceRatio * penaltyMultiplier;
-
-        return {
-            employeeId: emp.employeeId,
-            score,
-            activeMinutes,
-        };
+    // 1. Separate employees with manual custom share override vs automatic equal share
+    let customAllocatedTotal = 0;
+    const manualEmployees = employees.filter(e => e.isManualShare && e.customUangMuatShare !== undefined && e.customUangMuatShare !== null);
+    
+    manualEmployees.forEach(e => {
+        customAllocatedTotal += (e.customUangMuatShare || 0);
     });
 
-    const totalScore = scores.reduce((sum, s) => sum + s.score, 0);
+    const remainingBudget = Math.max(0, totalUangMuat - customAllocatedTotal);
+    const autoEmployees = employees.filter(e => !e.isManualShare || e.customUangMuatShare === undefined || e.customUangMuatShare === null);
+
+    // 2. Divide remaining budget equally (SAMA RATA) among auto employees
+    const autoCount = autoEmployees.length;
+    const equalSharePerPerson = autoCount > 0 ? Math.round(remainingBudget / autoCount) : 0;
 
     return employees.map(emp => {
-        const empScore = scores.find(s => s.employeeId === emp.employeeId);
-        const scoreVal = empScore?.score || 0;
-        const share = totalScore > 0 ? Math.round((scoreVal / totalScore) * totalUangMuat) : 0;
+        if (emp.isManualShare && emp.customUangMuatShare !== undefined && emp.customUangMuatShare !== null) {
+            return {
+                ...emp,
+                uangMuatShare: emp.customUangMuatShare,
+            };
+        }
 
         return {
             ...emp,
-            totalActiveMinutes: empScore?.activeMinutes || 0,
-            uangMuatShare: share,
+            uangMuatShare: equalSharePerPerson,
         };
     });
 };

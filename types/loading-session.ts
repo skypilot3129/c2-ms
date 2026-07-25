@@ -2,7 +2,7 @@ import { Timestamp } from 'firebase/firestore';
 
 export type LoadingStatus = 'draft' | 'loading' | 'paused' | 'completed' | 'cancelled';
 export type CargoZone = 'front' | 'middle' | 'rear';
-export type CargoLayer = 'bottom' | 'middle' | 'top';
+export type CargoLayer = 'dasaran' | 'tengah' | 'atasan' | 'bottom' | 'middle' | 'top';
 export type CargoSide = 'left' | 'center' | 'right';
 
 export type DepartureReason = 
@@ -32,6 +32,8 @@ export interface AssignedEmployee {
     status: 'active' | 'on_leave' | 'deserted' | 'returned';
     totalActiveMinutes: number;
     uangMuatShare: number;
+    customUangMuatShare?: number | null; // Manual override by Admin
+    isManualShare?: boolean; // Flag if manually edited by Admin
     notes?: string;
 }
 
@@ -48,6 +50,7 @@ export interface CargoStackItem {
     heightCm?: number;
     zone: CargoZone;
     layer: CargoLayer;
+    heightLevelMeters?: number; // 0.0 to 3.3m
     side: CargoSide;
     color?: string;
     notes?: string;

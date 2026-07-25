@@ -3,6 +3,8 @@
 import React, { useEffect, useState, use } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { doc, updateDoc, Timestamp } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 import {
     getLoadingSessionById,
     updateLoadingSessionStatus,
@@ -163,6 +165,85 @@ export default function LoadingSessionStudioPage({ params }: { params: Promise<{
         }
     };
 
+    // Handle Admin Manual Edit of Employee Uang Muat
+    const handleManualEditUangMuat = async (employeeId: string, currentShare: number, employeeName: string) => {
+        if (!session) return;
+        const inputStr = prompt(`Masukkan Nominal Uang Muat Manual untuk ${employeeName} (Rp):`, String(currentShare));
+        if (inputStr === null) return; // Cancelled
+
+        const val = Number(inputStr);
+        if (isNaN(val) || val < 0) {
+            alert('Masukkan nominal angka Rupiah yang valid!');
+            return;
+        }
+
+        try {
+            const updatedEmployees = (session.assignedEmployees || []).map(emp => {
+                if (emp.employeeId === employeeId) {
+                    return {
+                        ...emp,
+                        customUangMuatShare: val,
+                        isManualShare: true,
+                        uangMuatShare: val,
+                    };
+                }
+                return emp;
+            });
+
+            // Recalculate remaining shares for auto employees
+            const recalculated = calculateUangMuatShare(
+                updatedEmployees,
+                session.departureLogs || [],
+                session.totalUangMuat || 0,
+                session.totalDurationMinutes || 60
+            );
+
+            const docRef = doc(db, 'loading_sessions', session.id);
+            await updateDoc(docRef, {
+                assignedEmployees: recalculated,
+                updatedAt: Timestamp.now(),
+            });
+
+            showToast(`Uang Muat ${employeeName} diubah ke ${formatRupiah(val)}. Sisa anggaran disesuaikan!`);
+            fetchSession();
+        } catch (error: any) {
+            console.error('Error editing Uang Muat:', error);
+            alert(`Gagal mengedit Uang Muat: ${error.message}`);
+        }
+    };
+
+    // Reset All Uang Muat to Equal Share (Sama Rata)
+    const handleResetUangMuatEqual = async () => {
+        if (!session) return;
+        if (!confirm('Kembalikan pembagian Uang Muat menjadi SAMA RATA untuk seluruh tim?')) return;
+
+        try {
+            const resetEmployees = (session.assignedEmployees || []).map(emp => ({
+                ...emp,
+                customUangMuatShare: null,
+                isManualShare: false,
+            }));
+
+            const recalculated = calculateUangMuatShare(
+                resetEmployees,
+                session.departureLogs || [],
+                session.totalUangMuat || 0,
+                session.totalDurationMinutes || 60
+            );
+
+            const docRef = doc(db, 'loading_sessions', session.id);
+            await updateDoc(docRef, {
+                assignedEmployees: recalculated,
+                updatedAt: Timestamp.now(),
+            });
+
+            showToast('Pembagian Uang Muat dikembalikan ke SAMA RATA!');
+            fetchSession();
+        } catch (error: any) {
+            alert(`Gagal reset Uang Muat: ${error.message}`);
+        }
+    };
+
     if (loading) {
         return <div className="p-8 text-center text-slate-400 font-medium">Memuat Studio Pemuatan 3D...</div>;
     }
@@ -280,13 +361,23 @@ export default function LoadingSessionStudioPage({ params }: { params: Promise<{
                                     <Users className="text-purple-400" size={18} />
                                     <h3 className="font-black text-sm text-white">TIM KARYAWAN BERTUGAS</h3>
                                 </div>
-                                <button
-                                    type="button"
-                                    onClick={() => setShowDepartureModal(true)}
-                                    className="bg-red-600/80 hover:bg-red-600 text-white font-bold text-[10px] px-2.5 py-1.5 rounded-xl border border-red-500/40 transition-all flex items-center gap-1 active:scale-95 cursor-pointer"
-                                >
-                                    <ShieldAlert size={12} /> + Catat Izin / Kabur
-                                </button>
+                                <div className="flex items-center gap-1.5">
+                                    <button
+                                        type="button"
+                                        onClick={handleResetUangMuatEqual}
+                                        className="text-[9px] bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold px-2 py-1.5 rounded-xl border border-slate-700"
+                                        title="Kembalikan semua Uang Muat ke SAMA RATA"
+                                    >
+                                        ↺ Reset Sama Rata
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowDepartureModal(true)}
+                                        className="bg-red-600/80 hover:bg-red-600 text-white font-bold text-[10px] px-2.5 py-1.5 rounded-xl border border-red-500/40 transition-all flex items-center gap-1 active:scale-95 cursor-pointer"
+                                    >
+                                        <ShieldAlert size={12} /> + Catat Izin / Kabur
+                                    </button>
+                                </div>
                             </div>
 
                             <div className="space-y-3">
@@ -338,10 +429,31 @@ export default function LoadingSessionStudioPage({ params }: { params: Promise<{
                                         )}
 
                                         <div className="flex items-center justify-between border-t border-slate-900 pt-2 text-[10px] font-mono">
-                                            <span className="text-slate-400">Hak Uang Muat:</span>
-                                            <span className={`font-black ${emp.uangMuatShare === 0 ? 'text-red-400 line-through' : 'text-emerald-400'}`}>
-                                                {formatRupiah(emp.uangMuatShare)}
-                                            </span>
+                                            <div className="flex items-center gap-1.5">
+                                                <span className="text-slate-400">Hak Uang Muat:</span>
+                                                {emp.isManualShare ? (
+                                                    <span className="text-[8px] bg-purple-500/20 text-purple-300 border border-purple-500/40 px-1.5 rounded font-sans font-bold">
+                                                        Manual Admin
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-[8px] bg-slate-800 text-slate-400 px-1.5 rounded font-sans">
+                                                        Sama Rata
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <span className={`font-black ${emp.uangMuatShare === 0 ? 'text-red-400 line-through' : 'text-emerald-400'}`}>
+                                                    {formatRupiah(emp.uangMuatShare)}
+                                                </span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleManualEditUangMuat(emp.employeeId, emp.uangMuatShare, emp.employeeName)}
+                                                    className="bg-indigo-600/80 hover:bg-indigo-600 text-white font-bold text-[9px] px-2 py-0.5 rounded transition-all"
+                                                    title="Edit Nominal Uang Muat Manual"
+                                                >
+                                                    ✎ Edit
+                                                </button>
+                                            </div>
                                         </div>
                                     </div>
                                 ))}
