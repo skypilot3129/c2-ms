@@ -52,6 +52,13 @@ export interface CargoStackItem {
     layer: CargoLayer;
     heightLevelMeters?: number; // 0.0 to 3.3m
     side: CargoSide;
+    
+    // Freeform 3D Canvas positioning & visual scale
+    posX?: number; // 0% to 100% along 10m length
+    posY?: number; // 0% to 100% along 3.3m height (0 = dasaran, 100 = top)
+    widthPct?: number; // visual box width percentage
+    heightPct?: number; // visual box height percentage
+    
     color?: string;
     notes?: string;
 }

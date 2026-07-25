@@ -6,7 +6,8 @@ import { formatRupiah } from '@/lib/currency';
 import {
     Box, Plus, Trash2, Layers, Truck, AlertTriangle, ShieldCheck,
     RotateCw, ArrowDown, Eye, CheckCircle2, ChevronRight, Scale, Info,
-    Maximize2, Minimize2, Ruler, ArrowUp, Sparkles
+    Maximize2, Minimize2, Ruler, ArrowUp, ArrowLeft, ArrowRight, Sparkles,
+    Move, Sliders, Maximize, RefreshCw
 } from 'lucide-react';
 
 interface Truck3dVisualizerProps {
@@ -16,20 +17,6 @@ interface Truck3dVisualizerProps {
     plateNumber?: string;
     readOnly?: boolean;
 }
-
-const ZONES_LIST: Array<{ key: CargoZone; label: string; sub: string; meters: string; color: string; badge: string }> = [
-    { key: 'cabin_top', label: 'ATAS KABIN DRIVER', sub: 'Rak Top Cabin', meters: 'Terpal / Busa', color: 'border-cyan-500 bg-cyan-500/10', badge: 'ROOF RACK' },
-    { key: 'front', label: 'DEPAN BAK', sub: 'Sumbu Depan', meters: '0.0m – 3.0m', color: 'border-blue-500 bg-blue-500/10', badge: '3 METER' },
-    { key: 'middle', label: 'TENGAH BAK', sub: 'Pusat Beban', meters: '3.0m – 6.0m', color: 'border-purple-500 bg-purple-500/10', badge: '3 METER' },
-    { key: 'rear', label: 'BELAKANG BAK', sub: 'Sumbu Roda Ganda', meters: '6.0m – 9.0m', color: 'border-amber-500 bg-amber-500/10', badge: '3 METER' },
-    { key: 'tailgate_extension', label: 'GAYORAN PINTU BELAKANG', sub: 'Sambungan Bak Terbuka', meters: '9.0m – 10.0m', color: 'border-emerald-500 bg-emerald-500/10', badge: 'EKSTRA 1 METER' }
-];
-
-const HEIGHT_TIERS: Array<{ key: CargoLayer; label: string; meters: string; desc: string; color: string }> = [
-    { key: 'atasan', label: 'ATASAN (Puncak Teratas)', meters: '2.20 – 3.30m', desc: 'Muatan Ringan / Busa / Kasur', color: 'border-amber-500/40 text-amber-300' },
-    { key: 'tengah', label: 'TENGAH (Sumbu Pagar)', meters: '1.00 – 2.20m', desc: 'Muatan Karton / Dus / Karung', color: 'border-purple-500/40 text-purple-300' },
-    { key: 'dasaran', label: 'DASARAN (Lantai Bak)', meters: '0.00 – 1.00m', desc: 'Muatan Berat / Besi / Batu / Dus Tebal', color: 'border-blue-500/40 text-blue-300' },
-];
 
 const COLOR_PRESETS = [
     '#3B82F6', '#8B5CF6', '#10B981', '#F59E0B', '#EF4444',
@@ -43,9 +30,9 @@ export default function Truck3dVisualizer({
     plateNumber = 'B 9872 CCE',
     readOnly = false
 }: Truck3dVisualizerProps) {
-    const [viewMode, setViewMode] = useState<'3d' | 'side' | 'top'>('3d');
+    const [viewMode, setViewMode] = useState<'3d' | 'top'>('3d');
     const [isFullScreen, setIsFullScreen] = useState(false);
-    const [selectedItem, setSelectedItem] = useState<CargoStackItem | null>(null);
+    const [selectedItemId, setSelectedItemId] = useState<string | null>(cargoItems[0]?.id || null);
 
     // Form Modal State for Adding New Cargo Item
     const [showAddModal, setShowAddModal] = useState(false);
@@ -60,6 +47,8 @@ export default function Truck3dVisualizer({
     const [targetSide, setTargetSide] = useState<CargoSide>('center');
     const [selectedColor, setSelectedColor] = useState(COLOR_PRESETS[0]);
 
+    const selectedItem = cargoItems.find(i => i.id === selectedItemId);
+
     // Totals calculations
     const totalKoli = cargoItems.reduce((sum, item) => sum + item.koliCount, 0);
     const totalWeightKg = cargoItems.reduce((sum, item) => sum + item.weightKg, 0);
@@ -67,10 +56,10 @@ export default function Truck3dVisualizer({
     const maxCapacityCbm = 60; // 10 Meter Long Bed (3.3m High) ~60 CBM
     const cbmPercentage = Math.min(100, Math.round((totalCbm / maxCapacityCbm) * 100));
 
-    // Balance calculations
-    const frontWeight = cargoItems.filter(i => i.zone === 'front' || i.zone === 'cabin_top').reduce((s, i) => s + i.weightKg, 0);
-    const middleWeight = cargoItems.filter(i => i.zone === 'middle').reduce((s, i) => s + i.weightKg, 0);
-    const rearWeight = cargoItems.filter(i => i.zone === 'rear' || i.zone === 'tailgate_extension').reduce((s, i) => s + i.weightKg, 0);
+    // Balance calculations based on item position (posX 0 to 100)
+    const frontWeight = cargoItems.filter(i => (i.posX ?? 20) <= 35 || i.zone === 'front' || i.zone === 'cabin_top').reduce((s, i) => s + i.weightKg, 0);
+    const middleWeight = cargoItems.filter(i => (i.posX ?? 50) > 35 && (i.posX ?? 50) <= 70).reduce((s, i) => s + i.weightKg, 0);
+    const rearWeight = cargoItems.filter(i => (i.posX ?? 80) > 70).reduce((s, i) => s + i.weightKg, 0);
 
     const frontPct = totalWeightKg > 0 ? Math.round((frontWeight / totalWeightKg) * 100) : 33;
     const middlePct = totalWeightKg > 0 ? Math.round((middleWeight / totalWeightKg) * 100) : 34;
@@ -79,12 +68,27 @@ export default function Truck3dVisualizer({
     // Weight imbalance alert
     const isUnbalanced = (frontPct > 55) || (rearPct > 55);
 
+    // Helper to add new item with default position
     const handleAddItem = (e: React.FormEvent) => {
         e.preventDefault();
         if (!sttNumber || !destination) {
             alert('Harap isi No STT dan Kota Tujuan!');
             return;
         }
+
+        // Zone default positions (posX % along 10m length, posY % along 3.3m height)
+        let defaultPosX = 20;
+        let defaultPosY = 15;
+
+        if (targetZone === 'cabin_top') { defaultPosX = 5; defaultPosY = 75; }
+        else if (targetZone === 'front') { defaultPosX = 22; }
+        else if (targetZone === 'middle') { defaultPosX = 52; }
+        else if (targetZone === 'rear') { defaultPosX = 78; }
+        else if (targetZone === 'tailgate_extension') { defaultPosX = 94; }
+
+        if (targetLayer === 'dasaran') { defaultPosY = 15; }
+        else if (targetLayer === 'tengah') { defaultPosY = 48; }
+        else if (targetLayer === 'atasan') { defaultPosY = 80; }
 
         const newItem: CargoStackItem = {
             id: `ITEM-${Date.now()}`,
@@ -98,11 +102,16 @@ export default function Truck3dVisualizer({
             layer: targetLayer,
             heightLevelMeters: targetLayer === 'dasaran' ? 0.8 : targetLayer === 'tengah' ? 1.8 : 3.0,
             side: targetSide,
+            posX: defaultPosX,
+            posY: defaultPosY,
+            widthPct: 16,
+            heightPct: 24,
             color: selectedColor,
         };
 
         const updated = [...cargoItems, newItem];
         onSaveCargoItems(updated);
+        setSelectedItemId(newItem.id);
 
         // Reset inputs
         setSttNumber('');
@@ -115,19 +124,73 @@ export default function Truck3dVisualizer({
         if (confirm('Hapus item koli ini dari bak truk?')) {
             const updated = cargoItems.filter(i => i.id !== id);
             onSaveCargoItems(updated);
-            if (selectedItem?.id === id) setSelectedItem(null);
+            if (selectedItemId === id) setSelectedItemId(updated[0]?.id || null);
         }
     };
 
-    const getItemsInCell = (zone: CargoZone, layer: CargoLayer) => {
-        return cargoItems.filter(i => {
-            const matchZone = i.zone === zone;
-            const matchLayer = (i.layer === layer) ||
-                (layer === 'dasaran' && i.layer === 'bottom') ||
-                (layer === 'tengah' && i.layer === 'middle') ||
-                (layer === 'atasan' && i.layer === 'top');
-            return matchZone && matchLayer;
+    // Update position of selected item
+    const updateItemPosition = (id: string, deltaX: number, deltaY: number) => {
+        const updated = cargoItems.map(item => {
+            if (item.id === id) {
+                const currentX = item.posX ?? 30;
+                const currentY = item.posY ?? 20;
+                const newX = Math.max(2, Math.min(96, currentX + deltaX));
+                const newY = Math.max(5, Math.min(88, currentY + deltaY));
+
+                // Recalculate zone based on newX
+                let newZone: CargoZone = item.zone;
+                if (newX < 12) newZone = 'cabin_top';
+                else if (newX < 36) newZone = 'front';
+                else if (newX < 66) newZone = 'middle';
+                else if (newX < 88) newZone = 'rear';
+                else newZone = 'tailgate_extension';
+
+                // Recalculate layer based on newY
+                let newLayer: CargoLayer = item.layer;
+                if (newY < 30) newLayer = 'dasaran';
+                else if (newY < 65) newLayer = 'tengah';
+                else newLayer = 'atasan';
+
+                return {
+                    ...item,
+                    posX: newX,
+                    posY: newY,
+                    zone: newZone,
+                    layer: newLayer,
+                };
+            }
+            return item;
         });
+        onSaveCargoItems(updated);
+    };
+
+    // Update visual block scale of selected item
+    const updateItemScale = (id: string, deltaW: number, deltaH: number) => {
+        const updated = cargoItems.map(item => {
+            if (item.id === id) {
+                const currentW = item.widthPct ?? 16;
+                const currentH = item.heightPct ?? 24;
+                return {
+                    ...item,
+                    widthPct: Math.max(8, Math.min(30, currentW + deltaW)),
+                    heightPct: Math.max(12, Math.min(45, currentH + deltaH)),
+                };
+            }
+            return item;
+        });
+        onSaveCargoItems(updated);
+    };
+
+    // Quick Jump Preset Zone
+    const jumpToZone = (id: string, zone: CargoZone) => {
+        let newX = 25;
+        if (zone === 'cabin_top') newX = 5;
+        if (zone === 'front') newX = 24;
+        if (zone === 'middle') newX = 50;
+        if (zone === 'rear') newX = 76;
+        if (zone === 'tailgate_extension') newX = 94;
+
+        updateItemPosition(id, newX - (selectedItem?.posX ?? 25), 0);
     };
 
     const containerStyle = isFullScreen
@@ -145,9 +208,9 @@ export default function Truck3dVisualizer({
                     </div>
                     <div>
                         <div className="flex items-center gap-2">
-                            <h3 className="text-xl font-black text-white tracking-wide">SKETSA 3D BAK TRUK 10 METER + ATAS KABIN</h3>
+                            <h3 className="text-xl font-black text-white tracking-wide">KANVAS 3D DYNAMIC STUDIO (10 METER)</h3>
                             <span className="bg-gradient-to-r from-emerald-500 to-teal-500 text-slate-950 text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full">
-                                FULL STUDIO PRO 3.30m
+                                BEBAS INTERAKSI & RESIZE
                             </span>
                         </div>
                         <p className="text-xs text-slate-400 font-medium">
@@ -162,35 +225,24 @@ export default function Truck3dVisualizer({
                         <button
                             type="button"
                             onClick={() => setViewMode('3d')}
-                            className={`px-3 py-1.5 rounded-xl font-bold text-xs transition-all flex items-center gap-1.5 ${
+                            className={`px-3.5 py-1.5 rounded-xl font-bold text-xs transition-all flex items-center gap-1.5 ${
                                 viewMode === '3d'
                                     ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md'
                                     : 'text-slate-400 hover:text-white'
                             }`}
                         >
-                            <Box size={14} /> 3D Isometric (5 Zona)
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setViewMode('side')}
-                            className={`px-3 py-1.5 rounded-xl font-bold text-xs transition-all flex items-center gap-1.5 ${
-                                viewMode === 'side'
-                                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md'
-                                    : 'text-slate-400 hover:text-white'
-                            }`}
-                        >
-                            <Eye size={14} /> Profil Elevasi (10m x 3.3m)
+                            <Box size={14} /> Kanvas 3D Interaktif
                         </button>
                         <button
                             type="button"
                             onClick={() => setViewMode('top')}
-                            className={`px-3 py-1.5 rounded-xl font-bold text-xs transition-all flex items-center gap-1.5 ${
+                            className={`px-3.5 py-1.5 rounded-xl font-bold text-xs transition-all flex items-center gap-1.5 ${
                                 viewMode === 'top'
                                     ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md'
                                     : 'text-slate-400 hover:text-white'
                             }`}
                         >
-                            <ArrowDown size={14} /> Denah Atas Lantai
+                            <ArrowDown size={14} /> Denah Atas
                         </button>
                     </div>
 
@@ -208,15 +260,15 @@ export default function Truck3dVisualizer({
                         <button
                             type="button"
                             onClick={() => setShowAddModal(true)}
-                            className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-lg shadow-emerald-600/20 transition-all flex items-center gap-2 active:scale-95 cursor-pointer"
+                            className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-4.5 py-2.5 rounded-xl shadow-lg shadow-emerald-600/20 transition-all flex items-center gap-2 active:scale-95 cursor-pointer"
                         >
-                            <Plus size={16} /> + Tumpuk Koli Baru
+                            <Plus size={16} /> + Tambah Tumpukan Koli Baru
                         </button>
                     )}
                 </div>
             </div>
 
-            {/* Capacity & Weight Balance Metrics Bar */}
+            {/* Metrics HUD Bar */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl">
                     <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Total Koli Dimuat</p>
@@ -258,262 +310,295 @@ export default function Truck3dVisualizer({
                 </div>
             </div>
 
-            {/* ── 3D / ISOMETRIC TRUCK CARGO CANVAS CONTAINER ── */}
+            {/* ── 3D DYNAMIC FREEFORM CANVAS CONTAINER ── */}
             <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 relative overflow-hidden">
-                <div className="absolute top-4 left-4 flex items-center gap-2 bg-slate-950/80 px-3 py-1.5 rounded-xl border border-slate-800 text-[10px] text-slate-400 font-mono z-20">
-                    <Ruler size={12} className="text-emerald-400" />
-                    <span>Spesifikasi CCE: Total Panjang 10.0m (9.0m Bak + 1.0m Gayoran) • Tinggi 3.30m</span>
+                <div className="flex items-center justify-between border-b border-slate-800/80 pb-3 mb-4">
+                    <div className="flex items-center gap-2 text-xs font-mono text-slate-300">
+                        <Ruler size={14} className="text-emerald-400" />
+                        <span>Kanvas Lapang 10 Meter (0m - 9m Bak Truk + 1m Gayoran Pintu Belakang) • Tinggi Max 3.30m</span>
+                    </div>
+                    <div className="text-[10px] text-slate-400 font-mono">
+                        Klik pada kotak 3D untuk memilih & menggeser posisi
+                    </div>
                 </div>
 
-                {/* ── MODE 1: 3D ISOMETRIC TRUCK BED STACKING CANVAS (10 METER + ATAS KABIN) ── */}
-                {viewMode === '3d' && (
-                    <div className="py-8 px-4 overflow-x-auto">
-                        <div className="min-w-[1100px] max-w-6xl mx-auto relative pt-10 pb-8">
+                {/* ── MAIN 3D TRUCK BED FREEFORM CANVAS AREA ── */}
+                <div className="py-6 overflow-x-auto">
+                    <div className="min-w-[1000px] max-w-6xl mx-auto relative pt-12 pb-10">
+                        
+                        {/* TRUCK CHASSIS OUTLINE & MEASUREMENT GRID */}
+                        <div className="relative w-full h-[320px] bg-slate-950/90 border-2 border-slate-700 rounded-3xl shadow-2xl p-4 overflow-hidden flex items-end">
                             
-                            {/* FRONT CABIN OF THE TRUCK + CABIN TOP CARGO RACK */}
-                            <div className="flex items-center mb-4">
+                            {/* Height Markers Labels (Left Axis) */}
+                            <div className="absolute top-3 left-3 z-10 flex flex-col gap-14 text-[9px] font-mono text-slate-500 font-bold border-l border-slate-800 pl-2">
+                                <span className="text-amber-400">▲ 3.30m (Atasan)</span>
+                                <span className="text-purple-400">▲ 2.20m (Tengah)</span>
+                                <span className="text-blue-400">▲ 1.00m (Dasaran)</span>
+                            </div>
+
+                            {/* Distance Length Markers (Bottom Axis) */}
+                            <div className="absolute inset-x-0 bottom-1.5 px-4 flex justify-between text-[9px] font-mono text-slate-500 font-bold border-t border-slate-800 pt-1 z-10">
+                                <span>0m (Driver)</span>
+                                <span>3m (Depan)</span>
+                                <span>6m (Tengah)</span>
+                                <span>9m (Pintu Belakang)</span>
+                                <span className="text-emerald-400 font-black">10m (Gayoran)</span>
+                            </div>
+
+                            {/* Zone Guide Lines Background */}
+                            <div className="absolute inset-0 flex pointer-events-none opacity-20">
+                                <div className="w-[12%] border-r border-dashed border-cyan-400 bg-cyan-500/10"></div>
+                                <div className="w-[28%] border-r border-dashed border-blue-400 bg-blue-500/10"></div>
+                                <div className="w-[30%] border-r border-dashed border-purple-400 bg-purple-500/10"></div>
+                                <div className="w-[20%] border-r border-dashed border-amber-400 bg-amber-500/10"></div>
+                                <div className="w-[10%] bg-emerald-500/10"></div>
+                            </div>
+
+                            {/* ── DRIVER CABIN STRUCTURAL SHAPE ── */}
+                            <div className="absolute bottom-8 left-2 w-[11%] h-[160px] bg-gradient-to-t from-slate-800 to-slate-700 border-2 border-slate-600 rounded-l-2xl p-2 flex flex-col justify-between shadow-2xl z-0">
+                                <div className="text-[8px] font-mono font-bold text-cyan-300 bg-cyan-950/80 px-1 py-0.5 rounded border border-cyan-500/40 text-center">
+                                    ROOF KABIN
+                                </div>
+                                <div className="w-full h-8 bg-blue-400/20 border border-blue-400/50 rounded flex items-center justify-center text-[8px] font-bold text-blue-200">
+                                    Kabin Driver
+                                </div>
+                                <div className="text-[8px] font-mono text-slate-400 text-center">R1 Wheel</div>
+                            </div>
+
+                            {/* ── GAYORAN TAILGATE EXTENSION GATE SHAPE ── */}
+                            <div className="absolute bottom-8 right-2 w-[9%] h-[180px] border-2 border-dashed border-emerald-500/60 rounded-r-2xl bg-emerald-950/20 p-2 flex flex-col justify-between pointer-events-none z-0">
+                                <span className="text-[8px] font-mono font-black text-emerald-400 text-center bg-emerald-500/20 py-0.5 rounded">
+                                    GAYORAN +1M
+                                </span>
+                            </div>
+
+                            {/* ── DYNAMIC 3D BOX CARGO BLOCKS RENDERING ENGINE ── */}
+                            {cargoItems.length === 0 ? (
+                                <div className="w-full text-center py-20 text-slate-500 italic text-sm font-medium z-10">
+                                    Bak truk 10 Meter bersih & kosong. Klik tombol <strong className="text-emerald-400 not-italic">+ Tambah Tumpukan Koli Baru</strong> di atas untuk menaruh muatan.
+                                </div>
+                            ) : (
+                                cargoItems.map(item => {
+                                    const isSelected = selectedItemId === item.id;
+                                    const posX = item.posX ?? 30;
+                                    const posY = item.posY ?? 20;
+                                    const widthPct = item.widthPct ?? 16;
+                                    const heightPct = item.heightPct ?? 24;
+
+                                    return (
+                                        <div
+                                            key={item.id}
+                                            onClick={() => setSelectedItemId(item.id)}
+                                            style={{
+                                                left: `${posX}%`,
+                                                bottom: `${posY}%`,
+                                                width: `${widthPct}%`,
+                                                height: `${heightPct}%`,
+                                                backgroundColor: item.color || '#3B82F6',
+                                            }}
+                                            className={`absolute rounded-xl p-2.5 text-white shadow-2xl transition-all cursor-pointer border-2 z-20 flex flex-col justify-between hover:scale-105 active:scale-95 ${
+                                                isSelected ? 'ring-4 ring-white border-white scale-105 shadow-indigo-500/50' : 'border-white/30 opacity-90'
+                                            }`}
+                                        >
+                                            {/* 3D Box Top Highlight Face */}
+                                            <div className="flex items-center justify-between border-b border-white/30 pb-1">
+                                                <span className="font-mono font-black text-[10px] tracking-tight">{item.sttNumber}</span>
+                                                <span className="text-[8px] bg-black/40 px-1 py-0.5 rounded font-mono">{item.koliCount}k</span>
+                                            </div>
+
+                                            <div>
+                                                <div className="text-[9px] font-bold truncate">{item.destination}</div>
+                                                <div className="text-[8px] opacity-80 truncate">{item.clientName}</div>
+                                            </div>
+
+                                            <div className="flex justify-between items-end text-[8px] font-mono opacity-90 border-t border-white/20 pt-1">
+                                                <span>{item.weightKg}kg</span>
+                                                <span className="uppercase font-bold text-[7.5px]">{item.zone.slice(0, 5)}</span>
+                                            </div>
+                                        </div>
+                                    );
+                                })
+                            )}
+                        </div>
+                    </div>
+                </div>
+
+                {/* ── SELECTED CARGO ITEM INTERACTIVE MOVE & RESIZE CONTROL DRAWER ── */}
+                {selectedItem && !readOnly && (
+                    <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 space-y-4 animate-fade-in shadow-2xl">
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-800 pb-3">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-black text-sm" style={{ backgroundColor: selectedItem.color || '#3B82F6' }}>
+                                    <Box size={20} />
+                                </div>
+                                <div>
+                                    <div className="flex items-center gap-2">
+                                        <h4 className="font-black text-white font-mono text-base">{selectedItem.sttNumber}</h4>
+                                        <span className="bg-indigo-500/20 text-indigo-300 text-[10px] font-bold px-2 py-0.5 rounded border border-indigo-500/40">
+                                            Tujuan: {selectedItem.destination}
+                                        </span>
+                                    </div>
+                                    <p className="text-xs text-slate-300 mt-0.5">
+                                        Client: <strong className="text-white">{selectedItem.clientName}</strong> • {selectedItem.koliCount} Koli • {selectedItem.weightKg} Kg • {selectedItem.cbm} CBM
+                                    </p>
+                                </div>
+                            </div>
+
+                            <button
+                                type="button"
+                                onClick={() => handleDeleteItem(selectedItem.id)}
+                                className="bg-red-600/80 hover:bg-red-600 text-white font-bold text-xs px-3 py-1.5 rounded-xl border border-red-500/40 transition-all flex items-center gap-1 self-start md:self-auto"
+                            >
+                                <Trash2 size={13} /> Hapus dari Bak
+                            </button>
+                        </div>
+
+                        {/* Interactive Move Position & Scale Controls */}
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 text-xs">
+                            
+                            {/* 1. Move Position Controls (Length & Height) */}
+                            <div className="bg-slate-900 border border-slate-800 p-3 rounded-xl space-y-2">
+                                <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider flex items-center gap-1">
+                                    <Move size={12} /> 1. Geser Posisi di Bak Truk
+                                </span>
                                 
-                                {/* DRIVER CABIN & CABIN TOP RACK */}
-                                <div className="w-44 h-44 bg-gradient-to-r from-slate-800 to-slate-700 border-2 border-slate-600 rounded-l-3xl p-3 flex flex-col justify-between shadow-2xl relative">
-                                    
-                                    {/* ZONA 1: ATAS KABIN DRIVER */}
-                                    <div className="bg-cyan-950/90 border-2 border-cyan-500/60 rounded-xl p-2 min-h-[58px] shadow-lg relative">
-                                        <div className="flex justify-between items-center text-[8px] font-mono font-bold text-cyan-300 border-b border-cyan-500/30 pb-1 mb-1">
-                                            <span>ROOF RACK KABIN</span>
-                                            <span className="bg-cyan-500/20 text-cyan-200 px-1 rounded">TERPAL/BUSA</span>
-                                        </div>
-                                        <div className="flex flex-wrap gap-1 content-start">
-                                            {getItemsInCell('cabin_top', 'atasan').concat(getItemsInCell('cabin_top', 'dasaran')).length === 0 ? (
-                                                <div className="w-full text-center text-[8px] text-slate-500 italic py-1">Atas Kabin Kosong</div>
-                                            ) : (
-                                                getItemsInCell('cabin_top', 'atasan').concat(getItemsInCell('cabin_top', 'dasaran')).map(item => (
-                                                    <div
-                                                        key={item.id}
-                                                        onClick={() => setSelectedItem(item)}
-                                                        style={{ backgroundColor: item.color || '#06B6D4' }}
-                                                        className="px-1.5 py-0.5 rounded text-white font-bold text-[8px] shadow font-mono"
-                                                    >
-                                                        {item.sttNumber} ({item.koliCount}k)
-                                                    </div>
-                                                ))
-                                            )}
+                                <div className="grid grid-cols-2 gap-2 pt-1">
+                                    <div>
+                                        <span className="text-[9px] text-slate-400 block mb-1">Maju / Mundur (Panjang)</span>
+                                        <div className="flex gap-1">
+                                            <button
+                                                type="button"
+                                                onClick={() => updateItemPosition(selectedItem.id, -5, 0)}
+                                                className="flex-1 bg-slate-800 hover:bg-slate-700 text-white font-bold py-1.5 rounded text-[11px] flex items-center justify-center gap-1"
+                                            >
+                                                <ArrowLeft size={12} /> Maju
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => updateItemPosition(selectedItem.id, 5, 0)}
+                                                className="flex-1 bg-slate-800 hover:bg-slate-700 text-white font-bold py-1.5 rounded text-[11px] flex items-center justify-center gap-1"
+                                            >
+                                                Mundur <ArrowRight size={12} />
+                                            </button>
                                         </div>
                                     </div>
 
-                                    <div className="w-14 h-9 bg-blue-400/20 border border-blue-400/50 rounded-lg self-end flex items-center justify-center text-[9px] font-bold text-blue-200 mt-1">
-                                        Kabin Driver
-                                    </div>
-
-                                    <div className="flex justify-between items-center text-[9px] font-bold text-slate-300 font-mono">
-                                        <span>DRIVER</span>
-                                        <span className="w-4 h-4 rounded-full bg-slate-900 border border-slate-500"></span>
-                                    </div>
-
-                                    {/* Wheel Front */}
-                                    <div className="absolute -bottom-6 left-6 w-10 h-10 bg-slate-900 border-4 border-slate-600 rounded-full flex items-center justify-center font-bold text-[8px] text-slate-500">
-                                        R1
-                                    </div>
-                                </div>
-                                <div className="h-44 w-4 bg-slate-800 border-y border-slate-700"></div>
-
-                                {/* CARGO TRUCK BED MAIN FRAME (9 METER BED + 1 METER GAYORAN) */}
-                                <div className="flex-1 bg-slate-900 border-4 border-slate-700 rounded-r-2xl p-3 relative shadow-inner">
-                                    
-                                    {/* Side Wooden/Metal Frame Gate Bars with Height Markers */}
-                                    <div className="absolute inset-x-0 top-0 h-2.5 bg-gradient-to-r from-amber-800 via-amber-700 to-amber-800 border-b border-amber-900"></div>
-                                    <div className="absolute inset-x-0 top-14 h-1 bg-amber-500/30 border-t border-dashed border-amber-500/40"></div>
-                                    <div className="absolute inset-x-0 top-28 h-1 bg-purple-500/30 border-t border-dashed border-purple-500/40"></div>
-                                    <div className="absolute inset-x-0 bottom-0 h-2.5 bg-gradient-to-r from-amber-800 via-amber-700 to-amber-800 border-t border-amber-900"></div>
-
-                                    {/* 4 ZONES ON TRUCK BED (Depan 3m, Tengah 3m, Belakang 3m, Gayoran 1m) */}
-                                    <div className="grid grid-cols-4 gap-3 relative z-10 my-1">
-                                        {ZONES_LIST.filter(z => z.key !== 'cabin_top').map((zoneInfo) => {
-
-                                            return (
-                                                <div key={zoneInfo.key} className={`border-2 rounded-2xl p-2.5 bg-slate-950/90 backdrop-blur-sm ${zoneInfo.color}`}>
-                                                    <div className="text-center border-b border-slate-800 pb-1.5 mb-2">
-                                                        <div className="flex items-center justify-center gap-1">
-                                                            <span className="text-[10px] font-black text-white tracking-wider block">{zoneInfo.label}</span>
-                                                        </div>
-                                                        <span className="text-[8px] text-emerald-400 font-mono font-bold block">{zoneInfo.meters} • {zoneInfo.badge}</span>
-                                                    </div>
-
-                                                    {/* 3 HEIGHT TIERS: Atasan (2.2-3.3m), Tengah (1-2.2m), Dasaran (0-1m) */}
-                                                    <div className="space-y-2">
-                                                        {HEIGHT_TIERS.map((tier) => {
-                                                            const items = getItemsInCell(zoneInfo.key, tier.key);
-
-                                                            return (
-                                                                <div
-                                                                    key={tier.key}
-                                                                    className="min-h-[70px] border border-slate-800 rounded-xl p-1.5 bg-slate-900/80 hover:border-indigo-500/50 transition-colors flex flex-wrap gap-1 content-start relative"
-                                                                >
-                                                                    <div className="w-full flex justify-between items-center text-[7.5pt] font-mono font-bold pb-1 border-b border-slate-800/60 mb-1">
-                                                                        <span className={tier.color}>{tier.label.split(' ')[0]}</span>
-                                                                        <span className="text-slate-500">{tier.meters}</span>
-                                                                    </div>
-
-                                                                    {items.length === 0 ? (
-                                                                        <div className="w-full text-center py-2 text-[8px] text-slate-600 italic">
-                                                                            Kosong
-                                                                        </div>
-                                                                    ) : (
-                                                                        items.map(item => (
-                                                                            <div
-                                                                                key={item.id}
-                                                                                onClick={() => setSelectedItem(item)}
-                                                                                style={{ backgroundColor: item.color || '#3B82F6' }}
-                                                                                className={`px-2 py-1 rounded-lg text-white font-bold text-[9px] shadow hover:scale-105 transition-transform cursor-pointer border border-white/20 flex items-center justify-between gap-1.5 ${
-                                                                                    selectedItem?.id === item.id ? 'ring-2 ring-white scale-105' : ''
-                                                                                }`}
-                                                                            >
-                                                                                <div>
-                                                                                    <div className="font-mono text-[8.5px] font-black tracking-tight">{item.sttNumber}</div>
-                                                                                    <div className="text-[7.5px] opacity-90">{item.destination} • {item.koliCount}k</div>
-                                                                                </div>
-                                                                                {!readOnly && (
-                                                                                    <button
-                                                                                        type="button"
-                                                                                        onClick={(e) => {
-                                                                                            e.stopPropagation();
-                                                                                            handleDeleteItem(item.id);
-                                                                                        }}
-                                                                                        className="text-white/70 hover:text-white p-0.5"
-                                                                                        title="Hapus koli"
-                                                                                    >
-                                                                                        <Trash2 size={11} />
-                                                                                    </button>
-                                                                                )}
-                                                                            </div>
-                                                                        ))
-                                                                    )}
-                                                                </div>
-                                                            );
-                                                        })}
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-
-                                    {/* Double Tandem Rear Wheels */}
-                                    <div className="absolute -bottom-6 right-36 w-10 h-10 bg-slate-900 border-4 border-slate-600 rounded-full flex items-center justify-center font-bold text-[8px] text-slate-500">
-                                        R2
-                                    </div>
-                                    <div className="absolute -bottom-6 right-16 w-10 h-10 bg-slate-900 border-4 border-slate-600 rounded-full flex items-center justify-center font-bold text-[8px] text-slate-500">
-                                        R3
+                                    <div>
+                                        <span className="text-[9px] text-slate-400 block mb-1">Naik / Turun (Tinggi)</span>
+                                        <div className="flex gap-1">
+                                            <button
+                                                type="button"
+                                                onClick={() => updateItemPosition(selectedItem.id, 0, 10)}
+                                                className="flex-1 bg-slate-800 hover:bg-slate-700 text-white font-bold py-1.5 rounded text-[11px] flex items-center justify-center gap-1"
+                                            >
+                                                <ArrowUp size={12} /> Naik
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => updateItemPosition(selectedItem.id, 0, -10)}
+                                                className="flex-1 bg-slate-800 hover:bg-slate-700 text-white font-bold py-1.5 rounded text-[11px] flex items-center justify-center gap-1"
+                                            >
+                                                <ArrowDown size={12} /> Turun
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
-                        </div>
-                    </div>
-                )}
 
-                {/* ── MODE 2: TAMPAK SAMPING ELEVASI TRUK (PROFIL 10M x 3.3M) ── */}
-                {viewMode === 'side' && (
-                    <div className="py-6 px-4">
-                        <div className="max-w-5xl mx-auto border-2 border-slate-700 rounded-2xl p-5 bg-slate-950 space-y-4">
-                            <div className="text-center">
-                                <h4 className="font-black text-sm text-white uppercase tracking-wider">
-                                    PROFIL ELEVASI TINGGI BAK TRUK & GAYORAN (TOTAL 10.0 METER x 3.30 METER)
-                                </h4>
-                                <p className="text-xs text-slate-400 font-mono mt-0.5">
-                                    Atas Kabin • Depan (3m) • Tengah (3m) • Belakang (3m) • Gayoran Pintu Belakang (1m)
-                                </p>
+                            {/* 2. Quick Jump Preset Zone Buttons */}
+                            <div className="bg-slate-900 border border-slate-800 p-3 rounded-xl space-y-2">
+                                <span className="text-[10px] font-bold text-purple-400 uppercase tracking-wider flex items-center gap-1">
+                                    <Sliders size={12} /> 2. Lompat ke Zona Pintar
+                                </span>
+                                <div className="flex flex-wrap gap-1.5 pt-1">
+                                    <button
+                                        type="button"
+                                        onClick={() => jumpToZone(selectedItem.id, 'cabin_top')}
+                                        className="px-2.5 py-1 bg-cyan-950 border border-cyan-500/40 text-cyan-300 font-bold rounded text-[10px]"
+                                    >
+                                        Atas Kabin
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => jumpToZone(selectedItem.id, 'front')}
+                                        className="px-2.5 py-1 bg-blue-950 border border-blue-500/40 text-blue-300 font-bold rounded text-[10px]"
+                                    >
+                                        Depan (0-3m)
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => jumpToZone(selectedItem.id, 'middle')}
+                                        className="px-2.5 py-1 bg-purple-950 border border-purple-500/40 text-purple-300 font-bold rounded text-[10px]"
+                                    >
+                                        Tengah (3-6m)
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => jumpToZone(selectedItem.id, 'rear')}
+                                        className="px-2.5 py-1 bg-amber-950 border border-amber-500/40 text-amber-300 font-bold rounded text-[10px]"
+                                    >
+                                        Belakang (6-9m)
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => jumpToZone(selectedItem.id, 'tailgate_extension')}
+                                        className="px-2.5 py-1 bg-emerald-950 border border-emerald-500/40 text-emerald-300 font-bold rounded text-[10px]"
+                                    >
+                                        Gayoran (9-10m)
+                                    </button>
+                                </div>
                             </div>
 
-                            <div className="grid grid-cols-5 gap-2.5 h-64 border border-slate-800 rounded-xl p-3 bg-slate-900 relative">
-                                {ZONES_LIST.map(zoneInfo => (
-                                    <div key={zoneInfo.key} className="border border-slate-800 rounded-lg p-2 flex flex-col justify-between bg-slate-950/60 relative">
-                                        <span className="text-[9px] font-black text-indigo-400 text-center uppercase border-b border-slate-800 pb-1">
-                                            {zoneInfo.label.split(' ')[0]} ({zoneInfo.meters})
-                                        </span>
-
-                                        <div className="flex-1 flex flex-col justify-between py-1.5">
-                                            {HEIGHT_TIERS.map(tier => {
-                                                const items = getItemsInCell(zoneInfo.key, tier.key);
-                                                return (
-                                                    <div key={tier.key} className="border border-dashed border-slate-800/80 p-1 rounded bg-slate-900/40 text-[8px]">
-                                                        <span className="text-slate-500 font-mono block">{tier.label.split(' ')[0]}</span>
-                                                        <div className="flex flex-wrap gap-1 mt-0.5">
-                                                            {items.map(i => (
-                                                                <span key={i.id} style={{ backgroundColor: i.color || '#3B82F6' }} className="px-1 rounded text-white font-mono font-bold text-[7.5px]">
-                                                                    {i.sttNumber} ({i.koliCount}k)
-                                                                </span>
-                                                            ))}
-                                                        </div>
-                                                    </div>
-                                                );
-                                            })}
+                            {/* 3. Resize Visual Box Scale */}
+                            <div className="bg-slate-900 border border-slate-800 p-3 rounded-xl space-y-2">
+                                <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1">
+                                    <Maximize size={12} /> 3. Ubah Ukuran Visual Box 3D
+                                </span>
+                                <div className="grid grid-cols-2 gap-2 pt-1">
+                                    <div>
+                                        <span className="text-[9px] text-slate-400 block mb-1">Lebar Box</span>
+                                        <div className="flex gap-1">
+                                            <button
+                                                type="button"
+                                                onClick={() => updateItemScale(selectedItem.id, -2, 0)}
+                                                className="flex-1 bg-slate-800 hover:bg-slate-700 text-white font-bold py-1.5 rounded text-[11px]"
+                                            >
+                                                - Kecil
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => updateItemScale(selectedItem.id, 2, 0)}
+                                                className="flex-1 bg-slate-800 hover:bg-slate-700 text-white font-bold py-1.5 rounded text-[11px]"
+                                            >
+                                                + Besar
+                                            </button>
                                         </div>
                                     </div>
-                                ))}
-                            </div>
-                        </div>
-                    </div>
-                )}
-
-                {/* ── MODE 3: TAMPAK ATAS DENAH LANTAI TRUK ── */}
-                {viewMode === 'top' && (
-                    <div className="py-6 px-4">
-                        <div className="max-w-4xl mx-auto border-2 border-slate-700 rounded-2xl p-4 bg-slate-950">
-                            <h4 className="font-bold text-xs text-slate-300 mb-3 text-center uppercase tracking-wider">
-                                DENAH LANTAI BAK TRUK 10 METER & GAYORAN (TAMPAK ATAS)
-                            </h4>
-                            <div className="grid grid-cols-5 gap-2 h-44 border border-slate-800 rounded-xl p-3 bg-slate-900">
-                                {ZONES_LIST.map(zoneInfo => (
-                                    <div key={zoneInfo.key} className="border border-indigo-500/30 rounded-lg p-2 bg-slate-950/80 flex flex-col justify-center items-center text-center">
-                                        <span className="text-[10px] font-black text-white uppercase">{zoneInfo.label.split(' ')[0]}</span>
-                                        <span className="text-[9px] text-amber-400 font-mono font-bold mt-1">
-                                            {cargoItems.filter(i => i.zone === zoneInfo.key).reduce((s, i) => s + i.koliCount, 0)} Koli
-                                        </span>
-                                        <span className="text-[8px] text-slate-400 font-mono">
-                                            {cargoItems.filter(i => i.zone === zoneInfo.key).reduce((s, i) => s + i.weightKg, 0)} Kg
-                                        </span>
+                                    <div>
+                                        <span className="text-[9px] text-slate-400 block mb-1">Tinggi Box</span>
+                                        <div className="flex gap-1">
+                                            <button
+                                                type="button"
+                                                onClick={() => updateItemScale(selectedItem.id, 0, -3)}
+                                                className="flex-1 bg-slate-800 hover:bg-slate-700 text-white font-bold py-1.5 rounded text-[11px]"
+                                            >
+                                                - Kecil
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => updateItemScale(selectedItem.id, 0, 3)}
+                                                className="flex-1 bg-slate-800 hover:bg-slate-700 text-white font-bold py-1.5 rounded text-[11px]"
+                                            >
+                                                + Tinggi
+                                            </button>
+                                        </div>
                                     </div>
-                                ))}
+                                </div>
                             </div>
                         </div>
                     </div>
                 )}
             </div>
-
-            {/* Selected Cargo Inspector Drawer */}
-            {selectedItem && (
-                <div className="bg-indigo-950/40 border border-indigo-500/30 rounded-2xl p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 animate-fade-in">
-                    <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-black text-sm" style={{ backgroundColor: selectedItem.color || '#3B82F6' }}>
-                            <Box size={20} />
-                        </div>
-                        <div>
-                            <div className="flex items-center gap-2">
-                                <h4 className="font-black text-white font-mono text-base">{selectedItem.sttNumber}</h4>
-                                <span className="bg-indigo-500/20 text-indigo-300 text-[10px] font-bold px-2 py-0.5 rounded border border-indigo-500/40">
-                                    Tujuan: {selectedItem.destination}
-                                </span>
-                            </div>
-                            <p className="text-xs text-slate-300 mt-0.5">
-                                Client: <strong className="text-white">{selectedItem.clientName}</strong> • {selectedItem.koliCount} Koli • {selectedItem.weightKg} Kg • {selectedItem.cbm} CBM
-                            </p>
-                        </div>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                        <span className="text-[11px] font-mono text-slate-400">
-                            Posisi: Zona <strong>{selectedItem.zone.toUpperCase()}</strong> / Layer <strong>{selectedItem.layer.toUpperCase()}</strong>
-                        </span>
-                        {!readOnly && (
-                            <button
-                                type="button"
-                                onClick={() => handleDeleteItem(selectedItem.id)}
-                                className="bg-red-600/80 hover:bg-red-600 text-white font-bold text-xs px-3 py-1.5 rounded-xl border border-red-500/40 transition-all flex items-center gap-1"
-                            >
-                                <Trash2 size={13} /> Hapus dari Bak
-                            </button>
-                        )}
-                    </div>
-                </div>
-            )}
 
             {/* MODAL FORM: ADD NEW CARGO KOLI */}
             {showAddModal && (
