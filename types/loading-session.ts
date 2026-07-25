@@ -1,7 +1,7 @@
 import { Timestamp } from 'firebase/firestore';
 
 export type LoadingStatus = 'draft' | 'loading' | 'paused' | 'completed' | 'cancelled';
-export type CargoZone = 'front' | 'middle' | 'rear';
+export type CargoZone = 'cabin_top' | 'front' | 'middle' | 'rear' | 'tailgate_extension';
 export type CargoLayer = 'dasaran' | 'tengah' | 'atasan' | 'bottom' | 'middle' | 'top';
 export type CargoSide = 'left' | 'center' | 'right';
 
@@ -60,10 +60,11 @@ export interface LoadingSession {
     id: string;
     sessionId: string; // e.g. "MUAT-20260725-001"
     date: string; // YYYY-MM-DD
-    fleetId: string;
-    fleetName: string;
-    plateNumber: string;
-    fleetType: string;
+    fleetId?: string;
+    fleetName: string; // e.g. "Truk Fuso Tronton CCE-01"
+    plateNumber: string; // e.g. "B 9872 CCE"
+    fleetType: string; // e.g. "Fuso Long (9m + 1m Gayoran)"
+    isManualFleet?: boolean; // True if manually entered
     status: LoadingStatus;
     
     assignedEmployees: AssignedEmployee[];
@@ -73,6 +74,10 @@ export interface LoadingSession {
     startTime?: string | null;
     endTime?: string | null;
     totalDurationMinutes: number;
+    
+    bedLengthMeters?: number; // default 9.0m
+    tailgateExtensionMeters?: number; // default 1.0m (Total 10.0m)
+    maxHeightMeters?: number; // default 3.3m
     
     totalKoli: number;
     totalWeightKg: number;

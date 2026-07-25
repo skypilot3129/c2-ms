@@ -232,7 +232,7 @@ export default function PrintLoadingReportPage({ params }: { params: Promise<{ i
                                         <td className="text-center font-mono font-bold">{item.koliCount} Koli</td>
                                         <td className="text-right font-mono font-bold">{item.weightKg} Kg</td>
                                         <td className="text-center uppercase font-mono font-bold text-[7.5pt]">
-                                            {item.zone} / {item.layer}
+                                            {item.zone === 'cabin_top' ? 'ATAS KABIN' : item.zone === 'tailgate_extension' ? 'GAYORAN (9-10M)' : item.zone === 'front' ? 'DEPAN (0-3M)' : item.zone === 'middle' ? 'TENGAH (3-6M)' : 'BELAKANG (6-9M)'} / {item.layer}
                                         </td>
                                     </tr>
                                 ))

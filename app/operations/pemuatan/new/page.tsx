@@ -3,17 +3,15 @@
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { subscribeToFleets } from '@/lib/firestore-fleet';
 import { subscribeToEmployees } from '@/lib/firestore-employees';
 import { createLoadingSession, calculateUangMuatShare } from '@/lib/firestore-loading';
-import type { Fleet } from '@/types/fleet';
 import type { Employee } from '@/types/employee';
 import type { AssignedEmployee } from '@/types/loading-session';
 import { useAuth } from '@/context/AuthContext';
 import { formatRupiah } from '@/lib/currency';
 import {
     Truck, Users, ArrowLeft, Play, ShieldAlert, Plus, Trash2,
-    Calendar, CheckCircle2, DollarSign, FileText, Info
+    Calendar, CheckCircle2, DollarSign, FileText, Info, Edit3, Sparkles
 } from 'lucide-react';
 import ProtectedRoute from '@/components/ProtectedRoute';
 
@@ -21,13 +19,14 @@ export default function NewLoadingSessionPage() {
     const router = useRouter();
     const { user } = useAuth();
 
-    const [fleets, setFleets] = useState<Fleet[]>([]);
     const [employees, setEmployees] = useState<Employee[]>([]);
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
 
-    // Form states
-    const [selectedFleetId, setSelectedFleetId] = useState('');
+    // Form states - MANUAL FLEET ENTRY DEFAULT
+    const [fleetName, setFleetName] = useState('Fuso Long Tronton CCE-01');
+    const [plateNumber, setPlateNumber] = useState('B 9872 CCE');
+    const [fleetType, setFleetType] = useState('Truk Fuso Long (9m + 1m Gayoran)');
     const [sessionDate, setSessionDate] = useState(() => new Date().toISOString().slice(0, 10));
     const [totalUangMuat, setTotalUangMuat] = useState(300000);
     const [notes, setNotes] = useState('');
@@ -40,25 +39,16 @@ export default function NewLoadingSessionPage() {
     useEffect(() => {
         if (!user) return;
 
-        const unsubFleets = subscribeToFleets(user.uid, (list) => {
-            setFleets(list);
-            if (list.length > 0 && !selectedFleetId) {
-                setSelectedFleetId(list[0].id);
-            }
-        });
-
         const unsubEmps = subscribeToEmployees((list) => {
-            setEmployees(list.filter(e => e.status === 'active'));
-            if (list.length > 0 && !selectedEmpId) {
-                setSelectedEmpId(list[0].id);
+            const activeList = list.filter(e => e.status === 'active');
+            setEmployees(activeList);
+            if (activeList.length > 0 && !selectedEmpId) {
+                setSelectedEmpId(activeList[0].id);
             }
             setLoading(false);
         });
 
-        return () => {
-            unsubFleets();
-            unsubEmps();
-        };
+        return () => unsubEmps();
     }, [user]);
 
     const handleAddTeamMember = () => {
@@ -99,8 +89,8 @@ export default function NewLoadingSessionPage() {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!selectedFleetId) {
-            alert('Pilih armada truk terlebih dahulu!');
+        if (!fleetName.trim() || !plateNumber.trim()) {
+            alert('Harap isi Nama Armada Truk dan Nomor Plat Polisi!');
             return;
         }
         if (assignedTeam.length === 0) {
@@ -110,25 +100,23 @@ export default function NewLoadingSessionPage() {
 
         setSubmitting(true);
         try {
-            const fleetObj = fleets.find(f => f.id === selectedFleetId);
-            const fleetName = fleetObj?.name || 'Truk Pemuatan';
-            const plateNumber = fleetObj?.plateNumber || 'Plat Unknown';
-            const fleetType = fleetObj?.type || 'Truk Fuso Long';
-
             const operatorName = user?.displayName || user?.email || 'Officer Pemuatan';
 
             const newSessionId = await createLoadingSession({
                 date: sessionDate,
-                fleetId: selectedFleetId,
-                fleetName,
-                plateNumber,
-                fleetType,
+                fleetName: fleetName.trim(),
+                plateNumber: plateNumber.trim().toUpperCase(),
+                fleetType: fleetType.trim(),
+                isManualFleet: true,
                 status: 'loading',
                 assignedEmployees: assignedTeam,
                 departureLogs: [],
                 cargoItems: [],
                 startTime: new Date().toISOString(),
                 totalDurationMinutes: 0,
+                bedLengthMeters: 9.0,
+                tailgateExtensionMeters: 1.0,
+                maxHeightMeters: 3.3,
                 totalKoli: 0,
                 totalWeightKg: 0,
                 totalCbm: 0,
@@ -146,58 +134,94 @@ export default function NewLoadingSessionPage() {
     };
 
     if (loading) {
-        return <div className="p-8 text-center text-slate-400 font-medium">Memuat data armada & karyawan...</div>;
+        return <div className="p-8 text-center text-slate-400 font-medium">Memuat data karyawan bertugas...</div>;
     }
 
     return (
         <ProtectedRoute>
-            <div className="min-h-screen bg-slate-950 text-white p-4 md:p-8 space-y-6 max-w-4xl mx-auto">
+            <div className="min-h-screen bg-slate-950 text-white p-4 md:p-8 space-y-8 max-w-4xl mx-auto pb-24">
                 
-                {/* Top Back Header */}
-                <div className="flex items-center gap-3">
-                    <Link
-                        href="/operations/pemuatan"
-                        className="w-10 h-10 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-center text-slate-400 hover:text-white transition-colors"
-                    >
-                        <ArrowLeft size={18} />
-                    </Link>
-                    <div>
-                        <h1 className="text-xl font-black text-white">MULAI SESI PEMUATAN BARU</h1>
-                        <p className="text-xs text-slate-400">Pilih armada, atur tim bertugas, & alokasikan Uang Muat</p>
+                {/* Header Navbar Toolbar */}
+                <div className="flex items-center justify-between bg-slate-900/90 border border-slate-800 p-6 rounded-3xl shadow-xl">
+                    <div className="flex items-center gap-4">
+                        <Link
+                            href="/operations/pemuatan"
+                            className="w-12 h-12 rounded-2xl bg-slate-950 border border-slate-800 flex items-center justify-center text-slate-400 hover:text-white transition-colors"
+                        >
+                            <ArrowLeft size={20} />
+                        </Link>
+                        <div>
+                            <div className="flex items-center gap-2">
+                                <h1 className="text-xl font-black text-white tracking-wide">MULAI SESI PEMUATAN BARU</h1>
+                                <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                                    <Sparkles size={10} /> Form Manual Unit
+                                </span>
+                            </div>
+                            <p className="text-xs text-slate-400 font-medium mt-0.5">
+                                Input unit armada secara manual, atur tim bertugas, & alokasikan Uang Muat (Sama Rata).
+                            </p>
+                        </div>
                     </div>
                 </div>
 
                 <form onSubmit={handleSubmit} className="space-y-6">
                     
-                    {/* SECTION 1: ARMADA & TANGGAL */}
-                    <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-4 shadow-xl">
-                        <h3 className="font-black text-sm text-indigo-400 uppercase tracking-wider flex items-center gap-2">
-                            <Truck size={18} /> 1. PILIH ARMADA TRUK & TANGGAL
-                        </h3>
+                    {/* SECTION 1: INPUT UNIT ARMADA MANUAL & TANGGAL */}
+                    <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-5 shadow-xl">
+                        <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                            <h3 className="font-black text-sm text-indigo-400 uppercase tracking-wider flex items-center gap-2">
+                                <Truck size={18} /> 1. SPESIFIKASI ARMADA TRUK & TANGGAL (INPUT MANUAL)
+                            </h3>
+                            <span className="text-[10px] text-emerald-400 font-mono font-bold bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-0.5 rounded-full">
+                                Total Panjang: 10.0m (9m Bak + 1m Gayoran)
+                            </span>
+                        </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
                             <div>
                                 <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">
-                                    Pilih Unit Armada Truk *
+                                    Nama / Kode Armada Truk *
                                 </label>
-                                {fleets.length === 0 ? (
-                                    <p className="text-red-400 italic">Belum ada data armada di database Fleet.</p>
-                                ) : (
-                                    <select
-                                        value={selectedFleetId}
-                                        onChange={(e) => setSelectedFleetId(e.target.value)}
-                                        required
-                                        className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-4 py-3 text-white font-bold text-sm focus:border-indigo-500 focus:outline-none"
-                                    >
-                                        {fleets.map(fleet => (
-                                            <option key={fleet.id} value={fleet.id}>
-                                                {fleet.name} • {fleet.plateNumber} ({fleet.type})
-                                            </option>
-                                        ))}
-                                    </select>
-                                )}
+                                <input
+                                    type="text"
+                                    value={fleetName}
+                                    onChange={(e) => setFleetName(e.target.value)}
+                                    placeholder="Contoh: Fuso Long Tronton CCE-01"
+                                    required
+                                    className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-4 py-3 text-white font-bold text-sm focus:border-indigo-500 focus:outline-none"
+                                />
                             </div>
 
+                            <div>
+                                <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">
+                                    Nomor Plat Polisi *
+                                </label>
+                                <input
+                                    type="text"
+                                    value={plateNumber}
+                                    onChange={(e) => setPlateNumber(e.target.value.toUpperCase())}
+                                    placeholder="Contoh: B 9872 CCE"
+                                    required
+                                    className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-4 py-3 text-emerald-400 font-mono font-black text-sm focus:border-emerald-500 focus:outline-none"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">
+                                    Jenis / Model Truk *
+                                </label>
+                                <input
+                                    type="text"
+                                    value={fleetType}
+                                    onChange={(e) => setFleetType(e.target.value)}
+                                    placeholder="Contoh: Truk Fuso Long (9m + 1m Gayoran)"
+                                    required
+                                    className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-4 py-3 text-white font-bold text-sm focus:border-indigo-500 focus:outline-none"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs pt-2">
                             <div>
                                 <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">
                                     Tanggal Pemuatan *
@@ -210,12 +234,17 @@ export default function NewLoadingSessionPage() {
                                     className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-4 py-3 text-white font-bold font-mono text-sm focus:border-indigo-500 focus:outline-none"
                                 />
                             </div>
+
+                            <div className="bg-slate-950 border border-slate-800 p-3 rounded-2xl flex items-center justify-between text-[11px] font-mono">
+                                <span className="text-slate-400">Dimensi Maksimal:</span>
+                                <span className="text-indigo-300 font-bold">10.0m Panjang • 3.30m Tinggi</span>
+                            </div>
                         </div>
                     </div>
 
                     {/* SECTION 2: TIM KARYAWAN BERTUGAS */}
                     <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-5 shadow-xl">
-                        <div className="flex justify-between items-center">
+                        <div className="flex justify-between items-center border-b border-slate-800 pb-3">
                             <h3 className="font-black text-sm text-purple-400 uppercase tracking-wider flex items-center gap-2">
                                 <Users size={18} /> 2. TIM KARYAWAN BERTUGAS MUAT
                             </h3>
@@ -254,7 +283,7 @@ export default function NewLoadingSessionPage() {
                                         className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-white font-bold focus:border-indigo-500 focus:outline-none"
                                     >
                                         <option value="Loader/Helper">Loader / Helper</option>
-                                        <option value="Penyusun">Penyusun (Stacker Utama)</option>
+                                        <option value="Penyusun">Penyusun Utama</option>
                                         <option value="Pengawal">Pengawal / Pengawas</option>
                                     </select>
                                 </div>
@@ -295,7 +324,7 @@ export default function NewLoadingSessionPage() {
 
                                         <div className="flex items-center gap-4">
                                             <div className="text-right font-mono">
-                                                <span className="text-[9px] text-slate-400 block uppercase">Estimasi Uang Muat</span>
+                                                <span className="text-[9px] text-slate-400 block uppercase">Estimasi Uang Muat (Sama Rata)</span>
                                                 <span className="font-black text-emerald-400 text-sm">{formatRupiah(member.uangMuatShare)}</span>
                                             </div>
                                             <button
@@ -334,7 +363,7 @@ export default function NewLoadingSessionPage() {
                                     className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-4 py-3 text-emerald-400 font-mono font-black text-base focus:border-emerald-500 focus:outline-none"
                                 />
                                 <span className="text-[10px] text-slate-500 mt-1 block">
-                                    Uang muat ini akan dibagi otomatis secara proporsional ke tim bertugas.
+                                    Uang muat ini dibagi SAMA RATA ke seluruh anggota tim yang bertugas.
                                 </span>
                             </div>
 
@@ -346,7 +375,7 @@ export default function NewLoadingSessionPage() {
                                     rows={2}
                                     value={notes}
                                     onChange={(e) => setNotes(e.target.value)}
-                                    placeholder="Contoh: Muatan sparepart berat & barang pecah belah..."
+                                    placeholder="Contoh: Barang muatan berat di dasaran, busa di atasan & gayoran..."
                                     className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-4 py-2.5 text-white focus:border-indigo-500 focus:outline-none"
                                 />
                             </div>
@@ -357,14 +386,14 @@ export default function NewLoadingSessionPage() {
                     <div className="flex justify-end gap-4 pt-4 border-t border-slate-800">
                         <Link
                             href="/operations/pemuatan"
-                            className="px-5 py-3 bg-slate-900 hover:bg-slate-800 text-slate-300 font-bold rounded-2xl border border-slate-800 text-xs"
+                            className="px-5 py-3.5 bg-slate-900 hover:bg-slate-800 text-slate-300 font-bold rounded-2xl border border-slate-800 text-xs"
                         >
                             Batal
                         </Link>
                         <button
                             type="submit"
                             disabled={submitting}
-                            className="px-8 py-3.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-sm rounded-2xl shadow-xl shadow-emerald-600/30 transition-all flex items-center gap-2 active:scale-95 cursor-pointer disabled:opacity-50"
+                            className="px-8 py-3.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-indigo-600 hover:from-emerald-500 hover:to-indigo-500 text-white font-black text-sm rounded-2xl shadow-xl shadow-emerald-600/30 transition-all flex items-center gap-2 active:scale-95 cursor-pointer disabled:opacity-50"
                         >
                             <Play size={18} /> {submitting ? 'Memulai Sesi...' : 'MULAI SESI PEMUATAN & BUKA STUDIO 3D'}
                         </button>
