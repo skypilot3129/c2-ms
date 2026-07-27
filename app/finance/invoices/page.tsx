@@ -8,7 +8,7 @@ import { subscribeToTransactions } from '@/lib/firestore-transactions';
 import type { Invoice } from '@/types/invoice';
 import type { Transaction } from '@/types/transaction';
 import { formatRupiah } from '@/lib/currency';
-import { Plus, Search, Trash2, CheckCircle2, Printer, CheckSquare, Eye, ChevronLeft, ChevronRight, AlertCircle, ArrowUpDown, ArrowUp, ArrowDown, Filter, FileText, Receipt } from 'lucide-react';
+import { Plus, Search, Trash2, CheckCircle2, Printer, CheckSquare, Eye, ChevronLeft, ChevronRight, AlertCircle, ArrowUpDown, ArrowUp, ArrowDown, Filter, FileText, Receipt, RotateCcw } from 'lucide-react';
 import ProtectedRoute from '@/components/ProtectedRoute';
 
 type SortField = 'date' | 'totalAmount' | 'clientName' | 'dueDate';
@@ -190,6 +190,20 @@ export default function InvoicesPage() {
             } catch (error: any) {
                 console.error("Error marking paid:", error);
                 alert(`Gagal menandai lunas: ${error.message}`);
+            } finally {
+                setProcessingId(null);
+            }
+        }
+    };
+
+    const handleMarkUnpaid = async (inv: Invoice) => {
+        if (confirm(`Ubah status invoice ${inv.invoiceNumber} dari LUNAS menjadi BELUM LUNAS?`)) {
+            setProcessingId(inv.id);
+            try {
+                await updateInvoiceStatus(inv.id, 'Unpaid');
+            } catch (error: any) {
+                console.error("Error marking unpaid:", error);
+                alert(`Gagal merubah ke Belum Lunas: ${error.message}`);
             } finally {
                 setProcessingId(null);
             }
@@ -394,19 +408,26 @@ export default function InvoicesPage() {
                                             <td className="px-6 py-4 font-medium text-gray-800">{inv.clientName}</td>
                                             <td className="px-6 py-4 text-right font-bold text-gray-700">{formatRupiah(inv.totalAmount)}</td>
                                             <td className="px-6 py-4 text-center">
-                                                {inv.status === 'Paid' ? (
-                                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border bg-green-50 text-green-700 border-green-200">
-                                                        LUNAS
-                                                    </span>
-                                                ) : overdue ? (
-                                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border bg-red-50 text-red-700 border-red-200">
-                                                        JATUH TEMPO
-                                                    </span>
-                                                ) : (
-                                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border bg-yellow-50 text-yellow-700 border-yellow-200">
-                                                        BELUM LUNAS
-                                                    </span>
-                                                )}
+                                                <button
+                                                    onClick={() => inv.status === 'Paid' ? handleMarkUnpaid(inv) : handleMarkPaid(inv)}
+                                                    disabled={processingId === inv.id}
+                                                    className="focus:outline-none"
+                                                    title={inv.status === 'Paid' ? 'Klik untuk ubah jadi BELUM LUNAS' : 'Klik untuk tandai LUNAS'}
+                                                >
+                                                    {inv.status === 'Paid' ? (
+                                                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold border bg-green-50 text-green-700 border-green-200 hover:bg-amber-50 hover:text-amber-700 hover:border-amber-300 transition-colors">
+                                                            LUNAS
+                                                        </span>
+                                                    ) : overdue ? (
+                                                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold border bg-red-50 text-red-700 border-red-200 hover:bg-green-50 hover:text-green-700 hover:border-green-300 transition-colors">
+                                                            JATUH TEMPO
+                                                        </span>
+                                                    ) : (
+                                                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold border bg-yellow-50 text-yellow-700 border-yellow-200 hover:bg-green-50 hover:text-green-700 hover:border-green-300 transition-colors">
+                                                            BELUM LUNAS
+                                                        </span>
+                                                    )}
+                                                </button>
                                             </td>
                                             <td className="px-6 py-4 text-right">
                                                 <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -415,7 +436,7 @@ export default function InvoicesPage() {
                                                             onClick={() => handleMarkPaid(inv)}
                                                             disabled={processingId === inv.id}
                                                             className={`p-2 rounded-lg transition-colors border border-gray-200 ${processingId === inv.id ? 'opacity-50 cursor-not-allowed text-gray-400' : 'text-green-600 hover:bg-green-50'}`}
-                                                            title="Tandai Sudah Bayar"
+                                                            title="Tandai Sudah Bayar (LUNAS)"
                                                         >
                                                             {processingId === inv.id ? (
                                                                 <div className="w-4 h-4 border-2 border-green-600 border-t-transparent rounded-full animate-spin"></div>
@@ -424,9 +445,18 @@ export default function InvoicesPage() {
                                                             )}
                                                         </button>
                                                     ) : (
-                                                        <span title="Sudah Lunas" className="p-2 text-green-600">
-                                                            <CheckCircle2 size={16} />
-                                                        </span>
+                                                        <button
+                                                            onClick={() => handleMarkUnpaid(inv)}
+                                                            disabled={processingId === inv.id}
+                                                            className={`p-2 rounded-lg transition-colors border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 ${processingId === inv.id ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                                            title="Ubah ke BELUM LUNAS"
+                                                        >
+                                                            {processingId === inv.id ? (
+                                                                <div className="w-4 h-4 border-2 border-amber-600 border-t-transparent rounded-full animate-spin"></div>
+                                                            ) : (
+                                                                <RotateCcw size={16} />
+                                                            )}
+                                                        </button>
                                                     )}
                                                     <Link
                                                         href={`/finance/invoices/${inv.id}/print`}
@@ -462,12 +492,15 @@ export default function InvoicesPage() {
                                         <div>
                                             <div className="flex items-center gap-2 mb-1">
                                                 <span className="font-mono font-bold text-blue-600 text-sm">{inv.invoiceNumber}</span>
-                                                <span className={`px-2 py-0.5 rounded-[4px] text-[10px] font-bold border ${inv.status === 'Paid'
-                                                    ? 'bg-green-50 text-green-700 border-green-200'
-                                                    : overdue ? 'bg-red-50 text-red-700 border-red-200' : 'bg-yellow-50 text-yellow-700 border-yellow-200'
-                                                    }`}>
+                                                <button
+                                                    onClick={() => inv.status === 'Paid' ? handleMarkUnpaid(inv) : handleMarkPaid(inv)}
+                                                    className={`px-2 py-0.5 rounded-[4px] text-[10px] font-bold border ${inv.status === 'Paid'
+                                                        ? 'bg-green-50 text-green-700 border-green-200'
+                                                        : overdue ? 'bg-red-50 text-red-700 border-red-200' : 'bg-yellow-50 text-yellow-700 border-yellow-200'
+                                                        }`}
+                                                >
                                                     {inv.status === 'Paid' ? 'LUNAS' : overdue ? 'JATUH TEMPO' : 'PENDING'}
-                                                </span>
+                                                </button>
                                             </div>
                                             <p className="font-medium text-gray-800 text-sm">{inv.clientName}</p>
                                             <div className="text-xs text-gray-500 mt-0.5 flex flex-wrap gap-1">
@@ -483,7 +516,7 @@ export default function InvoicesPage() {
                                         </div>
                                     </div>
                                     <div className="flex justify-end gap-2 pt-2 border-t border-dashed border-gray-100">
-                                        {inv.status !== 'Paid' && (
+                                        {inv.status !== 'Paid' ? (
                                             <button
                                                 onClick={() => handleMarkPaid(inv)}
                                                 disabled={processingId === inv.id}
@@ -495,6 +528,19 @@ export default function InvoicesPage() {
                                                     <CheckCircle2 size={14} />
                                                 )}
                                                 {processingId === inv.id ? 'Memproses...' : 'Lunas'}
+                                            </button>
+                                        ) : (
+                                            <button
+                                                onClick={() => handleMarkUnpaid(inv)}
+                                                disabled={processingId === inv.id}
+                                                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border rounded-lg active:scale-95 transition-all ${processingId === inv.id ? 'opacity-50 text-gray-400 bg-gray-50 border-gray-100' : 'text-amber-700 bg-amber-50 border-amber-200'}`}
+                                            >
+                                                {processingId === inv.id ? (
+                                                    <div className="w-3.5 h-3.5 border-2 border-amber-600 border-t-transparent rounded-full animate-spin"></div>
+                                                ) : (
+                                                    <RotateCcw size={14} />
+                                                )}
+                                                {processingId === inv.id ? 'Memproses...' : 'Ubah ke Belum Lunas'}
                                             </button>
                                         )}
                                         <Link

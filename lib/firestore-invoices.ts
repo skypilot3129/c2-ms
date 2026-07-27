@@ -11,6 +11,7 @@ import {
     onSnapshot,
     Timestamp,
     runTransaction,
+    deleteField,
 } from 'firebase/firestore';
 import { db } from './firebase';
 import type { Invoice, InvoiceFormData, InvoiceDoc } from '@/types/invoice';
@@ -163,12 +164,10 @@ export const updateInvoiceStatus = async (
 
         // Pre-read all linked transaction docs before any writes
         const txRefs: { ref: ReturnType<typeof doc>, snap: any }[] = [];
-        if (status === 'Paid') {
-            for (const txId of invoiceData.transactionIds) {
-                const txRef = doc(db, 'transactions', txId);
-                const txSnap = await transaction.get(txRef);
-                txRefs.push({ ref: txRef, snap: txSnap });
-            }
+        for (const txId of invoiceData.transactionIds || []) {
+            const txRef = doc(db, 'transactions', txId);
+            const txSnap = await transaction.get(txRef);
+            txRefs.push({ ref: txRef, snap: txSnap });
         }
 
         // ===== PHASE 2: ALL WRITES AFTER =====
@@ -194,23 +193,35 @@ export const updateInvoiceStatus = async (
                     updates.paymentRef = paymentDetails.ref;
                 }
             }
+        } else if (status === 'Unpaid') {
+            updates.paidAt = deleteField();
+            updates.paidTime = deleteField();
+            updates.paidBy = deleteField();
+            updates.paymentDate = deleteField();
+            updates.paymentMethod = deleteField();
+            updates.paymentRef = deleteField();
         }
 
         // Write 1: Update invoice status
         transaction.update(invoiceRef, updates);
 
         // Write 2: Update all linked transactions
-        if (status === 'Paid') {
-            const method = paymentDetails?.method === 'Transfer' ? 'TF' : 'Cash';
-            for (const { ref: txRef, snap: txSnap } of txRefs) {
-                if (txSnap.exists()) {
+        for (const { ref: txRef, snap: txSnap } of txRefs) {
+            if (txSnap.exists()) {
+                if (status === 'Paid') {
+                    const method = paymentDetails?.method === 'Transfer' ? 'TF' : 'Cash';
                     transaction.update(txRef, {
                         pelunasan: method,
                         updatedAt: Timestamp.now()
                     });
-                } else {
-                    console.warn(`Transaction doc not found, skipping.`);
+                } else if (status === 'Unpaid') {
+                    transaction.update(txRef, {
+                        pelunasan: 'Belum',
+                        updatedAt: Timestamp.now()
+                    });
                 }
+            } else {
+                console.warn(`Transaction doc not found, skipping.`);
             }
         }
     });

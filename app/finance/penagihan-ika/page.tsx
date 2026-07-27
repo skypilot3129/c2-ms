@@ -12,7 +12,7 @@ import {
     Send, Search, Filter, CheckCircle2, Clock, Calendar,
     User, Phone, Copy, Check, ExternalLink, Printer, FileText,
     ArrowUpRight, AlertCircle, Wallet, ShieldCheck, X, Building2,
-    MessageSquare, AlertTriangle, ChevronRight, MessageCircleCode, Sparkles
+    MessageSquare, AlertTriangle, ChevronRight, MessageCircleCode, Sparkles, RotateCcw
 } from 'lucide-react';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import Link from 'next/link';
@@ -355,6 +355,19 @@ Mohon bantuan untuk segera diproses pelunasannya. Terima kasih banyak atas kerja
             alert(`Gagal memproses pelunasan: ${error.message}`);
         } finally {
             setProcessingPayment(false);
+        }
+    };
+
+    // Revert Paid Invoice back to Unpaid
+    const handleRevertToUnpaid = async (inv: Invoice) => {
+        if (confirm(`Batalkan pelunasan invoice ${inv.invoiceNumber} dan ubah status menjadi BELUM LUNAS?`)) {
+            try {
+                await updateInvoiceStatus(inv.id, 'Unpaid');
+                showToast(`Status invoice ${inv.invoiceNumber} berhasil diubah menjadi BELUM LUNAS.`);
+            } catch (error: any) {
+                console.error('Failed to revert payment:', error);
+                alert(`Gagal merubah status: ${error.message}`);
+            }
         }
     };
 
@@ -876,12 +889,13 @@ Mohon bantuan untuk segera diproses pelunasannya. Terima kasih banyak atas kerja
                                                 <th className="py-3.5 px-4 text-center">Metode & Bukti</th>
                                                 <th className="py-3.5 px-4 text-center">Petugas Penagih</th>
                                                 <th className="py-3.5 px-4 text-right">Nominal (Rp)</th>
+                                                <th className="py-3.5 px-4 text-center">Aksi / Edit</th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-gray-100 text-gray-800">
                                             {dailyCollections.length === 0 ? (
                                                 <tr>
-                                                    <td colSpan={7} className="py-6 text-center text-gray-400 italic">
+                                                    <td colSpan={8} className="py-6 text-center text-gray-400 italic">
                                                         Belum ada pelunasan penagihan yang tercatat pada tanggal {dailyReportDate}.
                                                     </td>
                                                 </tr>
@@ -902,6 +916,15 @@ Mohon bantuan untuk segera diproses pelunasannya. Terima kasih banyak atas kerja
                                                             </td>
                                                             <td className="py-3.5 px-4 text-center font-semibold text-gray-700">{inv.paidBy || 'Officer'}</td>
                                                             <td className="py-3.5 px-4 text-right font-mono font-black text-emerald-700 text-sm">{formatRupiah(inv.totalAmount)}</td>
+                                                            <td className="py-3.5 px-4 text-center">
+                                                                <button
+                                                                    onClick={() => handleRevertToUnpaid(inv)}
+                                                                    className="px-2.5 py-1 text-[11px] font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-lg transition-colors inline-flex items-center gap-1 active:scale-95"
+                                                                    title="Ubah status invoice menjadi Belum Lunas"
+                                                                >
+                                                                    <RotateCcw size={12} /> Belum Lunas
+                                                                </button>
+                                                            </td>
                                                         </tr>
                                                     );
                                                 })
