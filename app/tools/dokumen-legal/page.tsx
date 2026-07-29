@@ -33,7 +33,7 @@ export default function DokumenLegalPage() {
     const [fontFamily, setFontFamily] = useState<string>('sans');
 
     // Document Header Title state
-    const [documentTitle, setDocumentTitle] = useState<string>('SURAT PERNYATAAN KOMITMEN BERSAMA');
+    const [documentTitle, setDocumentTitle] = useState<string>('SURAT PENAWARAN HARGA & KETENTUAN KERJA SAMA PENGANGKUTAN CARGO');
     
     // Signatory states
     const [signatoryName, setSignatoryName] = useState<string>('HILAL BAFAGIH');
@@ -45,22 +45,20 @@ export default function DokumenLegalPage() {
     // Document Metadata state (HTML string)
     const [documentMetadata, setDocumentMetadata] = useState<string>(
         `<div class="grid grid-cols-12 gap-1 text-[10.5pt]">
-            <div class="col-span-2 font-semibold">No. Surat</div>
-            <div class="col-span-6">: CCE/DIR-OPS/SPK/VI/2026</div>
-            <div class="col-span-4 text-right font-semibold text-[10pt]">Surabaya, 09 Juni 2026</div>
-            
-            <div class="col-span-2 font-semibold">Sifat</div>
-            <div class="col-span-10">: Penting / Segera</div>
+            <div class="col-span-2 font-semibold">Nomor</div>
+            <div class="col-span-10">: 028/CCE-QUO/VII/2026</div>
             
             <div class="col-span-2 font-semibold">Lampiran</div>
             <div class="col-span-10">: -</div>
             
-            <div class="col-span-2 font-semibold">Hal</div>
-            <div class="col-span-10 font-bold">: Pernyataan Komitmen Evaluasi Operasional dan Peningkatan Sistem Keamanan Area Kerja</div>
+            <div class="col-span-2 font-semibold">Perihal</div>
+            <div class="col-span-10 font-bold">: SURAT PENAWARAN HARGA & KETENTUAN KERJA SAMA PENGANGKUTAN CARGO<br/>(RUTE: SURABAYA - PALU - MANADO & SURABAYA - MAKASSAR - MANADO)</div>
         </div>
         <div class="mt-5 text-[10.5pt]">
-            <p>Kepada Yth.</p>
-            <p class="font-bold">Pimpinan Manajemen PT DUTA HANTARAN SURABAYA (DHS)</p>
+            <p>Kepada Yth,</p>
+            <p class="font-bold">Management / Procurement</p>
+            <p class="font-bold text-slate-900">J&T CARGO (PT Global Jet Cargo)</p>
+            <p class="text-slate-700">Kedudukan sebagai: PENGIRIM (SHIPPER)</p>
             <p>Di Tempat</p>
         </div>`
     );
@@ -68,45 +66,97 @@ export default function DokumenLegalPage() {
     // Document main body content state (HTML string)
     const [documentBody, setDocumentBody] = useState<string>(
         `<p class="mt-4">Dengan hormat,</p>
-        <p class="mt-2">Sehubungan dengan hasil evaluasi bersama terkait dinamika operasional logistik dan sebagai bentuk komitmen nyata dari Cahaya Cargo (CCE) dalam menjaga kualitas layanan, keamanan barang, serta kelangsungan kerja sama strategis dengan PT Duta Hantaran Surabaya (DHS), kami selaku manajemen Cahaya Cargo (CCE) dengan ini menyatakan kesanggupan, komitmen, dan rencana aksi nyata untuk melakukan evaluasi operasional serta peningkatan sistem keamanan di seluruh area kerja kami, khususnya pada Cabang Surabaya dan Cabang Makassar.</p>
-        <p class="mt-2">Adapun langkah-langkah strategis dan taktis yang akan segera kami terapkan adalah sebagai berikut:</p>
+        <p class="mt-2">Sehubungan dengan rencana kerja sama pengangkutan dan distribusi kargo muatan milik J&T Cargo (selaku PENGIRIM) rute Surabaya menuju Manado, kami dari <strong>PT CAHAYA CARGO EXPRESS</strong> (selaku PENYEDIA JASA PENGANGKUTAN / TRANSPORTER) mengajukan Penawaran Harga, Layanan Operasional, serta Syarat & Ketentuan Legal Kerjasama sebagai berikut:</p>
         
-        <ol class="list-decimal pl-5 space-y-4 mt-4">
-            <li>
-                <strong>Peningkatan Sistem Pemantauan Visual (Instalasi &amp; Optimalisasi CCTV)</strong>
-                <p class="mt-1"><strong>Komitmen:</strong> Cahaya Cargo (CCE) akan melakukan penambahan unit kamera CCTV (Closed-Circuit Television) berspesifikasi tinggi (high-definition) di berbagai sudut krusial yang memerlukan pemantauan lebih ketat (blind spots), baik di Cabang Surabaya maupun Cabang Makassar.</p>
-                <p class="mt-1"><strong>Area Fokus:</strong> Area pemuatan (loading), pembongkaran (unloading), penempatan sementara (staging area), serta jalur keluar-masuk armada truk pengangkut.</p>
-                <p class="mt-1"><strong>Sistem Manajemen Data:</strong> Kami juga berkomitmen meningkatkan kapasitas penyimpanan data rekaman (storage backup) serta melakukan pemeliharaan berkala secara rutin guna memastikan fungsi pengawasan visual berjalan tanpa kendala 24/7.</p>
-            </li>
-            <li>
-                <strong>Penerapan Sistem Pemindaian Digital (Scanning System) yang Terintegrasi</strong>
-                <p class="mt-1"><strong>Komitmen:</strong> Guna meminimalkan risiko selisih perhitungan koli dan human error, Cahaya Cargo (CCE) akan menerapkan sistem pemindaian barcode/resi (scanning system) secara ketat untuk setiap proses bongkar dan muat barang milik DHS di gudang CCE.</p>
-                <p class="mt-1"><strong>Mekanisme Kerja:</strong></p>
-                <ul class="list-disc pl-5 mt-1 space-y-1">
-                    <li>Setiap paket/koli yang masuk atau keluar dari unit transportasi wajib melalui proses scanning untuk memastikan kecocokan data manifest fisik dengan sistem digital secara real-time.</li>
-                    <li>Laporan hasil scanning (bongkar/muat) akan dikoordinasikan secara transparan kepada pihak pengawas DHS sebagai dasar serah terima barang yang sah.</li>
-                </ul>
-            </li>
-            <li>
-                <strong>Penugasan Personel Pengawas Khusus (Dedicated Operational Supervisor)</strong>
-                <p class="mt-1"><strong>Komitmen:</strong> Cahaya Cargo (CCE) akan menugaskan staf khusus yang berdedikasi penuh untuk mengawasi seluruh alur operasional barang milik DHS, mulai dari penanganan barang di gudang hingga proses pemuatan ke armada.</p>
-                <p class="mt-1"><strong>Tanggung Jawab Pengawas:</strong></p>
-                <ul class="list-disc pl-5 mt-1 space-y-1">
-                    <li>Memastikan prosedur penanganan barang dijalankan sesuai Standar Operasional Prosedur (SOP) keamanan CCE-DHS.</li>
-                    <li>Mengawal langsung kesesuaian jumlah koli fisik saat bongkar-muat bersama pengawas dari DHS.</li>
-                    <li>Memastikan setiap kondisi tidak biasa (seperti karung pecah, kemasan rusak, atau isi berceceran) langsung didokumentasikan dalam Berita Acara resmi di lokasi sebelum armada berangkat.</li>
-                </ul>
-            </li>
-            <li>
-                <strong>Perubahan Lokasi Pembongkaran Barang Consul di Makassar (Efektif 11 Juni 2026)</strong>
-                <p class="mt-1"><strong>Komitmen:</strong> Untuk meningkatkan akurasi kontrol selisih koli dan efisiensi rantai pasok, disepakati adanya penyesuaian lokasi pembongkaran khusus untuk barang konsolidasi (barang consul) milik DHS di wilayah Makassar.</p>
-                <p class="mt-1"><strong>Ketentuan Operasional:</strong></p>
-                <ul class="list-disc pl-5 mt-1 space-y-1">
-                    <li>Terhitung mulai pemberangkatan armada tanggal 11 Juni 2026, seluruh proses pembongkaran barang consul dari Surabaya tidak lagi dilakukan di Gudang CCE Makassar, melainkan akan dialihkan dan dibongkar langsung di Gudang DHS Makassar.</li>
-                    <li>Tim CCE Makassar tetap akan mengirimkan perwakilan personel pengawas untuk mendampingi, mengawasi, serta melakukan pencocokan data fisik bersama dengan tim penerima di Gudang DHS Makassar pada saat armada tiba.</li>
-                </ul>
-            </li>
-        </ol>`
+        <h3 class="font-extrabold uppercase mt-5 mb-2 text-slate-900 text-[10pt]">1. TARIF PENGANGKUTAN, SLA, DAN FREKUENSI KAPAL</h3>
+        <table class="w-full text-left border-collapse mt-2 text-[10pt] border border-slate-300">
+            <thead>
+                <tr class="bg-slate-100 border-b border-slate-350 font-semibold text-slate-700">
+                    <th class="p-2.5 border-r border-slate-300 w-[8%] text-center">No</th>
+                    <th class="p-2.5 border-r border-slate-300 w-[36%]">Rute Pengiriman</th>
+                    <th class="p-2.5 border-r border-slate-300 w-[20%] text-center">Tarif per Kg</th>
+                    <th class="p-2.5 border-r border-slate-300 w-[18%] text-center">SLA (Hari)</th>
+                    <th class="p-2.5 w-[18%] text-center">Jadwal Kapal</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr class="border-b border-slate-300">
+                    <td class="p-2.5 border-r border-slate-300 text-center font-mono">1.</td>
+                    <td class="p-2.5 border-r border-slate-300 font-semibold text-slate-900">Surabaya - Palu - Manado</td>
+                    <td class="p-2.5 border-r border-slate-300 text-center font-mono font-bold text-slate-900">Rp 5.400 / kg</td>
+                    <td class="p-2.5 border-r border-slate-300 text-center font-semibold">8 - 9 Hari</td>
+                    <td class="p-2.5 text-center font-semibold">1 Kali Seminggu</td>
+                </tr>
+                <tr class="border-b border-slate-300">
+                    <td class="p-2.5 border-r border-slate-300 text-center font-mono">2.</td>
+                    <td class="p-2.5 border-r border-slate-300 font-semibold text-slate-900">Surabaya - Makassar - Manado</td>
+                    <td class="p-2.5 border-r border-slate-300 text-center font-mono font-bold text-slate-900">Rp 5.800 / kg</td>
+                    <td class="p-2.5 border-r border-slate-300 text-center font-semibold">9 - 10 Hari</td>
+                    <td class="p-2.5 text-center font-semibold">3 Kali Seminggu</td>
+                </tr>
+            </tbody>
+        </table>
+        <p class="mt-1.5 text-[9pt] italic text-slate-600">* Dasar Perhitungan Berat: Kuantitas dan berat chargeable mengacu penuh pada data penimbangan resmi dari SISTEM J&T CARGO (Pengirim).</p>
+
+        <h3 class="font-extrabold uppercase mt-5 mb-2 text-slate-900 text-[10pt]">2. OPERASIONAL GUDANG & TENAGA KERJA (TKBM)</h3>
+        <div class="space-y-2 text-[9.5pt]">
+            <p><strong>a. Tenaga Kerja Bongkar Muat (TKBM):</strong><br/>
+            PT Cahaya Cargo Express menyediakan tim TKBM sebanyak 10 (sepuluh) orang per shift yang standby 1 x 24 Jam di gudang J&T Cargo untuk penanganan muat dan bongkar barang.</p>
+            <p><strong>b. Layanan Pemuatan (Loading):</strong><br/>
+            Proses pemuatan barang dilakukan secara standby 24 Jam di gudang J&T Cargo sesuai jadwal manifes pengiriman.</p>
+        </div>
+
+        <h3 class="font-extrabold uppercase mt-5 mb-2 text-slate-900 text-[10pt]">3. JAMINAN DEPOSIT & SYARAT PEMBAYARAN (TOP)</h3>
+        <div class="space-y-2 text-[9.5pt]">
+            <p><strong>a. Skema Jaminan Deposit / Bank Guarantee:</strong><br/>
+            J&T Cargo (Pengirim) memberikan Deposit Uang / Bank Guarantee sebagai jaminan jangkauan operasional sebesar total Rp 150.000.000,- (Seratus Lima Puluh Juta Rupiah), dengan skema pembayaran bertahap sebagai berikut:</p>
+            <ul class="list-disc pl-5 font-mono text-[9pt] space-y-0.5">
+                <li>Tahap I (Bulan ke-1) : Rp 50.000.000,-</li>
+                <li>Tahap II (Bulan ke-2) : Rp 50.000.000,-</li>
+                <li>Tahap III (Bulan ke-3) : Rp 50.000.000,-</li>
+            </ul>
+            <p><strong>b. Syarat Pembayaran (Payment Terms):</strong><br/>
+            Pembayaran tagihan jasa pengangkutan dilakukan dalam kurun waktu 2 (dua) minggu / 14 (empat belas) hari kalender terhitung sejak barang diterima di tujuan dengan aman (dibuktikan dengan Proof of Delivery / POD yang sah).</p>
+        </div>
+
+        <h3 class="font-extrabold uppercase mt-5 mb-2 text-slate-900 text-[10pt]">4. ASURANSI BARANG, KLAIM, DAN FORCE MAJEURE</h3>
+        <div class="space-y-2 text-[9.5pt]">
+            <p><strong>a. Asuransi Barang Di Atas Truk:</strong><br/>
+            Seluruh kargo muatan dilindungi asuransi di atas armada truk dengan nilai pertanggungan maksimal hingga Rp 600.000.000,- (Enam Ratus Juta Rupiah) per Truk.</p>
+            <p><strong>b. Pencairan Klaim:</strong><br/>
+            Setiap terjadi klaim asuransi barang yang disetujui (approved) oleh pihak penanggung asuransi, dana klaim akan LANGSUNG DICAIRKAN / DITRANSFER KE REKENING J&T CARGO.</p>
+            <p><strong>c. Force Majeure (Keadaan Kahar):</strong><br/>
+            PT Cahaya Cargo Express dibebaskan dari tanggung jawab ganti rugi atau keterlambatan yang disebabkan oleh Keadaan Kahar (Force Majeure), termasuk namun tidak terbatas pada bencana alam, kecelakaan laut/cuaca ekstrem pelayaran, huru-hara, penutupan pelabuhan oleh otoritas pemerintah, dan kejadian di luar kendali wajar manusia.</p>
+        </div>
+
+        <h3 class="font-extrabold uppercase mt-5 mb-2 text-slate-900 text-[10pt]">5. MASA BERLAKU PENAWARAN</h3>
+        <p class="text-[9.5pt]">Penawaran harga dan ketentuan operasional ini bersifat mengikat dan tidak memiliki batas masa berlaku penawaran (tanpa masa kadaluarsa), serta menjadi acuan utama pelaksanaan Surat Perjanjian Kerja Sama (SPK) antara kedua belah pihak.</p>
+
+        <p class="mt-4 text-[9.5pt]">Demikian surat penawaran harga ini kami sampaikan. Atas perhatian dan kerja sama yang baik, kami ucapkan terima kasih.</p>
+        
+        <div class="mt-8 text-[9.5pt]">
+            <p class="mb-4">Surabaya, 29 Juli 2026</p>
+            <div class="flex justify-between items-start">
+                <div class="text-center w-[45%]">
+                    <p class="font-bold">Diajukan Oleh,</p>
+                    <p class="font-bold text-slate-900">PT CAHAYA CARGO EXPRESS</p>
+                    <p class="text-slate-600 text-[8.5pt]">(Transporter)</p>
+                    <div class="h-20"></div>
+                    <p class="font-bold underline">( ________________________ )</p>
+                    <p class="text-[8.5pt]">Nama:</p>
+                    <p class="text-[8.5pt]">Jabatan:</p>
+                </div>
+                <div class="text-center w-[45%]">
+                    <p class="font-bold">Disetujui &amp; Diterima Oleh,</p>
+                    <p class="font-bold text-slate-900">J&T CARGO (PT Global Jet Cargo)</p>
+                    <p class="text-slate-600 text-[8.5pt]">(Pengirim / Shipper)</p>
+                    <div class="h-20"></div>
+                    <p class="font-bold underline">( ________________________ )</p>
+                    <p class="text-[8.5pt]">Nama:</p>
+                    <p class="text-[8.5pt]">Jabatan:</p>
+                </div>
+            </div>
+        </div>`
     );
 
     // Content after the table state (HTML string)
@@ -428,78 +478,125 @@ export default function DokumenLegalPage() {
         }
     };
 
-    // Load Surat Penawaran Harga J&T
+    // Reset to Surat Penawaran Harga J&T Cargo
     const loadPenawaranTemplate = () => {
-        if (confirm("Reset dokumen ke template Surat Penawaran Harga J&T? Perubahan yang belum dicetak akan hilang.")) {
-            setDocumentTitle('SURAT PENAWARAN HARGA PENGIRIMAN CARGO LAUT');
+        if (confirm("Reset dokumen ke template Penawaran Harga & Ketentuan Kerja Sama J&T Cargo? Perubahan yang belum dicetak akan hilang.")) {
+            setDocumentTitle('SURAT PENAWARAN HARGA & KETENTUAN KERJA SAMA PENGANGKUTAN CARGO');
             setSignatoryName('HILAL BAFAGIH');
             setSignatoryRole('Operational Manager');
             setLostItems([]);
             setDocumentMetadata(
                 `<div class="grid grid-cols-12 gap-1 text-[10.5pt]">
-                    <div class="col-span-2 font-semibold">No. Surat</div>
-                    <div class="col-span-6">: 142/CCE-OPH/JT/VI/2026</div>
-                    <div class="col-span-4 text-right font-semibold text-[10pt]">Surabaya, 28 Juni 2026</div>
-                    
-                    <div class="col-span-2 font-semibold">Sifat</div>
-                    <div class="col-span-10">: Penting / Segera</div>
+                    <div class="col-span-2 font-semibold">Nomor</div>
+                    <div class="col-span-10">: 028/CCE-QUO/VII/2026</div>
                     
                     <div class="col-span-2 font-semibold">Lampiran</div>
                     <div class="col-span-10">: -</div>
                     
-                    <div class="col-span-2 font-semibold">Hal</div>
-                    <div class="col-span-10 font-bold">: Penawaran Harga Pengiriman Cargo Via Kapal Laut</div>
+                    <div class="col-span-2 font-semibold">Perihal</div>
+                    <div class="col-span-10 font-bold">: SURAT PENAWARAN HARGA & KETENTUAN KERJA SAMA PENGANGKUTAN CARGO<br/>(RUTE: SURABAYA - PALU - MANADO & SURABAYA - MAKASSAR - MANADO)</div>
                 </div>
                 <div class="mt-5 text-[10.5pt]">
-                    <p>Kepada Yth.</p>
-                    <p class="font-bold">Pimpinan Manajemen PT. LINTAS NUSANTARA JAYA (J&T Express / J&T Cargo)</p>
+                    <p>Kepada Yth,</p>
+                    <p class="font-bold">Management / Procurement</p>
+                    <p class="font-bold text-slate-900">J&T CARGO (PT Global Jet Cargo)</p>
+                    <p class="text-slate-700">Kedudukan sebagai: PENGIRIM (SHIPPER)</p>
                     <p>Di Tempat</p>
                 </div>`
             );
             setDocumentBody(
                 `<p class="mt-4">Dengan hormat,</p>
-                <p class="mt-2">Sehubungan dengan kebutuhan distribusi logistik yang andal dan aman, kami dari <strong>CV. Cahaya Cargo Express (CCE)</strong> dengan ini mengajukan penawaran tarif pengiriman cargo via kapal laut (kontainer LCL/FCL) dengan tarif khusus dan kompetitif untuk rute-rute utama sebagai berikut:</p>
+                <p class="mt-2">Sehubungan dengan rencana kerja sama pengangkutan dan distribusi kargo muatan milik J&T Cargo (selaku PENGIRIM) rute Surabaya menuju Manado, kami dari <strong>PT CAHAYA CARGO EXPRESS</strong> (selaku PENYEDIA JASA PENGANGKUTAN / TRANSPORTER) mengajukan Penawaran Harga, Layanan Operasional, serta Syarat & Ketentuan Legal Kerjasama sebagai berikut:</p>
                 
-                <table class="w-full text-left border-collapse mt-4 text-[10pt] border border-slate-300">
+                <h3 class="font-extrabold uppercase mt-5 mb-2 text-slate-900 text-[10pt]">1. TARIF PENGANGKUTAN, SLA, DAN FREKUENSI KAPAL</h3>
+                <table class="w-full text-left border-collapse mt-2 text-[10pt] border border-slate-300">
                     <thead>
                         <tr class="bg-slate-100 border-b border-slate-350 font-semibold text-slate-700">
-                            <th class="p-3 border-r border-slate-300 w-[10%] text-center">No.</th>
-                            <th class="p-3 border-r border-slate-300 w-[45%]">Rute Pengiriman</th>
-                            <th class="p-3 border-r border-slate-300 w-[25%] text-center">Layanan / Media</th>
-                            <th class="p-3 w-[20%] text-right font-bold text-slate-700">Tarif (Rp/kg)</th>
+                            <th class="p-2.5 border-r border-slate-300 w-[8%] text-center">No</th>
+                            <th class="p-2.5 border-r border-slate-300 w-[36%]">Rute Pengiriman</th>
+                            <th class="p-2.5 border-r border-slate-300 w-[20%] text-center">Tarif per Kg</th>
+                            <th class="p-2.5 border-r border-slate-300 w-[18%] text-center">SLA (Hari)</th>
+                            <th class="p-2.5 w-[18%] text-center">Jadwal Kapal</th>
                         </tr>
                     </thead>
                     <tbody>
-                        <tr class="border-b border-slate-300 hover:bg-slate-50/50">
-                            <td class="p-3 border-r border-slate-300 text-center font-mono">1.</td>
-                            <td class="p-3 border-r border-slate-300 font-semibold text-slate-900">Surabaya ke Makassar</td>
-                            <td class="p-3 border-r border-slate-300 text-center text-slate-700">Kapal Laut</td>
-                            <td class="p-3 text-right font-mono font-bold text-slate-900">Rp 2.200</td>
+                        <tr class="border-b border-slate-300">
+                            <td class="p-2.5 border-r border-slate-300 text-center font-mono">1.</td>
+                            <td class="p-2.5 border-r border-slate-300 font-semibold text-slate-900">Surabaya - Palu - Manado</td>
+                            <td class="p-2.5 border-r border-slate-300 text-center font-mono font-bold text-slate-900">Rp 5.400 / kg</td>
+                            <td class="p-2.5 border-r border-slate-300 text-center font-semibold">8 - 9 Hari</td>
+                            <td class="p-2.5 text-center font-semibold">1 Kali Seminggu</td>
                         </tr>
-                        <tr class="border-b border-slate-300 hover:bg-slate-50/50">
-                            <td class="p-3 border-r border-slate-300 text-center font-mono">2.</td>
-                            <td class="p-3 border-r border-slate-300 font-semibold text-slate-900">Surabaya ke Pare-Pare</td>
-                            <td class="p-3 border-r border-slate-300 text-center text-slate-700">Kapal Laut</td>
-                            <td class="p-3 text-right font-mono font-bold text-slate-900">Rp 2.600</td>
-                        </tr>
-                        <tr class="hover:bg-slate-50/50">
-                            <td class="p-3 border-r border-slate-300 text-center font-mono">3.</td>
-                            <td class="p-3 border-r border-slate-300 font-semibold text-slate-900">Makassar ke Surabaya</td>
-                            <td class="p-3 border-r border-slate-300 text-center text-slate-700">Kapal Laut</td>
-                            <td class="p-3 text-right font-mono font-bold text-slate-900">Rp 1.050</td>
+                        <tr class="border-b border-slate-300">
+                            <td class="p-2.5 border-r border-slate-300 text-center font-mono">2.</td>
+                            <td class="p-2.5 border-r border-slate-300 font-semibold text-slate-900">Surabaya - Makassar - Manado</td>
+                            <td class="p-2.5 border-r border-slate-300 text-center font-mono font-bold text-slate-900">Rp 5.800 / kg</td>
+                            <td class="p-2.5 border-r border-slate-300 text-center font-semibold">9 - 10 Hari</td>
+                            <td class="p-2.5 text-center font-semibold">3 Kali Seminggu</td>
                         </tr>
                     </tbody>
                 </table>
+                <p class="mt-1.5 text-[9pt] italic text-slate-600">* Dasar Perhitungan Berat: Kuantitas dan berat chargeable mengacu penuh pada data penimbangan resmi dari SISTEM J&T CARGO (Pengirim).</p>
+
+                <h3 class="font-extrabold uppercase mt-5 mb-2 text-slate-900 text-[10pt]">2. OPERASIONAL GUDANG & TENAGA KERJA (TKBM)</h3>
+                <div class="space-y-2 text-[9.5pt]">
+                    <p><strong>a. Tenaga Kerja Bongkar Muat (TKBM):</strong><br/>
+                    PT Cahaya Cargo Express menyediakan tim TKBM sebanyak 10 (sepuluh) orang per shift yang standby 1 x 24 Jam di gudang J&T Cargo untuk penanganan muat dan bongkar barang.</p>
+                    <p><strong>b. Layanan Pemuatan (Loading):</strong><br/>
+                    Proses pemuatan barang dilakukan secara standby 24 Jam di gudang J&T Cargo sesuai jadwal manifes pengiriman.</p>
+                </div>
+
+                <h3 class="font-extrabold uppercase mt-5 mb-2 text-slate-900 text-[10pt]">3. JAMINAN DEPOSIT & SYARAT PEMBAYARAN (TOP)</h3>
+                <div class="space-y-2 text-[9.5pt]">
+                    <p><strong>a. Skema Jaminan Deposit / Bank Guarantee:</strong><br/>
+                    J&T Cargo (Pengirim) memberikan Deposit Uang / Bank Guarantee sebagai jaminan jangkauan operasional sebesar total Rp 150.000.000,- (Seratus Lima Puluh Juta Rupiah), dengan skema pembayaran bertahap sebagai berikut:</p>
+                    <ul class="list-disc pl-5 font-mono text-[9pt] space-y-0.5">
+                        <li>Tahap I (Bulan ke-1) : Rp 50.000.000,-</li>
+                        <li>Tahap II (Bulan ke-2) : Rp 50.000.000,-</li>
+                        <li>Tahap III (Bulan ke-3) : Rp 50.000.000,-</li>
+                    </ul>
+                    <p><strong>b. Syarat Pembayaran (Payment Terms):</strong><br/>
+                    Pembayaran tagihan jasa pengangkutan dilakukan dalam kurun waktu 2 (dua) minggu / 14 (empat belas) hari kalender terhitung sejak barang diterima di tujuan dengan aman (dibuktikan dengan Proof of Delivery / POD yang sah).</p>
+                </div>
+
+                <h3 class="font-extrabold uppercase mt-5 mb-2 text-slate-900 text-[10pt]">4. ASURANSI BARANG, KLAIM, DAN FORCE MAJEURE</h3>
+                <div class="space-y-2 text-[9.5pt]">
+                    <p><strong>a. Asuransi Barang Di Atas Truk:</strong><br/>
+                    Seluruh kargo muatan dilindungi asuransi di atas armada truk dengan nilai pertanggungan maksimal hingga Rp 600.000.000,- (Enam Ratus Juta Rupiah) per Truk.</p>
+                    <p><strong>b. Pencairan Klaim:</strong><br/>
+                    Setiap terjadi klaim asuransi barang yang disetujui (approved) oleh pihak penanggung asuransi, dana klaim akan LANGSUNG DICAIRKAN / DITRANSFER KE REKENING J&T CARGO.</p>
+                    <p><strong>c. Force Majeure (Keadaan Kahar):</strong><br/>
+                    PT Cahaya Cargo Express dibebaskan dari tanggung jawab ganti rugi atau keterlambatan yang disebabkan oleh Keadaan Kahar (Force Majeure), termasuk namun tidak terbatas pada bencana alam, kecelakaan laut/cuaca ekstrem pelayaran, huru-hara, penutupan pelabuhan oleh otoritas pemerintah, dan kejadian di luar kendali wajar manusia.</p>
+                </div>
+
+                <h3 class="font-extrabold uppercase mt-5 mb-2 text-slate-900 text-[10pt]">5. MASA BERLAKU PENAWARAN</h3>
+                <p class="text-[9.5pt]">Penawaran harga dan ketentuan operasional ini bersifat mengikat dan tidak memiliki batas masa berlaku penawaran (tanpa masa kadaluarsa), serta menjadi acuan utama pelaksanaan Surat Perjanjian Kerja Sama (SPK) antara kedua belah pihak.</p>
+
+                <p class="mt-4 text-[9.5pt]">Demikian surat penawaran harga ini kami sampaikan. Atas perhatian dan kerja sama yang baik, kami ucapkan terima kasih.</p>
                 
-                <h3 class="font-extrabold uppercase mt-6 mb-2 text-slate-900 text-[10pt]">Syarat dan Ketentuan Layanan:</h3>
-                <ol class="list-decimal pl-5 space-y-2 text-[9.5pt]">
-                    <li><strong>Minimal Berat Pengiriman:</strong> Batas minimal muatan adalah 100 kg per satu kali pengiriman.</li>
-                    <li><strong>Sistem Pembayaran:</strong> Penagihan/invoice disesuaikan dengan kesepakatan tertulis (termin pembayaran mingguan atau bulanan).</li>
-                    <li><strong>Penanganan Barang (Handling):</strong> Tarif di atas mencakup proses pemuatan barang di gudang asal dan pembongkaran di pelabuhan tujuan.</li>
-                    <li><strong>Asuransi:</strong> Tarif di atas belum mencakup perlindungan asuransi kehilangan barang (opsional, disarankan untuk barang-barang bernilai tinggi).</li>
-                    <li><strong>Lead Time Pengiriman:</strong> Waktu tempuh via armada kapal laut adalah 4-7 hari kerja terhitung sejak hari keberangkatan kapal.</li>
-                </ol>
-                <p class="mt-4 text-[9.5pt]">Besar harapan kami bahwa penawaran harga ini dapat menjadi landasan kerja sama kemitraan yang saling menguntungkan dan berkelanjutan di masa mendatang. Jika terdapat penyesuaian atau pertanyaan lebih lanjut, silakan hubungi tim kami.</p>`
+                <div class="mt-8 text-[9.5pt]">
+                    <p class="mb-4">Surabaya, 29 Juli 2026</p>
+                    <div class="flex justify-between items-start">
+                        <div class="text-center w-[45%]">
+                            <p class="font-bold">Diajukan Oleh,</p>
+                            <p class="font-bold text-slate-900">PT CAHAYA CARGO EXPRESS</p>
+                            <p class="text-slate-600 text-[8.5pt]">(Transporter)</p>
+                            <div class="h-20"></div>
+                            <p class="font-bold underline">( ________________________ )</p>
+                            <p class="text-[8.5pt]">Nama:</p>
+                            <p class="text-[8.5pt]">Jabatan:</p>
+                        </div>
+                        <div class="text-center w-[45%]">
+                            <p class="font-bold">Disetujui &amp; Diterima Oleh,</p>
+                            <p class="font-bold text-slate-900">J&T CARGO (PT Global Jet Cargo)</p>
+                            <p class="text-slate-600 text-[8.5pt]">(Pengirim / Shipper)</p>
+                            <div class="h-20"></div>
+                            <p class="font-bold underline">( ________________________ )</p>
+                            <p class="text-[8.5pt]">Nama:</p>
+                            <p class="text-[8.5pt]">Jabatan:</p>
+                        </div>
+                    </div>
+                </div>`
             );
             setDocumentBodyEnd('');
         }
