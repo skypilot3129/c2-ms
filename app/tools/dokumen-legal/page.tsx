@@ -94,6 +94,20 @@ export default function DokumenLegalPage() {
                     <td class="p-2.5 border-r border-slate-300 text-center font-semibold">9 - 10 Hari</td>
                     <td class="p-2.5 text-center font-semibold">3 Kali Seminggu</td>
                 </tr>
+                <tr class="border-b border-slate-300">
+                    <td class="p-2.5 border-r border-slate-300 text-center font-mono">3.</td>
+                    <td class="p-2.5 border-r border-slate-300 font-semibold text-slate-900">Surabaya - Palu</td>
+                    <td class="p-2.5 border-r border-slate-300 text-center font-mono font-bold text-slate-900">Rp 3.500 / kg</td>
+                    <td class="p-2.5 border-r border-slate-300 text-center font-semibold">5 - 6 Hari</td>
+                    <td class="p-2.5 text-center font-semibold">2 Kali Seminggu</td>
+                </tr>
+                <tr class="border-b border-slate-300">
+                    <td class="p-2.5 border-r border-slate-300 text-center font-mono">4.</td>
+                    <td class="p-2.5 border-r border-slate-300 font-semibold text-slate-900">Makassar - Manado</td>
+                    <td class="p-2.5 border-r border-slate-300 text-center font-mono font-bold text-slate-900">Rp 4.000 / kg</td>
+                    <td class="p-2.5 border-r border-slate-300 text-center font-semibold">4 - 5 Hari</td>
+                    <td class="p-2.5 text-center font-semibold">3 Kali Seminggu</td>
+                </tr>
             </tbody>
         </table>
         <p class="mt-1.5 text-[9pt] italic text-slate-600">* Dasar Perhitungan Berat: Kuantitas dan berat chargeable mengacu penuh pada data penimbangan resmi dari SISTEM J&T CARGO (Pengirim).</p>
@@ -532,6 +546,20 @@ export default function DokumenLegalPage() {
                             <td class="p-2.5 border-r border-slate-300 font-semibold text-slate-900">Surabaya - Makassar - Manado</td>
                             <td class="p-2.5 border-r border-slate-300 text-center font-mono font-bold text-slate-900">Rp 5.800 / kg</td>
                             <td class="p-2.5 border-r border-slate-300 text-center font-semibold">9 - 10 Hari</td>
+                            <td class="p-2.5 text-center font-semibold">3 Kali Seminggu</td>
+                        </tr>
+                        <tr class="border-b border-slate-300">
+                            <td class="p-2.5 border-r border-slate-300 text-center font-mono">3.</td>
+                            <td class="p-2.5 border-r border-slate-300 font-semibold text-slate-900">Surabaya - Palu</td>
+                            <td class="p-2.5 border-r border-slate-300 text-center font-mono font-bold text-slate-900">Rp 3.500 / kg</td>
+                            <td class="p-2.5 border-r border-slate-300 text-center font-semibold">5 - 6 Hari</td>
+                            <td class="p-2.5 text-center font-semibold">2 Kali Seminggu</td>
+                        </tr>
+                        <tr class="border-b border-slate-300">
+                            <td class="p-2.5 border-r border-slate-300 text-center font-mono">4.</td>
+                            <td class="p-2.5 border-r border-slate-300 font-semibold text-slate-900">Makassar - Manado</td>
+                            <td class="p-2.5 border-r border-slate-300 text-center font-mono font-bold text-slate-900">Rp 4.000 / kg</td>
+                            <td class="p-2.5 border-r border-slate-300 text-center font-semibold">4 - 5 Hari</td>
                             <td class="p-2.5 text-center font-semibold">3 Kali Seminggu</td>
                         </tr>
                     </tbody>
