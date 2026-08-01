@@ -18,11 +18,13 @@ const COLLECTION = 'cargo_manifests';
 interface ManifestItemDoc {
     noSTT: string;
     koli: number;
-    berat: number;
+    berat: number | string;
     isiBarang: string;
     pengirim: string;
     penerima: string;
+    alamat?: string;
     keterangan: string;
+    color?: string;
 }
 
 interface CargoManifestDoc {
@@ -46,7 +48,11 @@ function docToManifest(id: string, data: CargoManifestDoc): CargoManifest {
         nopol: data.nopol,
         sopir: data.sopir,
         kepadaYth: data.kepadaYth || '',
-        items: data.items || [],
+        items: (data.items || []).map(item => ({
+            ...item,
+            alamat: item.alamat || '',
+            color: (item.color as any) || 'white',
+        })),
         createdBy: data.createdBy,
         createdByName: data.createdByName,
         createdAt: data.createdAt.toDate(),

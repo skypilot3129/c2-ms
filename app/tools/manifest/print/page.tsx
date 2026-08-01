@@ -2,17 +2,7 @@
 
 import React, { useEffect, useState, Suspense } from 'react';
 import { useRouter } from 'next/navigation';
-import { COMPANY_INFO } from '@/lib/company-config';
-
-interface ManifestItem {
-    noSTT: string;
-    koli: number;
-    berat: number;
-    isiBarang: string;
-    pengirim: string;
-    penerima: string;
-    keterangan: string;
-}
+import type { ManifestItem, ManifestRowColor } from '@/types/manifest';
 
 interface ManifestPrintData {
     tanggal: string;
@@ -21,12 +11,22 @@ interface ManifestPrintData {
     sopir: string;
     kepadaYth: string;
     items: ManifestItem[];
+    orientation?: 'landscape' | 'portrait';
 }
+
+const COLOR_MAP: Record<ManifestRowColor, string> = {
+    white: '#ffffff',
+    purple: '#c084fc',
+    yellow: '#fef08a',
+    green: '#bbf7d0',
+    red: '#fca5a5',
+    blue: '#93c5fd'
+};
 
 function PrintContent() {
     const router = useRouter();
     const [data, setData] = useState<ManifestPrintData | null>(null);
-    const [printDateFormatted, setPrintDateFormatted] = useState('');
+    const [isLandscape, setIsLandscape] = useState<boolean>(true);
 
     useEffect(() => {
         try {
@@ -34,16 +34,8 @@ function PrintContent() {
             if (raw) {
                 const parsed: ManifestPrintData = JSON.parse(raw);
                 setData(parsed);
-                
-                // Format tanggal for display
-                if (parsed.tanggal) {
-                    const dateObj = new Date(parsed.tanggal);
-                    // Format as DDMMYY for matching handwritten style if needed,
-                    // or DD Month YYYY. Let's use DD-MM-YYYY
-                    const day = String(dateObj.getDate()).padStart(2, '0');
-                    const month = String(dateObj.getMonth() + 1).padStart(2, '0');
-                    const year = String(dateObj.getFullYear()).slice(-2); // YY format
-                    setPrintDateFormatted(`${day}/${month}/${year}`);
+                if (parsed.orientation) {
+                    setIsLandscape(parsed.orientation === 'landscape');
                 }
             }
         } catch (error) {
@@ -62,22 +54,27 @@ function PrintContent() {
         );
     }
 
-    // Totals
+    // Totals calculation
     const totalKoli = data.items.reduce((sum, item) => sum + (Number(item.koli) || 0), 0);
-    const totalBerat = data.items.reduce((sum, item) => sum + (Number(item.berat) || 0), 0);
+    const totalBerat = data.items.reduce((sum, item) => {
+        const val = parseFloat(String(item.berat || '').replace(',', '.'));
+        return sum + (isNaN(val) ? 0 : val);
+    }, 0);
 
-    // Padding empty rows up to minimum 10 rows
+    // Ensure at least 30 rows display like in the screenshot
     const rows = [...data.items];
-    const minRows = 10;
+    const minRows = 30;
     while (rows.length < minRows) {
         rows.push({
             noSTT: '',
             koli: 0,
-            berat: 0,
-            isiBarang: '',
+            berat: '',
             pengirim: '',
             penerima: '',
-            keterangan: ''
+            isiBarang: '',
+            alamat: '',
+            keterangan: '',
+            color: 'white'
         });
     }
 
@@ -87,255 +84,215 @@ function PrintContent() {
                 * { box-sizing: border-box; margin: 0; padding: 0; }
 
                 body {
-                    font-family: Arial, sans-serif;
-                    background: #d1d5db;
+                    font-family: Arial, Helvetica, sans-serif;
+                    background: #64748b;
                     color: #000;
+                    padding: 20px 0;
                 }
 
-                .a4-page {
-                    width: 210mm;
+                .print-canvas {
+                    width: ${isLandscape ? '297mm' : '210mm'};
+                    min-height: ${isLandscape ? '210mm' : '297mm'};
                     background: white;
                     margin: 0 auto;
-                    padding: 8mm 12mm;
+                    padding: 8mm 10mm;
                     font-size: 8.5pt;
-                    line-height: 1.3;
+                    line-height: 1.2;
                     position: relative;
+                    box-shadow: 0 10px 25px rgba(0,0,0,0.3);
                 }
 
-                .manifest-header-container {
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: flex-start;
-                    border-bottom: 2px solid #000;
-                    padding-bottom: 4mm;
-                    margin-bottom: 3mm;
+                /* Header Title */
+                .manifest-title {
+                    text-align: center;
+                    font-size: 15pt;
+                    font-weight: 900;
+                    letter-spacing: 1px;
+                    text-transform: uppercase;
+                    text-decoration: underline;
+                    text-underline-offset: 4px;
+                    margin-bottom: 5mm;
                 }
 
-                .manifest-header-left {
-                    width: 48%;
-                    display: flex;
-                    flex-direction: column;
-                    gap: 1.5mm;
+                /* Header Metadata Grid */
+                .header-meta-table {
+                    width: 100%;
+                    margin-bottom: 4mm;
+                    border-collapse: collapse;
+                    font-size: 9pt;
+                    font-weight: bold;
                 }
 
-                .manifest-header-right {
-                    width: 48%;
-                    text-align: right;
+                .header-meta-table td {
+                    vertical-align: top;
+                    padding: 1px 4px;
                 }
 
+                /* Main Manifest Table */
                 .manifest-table {
                     width: 100%;
                     border-collapse: collapse;
-                    font-size: 8.5pt;
-                    margin-top: 4mm;
+                    font-size: 8pt;
                 }
 
                 .manifest-table th {
-                    border: 1px solid #000;
-                    padding: 4px 6px;
+                    border: 1.5px solid #000;
+                    padding: 4px 4px;
                     text-align: center;
-                    font-weight: bold;
-                    background: #f3f4f6;
+                    font-weight: 900;
+                    background: #ffffff;
+                    text-transform: uppercase;
                     font-size: 8pt;
+                    letter-spacing: 0.5px;
                 }
 
                 .manifest-table td {
                     border: 1px solid #000;
-                    padding: 4px 6px;
+                    padding: 3px 5px;
                     vertical-align: middle;
-                    min-height: 7.5mm;
+                    height: 6mm;
+                    text-transform: uppercase;
+                    font-size: 8pt;
                 }
 
-                .info-grid {
-                    display: grid;
-                    grid-template-columns: 70px 6px 1fr;
-                    gap: 1mm 2mm;
-                    align-items: center;
-                }
-
-                .kepada-yth-block {
-                    margin-top: 3mm;
-                    font-size: 8.5pt;
-                }
+                .row-purple { background-color: #c084fc !important; color: #000 !important; }
+                .row-yellow { background-color: #fef08a !important; color: #000 !important; }
+                .row-green { background-color: #bbf7d0 !important; color: #000 !important; }
+                .row-red { background-color: #fca5a5 !important; color: #000 !important; }
+                .row-blue { background-color: #93c5fd !important; color: #000 !important; }
+                .row-white { background-color: #ffffff !important; color: #000 !important; }
 
                 @media print {
                     @page {
-                        size: A4 portrait;
-                        margin: 0;
+                        size: ${isLandscape ? 'A4 landscape' : 'A4 portrait'};
+                        margin: 4mm;
                     }
                     body {
                         background: white;
-                        print-color-adjust: exact;
-                        -webkit-print-color-adjust: exact;
+                        padding: 0;
+                        print-color-adjust: exact !important;
+                        -webkit-print-color-adjust: exact !important;
                     }
-                    .a4-page {
-                        margin: 0;
-                        box-shadow: none;
-                        padding: 8mm 12mm;
+                    .print-canvas {
+                        width: 100% !important;
+                        margin: 0 !important;
+                        box-shadow: none !important;
+                        padding: 4mm 6mm !important;
                     }
                     .no-print { display: none !important; }
                 }
             ` }} />
 
             {/* Print toolbar */}
-            <div className="no-print" style={{ position: 'fixed', top: 16, right: 16, zIndex: 9999, display: 'flex', gap: 8 }}>
+            <div className="no-print" style={{ position: 'fixed', top: 16, right: 16, zIndex: 9999, display: 'flex', gap: 10, background: '#0f172a', padding: '10px 16px', borderRadius: 12, boxShadow: '0 4px 15px rgba(0,0,0,0.4)' }}>
                 <button
                     onClick={() => router.back()}
-                    style={{ background: '#6b7280', color: 'white', padding: '10px 20px', borderRadius: 8, border: 'none', cursor: 'pointer', fontWeight: 'bold', fontSize: 14 }}
+                    style={{ background: '#475569', color: 'white', padding: '8px 16px', borderRadius: 8, border: 'none', cursor: 'pointer', fontWeight: 'bold', fontSize: 13 }}
                 >
                     ← Kembali
                 </button>
                 <button
-                    onClick={() => window.print()}
-                    style={{ background: '#2563eb', color: 'white', padding: '10px 20px', borderRadius: 8, border: 'none', cursor: 'pointer', fontWeight: 'bold', fontSize: 14 }}
+                    onClick={() => setIsLandscape(!isLandscape)}
+                    style={{ background: '#3b82f6', color: 'white', padding: '8px 16px', borderRadius: 8, border: 'none', cursor: 'pointer', fontWeight: 'bold', fontSize: 13 }}
                 >
-                    🖨️ Cetak PDF
+                    🔄 Mode: {isLandscape ? 'Landscape' : 'Portrait'}
+                </button>
+                <button
+                    onClick={() => window.print()}
+                    style={{ background: '#10b981', color: 'white', padding: '8px 20px', borderRadius: 8, border: 'none', cursor: 'pointer', fontWeight: 'bold', fontSize: 13 }}
+                >
+                    🖨️ Cetak PDF / Kertas
                 </button>
             </div>
 
-            <div className="a4-page">
-                {/* Header Container */}
-                <div className="manifest-header-container">
-                    
-                    {/* Left: Transport details */}
-                    <div className="manifest-header-left">
-                        <div className="info-grid">
-                            <span style={{ fontWeight: 'bold' }}>Tgl</span>
-                            <span>:</span>
-                            <span style={{ fontWeight: 'bold' }}>{printDateFormatted || '-'}</span>
+            <div className="print-canvas">
+                {/* Title Header */}
+                <h1 className="manifest-title">
+                    DAFTAR CARGO MANIFES CAHAYA CARGO EXPRESS
+                </h1>
 
-                            <span style={{ fontWeight: 'bold' }}>Kapal</span>
-                            <span>:</span>
-                            <span style={{ fontWeight: 'bold', textTransform: 'uppercase' }}>{data.kapal || '-'}</span>
-                        </div>
-                        
-                        <div className="info-grid" style={{ marginTop: '2mm', paddingTop: '2mm', borderTop: '1px dashed #ccc' }}>
-                            <span style={{ fontWeight: 'bold' }}>Nopol</span>
-                            <span>:</span>
-                            <span style={{ fontWeight: 'bold', textTransform: 'uppercase' }}>{data.nopol || '-'}</span>
-
-                            <span style={{ fontWeight: 'bold' }}>Sopir</span>
-                            <span>:</span>
-                            <span style={{ fontWeight: 'bold' }}>{data.sopir || '-'}</span>
-                        </div>
-
-                        <div className="kepada-yth-block">
-                            <p>Kepada Yth,</p>
-                            <p style={{ fontWeight: 'bold', fontSize: '9.5pt', marginTop: '1mm', textTransform: 'uppercase' }}>
-                                {data.kepadaYth || 'CAHAYA CARGO EXP MKS'}
-                            </p>
-                        </div>
-                    </div>
-
-                    {/* Right: Company identity (Surabaya Kalimas Header) */}
-                    <div className="manifest-header-right">
-                        <h1 style={{ fontWeight: '900', fontSize: '15pt', letterSpacing: '0.5px', lineHeight: '1.2' }}>
-                            CAHAYA CARGO EXPRESS
-                        </h1>
-                        <h2 style={{ fontWeight: 'bold', fontSize: '10pt', letterSpacing: '0.5px', marginTop: '1px' }}>
-                            EKSPEDISI FERRY CEPAT
-                        </h2>
-                        <p style={{ fontSize: '7.5pt', color: '#333', marginTop: '2mm', lineHeight: '1.4' }}>
-                            {COMPANY_INFO.address.replace('Jalan', 'Jl.')} {COMPANY_INFO.city}
-                        </p>
-                        <p style={{ fontSize: '7.5pt', color: '#333', lineHeight: '1.4' }}>
-                            Telp: {COMPANY_INFO.phone} {COMPANY_INFO.email || 'c2express@yahoo.com' ? `&bull; E-mail: ${COMPANY_INFO.email || 'c2express@yahoo.com'}` : ''}
-                        </p>
-                    </div>
-
-                </div>
-
-                {/* Title */}
-                <div style={{ textAlign: 'center', margin: '4mm 0' }}>
-                    <h2 style={{ 
-                        fontWeight: 'bold', 
-                        fontSize: '13pt', 
-                        letterSpacing: '3px', 
-                        textDecoration: 'underline',
-                        textTransform: 'uppercase'
-                    }}>
-                        DAFTAR CARGO MANIFES
-                    </h2>
-                </div>
-
-                {/* Main Table */}
-                <table className="manifest-table">
-                    <thead>
-                        <tr>
-                            <th style={{ width: '5%' }}>NO.</th>
-                            <th style={{ width: '15%' }}>NO STT</th>
-                            <th style={{ width: '9%' }}>KOLI</th>
-                            <th style={{ width: '13%' }}>BERAT</th>
-                            <th style={{ width: '15%', textAlign: 'left' }}>ISI BARANG</th>
-                            <th style={{ width: '14%', textAlign: 'left' }}>PENGIRIM</th>
-                            <th style={{ width: '14%', textAlign: 'left' }}>PENERIMA</th>
-                            <th style={{ width: '15%', textAlign: 'left' }}>KETERANGAN</th>
-                        </tr>
-                    </thead>
+                {/* Metadata Header Grid */}
+                <table className="header-meta-table">
                     <tbody>
-                        {rows.map((item, index) => {
-                            const isDummy = item.noSTT.trim() === '';
-                            return (
-                                <tr key={index} style={{ height: '7.5mm' }}>
-                                    <td style={{ textAlign: 'center', fontWeight: 'bold' }}>{index + 1}</td>
-                                    <td style={{ 
-                                        textAlign: 'center', 
-                                        fontFamily: isDummy ? 'inherit' : 'monospace', 
-                                        fontWeight: isDummy ? 'normal' : 'bold',
-                                        fontSize: '9pt'
-                                    }}>
-                                        {isDummy ? '' : item.noSTT}
-                                    </td>
-                                    <td style={{ textAlign: 'center', fontWeight: isDummy ? 'normal' : 'bold' }}>
-                                        {isDummy ? '' : item.koli}
-                                    </td>
-                                    <td style={{ textAlign: 'center', fontWeight: isDummy ? 'normal' : 'bold' }}>
-                                        {isDummy ? '' : `${item.berat} kg`}
-                                    </td>
-                                    <td style={{ textTransform: 'capitalize' }}>{item.isiBarang}</td>
-                                    <td style={{ fontWeight: isDummy ? 'normal' : 'bold', textTransform: 'uppercase' }}>
-                                        {item.pengirim}
-                                    </td>
-                                    <td style={{ textTransform: 'capitalize' }}>{item.penerima}</td>
-                                    <td style={{ fontSize: '8pt', color: '#222' }}>{item.keterangan}</td>
-                                </tr>
-                            );
-                        })}
-
-                        {/* Sum Totals Row */}
-                        <tr style={{ fontWeight: 'bold', background: '#f3f4f6', borderTop: '2px solid #000' }}>
-                            <td colSpan={2} style={{ textAlign: 'right', paddingRight: '4mm' }}>TOTAL :</td>
-                            <td style={{ textAlign: 'center', fontSize: '9pt' }}>{totalKoli}</td>
-                            <td style={{ textAlign: 'center', fontSize: '9pt' }}>{totalBerat} kg</td>
-                            <td colSpan={4}></td>
+                        <tr>
+                            <td style={{ width: '30%' }}>
+                                <div>Tgl : {data.tanggal || '-'}</div>
+                                <div style={{ marginTop: '2px' }}>Kapal : {data.kapal || '-'}</div>
+                            </td>
+                            <td style={{ width: '35%', textAlign: 'center' }}>
+                                <div>Nopol : {data.nopol || '-'}</div>
+                                <div style={{ marginTop: '2px' }}>Sopir : {data.sopir || '-'}</div>
+                            </td>
+                            <td style={{ width: '35%', textAlign: 'right' }}>
+                                <div>Kepada Yth,</div>
+                                <div style={{ marginTop: '2px', fontSize: '10pt', fontWeight: '900' }}>{data.kepadaYth || 'CAHAYA CARGO EXP MKS'}</div>
+                            </td>
                         </tr>
                     </tbody>
                 </table>
 
-                {/* Footer and Stamps / Signatures */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: '10mm', paddingTop: '4mm', borderTop: '1px dashed #999' }}>
-                    <div style={{ fontSize: '7.5pt', color: '#444', lineHeight: '1.6' }}>
-                        <p style={{ fontWeight: 'bold', color: '#000', marginBottom: '1mm' }}>Keterangan & Ketentuan:</p>
-                        <p>&bull; Daftar cargo manifest ini mewakili muatan sah kapal / armada ekspedisi.</p>
-                        <p>&bull; Harap memeriksa kembali jumlah koli saat pembongkaran di pelabuhan tujuan.</p>
-                    </div>
+                {/* Main 9-Column Table */}
+                <table className="manifest-table">
+                    <thead>
+                        <tr>
+                            <th style={{ width: '4%' }}>NO.</th>
+                            <th style={{ width: '8%' }}>NO STT</th>
+                            <th style={{ width: '6%' }}>KOLI</th>
+                            <th style={{ width: '8%' }}>BERAT</th>
+                            <th style={{ width: '15%', textAlign: 'left' }}>PENGIRIM</th>
+                            <th style={{ width: '15%', textAlign: 'left' }}>PENERIMA</th>
+                            <th style={{ width: '13%', textAlign: 'left' }}>ISI BARANG</th>
+                            <th style={{ width: '21%', textAlign: 'left' }}>ALAMAT</th>
+                            <th style={{ width: '10%', textAlign: 'left' }}>KETERANGAN</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {rows.map((item, index) => {
+                            const isDummy = !item.noSTT && !item.pengirim && !item.penerima && !item.koli;
+                            const rowColorClass = item.color ? `row-${item.color}` : 'row-white';
 
-                    {/* Signature Block (Standard for cargo documents) */}
-                    <div style={{ display: 'flex', gap: '8mm' }}>
-                        <div style={{ textAlign: 'center', width: '35mm' }}>
-                            <p style={{ fontSize: '7.5pt', marginBottom: '12mm' }}>Supir / Driver</p>
-                            <p style={{ borderTop: '1px solid #000', paddingTop: '1mm', fontSize: '7.5pt' }}>
-                                ( {data.sopir?.split('/')[0]?.trim() || '.......................'} )
-                            </p>
-                        </div>
-                        <div style={{ textAlign: 'center', width: '35mm' }}>
-                            <p style={{ fontSize: '7.5pt', marginBottom: '12mm' }}>Mengetahui, Surabaya</p>
-                            <p style={{ borderTop: '1px solid #000', paddingTop: '1mm', fontSize: '7.5pt' }}>
-                                ( ....................... )
-                            </p>
-                        </div>
-                    </div>
-                </div>
+                            return (
+                                <tr key={index} className={rowColorClass}>
+                                    <td style={{ textAlign: 'center', fontWeight: 'bold' }}>
+                                        {index + 1}.
+                                    </td>
+                                    <td style={{ textAlign: 'center', fontWeight: 'bold', fontFamily: 'monospace' }}>
+                                        {item.noSTT || ''}
+                                    </td>
+                                    <td style={{ textAlign: 'center', fontWeight: item.koli ? 'bold' : 'normal' }}>
+                                        {item.koli ? item.koli : ''}
+                                    </td>
+                                    <td style={{ textAlign: 'center', fontWeight: item.berat ? 'bold' : 'normal' }}>
+                                        {item.berat !== undefined && item.berat !== 0 ? item.berat : ''}
+                                    </td>
+                                    <td style={{ fontWeight: item.color && item.color !== 'white' ? 'bold' : 'bold' }}>
+                                        {item.pengirim || ''}
+                                    </td>
+                                    <td style={{ fontWeight: item.color && item.color !== 'white' ? 'bold' : 'bold' }}>
+                                        {item.penerima || ''}
+                                    </td>
+                                    <td style={{ fontWeight: 'normal' }}>
+                                        {item.isiBarang || ''}
+                                    </td>
+                                    <td style={{ fontWeight: item.color && item.color !== 'white' ? 'bold' : 'normal' }}>
+                                        {item.alamat || ''}
+                                    </td>
+                                    <td style={{ textAlign: 'center', fontWeight: 'bold' }}>
+                                        {item.keterangan || ''}
+                                    </td>
+                                </tr>
+                            );
+                        })}
+
+                        {/* Summary Row */}
+                        <tr style={{ fontWeight: '900', background: '#e2e8f0', borderTop: '2px solid #000' }}>
+                            <td colSpan={2} style={{ textAlign: 'right', paddingRight: '8px' }}>TOTAL :</td>
+                            <td style={{ textAlign: 'center', fontSize: '9pt' }}>{totalKoli > 0 ? totalKoli : ''}</td>
+                            <td style={{ textAlign: 'center', fontSize: '9pt' }}>{totalBerat > 0 ? totalBerat.toLocaleString('id-ID') : ''}</td>
+                            <td colSpan={5}></td>
+                        </tr>
+                    </tbody>
+                </table>
             </div>
         </>
     );
