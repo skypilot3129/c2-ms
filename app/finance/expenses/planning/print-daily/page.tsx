@@ -102,11 +102,11 @@ function PrintDailyPlanContent() {
 
         loadData();
 
-        // Subscribe to actual expenses for comparisons
         const unsub = subscribeToExpenses(user.uid, (expenses) => {
             const map: Record<string, number> = {};
             expenses.forEach(e => {
-                const ds = typeof e.date === 'string' ? e.date.split('T')[0] : new Date(e.date).toISOString().split('T')[0];
+                const dateVal = e.date as any;
+                const ds = typeof dateVal === 'string' ? dateVal.split('T')[0] : new Date(dateVal).toISOString().split('T')[0];
                 map[ds] = (map[ds] || 0) + e.amount;
             });
             if (isMounted) setActualExpensesMap(map);
