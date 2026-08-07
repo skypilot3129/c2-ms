@@ -26,6 +26,20 @@ const tomorrow = () => {
 
 const today = () => new Date().toISOString().split('T')[0];
 
+const getMonday = (dStr: string) => {
+    const d = new Date(dStr + 'T00:00:00');
+    const day = d.getDay();
+    const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+    const monday = new Date(d.setDate(diff));
+    return monday.toISOString().split('T')[0];
+};
+
+const getSunday = (mondayStr: string) => {
+    const d = new Date(mondayStr + 'T00:00:00');
+    d.setDate(d.getDate() + 6);
+    return d.toISOString().split('T')[0];
+};
+
 const uid = () => Math.random().toString(36).slice(2, 10);
 
 const STATUS_LABEL: Record<PlanItemStatus, { label: string; color: string; icon: React.ReactNode }> = {
@@ -72,6 +86,26 @@ export default function ExpensePlanningPage() {
         const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
         return `${nextMonth.getFullYear()}-${String(nextMonth.getMonth() + 1).padStart(2, '0')}`;
     });
+
+    // Daily & Weekly PDF Print modal state
+    const [showPrintModal, setShowPrintModal] = useState(false);
+    const [printWeeklyStart, setPrintWeeklyStart] = useState(() => getMonday(today()));
+
+    const handlePrintSingleDate = () => {
+        const draftPlan = {
+            id: plan?.id || 'draft',
+            date: planDate,
+            items: items.filter(i => i.description.trim() && i.estimatedAmount > 0),
+            notes,
+        };
+        sessionStorage.setItem(`cce_plan_${planDate}`, JSON.stringify(draftPlan));
+        router.push(`/finance/expenses/planning/print-daily?mode=single&date=${planDate}`);
+    };
+
+    const handlePrintWeeklySchedule = () => {
+        const endDate = getSunday(printWeeklyStart);
+        router.push(`/finance/expenses/planning/print-daily?mode=weekly&startDate=${printWeeklyStart}&endDate=${endDate}`);
+    };
 
     const isToday = planDate === today();
     const isPast  = planDate < today();
@@ -410,7 +444,7 @@ export default function ExpensePlanningPage() {
                             <p className="text-xs text-gray-500">Pilih tanggal untuk menyusun atau mengedit rencana item pengeluaran harian</p>
                         </div>
 
-                        {/* Date Picker Switcher */}
+                        {/* Date Picker Switcher & Print Button */}
                         <div className="flex items-center gap-2 flex-wrap">
                             <button onClick={() => setPlanDate(today())}
                                 className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-colors ${planDate === today() ? 'bg-violet-600 text-white border-violet-600 shadow-xs' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
@@ -426,6 +460,12 @@ export default function ExpensePlanningPage() {
                                 onChange={e => setPlanDate(e.target.value)}
                                 className="px-3 py-1.5 rounded-xl text-xs font-bold border border-gray-200 text-gray-800 bg-gray-50 outline-none focus:ring-2 focus:ring-violet-200"
                             />
+                            <button
+                                onClick={() => setShowPrintModal(true)}
+                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-violet-50 text-violet-700 border border-violet-200 hover:bg-violet-100 transition-colors shadow-xs"
+                            >
+                                <Printer size={15} /> Cetak PDF Rencana
+                            </button>
                         </div>
                     </div>
 
@@ -576,7 +616,7 @@ export default function ExpensePlanningPage() {
                     </div>
 
                     {/* Action Bar */}
-                    <div className="flex items-center gap-3 pt-2">
+                    <div className="flex items-center gap-3 pt-2 flex-wrap">
                         {plan && (
                             <button onClick={handleDelete} className="flex items-center gap-1.5 px-4 py-2.5 border border-red-200 text-red-600 rounded-xl text-xs font-bold hover:bg-red-50 transition-colors">
                                 <Trash2 size={15} /> Hapus Rencana
@@ -585,16 +625,101 @@ export default function ExpensePlanningPage() {
                         <button onClick={copyToTomorrow} className="flex items-center gap-1.5 px-4 py-2.5 border border-gray-200 text-gray-700 rounded-xl text-xs font-bold hover:bg-gray-50 transition-colors">
                             <Zap size={15} /> Salin ke Besok
                         </button>
+                        <button onClick={handlePrintSingleDate} className="flex items-center gap-1.5 px-4 py-2.5 border border-violet-200 text-violet-700 bg-violet-50 rounded-xl text-xs font-bold hover:bg-violet-100 transition-colors">
+                            <Printer size={15} /> Cetak Tanggal Ini
+                        </button>
                         <button
                             onClick={handleSave}
                             disabled={saving || (!dirty && !!plan)}
-                            className="flex-1 flex items-center justify-center gap-2 px-6 py-2.5 bg-violet-600 hover:bg-violet-700 text-white rounded-xl text-xs font-bold shadow-md shadow-violet-600/20 disabled:opacity-50 transition-all active:scale-95"
+                            className="flex-1 flex items-center justify-center gap-2 px-6 py-2.5 bg-violet-600 hover:bg-violet-700 text-white rounded-xl text-xs font-bold shadow-md shadow-violet-600/20 disabled:opacity-50 transition-all active:scale-95 min-w-[200px]"
                         >
                             <Save size={16} />
                             {saving ? 'Menyimpan...' : plan ? 'Perbarui Rencana Tanggal Ini' : 'Simpan Rencana Tanggal Ini'}
                         </button>
                     </div>
                 </div>
+
+                {/* ── PRINT OPTIONS MODAL ── */}
+                {showPrintModal && (
+                    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+                        <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-5 animate-in fade-in zoom-in duration-150">
+                            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+                                <div className="flex items-center gap-2">
+                                    <Printer className="w-5 h-5 text-violet-600" />
+                                    <h3 className="font-bold text-gray-900 text-base">Opsi Cetak PDF Rencana Pengeluaran</h3>
+                                </div>
+                                <button
+                                    onClick={() => setShowPrintModal(false)}
+                                    className="p-1 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors font-bold text-sm"
+                                >
+                                    ✕
+                                </button>
+                            </div>
+
+                            <p className="text-xs text-gray-500">Pilih format dokumen cetak PDF yang ingin Anda buat:</p>
+
+                            <div className="space-y-4">
+                                {/* Option 1: Single Date Print */}
+                                <div className="border border-violet-100 bg-violet-50/50 hover:bg-violet-50 p-4 rounded-xl space-y-3 transition-colors">
+                                    <div>
+                                        <h4 className="font-bold text-sm text-violet-950 flex items-center gap-2">
+                                            📅 Cetak Rencana Per Tanggal (Single Date)
+                                        </h4>
+                                        <p className="text-xs text-violet-700 mt-0.5">
+                                            Mencetak rincian item pengeluaran harian tersimpan untuk tanggal: <strong>{dateLabel}</strong>
+                                        </p>
+                                    </div>
+                                    <button
+                                        onClick={() => { setShowPrintModal(false); handlePrintSingleDate(); }}
+                                        className="w-full py-2.5 bg-violet-600 hover:bg-violet-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center justify-center gap-2"
+                                    >
+                                        <Printer size={15} /> Cetak PDF Tanggal ({planDate})
+                                    </button>
+                                </div>
+
+                                {/* Option 2: Weekly Schedule Print */}
+                                <div className="border border-emerald-100 bg-emerald-50/50 hover:bg-emerald-50 p-4 rounded-xl space-y-3 transition-colors">
+                                    <div>
+                                        <h4 className="font-bold text-sm text-emerald-950 flex items-center gap-2">
+                                            🗓️ Cetak Jadwal Per Minggu (Weekly Schedule)
+                                        </h4>
+                                        <p className="text-xs text-emerald-700 mt-0.5">
+                                            Mencetak jadwal pengeluaran 7 hari berturut-turut (Senin s/d Minggu)
+                                        </p>
+                                    </div>
+
+                                    <div className="bg-white p-3 rounded-lg border border-emerald-200 space-y-2">
+                                        <label className="text-[11px] font-bold text-gray-700 block">Pilih Tanggal Awal Minggu (Senin):</label>
+                                        <div className="flex items-center gap-2">
+                                            <input
+                                                type="date"
+                                                value={printWeeklyStart}
+                                                onChange={e => setPrintWeeklyStart(getMonday(e.target.value))}
+                                                className="px-3 py-1.5 rounded-lg text-xs font-bold border border-gray-300 text-gray-800 bg-gray-50 flex-1"
+                                            />
+                                            <button
+                                                onClick={() => setPrintWeeklyStart(getMonday(today()))}
+                                                className="px-2.5 py-1.5 text-[10px] font-bold bg-emerald-100 text-emerald-800 rounded-lg hover:bg-emerald-200"
+                                            >
+                                                Minggu Ini
+                                            </button>
+                                        </div>
+                                        <p className="text-[10px] text-gray-500 italic">
+                                            Periode: {new Date(printWeeklyStart + 'T00:00:00').toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })} s/d {new Date(getSunday(printWeeklyStart) + 'T00:00:00').toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                        </p>
+                                    </div>
+
+                                    <button
+                                        onClick={() => { setShowPrintModal(false); handlePrintWeeklySchedule(); }}
+                                        className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center justify-center gap-2"
+                                    >
+                                        <Printer size={15} /> Cetak PDF Jadwal Mingguan
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
 
             </div>
         </ProtectedRoute>

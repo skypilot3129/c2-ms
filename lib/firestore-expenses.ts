@@ -471,3 +471,32 @@ export const deleteExpensePlan = async (id: string): Promise<void> => {
     await deleteDoc(doc(db, PLANS_COLLECTION, id));
 };
 
+/** Get plan for a specific date (one-time read) */
+export const getExpensePlanByDate = async (
+    date: string,
+    userId: string
+): Promise<ExpensePlan | null> => {
+    const q = query(collection(db, PLANS_COLLECTION), where('date', '==', date), where('userId', '==', userId));
+    const snap = await getDocs(q);
+    if (snap.empty) return null;
+    return docToPlan(snap.docs[0].id, snap.docs[0].data());
+};
+
+/** Get plans for a range of dates (inclusive, e.g. for weekly schedule) */
+export const getExpensePlansByDateRange = async (
+    startDate: string,
+    endDate: string,
+    userId: string
+): Promise<ExpensePlan[]> => {
+    const q = query(
+        collection(db, PLANS_COLLECTION),
+        where('date', '>=', startDate),
+        where('date', '<=', endDate)
+    );
+    const snap = await getDocs(q);
+    return snap.docs
+        .map(d => docToPlan(d.id, d.data()))
+        .sort((a, b) => a.date.localeCompare(b.date));
+};
+
+
