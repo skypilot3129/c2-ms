@@ -260,3 +260,63 @@ export interface ExpensePlanDoc {
     updatedAt: any;
 }
 
+// ── Modul Pengeluaran Operasional Makassar ──
+export interface MakassarOpsPemuatanItem {
+    id: string;
+    name: string;        // e.g. "Bensin / Tol", "Buruh JNT", "Pengawas JNT", "Pelabuhan", "Alfian", "Haerudin", "Riswan"
+    amount: number;
+    note?: string;
+}
+
+export interface MakassarOpsBongkarItem {
+    id: string;
+    name: string;        // e.g. "Buruh", "Bensin / Solar", "Makan", "Tol", "Pelabuhan", "Karantina", "Buruh DHS", "Forklift", "Listrik", "PDAM"
+    amount: number;
+    note?: string;
+}
+
+export interface MakassarOpsTransitItem {
+    id: string;
+    resiNumber: string;  // e.g. "18915", "18097", "18898", "18899", "18890"
+    koliDetails: string; // e.g. "10Q / 50KG", "10Q / 820KG", "10Q / 363V", "10Q / 365V", "15Q"
+    customerName: string;// e.g. "Bp LORENS", "HAIKAL", "C. MANDIRI", "CHT", "PENTAWIRA"
+    destination: string; // e.g. "MANADO", "MOROWALI", "KAB. WAJO", "KOTAMOBAGU", "GORONTALO"
+    amount: number;
+}
+
+export interface MakassarOpsDepositItem {
+    id: string;
+    resiNumber?: string; // e.g. "18880"
+    description: string; // e.g. "Deposit Kantor"
+    amount: number;
+}
+
+export interface MakassarOpsRecord {
+    id: string;
+    date: string;          // YYYY-MM-DD (e.g. 2026-07-04)
+    userId: string;
+    pemuatanMobilTim?: string; // e.g. "ALFIAN + HAERUDDIN + RISWAN"
+    pemuatanItems: MakassarOpsPemuatanItem[];
+    totalPemuatan: number;
+
+    bongkarMobilTim?: string;  // e.g. "HERUL + ISDAR ALMET"
+    bongkarItems: MakassarOpsBongkarItem[];
+    totalBongkar: number;
+
+    transitItems: MakassarOpsTransitItem[];
+    totalTransit: number;
+
+    totalGrossOps: number; // totalBongkar + totalPemuatan + totalTransit
+
+    depositItems: MakassarOpsDepositItem[];
+    totalDeposit: number;  // total deposit to deduct
+
+    totalNetOps: number;   // totalGrossOps - totalDeposit
+
+    notes?: string;
+    expenseDocId?: string; // ID of central doc in 'expenses' collection
+    createdAt: Date;
+    updatedAt: Date;
+}
+
+

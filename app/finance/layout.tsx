@@ -4,7 +4,7 @@ import { useEffect, useState, ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
-import { LayoutDashboard, FileText, ArrowLeft, PieChart, Wallet, Receipt, Menu, X, BarChart3, Target, ClipboardList, Send } from "lucide-react";
+import { LayoutDashboard, FileText, ArrowLeft, PieChart, Wallet, Receipt, Menu, X, BarChart3, Target, ClipboardList, Send, Truck } from "lucide-react";
 
 export default function FinanceLayout({ children }: { children: ReactNode }) {
     const pathname = usePathname();
@@ -28,11 +28,18 @@ export default function FinanceLayout({ children }: { children: ReactNode }) {
 
     const allNavLinks = [
         {
+            label: 'Operasional Makassar',
+            icon: <Truck size={20} />,
+            href: '/finance/operasional-makassar',
+            active: pathname.startsWith('/finance/operasional-makassar')
+        },
+        {
             label: 'Penagihan IKA',
             icon: <Send size={20} />,
             href: '/finance/penagihan-ika',
             active: pathname.startsWith('/finance/penagihan-ika')
         },
+
         {
             label: 'Piutang & Penagihan',
             icon: <Wallet size={20} />,

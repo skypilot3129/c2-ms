@@ -15,7 +15,8 @@ import {
     Crown,
     Wallet,
     ArrowLeft,
-    Zap
+    Zap,
+    Truck
 } from 'lucide-react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, AreaChart, Area } from 'recharts';
 
@@ -280,7 +281,7 @@ export default function OwnerDashboardPage() {
                                 Akses Cepat
                             </h3>
                         </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
                             <button
                                 onClick={() => window.print()}
                                 className="p-4 rounded-xl bg-violet-50 text-violet-700 font-semibold hover:bg-violet-100 transition-colors text-left flex items-center gap-3"
@@ -289,6 +290,15 @@ export default function OwnerDashboardPage() {
                                     <BarChart3 size={20} />
                                 </div>
                                 <span>Cetak Ringkasan</span>
+                            </button>
+                            <button
+                                onClick={() => router.push('/finance/operasional-makassar')}
+                                className="p-4 rounded-xl bg-blue-50 text-blue-700 font-semibold hover:bg-blue-100 transition-colors text-left flex items-center gap-3"
+                            >
+                                <div className="bg-white p-2 rounded-lg shadow-sm">
+                                    <Truck size={20} />
+                                </div>
+                                <span>Ops Makassar</span>
                             </button>
                             <button
                                 onClick={() => router.push('/finance/invoices')}

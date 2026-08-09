@@ -6,7 +6,8 @@ import { collection, query, where, getDocs, Timestamp } from 'firebase/firestore
 import { db } from '@/lib/firebase';
 import { formatRupiah } from '@/lib/currency';
 import ProtectedRoute from '@/components/ProtectedRoute';
-import { Calendar, TrendingUp, TrendingDown, DollarSign, Printer, Download, Banknote } from 'lucide-react';
+import Link from 'next/link';
+import { Calendar, TrendingUp, TrendingDown, DollarSign, Printer, Download, Banknote, Truck } from 'lucide-react';
 import type { Expense, ExpenseCategory } from '@/types/voyage';
 import { EXPENSE_CATEGORY_LABELS } from '@/types/voyage';
 
@@ -272,7 +273,13 @@ export default function FinancialReportPage() {
                                             <div key={cat} className="flex justify-between items-center p-3 hover:bg-gray-50 rounded-lg transition-colors border border-transparent hover:border-gray-100">
                                                 <div className="flex items-center gap-3">
                                                     <div className="w-2 h-2 rounded-full bg-red-400 shrink-0"></div>
-                                                    <span className="text-gray-700 font-medium text-sm sm:text-base">{EXPENSE_CATEGORY_LABELS[cat as ExpenseCategory] || cat}</span>
+                                                    {cat === 'operasional_makassar' ? (
+                                                        <Link href="/finance/operasional-makassar" className="text-blue-600 hover:text-blue-800 font-bold underline text-sm sm:text-base flex items-center gap-1">
+                                                            <Truck size={14} /> Operasional Makassar
+                                                        </Link>
+                                                    ) : (
+                                                        <span className="text-gray-700 font-medium text-sm sm:text-base">{EXPENSE_CATEGORY_LABELS[cat as ExpenseCategory] || cat}</span>
+                                                    )}
                                                 </div>
                                                 <span className="text-gray-800 font-semibold text-sm sm:text-base">{formatRupiah(amount)}</span>
                                             </div>

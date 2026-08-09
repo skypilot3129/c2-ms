@@ -17,8 +17,9 @@ import {
     ArrowUpRight, CheckCircle2, XCircle, Clock, BarChart3,
     Target, ChevronDown, ChevronUp, Image as ImageIcon,
     Search, Filter, ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronRight,
-    Sparkles
+    Sparkles, Truck
 } from 'lucide-react';
+import Link from 'next/link';
 import ProtectedRoute from '@/components/ProtectedRoute';
 
 // ─────────────────────────────────────
@@ -576,6 +577,10 @@ export default function GeneralExpensesPage() {
                                                     <td className="px-4 py-3">
                                                         {isTopup ? (
                                                             <span className="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded text-xs font-medium">Top-Up Kas</span>
+                                                        ) : (entry as Expense).category === 'operasional_makassar' ? (
+                                                            <Link href="/finance/operasional-makassar" className="bg-blue-100 text-blue-800 hover:bg-blue-200 px-2 py-0.5 rounded text-xs font-bold border border-blue-300 inline-flex items-center gap-1 transition-colors">
+                                                                <Truck size={12} /> Ops Makassar
+                                                            </Link>
                                                         ) : (
                                                             <span className="bg-gray-100 text-gray-700 px-2 py-0.5 rounded text-xs font-medium border border-gray-200 whitespace-nowrap">
                                                                 {EXPENSE_CATEGORY_LABELS[(entry as Expense).category] || (entry as Expense).category}
