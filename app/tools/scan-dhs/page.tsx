@@ -100,6 +100,56 @@ interface HistoryItem {
     isNoManifestMode?: boolean;
 }
 
+// Helper function to set localStorage with automatic quota recovery & pruning
+const safeSetLocalStorage = (key: string, value: string) => {
+    if (typeof window === 'undefined') return;
+    try {
+        localStorage.setItem(key, value);
+    } catch (e: any) {
+        if (e?.name === 'QuotaExceededError' || e?.code === 22 || e?.code === 1014) {
+            console.warn(`[LocalStorage Quota Exceeded] Auto-clearing temporary caches to free space for: ${key}`);
+
+            // 1. Remove large TTS audio cache first
+            try {
+                localStorage.removeItem('dhs_gemini_audio_cache');
+                localStorage.removeItem('dhs_gemini_audio_cache_voice');
+            } catch {}
+
+            // 2. If saving history, cap at max 15 sessions and strip detailed manifests from older sessions
+            if (key === 'cce_scan_history') {
+                try {
+                    const parsed = JSON.parse(value);
+                    if (Array.isArray(parsed)) {
+                        const pruned = parsed.slice(0, 15).map((item: any, idx: number) => {
+                            if (idx >= 2) {
+                                return {
+                                    ...item,
+                                    manifest: [],
+                                    extraScans: []
+                                };
+                            }
+                            return item;
+                        });
+                        localStorage.setItem(key, JSON.stringify(pruned));
+                        return;
+                    }
+                } catch (err) {
+                    console.error('Failed to prune history data:', err);
+                }
+            }
+
+            // 3. Try setting key again after audio cache pruning
+            try {
+                localStorage.setItem(key, value);
+            } catch (fallbackErr) {
+                console.error('localStorage.setItem failed even after clearing audio cache:', fallbackErr);
+            }
+        } else {
+            console.error('localStorage error:', e);
+        }
+    }
+};
+
 export default function ScanDhsPage() {
     // Session state: 'import' | 'scan' | 'report'
     const [step, setStep] = useState<'import' | 'scan' | 'report'>('import');
@@ -820,7 +870,7 @@ export default function ScanDhsPage() {
                 step,
                 isNoManifestMode
             };
-            localStorage.setItem('cce_active_scan_session', JSON.stringify(sessionData));
+            safeSetLocalStorage('cce_active_scan_session', JSON.stringify(sessionData));
         }, 1000);
 
         return () => clearTimeout(timer);
@@ -829,19 +879,19 @@ export default function ScanDhsPage() {
     // Save audio config on change
     useEffect(() => {
         if (isInitialLoad.current) return;
-        localStorage.setItem('cce_audio_speech_rate', speechRate.toString());
-        localStorage.setItem('cce_audio_beep_volume', beepVolume.toString());
-        localStorage.setItem('cce_audio_sound_profile', soundProfile);
-        localStorage.setItem('cce_audio_selected_language', selectedLanguage);
+        safeSetLocalStorage('cce_audio_speech_rate', speechRate.toString());
+        safeSetLocalStorage('cce_audio_beep_volume', beepVolume.toString());
+        safeSetLocalStorage('cce_audio_sound_profile', soundProfile);
+        safeSetLocalStorage('cce_audio_selected_language', selectedLanguage);
         if (translatedSpeech) {
-            localStorage.setItem('cce_audio_translated_speech', JSON.stringify(translatedSpeech));
+            safeSetLocalStorage('cce_audio_translated_speech', JSON.stringify(translatedSpeech));
         } else {
             localStorage.removeItem('cce_audio_translated_speech');
         }
-        localStorage.setItem('cce_audio_wrong_scan_text', wrongScanText);
-        localStorage.setItem('cce_audio_duplicate_text', duplicateText);
-        localStorage.setItem('cce_audio_double_scan_text', doubleScanText);
-        localStorage.setItem('cce_audio_selected_voice', selectedVoiceName);
+        safeSetLocalStorage('cce_audio_wrong_scan_text', wrongScanText);
+        safeSetLocalStorage('cce_audio_duplicate_text', duplicateText);
+        safeSetLocalStorage('cce_audio_double_scan_text', doubleScanText);
+        safeSetLocalStorage('cce_audio_selected_voice', selectedVoiceName);
     }, [speechRate, beepVolume, soundProfile, selectedLanguage, translatedSpeech, wrongScanText, duplicateText, doubleScanText, selectedVoiceName]);
 
     // Handle recovering active session
@@ -1728,8 +1778,10 @@ export default function ScanDhsPage() {
                 updatedHistory = [newHistoryItem, ...updatedHistory];
             }
 
-            setHistory(updatedHistory);
-            localStorage.setItem('cce_scan_history', JSON.stringify(updatedHistory));
+            // Cap history to 20 most recent sessions to prevent storage overflow
+            const cappedHistory = updatedHistory.slice(0, 20);
+            setHistory(cappedHistory);
+            safeSetLocalStorage('cce_scan_history', JSON.stringify(cappedHistory));
 
             // Clear active session
             localStorage.removeItem('cce_active_scan_session');
@@ -2010,7 +2062,7 @@ export default function ScanDhsPage() {
         if (confirm("Hapus item riwayat ini?")) {
             const updated = history.filter(item => item.id !== id);
             setHistory(updated);
-            localStorage.setItem('cce_scan_history', JSON.stringify(updated));
+            safeSetLocalStorage('cce_scan_history', JSON.stringify(updated));
         }
     };
 
@@ -2827,13 +2879,12 @@ export default function ScanDhsPage() {
                                                         // Save to localStorage (only voice name, cache is too large)
                                                         if (typeof window !== 'undefined') {
                                                             try {
-                                                                // Try to save cache to localStorage (may fail if too large)
                                                                 const cacheStr = JSON.stringify(newCache);
-                                                                if (cacheStr.length < 4_000_000) { // ~4MB limit
-                                                                    localStorage.setItem('dhs_gemini_audio_cache', cacheStr);
-                                                                    localStorage.setItem('dhs_gemini_audio_cache_voice', geminiVoiceName);
+                                                                if (cacheStr.length < 500_000) { // Max 500KB to save room for scan history
+                                                                    safeSetLocalStorage('dhs_gemini_audio_cache', cacheStr);
+                                                                    safeSetLocalStorage('dhs_gemini_audio_cache_voice', geminiVoiceName);
                                                                 }
-                                                            } catch { /* cache too large for localStorage, that's ok */ }
+                                                            } catch { /* cache too large for localStorage, memory only */ }
                                                         }
                                                     } catch (error: any) {
                                                         setAudioGenProgress(`❌ Error: ${error?.message || error}`);
