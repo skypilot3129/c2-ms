@@ -26,30 +26,30 @@ const EXPENSES_COLLECTION = 'expenses';
 
 const docToRecord = (id: string, data: any): MakassarOpsRecord => ({
     id,
-    date: data.date,
-    userId: data.userId,
+    date: data.date || '',
+    userId: data.userId || '',
     pemuatanMobilTim: data.pemuatanMobilTim || '',
-    pemuatanItems: data.pemuatanItems || [],
-    totalPemuatan: data.totalPemuatan || 0,
+    pemuatanItems: Array.isArray(data.pemuatanItems) ? data.pemuatanItems : [],
+    totalPemuatan: Number(data.totalPemuatan) || 0,
 
     bongkarMobilTim: data.bongkarMobilTim || '',
-    bongkarItems: data.bongkarItems || [],
-    totalBongkar: data.totalBongkar || 0,
+    bongkarItems: Array.isArray(data.bongkarItems) ? data.bongkarItems : [],
+    totalBongkar: Number(data.totalBongkar) || 0,
 
-    transitItems: data.transitItems || [],
-    totalTransit: data.totalTransit || 0,
+    transitItems: Array.isArray(data.transitItems) ? data.transitItems : [],
+    totalTransit: Number(data.totalTransit) || 0,
 
-    totalGrossOps: data.totalGrossOps || 0,
+    totalGrossOps: Number(data.totalGrossOps) || 0,
 
-    depositItems: data.depositItems || [],
-    totalDeposit: data.totalDeposit || 0,
+    depositItems: Array.isArray(data.depositItems) ? data.depositItems : [],
+    totalDeposit: Number(data.totalDeposit) || 0,
 
-    totalNetOps: data.totalNetOps || 0,
+    totalNetOps: Number(data.totalNetOps) || 0,
 
     notes: data.notes || '',
     expenseDocId: data.expenseDocId || undefined,
-    createdAt: data.createdAt?.toDate() || new Date(),
-    updatedAt: data.updatedAt?.toDate() || new Date(),
+    createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : (data.createdAt ? new Date(data.createdAt) : new Date()),
+    updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate() : (data.updatedAt ? new Date(data.updatedAt) : new Date()),
 });
 
 /**
@@ -65,27 +65,59 @@ export const saveMakassarOpsRecord = async (
     const dateTimestamp = Timestamp.fromDate(opDateObj);
 
     // Build description for central expenses ledger
-    const summaryDescription = `[OPS MAKASSAR ${recordData.date}] Bongkar: ${formatRupiah(recordData.totalBongkar)} | Pemuatan: ${formatRupiah(recordData.totalPemuatan)} | Transit: ${formatRupiah(recordData.totalTransit)} | Deposit: -${formatRupiah(recordData.totalDeposit)}`;
+    const summaryDescription = `[OPS MAKASSAR ${recordData.date}] Bongkar: ${formatRupiah(recordData.totalBongkar || 0)} | Pemuatan: ${formatRupiah(recordData.totalPemuatan || 0)} | Transit: ${formatRupiah(recordData.totalTransit || 0)} | Deposit: -${formatRupiah(recordData.totalDeposit || 0)}`;
 
     let expenseDocId = recordData.expenseDocId;
 
     // 1. Sync or Create central expense document
     if (expenseDocId) {
-        // Update existing expense doc
-        const expRef = doc(db, EXPENSES_COLLECTION, expenseDocId);
-        await updateDoc(expRef, {
-            amount: recordData.totalNetOps,
-            description: summaryDescription,
-            date: dateTimestamp,
-            updatedAt: now,
-        });
+        try {
+            const expRef = doc(db, EXPENSES_COLLECTION, expenseDocId);
+            const expSnap = await getDoc(expRef);
+            if (expSnap.exists()) {
+                await updateDoc(expRef, {
+                    amount: Number(recordData.totalNetOps) || 0,
+                    description: summaryDescription,
+                    date: dateTimestamp,
+                    updatedAt: now,
+                });
+            } else {
+                // If referenced expense doc was deleted, create a fresh one
+                const newExpRef = await addDoc(collection(db, EXPENSES_COLLECTION), {
+                    userId,
+                    type: 'general',
+                    category: 'operasional_makassar',
+                    amount: Number(recordData.totalNetOps) || 0,
+                    description: summaryDescription,
+                    date: dateTimestamp,
+                    status: 'approved',
+                    createdAt: now,
+                    updatedAt: now,
+                });
+                expenseDocId = newExpRef.id;
+            }
+        } catch (e) {
+            console.warn('Could not update existing expense doc, creating new:', e);
+            const newExpRef = await addDoc(collection(db, EXPENSES_COLLECTION), {
+                userId,
+                type: 'general',
+                category: 'operasional_makassar',
+                amount: Number(recordData.totalNetOps) || 0,
+                description: summaryDescription,
+                date: dateTimestamp,
+                status: 'approved',
+                createdAt: now,
+                updatedAt: now,
+            });
+            expenseDocId = newExpRef.id;
+        }
     } else {
         // Create new central expense doc
         const newExpRef = await addDoc(collection(db, EXPENSES_COLLECTION), {
             userId,
             type: 'general',
             category: 'operasional_makassar',
-            amount: recordData.totalNetOps,
+            amount: Number(recordData.totalNetOps) || 0,
             description: summaryDescription,
             date: dateTimestamp,
             status: 'approved',
@@ -95,37 +127,85 @@ export const saveMakassarOpsRecord = async (
         expenseDocId = newExpRef.id;
     }
 
-    // 2. Save/Update record in 'makassar_ops' collection
+    // 2. Sanitize payload arrays so no `undefined` values are sent to Firestore
+    const sanitizedBongkarItems = (recordData.bongkarItems || []).map(item => ({
+        id: item.id || Math.random().toString(36).slice(2, 10),
+        name: item.name || '',
+        amount: Number(item.amount) || 0,
+        note: item.note || ''
+    }));
+
+    const sanitizedPemuatanItems = (recordData.pemuatanItems || []).map(item => ({
+        id: item.id || Math.random().toString(36).slice(2, 10),
+        name: item.name || '',
+        amount: Number(item.amount) || 0,
+        note: item.note || ''
+    }));
+
+    const sanitizedTransitItems = (recordData.transitItems || []).map(item => ({
+        id: item.id || Math.random().toString(36).slice(2, 10),
+        resiNumber: item.resiNumber || '',
+        koliDetails: item.koliDetails || '',
+        customerName: item.customerName || '',
+        destination: item.destination || '',
+        amount: Number(item.amount) || 0
+    }));
+
+    const sanitizedDepositItems = (recordData.depositItems || []).map(item => ({
+        id: item.id || Math.random().toString(36).slice(2, 10),
+        resiNumber: item.resiNumber || '',
+        description: item.description || 'Deposit Kantor',
+        amount: Number(item.amount) || 0
+    }));
+
+    // 3. Prepare Ops Document Payload
     const opsPayload: any = {
         date: recordData.date,
         userId,
         pemuatanMobilTim: recordData.pemuatanMobilTim || '',
-        pemuatanItems: recordData.pemuatanItems || [],
-        totalPemuatan: recordData.totalPemuatan || 0,
+        pemuatanItems: sanitizedPemuatanItems,
+        totalPemuatan: Number(recordData.totalPemuatan) || 0,
 
         bongkarMobilTim: recordData.bongkarMobilTim || '',
-        bongkarItems: recordData.bongkarItems || [],
-        totalBongkar: recordData.totalBongkar || 0,
+        bongkarItems: sanitizedBongkarItems,
+        totalBongkar: Number(recordData.totalBongkar) || 0,
 
-        transitItems: recordData.transitItems || [],
-        totalTransit: recordData.totalTransit || 0,
+        transitItems: sanitizedTransitItems,
+        totalTransit: Number(recordData.totalTransit) || 0,
 
-        totalGrossOps: recordData.totalGrossOps || 0,
+        totalGrossOps: Number(recordData.totalGrossOps) || 0,
 
-        depositItems: recordData.depositItems || [],
-        totalDeposit: recordData.totalDeposit || 0,
+        depositItems: sanitizedDepositItems,
+        totalDeposit: Number(recordData.totalDeposit) || 0,
 
-        totalNetOps: recordData.totalNetOps || 0,
+        totalNetOps: Number(recordData.totalNetOps) || 0,
 
         notes: recordData.notes || '',
-        expenseDocId,
+        expenseDocId: expenseDocId || '',
         updatedAt: now,
     };
 
-    if (recordData.id) {
-        const opsDocRef = doc(db, MAKASSAR_OPS_COLLECTION, recordData.id);
+    // Find if a record for this date already exists if no id was provided
+    let targetDocId = recordData.id;
+    if (!targetDocId) {
+        try {
+            const existingQ = query(
+                collection(db, MAKASSAR_OPS_COLLECTION),
+                where('date', '==', recordData.date)
+            );
+            const snap = await getDocs(existingQ);
+            if (!snap.empty) {
+                targetDocId = snap.docs[0].id;
+            }
+        } catch (e) {
+            console.warn('Date check query warning:', e);
+        }
+    }
+
+    if (targetDocId) {
+        const opsDocRef = doc(db, MAKASSAR_OPS_COLLECTION, targetDocId);
         await updateDoc(opsDocRef, opsPayload);
-        return recordData.id;
+        return targetDocId;
     } else {
         opsPayload.createdAt = now;
         const newOpsRef = await addDoc(collection(db, MAKASSAR_OPS_COLLECTION), opsPayload);
@@ -140,13 +220,18 @@ export const getMakassarOpsByDate = async (
     date: string,
     userId: string
 ): Promise<MakassarOpsRecord | null> => {
-    const q = query(
-        collection(db, MAKASSAR_OPS_COLLECTION),
-        where('date', '==', date)
-    );
-    const snap = await getDocs(q);
-    if (snap.empty) return null;
-    return docToRecord(snap.docs[0].id, snap.docs[0].data());
+    try {
+        const q = query(
+            collection(db, MAKASSAR_OPS_COLLECTION),
+            where('date', '==', date)
+        );
+        const snap = await getDocs(q);
+        if (snap.empty) return null;
+        return docToRecord(snap.docs[0].id, snap.docs[0].data());
+    } catch (e) {
+        console.error('Error fetching makassar ops by date:', e);
+        return null;
+    }
 };
 
 /**
@@ -161,13 +246,19 @@ export const subscribeToMakassarOpsByDate = (
         collection(db, MAKASSAR_OPS_COLLECTION),
         where('date', '==', date)
     );
-    return onSnapshot(q, snap => {
-        if (snap.empty) {
-            callback(null);
-            return;
+    return onSnapshot(
+        q,
+        snap => {
+            if (snap.empty) {
+                callback(null);
+                return;
+            }
+            callback(docToRecord(snap.docs[0].id, snap.docs[0].data()));
+        },
+        error => {
+            console.error('Error subscribing to makassar ops by date:', error);
         }
-        callback(docToRecord(snap.docs[0].id, snap.docs[0].data()));
-    });
+    );
 };
 
 /**
@@ -180,12 +271,18 @@ export const subscribeToMakassarOpsList = (
     const q = query(
         collection(db, MAKASSAR_OPS_COLLECTION)
     );
-    return onSnapshot(q, snap => {
-        const records = snap.docs.map(d => docToRecord(d.id, d.data()));
-        // Sort descending by date
-        records.sort((a, b) => b.date.localeCompare(a.date));
-        callback(records);
-    });
+    return onSnapshot(
+        q,
+        snap => {
+            const records = snap.docs.map(d => docToRecord(d.id, d.data()));
+            // Sort descending by date
+            records.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+            callback(records);
+        },
+        error => {
+            console.error('Error subscribing to makassar ops list:', error);
+        }
+    );
 };
 
 /**
@@ -198,12 +295,17 @@ export const deleteMakassarOpsRecord = async (
     // 1. Delete central expense doc if exists
     if (expenseDocId) {
         try {
-            await deleteDoc(doc(db, EXPENSES_COLLECTION, expenseDocId));
+            const expDocRef = doc(db, EXPENSES_COLLECTION, expenseDocId);
+            const snap = await getDoc(expDocRef);
+            if (snap.exists()) {
+                await deleteDoc(expDocRef);
+            }
         } catch (e) {
-            console.error('Failed to delete central expense doc:', e);
+            console.warn('Failed to delete central expense doc:', e);
         }
     }
 
     // 2. Delete main Makassar ops record
     await deleteDoc(doc(db, MAKASSAR_OPS_COLLECTION, id));
 };
+

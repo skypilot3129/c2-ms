@@ -113,5 +113,16 @@ service cloud.firestore {
     match /cargo_manifests/{manifestId} {
       allow read, write: if request.auth != null;
     }
+    // Makassar Operations collection
+    match /makassar_ops/{docId} {
+      allow read, write: if request.auth != null;
+    }
+    // Monthly schedules and truck operations
+    match /monthly_schedules/{docId} {
+      allow read, write: if request.auth != null;
+    }
+    match /truck_operations/{docId} {
+      allow read, write: if request.auth != null;
+    }
   }
 }

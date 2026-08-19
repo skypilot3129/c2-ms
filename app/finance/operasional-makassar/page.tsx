@@ -334,7 +334,10 @@ export default function MakassarOperationalExpensesPage() {
 
     // Save Record
     const handleSave = async () => {
-        if (!user) return;
+        if (!user) {
+            alert('Sesi login tidak terdeteksi. Silakan login kembali.');
+            return;
+        }
         setSaving(true);
         try {
             const idToUse = savedRecord?.id;
@@ -345,18 +348,18 @@ export default function MakassarOperationalExpensesPage() {
                 date: selectedDate,
                 userId: user.uid,
                 pemuatanMobilTim,
-                pemuatanItems: pemuatanItems.filter(i => i.name.trim() && i.amount > 0),
+                pemuatanItems: pemuatanItems.filter(i => i.name && i.name.trim() && Number(i.amount) > 0),
                 totalPemuatan,
 
                 bongkarMobilTim,
-                bongkarItems: bongkarItems.filter(i => i.name.trim() && i.amount > 0),
+                bongkarItems: bongkarItems.filter(i => i.name && i.name.trim() && Number(i.amount) > 0),
                 totalBongkar,
 
-                transitItems: transitItems.filter(i => i.amount > 0 || i.resiNumber.trim()),
+                transitItems: transitItems.filter(i => Number(i.amount) > 0 || (i.resiNumber && i.resiNumber.trim().length > 0)),
                 totalTransit,
 
                 totalGrossOps,
-                depositItems: depositItems.filter(i => i.amount > 0),
+                depositItems: depositItems.filter(i => Number(i.amount) > 0),
                 totalDeposit,
                 totalNetOps,
                 notes,
@@ -364,9 +367,9 @@ export default function MakassarOperationalExpensesPage() {
             }, user.uid);
 
             alert(`✅ Operasional Makassar tanggal ${selectedDate} berhasil disimpan dan otomatis memotong Laporan Laba Rugi!`);
-        } catch (err) {
+        } catch (err: any) {
             console.error('Save error:', err);
-            alert('Gagal menyimpan data operasional Makassar.');
+            alert(`Gagal menyimpan data operasional Makassar: ${err?.message || 'Terjadi kesalahan sistem'}`);
         } finally {
             setSaving(false);
         }
