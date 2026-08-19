@@ -140,8 +140,8 @@ export default function VoyageOperationalReportPage() {
         });
 
         const unsubscribeExpenses = subscribeToExpenses(user.uid, (data) => {
-            // Keep general expenses only
-            setAllGeneralExpenses(data.filter(e => e.type === 'general' || !e.type));
+            // Keep general expenses only (exclude operasional_makassar since it is loaded directly from makassar_ops)
+            setAllGeneralExpenses(data.filter(e => (e.type === 'general' || !e.type) && e.category !== 'operasional_makassar'));
         });
 
         const unsubscribeMakassar = subscribeToMakassarOpsList(user.uid, (data) => {

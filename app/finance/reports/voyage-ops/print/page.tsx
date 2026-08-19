@@ -49,7 +49,7 @@ function PrintVoyageOpsReportContent({
 
                 // 4. Subscribe/Load general expenses
                 const unsubscribe = subscribeToExpenses(user.uid, (data) => {
-                    setAllGeneralExpenses(data.filter(e => e.type === 'general' || !e.type));
+                    setAllGeneralExpenses(data.filter(e => (e.type === 'general' || !e.type) && e.category !== 'operasional_makassar'));
                     setLoading(false);
                 });
 

@@ -14,68 +14,19 @@ export async function saveMakassarOpsServerAction(
 ): Promise<{ success: boolean; id?: string; error?: string }> {
     try {
         const now = Timestamp.now();
-        const opDateObj = new Date(recordData.date + 'T00:00:00');
-        const dateTimestamp = Timestamp.fromDate(opDateObj);
 
-        // Build description for central expenses ledger
-        const summaryDescription = `[OPS MAKASSAR ${recordData.date}] Bongkar: ${formatRupiah(recordData.totalBongkar || 0)} | Pemuatan: ${formatRupiah(recordData.totalPemuatan || 0)} | Transit: ${formatRupiah(recordData.totalTransit || 0)} | Tiket: ${formatRupiah(recordData.totalTiket || 0)} | Deposit: -${formatRupiah(recordData.totalDeposit || 0)}`;
-
+        // 1. If a legacy dual-synced expense doc exists, delete it so it won't affect petty cash
         let expenseDocId = recordData.expenseDocId;
-
-        // 1. Sync or Create central expense document via Admin SDK
         if (expenseDocId) {
             try {
                 const expRef = adminDb.collection(EXPENSES_COLLECTION).doc(expenseDocId);
                 const expSnap = await expRef.get();
                 if (expSnap.exists) {
-                    await expRef.update({
-                        amount: Number(recordData.totalNetOps) || 0,
-                        description: summaryDescription,
-                        date: dateTimestamp,
-                        updatedAt: now,
-                    });
-                } else {
-                    const newExpRef = await adminDb.collection(EXPENSES_COLLECTION).add({
-                        userId,
-                        type: 'general',
-                        category: 'operasional_makassar',
-                        amount: Number(recordData.totalNetOps) || 0,
-                        description: summaryDescription,
-                        date: dateTimestamp,
-                        status: 'approved',
-                        createdAt: now,
-                        updatedAt: now,
-                    });
-                    expenseDocId = newExpRef.id;
+                    await expRef.delete();
                 }
             } catch (e) {
-                console.warn('Admin: Failed to update expense doc, creating new:', e);
-                const newExpRef = await adminDb.collection(EXPENSES_COLLECTION).add({
-                    userId,
-                    type: 'general',
-                    category: 'operasional_makassar',
-                    amount: Number(recordData.totalNetOps) || 0,
-                    description: summaryDescription,
-                    date: dateTimestamp,
-                    status: 'approved',
-                    createdAt: now,
-                    updatedAt: now,
-                });
-                expenseDocId = newExpRef.id;
+                console.warn('Admin: Legacy expense cleanup notice:', e);
             }
-        } else {
-            const newExpRef = await adminDb.collection(EXPENSES_COLLECTION).add({
-                userId,
-                type: 'general',
-                category: 'operasional_makassar',
-                amount: Number(recordData.totalNetOps) || 0,
-                description: summaryDescription,
-                date: dateTimestamp,
-                status: 'approved',
-                createdAt: now,
-                updatedAt: now,
-            });
-            expenseDocId = newExpRef.id;
         }
 
         // 2. Sanitize payload arrays
@@ -144,7 +95,6 @@ export async function saveMakassarOpsServerAction(
             totalNetOps: Number(recordData.totalNetOps) || 0,
 
             notes: recordData.notes || '',
-            expenseDocId: expenseDocId || '',
             updatedAt: now,
         };
 
@@ -216,5 +166,25 @@ export async function deleteMakassarOpsServerAction(
     } catch (err: any) {
         console.error('Server Action deleteMakassarOps error:', err);
         return { success: false, error: err?.message };
+    }
+}
+
+export async function cleanupMakassarOpsExpensesAction(): Promise<{ success: boolean; deletedCount: number; error?: string }> {
+    try {
+        const snap = await adminDb.collection(EXPENSES_COLLECTION).where('category', '==', 'operasional_makassar').get();
+        if (snap.empty) {
+            return { success: true, deletedCount: 0 };
+        }
+        const batch = adminDb.batch();
+        let count = 0;
+        snap.docs.forEach(d => {
+            batch.delete(d.ref);
+            count++;
+        });
+        await batch.commit();
+        return { success: true, deletedCount: count };
+    } catch (err: any) {
+        console.error('Server Action cleanupMakassarOpsExpenses error:', err);
+        return { success: false, deletedCount: 0, error: err?.message };
     }
 }

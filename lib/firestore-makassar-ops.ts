@@ -57,80 +57,28 @@ const docToRecord = (id: string, data: any): MakassarOpsRecord => ({
 
 /**
  * Save or Update a Makassar Operational Record
- * Automatically syncs with central 'expenses' collection (category: 'operasional_makassar')
+ * Stored independently in 'makassar_ops' collection to prevent disrupting general petty cash balance.
  */
 export const saveMakassarOpsRecord = async (
     recordData: Omit<MakassarOpsRecord, 'id' | 'createdAt' | 'updatedAt'> & { id?: string },
     userId: string
 ): Promise<string> => {
     const now = Timestamp.now();
-    const opDateObj = new Date(recordData.date + 'T00:00:00');
-    const dateTimestamp = Timestamp.fromDate(opDateObj);
 
-    // Build description for central expenses ledger
-    const summaryDescription = `[OPS MAKASSAR ${recordData.date}] Bongkar: ${formatRupiah(recordData.totalBongkar || 0)} | Pemuatan: ${formatRupiah(recordData.totalPemuatan || 0)} | Transit: ${formatRupiah(recordData.totalTransit || 0)} | Tiket: ${formatRupiah(recordData.totalTiket || 0)} | Deposit: -${formatRupiah(recordData.totalDeposit || 0)}`;
-
-    let expenseDocId = recordData.expenseDocId;
-
-    // 1. Sync or Create central expense document
-    if (expenseDocId) {
+    // If an old dual-synced expenseDocId exists, clean it up from 'expenses' collection
+    if (recordData.expenseDocId) {
         try {
-            const expRef = doc(db, EXPENSES_COLLECTION, expenseDocId);
+            const expRef = doc(db, EXPENSES_COLLECTION, recordData.expenseDocId);
             const expSnap = await getDoc(expRef);
             if (expSnap.exists()) {
-                await updateDoc(expRef, {
-                    amount: Number(recordData.totalNetOps) || 0,
-                    description: summaryDescription,
-                    date: dateTimestamp,
-                    updatedAt: now,
-                });
-            } else {
-                // If referenced expense doc was deleted, create a fresh one
-                const newExpRef = await addDoc(collection(db, EXPENSES_COLLECTION), {
-                    userId,
-                    type: 'general',
-                    category: 'operasional_makassar',
-                    amount: Number(recordData.totalNetOps) || 0,
-                    description: summaryDescription,
-                    date: dateTimestamp,
-                    status: 'approved',
-                    createdAt: now,
-                    updatedAt: now,
-                });
-                expenseDocId = newExpRef.id;
+                await deleteDoc(expRef);
             }
         } catch (e) {
-            console.warn('Could not update existing expense doc, creating new:', e);
-            const newExpRef = await addDoc(collection(db, EXPENSES_COLLECTION), {
-                userId,
-                type: 'general',
-                category: 'operasional_makassar',
-                amount: Number(recordData.totalNetOps) || 0,
-                description: summaryDescription,
-                date: dateTimestamp,
-                status: 'approved',
-                createdAt: now,
-                updatedAt: now,
-            });
-            expenseDocId = newExpRef.id;
+            console.warn('Cleanup legacy expense doc notice:', e);
         }
-    } else {
-        // Create new central expense doc
-        const newExpRef = await addDoc(collection(db, EXPENSES_COLLECTION), {
-            userId,
-            type: 'general',
-            category: 'operasional_makassar',
-            amount: Number(recordData.totalNetOps) || 0,
-            description: summaryDescription,
-            date: dateTimestamp,
-            status: 'approved',
-            createdAt: now,
-            updatedAt: now,
-        });
-        expenseDocId = newExpRef.id;
     }
 
-    // 2. Sanitize payload arrays so no `undefined` values are sent to Firestore
+    // Sanitize payload arrays so no `undefined` values are sent to Firestore
     const sanitizedBongkarItems = (recordData.bongkarItems || []).map(item => ({
         id: item.id || Math.random().toString(36).slice(2, 10),
         name: item.name || '',
@@ -197,7 +145,6 @@ export const saveMakassarOpsRecord = async (
         totalNetOps: Number(recordData.totalNetOps) || 0,
 
         notes: recordData.notes || '',
-        expenseDocId: expenseDocId || '',
         updatedAt: now,
     };
 

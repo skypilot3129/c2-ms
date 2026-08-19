@@ -11,6 +11,7 @@ import {
 import type { Expense, ExpenseCategory, PettyCashTopUp } from '@/types/voyage';
 import { EXPENSE_CATEGORY_LABELS, EXPENSE_CATEGORY_GROUPS } from '@/types/voyage';
 import { formatRupiah } from '@/lib/currency';
+import { cleanupMakassarOpsExpensesAction } from '@/app/actions/makassar-ops';
 import {
     Plus, Trash2, Edit2, Wallet, X, Save, Printer,
     Banknote, TrendingDown, ArrowDownRight, CalendarDays,
@@ -90,17 +91,21 @@ export default function GeneralExpensesPage() {
     const [currentPage, setCurrentPage] = useState(1);
     const [pageSize, setPageSize] = useState(10);
 
-    // ── Load modal awal ──
+    // ── Load modal awal & Clean legacy makassar expenses from general ledger ──
     useEffect(() => {
         const saved = localStorage.getItem('cce_petty_cash_balance');
         if (saved) setModalAwal(Number(saved));
+
+        // Clean up any legacy Makassar Ops documents that were previously synced to expenses collection
+        cleanupMakassarOpsExpensesAction().catch(() => {});
     }, []);
 
     // ── Subscribe ──
     useEffect(() => {
         if (!user) return;
         const unsub1 = subscribeToExpenses(user.uid, (data) => {
-            setExpenses(data.filter(e => e.type === 'general' || !e.type));
+            // Keep general petty cash expenses only, exclude separate branch ops module
+            setExpenses(data.filter(e => (e.type === 'general' || !e.type) && e.category !== 'operasional_makassar'));
             setLoading(false);
         });
         const unsub2 = subscribeToTopUps(user.uid, setTopups);

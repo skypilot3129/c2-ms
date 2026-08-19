@@ -124,6 +124,9 @@ function PrintFinancialReportContent() {
                 const amount = d.amount || 0;
                 const category = d.category;
 
+                // Ignore legacy operasional_makassar in expenses collection (fetched directly from makassar_ops)
+                if (category === 'operasional_makassar') return;
+
                 if (type === 'voyage') {
                     cogs += amount;
                     voyageExpensesByCategory[category] = (voyageExpensesByCategory[category] || 0) + amount;
@@ -132,6 +135,24 @@ function PrintFinancialReportContent() {
                     generalExpensesByCategory[category] = (generalExpensesByCategory[category] || 0) + amount;
                 }
             });
+
+            // 3. Fetch Makassar Branch Operations directly from 'makassar_ops'
+            const monthPrefix = `${year}-${String(month + 1).padStart(2, '0')}`;
+            const makassarQuery = query(
+                collection(db, 'makassar_ops'),
+                where('date', '>=', `${monthPrefix}-01`),
+                where('date', '<=', `${monthPrefix}-31`)
+            );
+            const makassarDocs = await getDocs(makassarQuery);
+            let makassarNetTotal = 0;
+            makassarDocs.forEach(doc => {
+                makassarNetTotal += Number(doc.data().totalNetOps) || 0;
+            });
+
+            if (makassarNetTotal > 0) {
+                opex += makassarNetTotal;
+                generalExpensesByCategory['operasional_makassar'] = makassarNetTotal;
+            }
 
             setData({
                 revenue,

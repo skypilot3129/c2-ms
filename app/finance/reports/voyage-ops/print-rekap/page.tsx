@@ -96,7 +96,7 @@ function PrintMonthlyRecapContent({
         });
 
         const unsubscribeExpenses = subscribeToExpenses(user.uid, (data) => {
-            setAllGeneralExpenses(data.filter(e => e.type === 'general' || !e.type));
+            setAllGeneralExpenses(data.filter(e => (e.type === 'general' || !e.type) && e.category !== 'operasional_makassar'));
         });
 
         const unsubscribeMakassar = subscribeToMakassarOpsList(user.uid, (data) => {
