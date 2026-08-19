@@ -15,6 +15,7 @@ import type {
     MakassarOpsBongkarItem,
     MakassarOpsPemuatanItem,
     MakassarOpsTransitItem,
+    MakassarOpsTiketItem,
     MakassarOpsDepositItem
 } from '@/types/voyage';
 import {
@@ -50,7 +51,9 @@ import {
     ChevronLeft,
     ChevronRight,
     RefreshCcw,
-    Clock
+    Clock,
+    Ship,
+    Ticket
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -97,6 +100,7 @@ export default function MakassarOperationalExpensesPage() {
     const [pemuatanItems, setPemuatanItems] = useState<MakassarOpsPemuatanItem[]>(BLANK_PEMUATAN_ITEMS());
 
     const [transitItems, setTransitItems] = useState<MakassarOpsTransitItem[]>([]);
+    const [tiketItems, setTiketItems] = useState<MakassarOpsTiketItem[]>([]);
     const [depositItems, setDepositItems] = useState<MakassarOpsDepositItem[]>([]);
 
     const [notes, setNotes] = useState<string>('');
@@ -123,6 +127,7 @@ export default function MakassarOperationalExpensesPage() {
                 setPemuatanMobilTim(rec.pemuatanMobilTim || '');
                 setPemuatanItems(rec.pemuatanItems?.length ? rec.pemuatanItems : BLANK_PEMUATAN_ITEMS());
                 setTransitItems(rec.transitItems?.length ? rec.transitItems : []);
+                setTiketItems(rec.tiketItems?.length ? rec.tiketItems : []);
                 setDepositItems(rec.depositItems || []);
                 setNotes(rec.notes || '');
             } else {
@@ -131,6 +136,7 @@ export default function MakassarOperationalExpensesPage() {
                 setPemuatanMobilTim('');
                 setPemuatanItems(BLANK_PEMUATAN_ITEMS());
                 setTransitItems([]);
+                setTiketItems([]);
                 setDepositItems([]);
                 setNotes('');
             }
@@ -178,9 +184,13 @@ export default function MakassarOperationalExpensesPage() {
         return transitItems.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
     }, [transitItems]);
 
+    const totalTiket = useMemo(() => {
+        return tiketItems.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+    }, [tiketItems]);
+
     const totalGrossOps = useMemo(() => {
-        return totalBongkar + totalPemuatan + totalTransit;
-    }, [totalBongkar, totalPemuatan, totalTransit]);
+        return totalBongkar + totalPemuatan + totalTransit + totalTiket;
+    }, [totalBongkar, totalPemuatan, totalTransit, totalTiket]);
 
     const totalDeposit = useMemo(() => {
         return depositItems.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
@@ -214,6 +224,7 @@ export default function MakassarOperationalExpensesPage() {
             setPemuatanMobilTim('');
             setPemuatanItems(BLANK_PEMUATAN_ITEMS());
             setTransitItems([]);
+            setTiketItems([]);
             setDepositItems([]);
             setNotes('');
         }
@@ -253,6 +264,10 @@ export default function MakassarOperationalExpensesPage() {
             { id: uid(), resiNumber: '18898', koliDetails: '10Q / 363V', customerName: 'C. MANDIRI', destination: 'KAB. WAJO', amount: 544500 },
             { id: uid(), resiNumber: '18899', koliDetails: '18Q / 365V', customerName: 'CHT', destination: 'KOTAMOBAGU', amount: 985500 },
             { id: uid(), resiNumber: '18890', koliDetails: '15Q', customerName: 'PENTAWIRA', destination: 'GORONTALO', amount: 4500000 },
+        ]);
+
+        setTiketItems([
+            { id: uid(), shipName: 'KM. Dharma Kencana VII', ticketNumber: 'TK-8891', route: 'Makassar - Surabaya', category: 'Truk Fuso', amount: 3500000, note: 'Tiket Penyeberangan' }
         ]);
 
         setDepositItems([
@@ -333,7 +348,20 @@ export default function MakassarOperationalExpensesPage() {
                 })));
             }
 
-            // 5. Update Deposit section
+            // 5. Update Tiket Kapal section
+            if (result.tiketItems && result.tiketItems.length > 0) {
+                setTiketItems(result.tiketItems.map(item => ({
+                    id: uid(),
+                    shipName: item.shipName || '',
+                    ticketNumber: item.ticketNumber || '',
+                    route: item.route || '',
+                    category: item.category || '',
+                    amount: item.amount || 0,
+                    note: item.note || ''
+                })));
+            }
+
+            // 6. Update Deposit section
             if (result.depositItems && result.depositItems.length > 0) {
                 setDepositItems(result.depositItems.map(item => ({
                     id: uid(),
@@ -382,6 +410,9 @@ export default function MakassarOperationalExpensesPage() {
 
                 transitItems: transitItems.filter(i => Number(i.amount) > 0 || (i.resiNumber && i.resiNumber.trim().length > 0)),
                 totalTransit,
+
+                tiketItems: tiketItems.filter(i => Number(i.amount) > 0 || (i.shipName && i.shipName.trim().length > 0)),
+                totalTiket,
 
                 totalGrossOps,
                 depositItems: depositItems.filter(i => Number(i.amount) > 0),
@@ -455,6 +486,8 @@ export default function MakassarOperationalExpensesPage() {
             totalBongkar,
             transitItems,
             totalTransit,
+            tiketItems,
+            totalTiket,
             totalGrossOps,
             depositItems,
             totalDeposit,
@@ -583,7 +616,7 @@ export default function MakassarOperationalExpensesPage() {
                 </div>
 
                 {/* ── Total Net Ops Grand Summary Bar ── */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                     <div className="bg-white border border-gray-200 rounded-2xl p-4 shadow-xs">
                         <span className="text-xs font-bold text-gray-500 uppercase">1. Total Ops Bongkar</span>
                         <p className="text-xl font-extrabold text-gray-900 mt-1">{formatRupiah(totalBongkar)}</p>
@@ -602,14 +635,22 @@ export default function MakassarOperationalExpensesPage() {
                         <span className="text-[10px] text-gray-400">{transitItems.length} resi transit</span>
                     </div>
 
+                    <div className="bg-white border border-blue-200 rounded-2xl p-4 shadow-xs bg-blue-50/30">
+                        <span className="text-xs font-bold text-blue-700 uppercase flex items-center gap-1">
+                            <Ship size={13} /> 4. Total Tiket Kapal
+                        </span>
+                        <p className="text-xl font-extrabold text-blue-900 mt-1">{formatRupiah(totalTiket)}</p>
+                        <span className="text-[10px] text-blue-500">{tiketItems.length} tiket kapal</span>
+                    </div>
+
                     <div className="bg-gradient-to-br from-blue-600 to-indigo-700 text-white rounded-2xl p-4 shadow-md shadow-blue-600/20">
                         <div className="flex justify-between items-center">
-                            <span className="text-xs font-extrabold text-blue-100 uppercase">TOTAL NET OPERASIONAL</span>
-                            <span className="text-[10px] bg-white/20 px-2 py-0.5 rounded text-white font-bold">Memotong Omzet</span>
+                            <span className="text-xs font-extrabold text-blue-100 uppercase">TOTAL NET OPS</span>
+                            <span className="text-[10px] bg-white/20 px-1.5 py-0.5 rounded text-white font-bold">Laba Rugi</span>
                         </div>
                         <p className="text-2xl font-black text-white mt-1">{formatRupiah(totalNetOps)}</p>
                         <span className="text-[10px] text-blue-200 block mt-0.5">
-                            Gross: {formatRupiah(totalGrossOps)} | Deposit: -{formatRupiah(totalDeposit)}
+                            Gross: {formatRupiah(totalGrossOps)} | Dep: -{formatRupiah(totalDeposit)}
                         </span>
                     </div>
                 </div>
@@ -854,12 +895,130 @@ export default function MakassarOperationalExpensesPage() {
                     </div>
                 </div>
 
-                {/* ── SECTION 4: DEPOSIT KANTOR & SUMMARY REKAP ── */}
+                {/* ── SECTION 4: OPERASIONAL TIKET KAPAL MAKASSAR ── */}
                 <div className="bg-white rounded-2xl border border-gray-200 shadow-xs p-6 space-y-4">
                     <div className="flex items-center justify-between border-b border-gray-100 pb-3">
                         <div>
                             <h3 className="font-extrabold text-gray-900 text-base flex items-center gap-2">
-                                <Building2 size={20} className="text-emerald-600" /> 4. Deposit Kantor / Potongan Pemasukan
+                                <Ship size={20} className="text-blue-600" /> 4. Operasional Tiket Kapal Makassar
+                            </h3>
+                            <p className="text-xs text-gray-500">Rincian biaya tiket kapal penyeberangan kargo / armada (KM. Dharma Kencana, KM. Nggapulu, dll.)</p>
+                        </div>
+                        <button
+                            onClick={() => setTiketItems(prev => [...prev, { id: uid(), shipName: '', ticketNumber: '', route: 'Makassar - Surabaya', category: 'Truk Fuso', amount: 0, note: '' }])}
+                            className="flex items-center gap-1 text-xs font-bold text-blue-700 hover:text-blue-900 bg-blue-50 px-3 py-1.5 rounded-xl border border-blue-200"
+                        >
+                            <Plus size={15} /> Tambah Tiket Kapal
+                        </button>
+                    </div>
+
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left text-xs">
+                            <thead>
+                                <tr className="border-b border-gray-200 bg-gray-50 text-gray-500 font-bold uppercase text-[10px]">
+                                    <th className="py-2.5 px-3 w-10 text-center">#</th>
+                                    <th className="py-2.5 px-3 w-48">Nama Kapal</th>
+                                    <th className="py-2.5 px-3 w-32">No. Tiket / B/L</th>
+                                    <th className="py-2.5 px-3 w-40">Rute Perjalanan</th>
+                                    <th className="py-2.5 px-3 w-36">Kategori</th>
+                                    <th className="py-2.5 px-3 w-36 text-right">Biaya Tiket (Rp)</th>
+                                    <th className="py-2.5 px-3">Keterangan</th>
+                                    <th className="py-2.5 px-3 w-10 text-center">Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100">
+                                {tiketItems.length === 0 ? (
+                                    <tr>
+                                        <td colSpan={8} className="py-8 text-center text-gray-400 italic">
+                                            Belum ada pengeluaran tiket kapal untuk tanggal ini. Klik tombol di atas untuk menambah.
+                                        </td>
+                                    </tr>
+                                ) : (
+                                    tiketItems.map((item, idx) => (
+                                        <tr key={item.id} className="hover:bg-blue-50/40 transition-colors">
+                                            <td className="py-2 px-3 text-center font-bold text-gray-400">{idx + 1}</td>
+                                            <td className="py-2 px-3">
+                                                <input
+                                                    type="text"
+                                                    value={item.shipName || ''}
+                                                    onChange={e => setTiketItems(prev => prev.map(i => i.id === item.id ? { ...i, shipName: e.target.value } : i))}
+                                                    className="w-full font-bold text-blue-950 bg-white border border-gray-200 rounded px-2 py-1 outline-none"
+                                                    placeholder="KM. Dharma Kencana VII"
+                                                />
+                                            </td>
+                                            <td className="py-2 px-3">
+                                                <input
+                                                    type="text"
+                                                    value={item.ticketNumber || ''}
+                                                    onChange={e => setTiketItems(prev => prev.map(i => i.id === item.id ? { ...i, ticketNumber: e.target.value } : i))}
+                                                    className="w-full font-mono font-bold text-gray-800 bg-white border border-gray-200 rounded px-2 py-1 outline-none"
+                                                    placeholder="TK-8891"
+                                                />
+                                            </td>
+                                            <td className="py-2 px-3">
+                                                <input
+                                                    type="text"
+                                                    value={item.route || ''}
+                                                    onChange={e => setTiketItems(prev => prev.map(i => i.id === item.id ? { ...i, route: e.target.value } : i))}
+                                                    className="w-full font-semibold text-gray-800 bg-white border border-gray-200 rounded px-2 py-1 outline-none"
+                                                    placeholder="Makassar - Surabaya"
+                                                />
+                                            </td>
+                                            <td className="py-2 px-3">
+                                                <input
+                                                    type="text"
+                                                    value={item.category || ''}
+                                                    onChange={e => setTiketItems(prev => prev.map(i => i.id === item.id ? { ...i, category: e.target.value } : i))}
+                                                    className="w-full font-medium text-gray-700 bg-white border border-gray-200 rounded px-2 py-1 outline-none"
+                                                    placeholder="Truk Fuso / Penumpang"
+                                                />
+                                            </td>
+                                            <td className="py-2 px-3">
+                                                <input
+                                                    type="number"
+                                                    value={item.amount || ''}
+                                                    onChange={e => setTiketItems(prev => prev.map(i => i.id === item.id ? { ...i, amount: Number(e.target.value) } : i))}
+                                                    className="w-full font-mono font-bold text-blue-900 bg-white border border-gray-200 rounded px-2 py-1 text-right outline-none"
+                                                    placeholder="0"
+                                                />
+                                            </td>
+                                            <td className="py-2 px-3">
+                                                <input
+                                                    type="text"
+                                                    value={item.note || ''}
+                                                    onChange={e => setTiketItems(prev => prev.map(i => i.id === item.id ? { ...i, note: e.target.value } : i))}
+                                                    className="w-full text-gray-600 bg-white border border-gray-200 rounded px-2 py-1 outline-none"
+                                                    placeholder="Catatan..."
+                                                />
+                                            </td>
+                                            <td className="py-2 px-3 text-center">
+                                                <button
+                                                    onClick={() => setTiketItems(prev => prev.filter(i => i.id !== item.id))}
+                                                    className="text-red-400 hover:text-red-600 p-1"
+                                                >
+                                                    <Trash2 size={14} />
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div className="flex justify-end pt-2">
+                        <div className="text-xs font-extrabold text-gray-800">
+                            Subtotal Tiket Kapal: <span className="text-blue-700 font-mono text-sm">{formatRupiah(totalTiket)}</span>
+                        </div>
+                    </div>
+                </div>
+
+                {/* ── SECTION 5: DEPOSIT KANTOR & SUMMARY REKAP ── */}
+                <div className="bg-white rounded-2xl border border-gray-200 shadow-xs p-6 space-y-4">
+                    <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+                        <div>
+                            <h3 className="font-extrabold text-gray-900 text-base flex items-center gap-2">
+                                <Building2 size={20} className="text-emerald-600" /> 5. Deposit Kantor / Potongan Pemasukan
                             </h3>
                             <p className="text-xs text-gray-500">Pemasukan kas / deposit kantor yang mengurangi Total Operasional Makassar</p>
                         </div>

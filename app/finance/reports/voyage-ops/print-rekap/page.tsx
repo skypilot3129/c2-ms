@@ -5,7 +5,8 @@ import { useAuth } from '@/context/AuthContext';
 import { subscribeToVoyages } from '@/lib/firestore-voyages';
 import { getTransactionById } from '@/lib/firestore-transactions';
 import { getExpensesByVoyage, subscribeToExpenses } from '@/lib/firestore-expenses';
-import type { Voyage, Expense, ExpenseCategory } from '@/types/voyage';
+import { subscribeToMakassarOpsList } from '@/lib/firestore-makassar-ops';
+import type { Voyage, Expense, ExpenseCategory, MakassarOpsRecord } from '@/types/voyage';
 import type { Transaction } from '@/types/transaction';
 import { formatRupiah } from '@/lib/currency';
 import { EXPENSE_CATEGORY_LABELS } from '@/types/voyage';
@@ -82,10 +83,11 @@ function PrintMonthlyRecapContent({
 
     const [voyages, setVoyages] = useState<Voyage[]>([]);
     const [allGeneralExpenses, setAllGeneralExpenses] = useState<Expense[]>([]);
+    const [allMakassarOps, setAllMakassarOps] = useState<MakassarOpsRecord[]>([]);
     const [recapRows, setRecapRows] = useState<MonthlyRecapRow[]>([]);
     const [loading, setLoading] = useState(true);
 
-    // Subscribe to Voyages and General Expenses
+    // Subscribe to Voyages, General Expenses, and Makassar Ops
     useEffect(() => {
         if (!user) return;
 
@@ -97,9 +99,14 @@ function PrintMonthlyRecapContent({
             setAllGeneralExpenses(data.filter(e => e.type === 'general' || !e.type));
         });
 
+        const unsubscribeMakassar = subscribeToMakassarOpsList(user.uid, (data) => {
+            setAllMakassarOps(data);
+        });
+
         return () => {
             unsubscribeVoyages();
             unsubscribeExpenses();
+            unsubscribeMakassar();
         };
     }, [user]);
 
@@ -162,6 +169,30 @@ function PrintMonthlyRecapContent({
         }
     }, [loading, recapRows]);
 
+    // Monthly Makassar Records and Totals
+    const monthlyMakassarRecords = useMemo(() => {
+        const prefix = `${year}-${String(month + 1).padStart(2, '0')}`;
+        return allMakassarOps.filter(r => r.date && r.date.startsWith(prefix));
+    }, [allMakassarOps, month, year]);
+
+    const monthlyMakassarTotals = useMemo(() => {
+        const totalBongkar = monthlyMakassarRecords.reduce((sum, r) => sum + (Number(r.totalBongkar) || 0), 0);
+        const totalPemuatan = monthlyMakassarRecords.reduce((sum, r) => sum + (Number(r.totalPemuatan) || 0), 0);
+        const totalTransit = monthlyMakassarRecords.reduce((sum, r) => sum + (Number(r.totalTransit) || 0), 0);
+        const totalTiket = monthlyMakassarRecords.reduce((sum, r) => sum + (Number(r.totalTiket) || 0), 0);
+        const totalDeposit = monthlyMakassarRecords.reduce((sum, r) => sum + (Number(r.totalDeposit) || 0), 0);
+        const totalNetOps = monthlyMakassarRecords.reduce((sum, r) => sum + (Number(r.totalNetOps) || 0), 0);
+
+        return {
+            totalBongkar,
+            totalPemuatan,
+            totalTransit,
+            totalTiket,
+            totalDeposit,
+            totalNetOps,
+        };
+    }, [monthlyMakassarRecords]);
+
     // Filter in-range general expenses
     const monthlyOperationalExpenses = useMemo(() => {
         if (recapRows.length === 0) return [];
@@ -183,6 +214,7 @@ function PrintMonthlyRecapContent({
         const ticketList: Expense[] = [];
         const salaryList: Expense[] = [];
         const carRentalList: Expense[] = [];
+        const makassarOpsList: Expense[] = [];
         const categorySums: Record<string, number> = {};
 
         monthlyOperationalExpenses.forEach(exp => {
@@ -195,6 +227,8 @@ function PrintMonthlyRecapContent({
                 salaryList.push(exp);
             } else if (cat === 'sewa_mobil') {
                 carRentalList.push(exp);
+            } else if (cat === 'operasional_makassar') {
+                makassarOpsList.push(exp);
             } else {
                 categorySums[cat] = (categorySums[cat] || 0) + amount;
             }
@@ -203,23 +237,32 @@ function PrintMonthlyRecapContent({
         const ticketSum = ticketList.reduce((s, e) => s + e.amount, 0);
         const salarySum = salaryList.reduce((s, e) => s + e.amount, 0);
         const carRentalSum = carRentalList.reduce((s, e) => s + e.amount, 0);
+        const makassarOpsSum = monthlyMakassarTotals.totalNetOps > 0 
+            ? monthlyMakassarTotals.totalNetOps 
+            : makassarOpsList.reduce((s, e) => s + e.amount, 0);
         const otherOpsSum = Object.values(categorySums).reduce((s, a) => s + a, 0);
 
         return {
             ticketSum,
             salarySum,
             carRentalSum,
+            makassarOpsSum,
             otherOpsSum,
             ticketList,
             salaryList,
             carRentalList,
+            makassarOpsList,
             categorySums
         };
-    }, [monthlyOperationalExpenses]);
+    }, [monthlyOperationalExpenses, monthlyMakassarTotals]);
 
     const totalRevenue = recapRows.reduce((sum, row) => sum + row.revenue, 0);
     const totalDirectExpenses = recapRows.reduce((sum, row) => sum + row.directExpenses, 0);
-    const totalDailyOps = monthlySegmentedExpenses.ticketSum + monthlySegmentedExpenses.salarySum + monthlySegmentedExpenses.carRentalSum + monthlySegmentedExpenses.otherOpsSum;
+    const totalDailyOps = monthlySegmentedExpenses.ticketSum 
+        + monthlySegmentedExpenses.salarySum 
+        + monthlySegmentedExpenses.carRentalSum 
+        + monthlySegmentedExpenses.makassarOpsSum 
+        + monthlySegmentedExpenses.otherOpsSum;
     const netProfit = totalRevenue - totalDirectExpenses - totalDailyOps;
 
     const months = [
@@ -249,30 +292,34 @@ function PrintMonthlyRecapContent({
             </div>
 
             {/* Financial Summary Dashboard */}
-            <div className="grid grid-cols-4 gap-4 border border-gray-300 bg-gray-50 rounded-lg p-3 mb-5 text-center font-semibold text-[11px]">
+            <div className="grid grid-cols-5 gap-2 border border-gray-300 bg-gray-50 rounded-lg p-2.5 mb-4 text-center font-semibold text-[10px]">
                 <div>
-                    <p className="text-gray-500 text-[8px] uppercase mb-0.5">Total Pendapatan Kargo</p>
-                    <p className="text-sm font-bold text-blue-700">{formatRupiah(totalRevenue)}</p>
+                    <p className="text-gray-500 text-[8px] uppercase mb-0.5">Total Pendapatan</p>
+                    <p className="text-xs font-bold text-blue-700">{formatRupiah(totalRevenue)}</p>
                 </div>
                 <div className="border-l border-gray-200">
-                    <p className="text-gray-500 text-[8px] uppercase mb-0.5">Total Biaya Kapal (Direct)</p>
-                    <p className="text-sm font-bold text-red-650">-{formatRupiah(totalDirectExpenses)}</p>
+                    <p className="text-gray-500 text-[8px] uppercase mb-0.5">Biaya Kapal (Direct)</p>
+                    <p className="text-xs font-bold text-red-650">-{formatRupiah(totalDirectExpenses)}</p>
+                </div>
+                <div className="border-l border-gray-200 bg-blue-50/50">
+                    <p className="text-blue-700 text-[8px] uppercase mb-0.5">Ops Makassar (Net)</p>
+                    <p className="text-xs font-bold text-blue-800">-{formatRupiah(monthlySegmentedExpenses.makassarOpsSum)}</p>
                 </div>
                 <div className="border-l border-gray-200">
-                    <p className="text-gray-500 text-[8px] uppercase mb-0.5">Total Operasional Harian</p>
-                    <p className="text-sm font-bold text-orange-600">-{formatRupiah(totalDailyOps)}</p>
+                    <p className="text-gray-500 text-[8px] uppercase mb-0.5">Ops Harian Lainnya</p>
+                    <p className="text-xs font-bold text-orange-600">-{formatRupiah(totalDailyOps - monthlySegmentedExpenses.makassarOpsSum)}</p>
                 </div>
                 <div className="border-l border-gray-200 bg-gray-100 rounded-r-md">
-                    <p className="text-gray-500 text-[8px] uppercase mb-0.5">Keuntungan Bersih (Net)</p>
-                    <p className={`text-sm font-extrabold ${netProfit >= 0 ? 'text-green-700' : 'text-red-700'}`}>
+                    <p className="text-gray-500 text-[8px] uppercase mb-0.5">Laba Bersih (Net)</p>
+                    <p className={`text-xs font-extrabold ${netProfit >= 0 ? 'text-green-700' : 'text-red-700'}`}>
                         {formatRupiah(netProfit)}
                     </p>
                 </div>
             </div>
 
             {/* List of Voyages Table */}
-            <div className="mb-5">
-                <h3 className="text-[11px] font-bold border-b border-gray-400 pb-1 mb-2 uppercase tracking-wide text-gray-900">1. Rekap Penjualan Kargo &amp; Biaya Langsung Kapal</h3>
+            <div className="mb-4">
+                <h3 className="text-[10px] font-bold border-b border-gray-400 pb-1 mb-1.5 uppercase tracking-wide text-gray-900">1. Rekap Penjualan Kargo &amp; Biaya Langsung Kapal</h3>
                 <table className="w-full text-left border-collapse">
                     <thead>
                         <tr className="border-b border-gray-350 text-[8px] text-gray-500 uppercase font-semibold bg-gray-50">
@@ -306,12 +353,12 @@ function PrintMonthlyRecapContent({
                 </table>
             </div>
 
-            {/* Segmented Big Ticket Details (Tiket, Gaji, Sewa) */}
-            <div className="grid grid-cols-3 gap-6 mb-5 items-start">
+            {/* Segmented Operational Expenses (Tiket, Gaji, Sewa) */}
+            <div className="grid grid-cols-3 gap-4 mb-4 items-start">
                 
                 {/* Sewa Mobil */}
                 <div>
-                    <h4 className="font-bold border-b border-gray-300 pb-1 mb-1.5 uppercase text-[9px] tracking-wide text-gray-900 flex justify-between">
+                    <h4 className="font-bold border-b border-gray-300 pb-1 mb-1 uppercase text-[8.5px] tracking-wide text-gray-900 flex justify-between">
                         <span>A. Rincian Sewa Mobil</span>
                         <span className="text-red-700 font-bold">{formatRupiah(monthlySegmentedExpenses.carRentalSum)}</span>
                     </h4>
@@ -320,10 +367,10 @@ function PrintMonthlyRecapContent({
                             <tbody className="divide-y divide-gray-100 text-gray-650">
                                 {monthlySegmentedExpenses.carRentalList.map((e, idx) => (
                                     <tr key={e.id}>
-                                        <td className="py-1 w-5 text-gray-400 font-mono">{idx + 1}</td>
-                                        <td className="py-1 w-20">{new Date(e.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}</td>
-                                        <td className="py-1 truncate max-w-[80px]" title={e.description}>{e.description}</td>
-                                        <td className="py-1 text-right font-bold text-red-600">{formatRupiah(e.amount)}</td>
+                                        <td className="py-0.5 w-4 text-gray-400 font-mono">{idx + 1}</td>
+                                        <td className="py-0.5 w-16">{new Date(e.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}</td>
+                                        <td className="py-0.5 truncate max-w-[80px]" title={e.description}>{e.description}</td>
+                                        <td className="py-0.5 text-right font-bold text-red-600">{formatRupiah(e.amount)}</td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -335,7 +382,7 @@ function PrintMonthlyRecapContent({
 
                 {/* Gaji / Sopir */}
                 <div>
-                    <h4 className="font-bold border-b border-gray-300 pb-1 mb-1.5 uppercase text-[9px] tracking-wide text-gray-900 flex justify-between">
+                    <h4 className="font-bold border-b border-gray-300 pb-1 mb-1 uppercase text-[8.5px] tracking-wide text-gray-900 flex justify-between">
                         <span>B. Rincian Gaji / Uang Jalan</span>
                         <span className="text-red-700 font-bold">{formatRupiah(monthlySegmentedExpenses.salarySum)}</span>
                     </h4>
@@ -344,10 +391,10 @@ function PrintMonthlyRecapContent({
                             <tbody className="divide-y divide-gray-100 text-gray-650">
                                 {monthlySegmentedExpenses.salaryList.map((e, idx) => (
                                     <tr key={e.id}>
-                                        <td className="py-1 w-5 text-gray-400 font-mono">{idx + 1}</td>
-                                        <td className="py-1 w-20">{new Date(e.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}</td>
-                                        <td className="py-1 truncate max-w-[80px]" title={e.description}>{e.description}</td>
-                                        <td className="py-1 text-right font-bold text-red-600">{formatRupiah(e.amount)}</td>
+                                        <td className="py-0.5 w-4 text-gray-400 font-mono">{idx + 1}</td>
+                                        <td className="py-0.5 w-16">{new Date(e.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}</td>
+                                        <td className="py-0.5 truncate max-w-[80px]" title={e.description}>{e.description}</td>
+                                        <td className="py-0.5 text-right font-bold text-red-600">{formatRupiah(e.amount)}</td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -359,7 +406,7 @@ function PrintMonthlyRecapContent({
 
                 {/* Tiket Kapal */}
                 <div>
-                    <h4 className="font-bold border-b border-gray-300 pb-1 mb-1.5 uppercase text-[9px] tracking-wide text-gray-900 flex justify-between">
+                    <h4 className="font-bold border-b border-gray-300 pb-1 mb-1 uppercase text-[8.5px] tracking-wide text-gray-900 flex justify-between">
                         <span>C. Rincian Tiket Kapal</span>
                         <span className="text-red-700 font-bold">{formatRupiah(monthlySegmentedExpenses.ticketSum)}</span>
                     </h4>
@@ -368,10 +415,10 @@ function PrintMonthlyRecapContent({
                             <tbody className="divide-y divide-gray-100 text-gray-650">
                                 {monthlySegmentedExpenses.ticketList.map((e, idx) => (
                                     <tr key={e.id}>
-                                        <td className="py-1 w-5 text-gray-400 font-mono">{idx + 1}</td>
-                                        <td className="py-1 w-20">{new Date(e.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}</td>
-                                        <td className="py-1 truncate max-w-[80px]" title={e.description}>{e.description}</td>
-                                        <td className="py-1 text-right font-bold text-red-600">{formatRupiah(e.amount)}</td>
+                                        <td className="py-0.5 w-4 text-gray-400 font-mono">{idx + 1}</td>
+                                        <td className="py-0.5 w-16">{new Date(e.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}</td>
+                                        <td className="py-0.5 truncate max-w-[80px]" title={e.description}>{e.description}</td>
+                                        <td className="py-0.5 text-right font-bold text-red-600">{formatRupiah(e.amount)}</td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -383,13 +430,87 @@ function PrintMonthlyRecapContent({
 
             </div>
 
-            {/* Other categories summary */}
-            <div className="mb-5 border border-gray-200 rounded-lg p-3 bg-gray-50">
-                <h4 className="font-bold text-[9px] uppercase tracking-wider mb-2 text-gray-900 border-b pb-1.5 flex justify-between">
-                    <span>D. Akumulasi Operasional Harian Umum (Lainnya)</span>
+            {/* D. Operasional Cabang Makassar Table */}
+            <div className="mb-4">
+                <h4 className="font-bold border-b border-gray-300 pb-1 mb-1.5 uppercase text-[8.5px] tracking-wide text-gray-900 flex justify-between">
+                    <span>D. Rekapitulasi Operasional Cabang Makassar ({monthlyMakassarRecords.length} Lembar)</span>
+                    <span className="text-blue-800 font-bold">Net: {formatRupiah(monthlySegmentedExpenses.makassarOpsSum)}</span>
+                </h4>
+                <table className="w-full text-left border-collapse text-[8px]">
+                    <thead>
+                        <tr className="border-b border-gray-300 bg-blue-50/40 text-gray-600 font-semibold uppercase text-[7.5px]">
+                            <th className="py-1 px-1 w-6 text-center">No</th>
+                            <th className="py-1 px-1.5 w-20">Tanggal</th>
+                            <th className="py-1 px-1.5">Armada / Tim</th>
+                            <th className="py-1 px-1.5 text-right w-20">Bongkar</th>
+                            <th className="py-1 px-1.5 text-right w-20">Pemuatan</th>
+                            <th className="py-1 px-1.5 text-right w-18">Transit</th>
+                            <th className="py-1 px-1.5 text-right w-18">Tiket Kapal</th>
+                            <th className="py-1 px-1.5 text-right w-18">Deposit (-)</th>
+                            <th className="py-1 px-1.5 text-right w-20">Net Ops (Rp)</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-150 text-gray-700">
+                        {monthlyMakassarRecords.map((r, idx) => (
+                            <tr key={r.id || idx}>
+                                <td className="py-1 px-1 text-center text-gray-400 font-mono">{idx + 1}</td>
+                                <td className="py-1 px-1.5 font-semibold text-gray-900">
+                                    {new Date(r.date + 'T00:00:00').toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
+                                </td>
+                                <td className="py-1 px-1.5 text-[7.5px]">
+                                    {r.bongkarMobilTim && <span className="text-gray-800 font-medium mr-2">B: {r.bongkarMobilTim}</span>}
+                                    {r.pemuatanMobilTim && <span className="text-gray-600">M: {r.pemuatanMobilTim}</span>}
+                                    {!r.bongkarMobilTim && !r.pemuatanMobilTim && <span className="text-gray-400 italic">-</span>}
+                                </td>
+                                <td className="py-1 px-1.5 text-right">{formatRupiah(r.totalBongkar || 0)}</td>
+                                <td className="py-1 px-1.5 text-right">{formatRupiah(r.totalPemuatan || 0)}</td>
+                                <td className="py-1 px-1.5 text-right text-purple-700">{formatRupiah(r.totalTransit || 0)}</td>
+                                <td className="py-1 px-1.5 text-right text-blue-700">{formatRupiah(r.totalTiket || 0)}</td>
+                                <td className="py-1 px-1.5 text-right text-emerald-700">-{formatRupiah(r.totalDeposit || 0)}</td>
+                                <td className="py-1 px-1.5 text-right font-bold text-blue-800">{formatRupiah(r.totalNetOps || 0)}</td>
+                            </tr>
+                        ))}
+                        {monthlyMakassarRecords.length === 0 && monthlySegmentedExpenses.makassarOpsList.length > 0 && (
+                            monthlySegmentedExpenses.makassarOpsList.map((e, idx) => (
+                                <tr key={e.id}>
+                                    <td className="py-1 px-1 text-center text-gray-400 font-mono">{idx + 1}</td>
+                                    <td className="py-1 px-1.5 font-semibold text-gray-900">
+                                        {new Date(e.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
+                                    </td>
+                                    <td colSpan={6} className="py-1 px-1.5">{e.description}</td>
+                                    <td className="py-1 px-1.5 text-right font-bold text-blue-800">{formatRupiah(e.amount)}</td>
+                                </tr>
+                            ))
+                        )}
+                        {monthlyMakassarRecords.length === 0 && monthlySegmentedExpenses.makassarOpsList.length === 0 && (
+                            <tr>
+                                <td colSpan={9} className="py-1 px-1.5 text-center text-gray-400 italic">
+                                    Tidak ada catatan operasional Makassar pada bulan ini.
+                                </td>
+                            </tr>
+                        )}
+                        {(monthlyMakassarRecords.length > 0 || monthlySegmentedExpenses.makassarOpsList.length > 0) && (
+                            <tr className="bg-blue-50/50 font-bold border-t border-blue-200">
+                                <td colSpan={3} className="py-1 px-1.5 text-right uppercase text-[7.5px] text-gray-600">Total Ops Makassar:</td>
+                                <td className="py-1 px-1.5 text-right">{formatRupiah(monthlyMakassarTotals.totalBongkar)}</td>
+                                <td className="py-1 px-1.5 text-right">{formatRupiah(monthlyMakassarTotals.totalPemuatan)}</td>
+                                <td className="py-1 px-1.5 text-right text-purple-800">{formatRupiah(monthlyMakassarTotals.totalTransit)}</td>
+                                <td className="py-1 px-1.5 text-right text-blue-800">{formatRupiah(monthlyMakassarTotals.totalTiket)}</td>
+                                <td className="py-1 px-1.5 text-right text-emerald-800">-{formatRupiah(monthlyMakassarTotals.totalDeposit)}</td>
+                                <td className="py-1 px-1.5 text-right text-blue-900">{formatRupiah(monthlySegmentedExpenses.makassarOpsSum)}</td>
+                            </tr>
+                        )}
+                    </tbody>
+                </table>
+            </div>
+
+            {/* E. Other categories summary */}
+            <div className="mb-4 border border-gray-200 rounded-lg p-2.5 bg-gray-50">
+                <h4 className="font-bold text-[8.5px] uppercase tracking-wider mb-1.5 text-gray-900 border-b pb-1 flex justify-between">
+                    <span>E. Akumulasi Operasional Harian Umum (Lainnya)</span>
                     <span className="text-orange-600 font-black">{formatRupiah(monthlySegmentedExpenses.otherOpsSum)}</span>
                 </h4>
-                <div className="grid grid-cols-4 gap-x-6 gap-y-1.5 text-[8.5px]">
+                <div className="grid grid-cols-4 gap-x-4 gap-y-1 text-[8px]">
                     {Object.entries(monthlySegmentedExpenses.categorySums).map(([cat, sum]) => (
                         <div key={cat} className="flex justify-between border-b border-gray-150 py-0.5">
                             <span className="text-gray-600 font-medium">{EXPENSE_CATEGORY_LABELS[cat as ExpenseCategory] || cat}</span>
@@ -397,7 +518,7 @@ function PrintMonthlyRecapContent({
                         </div>
                     ))}
                     {Object.keys(monthlySegmentedExpenses.categorySums).length === 0 && (
-                        <p className="text-gray-400 italic col-span-4 text-center py-2">Tidak ada pengeluaran harian lainnya.</p>
+                        <p className="text-gray-400 italic col-span-4 text-center py-1">Tidak ada pengeluaran harian lainnya.</p>
                     )}
                 </div>
             </div>

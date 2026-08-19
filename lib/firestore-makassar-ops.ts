@@ -39,6 +39,9 @@ const docToRecord = (id: string, data: any): MakassarOpsRecord => ({
     transitItems: Array.isArray(data.transitItems) ? data.transitItems : [],
     totalTransit: Number(data.totalTransit) || 0,
 
+    tiketItems: Array.isArray(data.tiketItems) ? data.tiketItems : [],
+    totalTiket: Number(data.totalTiket) || 0,
+
     totalGrossOps: Number(data.totalGrossOps) || 0,
 
     depositItems: Array.isArray(data.depositItems) ? data.depositItems : [],
@@ -65,7 +68,7 @@ export const saveMakassarOpsRecord = async (
     const dateTimestamp = Timestamp.fromDate(opDateObj);
 
     // Build description for central expenses ledger
-    const summaryDescription = `[OPS MAKASSAR ${recordData.date}] Bongkar: ${formatRupiah(recordData.totalBongkar || 0)} | Pemuatan: ${formatRupiah(recordData.totalPemuatan || 0)} | Transit: ${formatRupiah(recordData.totalTransit || 0)} | Deposit: -${formatRupiah(recordData.totalDeposit || 0)}`;
+    const summaryDescription = `[OPS MAKASSAR ${recordData.date}] Bongkar: ${formatRupiah(recordData.totalBongkar || 0)} | Pemuatan: ${formatRupiah(recordData.totalPemuatan || 0)} | Transit: ${formatRupiah(recordData.totalTransit || 0)} | Tiket: ${formatRupiah(recordData.totalTiket || 0)} | Deposit: -${formatRupiah(recordData.totalDeposit || 0)}`;
 
     let expenseDocId = recordData.expenseDocId;
 
@@ -151,6 +154,16 @@ export const saveMakassarOpsRecord = async (
         amount: Number(item.amount) || 0
     }));
 
+    const sanitizedTiketItems = (recordData.tiketItems || []).map(item => ({
+        id: item.id || Math.random().toString(36).slice(2, 10),
+        shipName: item.shipName || '',
+        ticketNumber: item.ticketNumber || '',
+        route: item.route || '',
+        category: item.category || '',
+        amount: Number(item.amount) || 0,
+        note: item.note || ''
+    }));
+
     const sanitizedDepositItems = (recordData.depositItems || []).map(item => ({
         id: item.id || Math.random().toString(36).slice(2, 10),
         resiNumber: item.resiNumber || '',
@@ -172,6 +185,9 @@ export const saveMakassarOpsRecord = async (
 
         transitItems: sanitizedTransitItems,
         totalTransit: Number(recordData.totalTransit) || 0,
+
+        tiketItems: sanitizedTiketItems,
+        totalTiket: Number(recordData.totalTiket) || 0,
 
         totalGrossOps: Number(recordData.totalGrossOps) || 0,
 

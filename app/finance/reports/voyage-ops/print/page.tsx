@@ -95,11 +95,13 @@ function PrintVoyageOpsReportContent({
     let ticketSum = 0;
     let salarySum = 0;
     let carRentalSum = 0;
+    let makassarOpsSum = 0;
     let generalOpsSum = 0;
 
     const ticketList: Expense[] = [];
     const salaryList: Expense[] = [];
     const carRentalList: Expense[] = [];
+    const makassarOpsList: Expense[] = [];
     const generalOpsList: Expense[] = [];
 
     operationalExpenses.forEach(exp => {
@@ -115,6 +117,9 @@ function PrintVoyageOpsReportContent({
         } else if (cat === 'sewa_mobil') {
             carRentalSum += amount;
             carRentalList.push(exp);
+        } else if (cat === 'operasional_makassar') {
+            makassarOpsSum += amount;
+            makassarOpsList.push(exp);
         } else {
             generalOpsSum += amount;
             generalOpsList.push(exp);
@@ -123,7 +128,8 @@ function PrintVoyageOpsReportContent({
 
     const totalRevenue = transactions.reduce((sum, tx) => sum + tx.jumlah, 0);
     const totalVoyageExpenses = voyageExpenses.reduce((sum, exp) => sum + exp.amount, 0);
-    const netProfit = totalRevenue - totalVoyageExpenses - generalOpsSum - ticketSum - salarySum - carRentalSum;
+    const totalDailyOps = ticketSum + salarySum + carRentalSum + makassarOpsSum + generalOpsSum;
+    const netProfit = totalRevenue - totalVoyageExpenses - totalDailyOps;
 
     if (loading) return <div className="p-8 text-center text-gray-500 font-medium">Memuat data laporan cetak...</div>;
     if (!voyage) return <div className="p-8 text-center text-red-500 font-semibold">Pemberangkatan kapal tidak ditemukan.</div>;
@@ -335,10 +341,32 @@ function PrintVoyageOpsReportContent({
                         </div>
                     )}
 
+                    {/* Operasional Makassar */}
+                    {makassarOpsList.length > 0 && (
+                        <div>
+                            <div className="flex justify-between font-bold text-[10px] text-gray-700 border-b border-gray-200 pb-1 mb-1">
+                                <span>D. Biaya Operasional Cabang Makassar</span>
+                                <span className="text-blue-800">{formatRupiah(makassarOpsSum)}</span>
+                            </div>
+                            <table className="w-full text-left">
+                                <tbody className="text-[9px] text-gray-600 divide-y divide-gray-100">
+                                    {makassarOpsList.map((e, idx) => (
+                                        <tr key={e.id}>
+                                            <td className="py-1 w-8 text-gray-400 font-mono">{idx + 1}.</td>
+                                            <td className="py-1 w-32">{new Date(e.date).toLocaleDateString('id-ID')}</td>
+                                            <td className="py-1">{e.description}</td>
+                                            <td className="py-1 text-right w-36 font-semibold text-blue-700">{formatRupiah(e.amount)}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+
                     {/* Harian Umum Lainnya */}
                     <div>
                         <div className="flex justify-between font-bold text-[10px] text-gray-700 border-b border-gray-200 pb-1 mb-1">
-                            <span>D. Biaya Operasional Harian Umum (Lainnya)</span>
+                            <span>E. Biaya Operasional Harian Umum (Lainnya)</span>
                             <span className="text-red-700">{formatRupiah(generalOpsSum)}</span>
                         </div>
                         {generalOpsList.length > 0 ? (

@@ -284,6 +284,16 @@ export interface MakassarOpsTransitItem {
     amount: number;
 }
 
+export interface MakassarOpsTiketItem {
+    id: string;
+    shipName?: string;       // e.g. "KM. Dharma Kencana VII", "KM. Nggapulu", "KM. Ciremai"
+    ticketNumber?: string;   // Nomor Tiket / B/L / No. Booking
+    route?: string;          // e.g. "Makassar - Surabaya", "Makassar - Bau-Bau", "Makassar - Kendari"
+    category?: string;       // e.g. "Truk / Fuso", "Mobil Box", "Sopir / Penumpang", "Kargo"
+    amount: number;          // Nominal Biaya Tiket (Rp)
+    note?: string;           // Catatan tambahan
+}
+
 export interface MakassarOpsDepositItem {
     id: string;
     resiNumber?: string; // e.g. "18880"
@@ -306,7 +316,10 @@ export interface MakassarOpsRecord {
     transitItems: MakassarOpsTransitItem[];
     totalTransit: number;
 
-    totalGrossOps: number; // totalBongkar + totalPemuatan + totalTransit
+    tiketItems?: MakassarOpsTiketItem[];
+    totalTiket?: number;
+
+    totalGrossOps: number; // totalBongkar + totalPemuatan + totalTransit + (totalTiket || 0)
 
     depositItems: MakassarOpsDepositItem[];
     totalDeposit: number;  // total deposit to deduct

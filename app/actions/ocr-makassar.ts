@@ -19,6 +19,14 @@ export interface OcrMakassarResult {
         destination?: string;
         amount: number;
     }>;
+    tiketItems?: Array<{
+        shipName?: string;
+        ticketNumber?: string;
+        route?: string;
+        category?: string;
+        amount: number;
+        note?: string;
+    }>;
     depositItems?: Array<{
         resiNumber?: string;
         description?: string;
@@ -89,8 +97,10 @@ Foto dapat berisi salah satu atau gabungan dari section berikut:
    - Biaya-biaya: Bensin/Tol, Buruh JNT, Pengawas JNT, Pelabuhan, Uang Jalan Sopir/Petugas (Alfian, Haerudin, Riswan), dll.
 3. BARANG TRANSIT EKSPEDISI LANJUTAN:
    - Rincian Resi: Nomor resi (misal: 18915, 18097, 18898, 18899, 18890), Koli/Berat/Volume (misal: 10Q / 50KG, 18Q / 365V), Pengirim/Customer (misal: Bp LORENS, HAIKAL, C. MANDIRI, CHT, PENTAWIRA), Kota Tujuan (misal: MANADO, MOROWALI, KAB. WAJO, KOTAMOBAGU, GORONTALO), serta Jumlah Biaya Transit (Rp).
-4. REKAPITULASI & DEPOSIT KANTOR:
-   - Tanggal (misal: "TGL: 04-07-2026" atau "04-08-2026") -> konversi ke format ISO YYYY-MM-DD (e.g. 2026-07-04 atau 2026-08-04).
+4. OPERASIONAL TIKET KAPAL:
+   - Tiket Kapal / Tiket Penyeberangan (misal: Nama Kapal "KM. Dharma Kencana", "KM. Nggapulu", No Tiket, Rute, Kategori Mobil/Truk/Sopir, Nominal Biaya Tiket Rp).
+5. REKAPITULASI & DEPOSIT KANTOR:
+   - Tanggal (misal: "TGL: 04-08-2026" atau "04-07-2026") -> konversi ke format ISO YYYY-MM-DD (e.g. 2026-08-04).
    - Deposit Kantor (misal: Resi 18880 = 1.078.000).
 
 Wajib kembalikan format JSON persis sesuai struktur berikut tanpa teks markdown tambahan:
@@ -108,6 +118,9 @@ Wajib kembalikan format JSON persis sesuai struktur berikut tanpa teks markdown 
   ],
   "transitItems": [
     { "resiNumber": "18915", "koliDetails": "10Q / 50KG", "customerName": "Bp LORENS", "destination": "MANADO", "amount": 150000 }
+  ],
+  "tiketItems": [
+    { "shipName": "KM. Dharma Kencana VII", "ticketNumber": "TK-8891", "route": "Makassar - Surabaya", "category": "Truk Fuso", "amount": 3500000, "note": "" }
   ],
   "depositItems": [
     { "resiNumber": "18880", "description": "Deposit Kantor", "amount": 1078000 }
@@ -143,6 +156,7 @@ Catatan Penting:
             pemuatanMobilTim: parsed.pemuatanMobilTim || '',
             pemuatanItems: Array.isArray(parsed.pemuatanItems) ? parsed.pemuatanItems : [],
             transitItems: Array.isArray(parsed.transitItems) ? parsed.transitItems : [],
+            tiketItems: Array.isArray(parsed.tiketItems) ? parsed.tiketItems : [],
             depositItems: Array.isArray(parsed.depositItems) ? parsed.depositItems : [],
             notes: parsed.notes || ''
         };

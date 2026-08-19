@@ -64,7 +64,8 @@ function PrintMakassarOpsContent() {
     const totalBongkar = record?.totalBongkar || 0;
     const totalPemuatan = record?.totalPemuatan || 0;
     const totalTransit = record?.totalTransit || 0;
-    const totalGross = record?.totalGrossOps || (totalBongkar + totalPemuatan + totalTransit);
+    const totalTiket = record?.totalTiket || record?.tiketItems?.reduce((sum, item) => sum + (Number(item.amount) || 0), 0) || 0;
+    const totalGross = record?.totalGrossOps || (totalBongkar + totalPemuatan + totalTransit + totalTiket);
     const totalDeposit = record?.totalDeposit || 0;
     const totalNet = record?.totalNetOps || (totalGross - totalDeposit);
 
@@ -276,6 +277,13 @@ function PrintMakassarOpsContent() {
                                             </td>
                                         </tr>
                                     ))}
+                                    {record.transitItems.length === 0 && (
+                                        <tr>
+                                            <td colSpan={6} className="text-center text-gray-400 italic py-2">
+                                                Tidak ada pengeluaran transit ekspedisi lanjutan.
+                                            </td>
+                                        </tr>
+                                    )}
                                 </tbody>
                                 <tfoot>
                                     <tr className="bg-gray-100 font-bold">
@@ -288,7 +296,50 @@ function PrintMakassarOpsContent() {
                             </table>
                         </div>
 
-                        {/* ── SECTION 4: REKAPITULASI GRAND TOTAL & DEPOSIT KANTOR ── */}
+                        {/* ── SECTION 4: OPERASIONAL TIKET KAPAL MAKASSAR ── */}
+                        {(record.tiketItems && record.tiketItems.length > 0 || totalTiket > 0) && (
+                            <div className="border border-gray-300 rounded-xl p-3.5 bg-blue-50/20">
+                                <h3 className="font-extrabold text-xs text-blue-950 uppercase mb-2">
+                                    * OPERASIONAL TIKET KAPAL MAKASSAR *
+                                </h3>
+                                <table className="print-table">
+                                    <thead>
+                                        <tr>
+                                            <th className="w-8 text-center">#</th>
+                                            <th>Nama Kapal</th>
+                                            <th className="w-28">No. Tiket</th>
+                                            <th className="w-36">Rute</th>
+                                            <th className="w-32">Kategori</th>
+                                            <th className="w-32 text-right">Biaya Tiket (Rp)</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {(record.tiketItems || []).map((item, idx) => (
+                                            <tr key={idx}>
+                                                <td className="text-center font-medium text-gray-500">{idx + 1}</td>
+                                                <td className="font-bold text-blue-900">{item.shipName || '-'}</td>
+                                                <td className="font-mono font-bold text-gray-900">{item.ticketNumber || '-'}</td>
+                                                <td className="font-semibold text-gray-800">{item.route || '-'}</td>
+                                                <td className="font-medium text-gray-700">{item.category || '-'}</td>
+                                                <td className="text-right font-mono font-bold text-blue-900">
+                                                    {formatRupiah(item.amount)}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                    <tfoot>
+                                        <tr className="bg-blue-100/50 font-bold">
+                                            <td colSpan={5} className="text-right uppercase text-[9pt]">Total Tiket Kapal:</td>
+                                            <td className="text-right font-mono text-blue-900 text-[9pt]">
+                                                {formatRupiah(totalTiket)}
+                                            </td>
+                                        </tr>
+                                    </tfoot>
+                                </table>
+                            </div>
+                        )}
+
+                        {/* ── SECTION 5: REKAPITULASI GRAND TOTAL & DEPOSIT KANTOR ── */}
                         <div className="border-2 border-gray-800 rounded-xl p-4 bg-gray-50/80 space-y-3">
                             <h3 className="font-black text-xs text-gray-900 uppercase tracking-wider border-b border-gray-300 pb-1">
                                 * REKAPITULASI OPERASIONAL MAKASSAR *
@@ -306,6 +357,10 @@ function PrintMakassarOpsContent() {
                                     <div className="flex justify-between">
                                         <span>3. Total Barang Transit:</span>
                                         <span className="font-mono font-bold">{formatRupiah(totalTransit)}</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                        <span>4. Total Tiket Kapal:</span>
+                                        <span className="font-mono font-bold text-blue-900">{formatRupiah(totalTiket)}</span>
                                     </div>
                                     <div className="flex justify-between border-t border-gray-300 pt-1 font-bold">
                                         <span>TOTAL GROSS OPERASIONAL:</span>

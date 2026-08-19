@@ -11,6 +11,7 @@ import type { Transaction } from '@/types/transaction';
 import { formatRupiah } from '@/lib/currency';
 import { EXPENSE_CATEGORY_LABELS } from '@/types/voyage';
 import ProtectedRoute from '@/components/ProtectedRoute';
+import Link from 'next/link';
 import { 
     Calendar, 
     Ship, 
@@ -28,8 +29,12 @@ import {
     UserCheck,
     CreditCard,
     LayoutGrid,
-    CalendarDays
+    CalendarDays,
+    Truck,
+    ExternalLink
 } from 'lucide-react';
+import { subscribeToMakassarOpsList } from '@/lib/firestore-makassar-ops';
+import type { MakassarOpsRecord } from '@/types/voyage';
 
 // Date utility to format Date to YYYY-MM-DD
 const toYYYYMMDD = (date: Date): string => {
@@ -115,6 +120,7 @@ export default function VoyageOperationalReportPage() {
 
     // Global expenses ( kas umum )
     const [allGeneralExpenses, setAllGeneralExpenses] = useState<Expense[]>([]);
+    const [allMakassarOps, setAllMakassarOps] = useState<MakassarOpsRecord[]>([]);
 
     const [loading, setLoading] = useState(true);
     const [loadingDetails, setLoadingDetails] = useState(false);
@@ -124,7 +130,7 @@ export default function VoyageOperationalReportPage() {
     const [endDateStr, setEndDateStr] = useState<string>('');
     const [cycleLabel, setCycleLabel] = useState<string>('');
 
-    // Fetch Voyages and General Expenses
+    // Fetch Voyages, General Expenses, and Makassar Ops
     useEffect(() => {
         if (!user) return;
 
@@ -138,9 +144,14 @@ export default function VoyageOperationalReportPage() {
             setAllGeneralExpenses(data.filter(e => e.type === 'general' || !e.type));
         });
 
+        const unsubscribeMakassar = subscribeToMakassarOpsList(user.uid, (data) => {
+            setAllMakassarOps(data);
+        });
+
         return () => {
             unsubscribeVoyages();
             unsubscribeExpenses();
+            unsubscribeMakassar();
         };
     }, [user]);
 
@@ -257,11 +268,13 @@ export default function VoyageOperationalReportPage() {
         let ticketSum = 0;
         let salarySum = 0;
         let carRentalSum = 0;
+        let makassarOpsSum = 0;
         let generalOpsSum = 0;
 
         const ticketList: Expense[] = [];
         const salaryList: Expense[] = [];
         const carRentalList: Expense[] = [];
+        const makassarOpsList: Expense[] = [];
         const generalOpsList: Expense[] = [];
 
         singleOperationalExpenses.forEach(exp => {
@@ -277,6 +290,9 @@ export default function VoyageOperationalReportPage() {
             } else if (cat === 'sewa_mobil') {
                 carRentalSum += amount;
                 carRentalList.push(exp);
+            } else if (cat === 'operasional_makassar') {
+                makassarOpsSum += amount;
+                makassarOpsList.push(exp);
             } else {
                 generalOpsSum += amount;
                 generalOpsList.push(exp);
@@ -287,10 +303,12 @@ export default function VoyageOperationalReportPage() {
             ticketSum,
             salarySum,
             carRentalSum,
+            makassarOpsSum,
             generalOpsSum,
             ticketList,
             salaryList,
             carRentalList,
+            makassarOpsList,
             generalOpsList
         };
     }, [singleOperationalExpenses]);
@@ -309,12 +327,36 @@ export default function VoyageOperationalReportPage() {
             - singleSegmentedExpenses.generalOpsSum 
             - singleSegmentedExpenses.ticketSum 
             - singleSegmentedExpenses.salarySum 
-            - singleSegmentedExpenses.carRentalSum;
+            - singleSegmentedExpenses.carRentalSum
+            - singleSegmentedExpenses.makassarOpsSum;
     }, [singleTotalRevenue, singleTotalVoyageExpenses, singleSegmentedExpenses]);
 
     // ==========================================
-    // MONTHLY REPORT MEMOS
+    // MONTHLY REPORT MEMOS & MAKASSAR INTEGRATION
     // ==========================================
+    const monthlyMakassarRecords = useMemo(() => {
+        const prefix = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}`;
+        return allMakassarOps.filter(r => r.date && r.date.startsWith(prefix));
+    }, [allMakassarOps, selectedMonth, selectedYear]);
+
+    const monthlyMakassarTotals = useMemo(() => {
+        const totalBongkar = monthlyMakassarRecords.reduce((sum, r) => sum + (Number(r.totalBongkar) || 0), 0);
+        const totalPemuatan = monthlyMakassarRecords.reduce((sum, r) => sum + (Number(r.totalPemuatan) || 0), 0);
+        const totalTransit = monthlyMakassarRecords.reduce((sum, r) => sum + (Number(r.totalTransit) || 0), 0);
+        const totalTiket = monthlyMakassarRecords.reduce((sum, r) => sum + (Number(r.totalTiket) || 0), 0);
+        const totalDeposit = monthlyMakassarRecords.reduce((sum, r) => sum + (Number(r.totalDeposit) || 0), 0);
+        const totalNetOps = monthlyMakassarRecords.reduce((sum, r) => sum + (Number(r.totalNetOps) || 0), 0);
+
+        return {
+            totalBongkar,
+            totalPemuatan,
+            totalTransit,
+            totalTiket,
+            totalDeposit,
+            totalNetOps,
+        };
+    }, [monthlyMakassarRecords]);
+
     // Get disjoint union of dates matching operational ranges of all voyages in this month
     const monthlyOperationalExpenses = useMemo(() => {
         if (reportType !== 'monthly' || recapRows.length === 0) return [];
@@ -334,12 +376,13 @@ export default function VoyageOperationalReportPage() {
     }, [allGeneralExpenses, recapRows, reportType]);
 
     // Segment and total monthly operational expenses:
-    // - Sewa Mobil, Gaji, Tiket: Itemized (detail lists)
+    // - Sewa Mobil, Gaji, Tiket, Operasional Makassar: Itemized (detail lists)
     // - Others: Grouped by category sum
     const monthlySegmentedExpenses = useMemo(() => {
         const ticketList: Expense[] = [];
         const salaryList: Expense[] = [];
         const carRentalList: Expense[] = [];
+        const makassarOpsList: Expense[] = [];
         
         const categorySums: Record<string, number> = {};
 
@@ -353,6 +396,8 @@ export default function VoyageOperationalReportPage() {
                 salaryList.push(exp);
             } else if (cat === 'sewa_mobil') {
                 carRentalList.push(exp);
+            } else if (cat === 'operasional_makassar') {
+                makassarOpsList.push(exp);
             } else {
                 categorySums[cat] = (categorySums[cat] || 0) + amount;
             }
@@ -362,19 +407,24 @@ export default function VoyageOperationalReportPage() {
         const ticketSum = ticketList.reduce((s, e) => s + e.amount, 0);
         const salarySum = salaryList.reduce((s, e) => s + e.amount, 0);
         const carRentalSum = carRentalList.reduce((s, e) => s + e.amount, 0);
+        const makassarOpsSum = monthlyMakassarTotals.totalNetOps > 0 
+            ? monthlyMakassarTotals.totalNetOps 
+            : makassarOpsList.reduce((s, e) => s + e.amount, 0);
         const otherOpsSum = Object.values(categorySums).reduce((s, a) => s + a, 0);
 
         return {
             ticketSum,
             salarySum,
             carRentalSum,
+            makassarOpsSum,
             otherOpsSum,
             ticketList,
             salaryList,
             carRentalList,
+            makassarOpsList,
             categorySums
         };
-    }, [monthlyOperationalExpenses]);
+    }, [monthlyOperationalExpenses, monthlyMakassarTotals]);
 
     const monthlyTotalRevenue = useMemo(() => {
         return recapRows.reduce((sum, row) => sum + row.revenue, 0);
@@ -388,6 +438,7 @@ export default function VoyageOperationalReportPage() {
         return monthlySegmentedExpenses.ticketSum 
             + monthlySegmentedExpenses.salarySum 
             + monthlySegmentedExpenses.carRentalSum 
+            + monthlySegmentedExpenses.makassarOpsSum
             + monthlySegmentedExpenses.otherOpsSum;
     }, [monthlySegmentedExpenses]);
 
@@ -440,6 +491,9 @@ export default function VoyageOperationalReportPage() {
         report += `• (-) Biaya Tiket: *${formatRupiah(singleSegmentedExpenses.ticketSum)}*\n`;
         report += `• (-) Biaya Gaji: *${formatRupiah(singleSegmentedExpenses.salarySum)}*\n`;
         report += `• (-) Biaya Sewa Mobil: *${formatRupiah(singleSegmentedExpenses.carRentalSum)}*\n`;
+        if (singleSegmentedExpenses.makassarOpsSum > 0) {
+            report += `• (-) Biaya Operasional Makassar: *${formatRupiah(singleSegmentedExpenses.makassarOpsSum)}*\n`;
+        }
         report += `-------------------------------------------\n`;
         report += `• *LABA / RUGI BERSIH*: *${formatRupiah(singleNetProfit)}* ${singleNetProfit >= 0 ? '✅' : '⚠️'}\n`;
         report += `-------------------------------------------\n`;
@@ -452,7 +506,7 @@ export default function VoyageOperationalReportPage() {
 
     const handleCopyMonthlyWA = () => {
         const months = [
-            'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Mei',
+            'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
             'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
         ];
 
@@ -465,10 +519,11 @@ export default function VoyageOperationalReportPage() {
         report += `*RINGKASAN UTAMA BULANAN*\n`;
         report += `• (+) Total Pendapatan Kargo: *${formatRupiah(monthlyTotalRevenue)}*\n`;
         report += `• (-) Total Biaya Kapal (Direct): *${formatRupiah(monthlyTotalDirectExpenses)}*\n`;
-        report += `• (-) Total Operasional Harian: *${formatRupiah(monthlyTotalDailyOps)}*\n`;
+        report += `• (-) Total Operasional Harian & Cabang: *${formatRupiah(monthlyTotalDailyOps)}*\n`;
         report += `  - Tiket: ${formatRupiah(monthlySegmentedExpenses.ticketSum)}\n`;
         report += `  - Gaji/Sopir: ${formatRupiah(monthlySegmentedExpenses.salarySum)}\n`;
         report += `  - Sewa Mobil: ${formatRupiah(monthlySegmentedExpenses.carRentalSum)}\n`;
+        report += `  - Ops Makassar: ${formatRupiah(monthlySegmentedExpenses.makassarOpsSum)}\n`;
         report += `  - Lain-lain: ${formatRupiah(monthlySegmentedExpenses.otherOpsSum)}\n`;
         report += `-------------------------------------------\n`;
         report += `• *LABA / RUGI BERSIH BULANAN*: *${formatRupiah(monthlyNetProfit)}* ${monthlyNetProfit >= 0 ? '✅' : '⚠️'}\n`;
@@ -865,6 +920,26 @@ export default function VoyageOperationalReportPage() {
                                         )}
                                     </div>
 
+                                    {/* Operasional Makassar (jika ada) */}
+                                    {singleSegmentedExpenses.makassarOpsSum > 0 && (
+                                        <div className="space-y-2">
+                                            <div className="flex justify-between items-center bg-blue-50 border border-blue-200/60 p-2.5 rounded-lg text-xs font-semibold">
+                                                <span className="text-blue-900 flex items-center gap-1.5"><Truck size={14} className="text-blue-600" /> Operasional Cabang Makassar</span>
+                                                <span className="text-blue-700 font-bold">{formatRupiah(singleSegmentedExpenses.makassarOpsSum)}</span>
+                                            </div>
+                                            {singleSegmentedExpenses.makassarOpsList.length > 0 && (
+                                                <div className="pl-4 border-l border-blue-200 space-y-1">
+                                                    {singleSegmentedExpenses.makassarOpsList.map(e => (
+                                                        <div key={e.id} className="flex justify-between text-[11px] text-gray-600 py-0.5">
+                                                            <span>{e.description} ({new Date(e.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })})</span>
+                                                            <span className="font-medium text-blue-700">{formatRupiah(e.amount)}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+
                                     {/* Harian Umum Lainnya */}
                                     <div className="space-y-2">
                                         <div className="flex justify-between items-center bg-gray-50 border border-gray-200/60 p-2.5 rounded-lg text-xs font-semibold">
@@ -898,20 +973,22 @@ export default function VoyageOperationalReportPage() {
                                             <p className="font-mono font-bold text-gray-900 text-sm mt-0.5">{selectedVoyage.voyageNumber}</p>
                                         </div>
                                         <div>
-                                            <span className="text-gray-400 block uppercase font-bold tracking-wider text-[10px]">Rute &amp; Kapal</span>
-                                            <p className="font-bold text-gray-900 mt-0.5">{selectedVoyage.route} • {selectedVoyage.shipName || '-'}</p>
+                                            <span className="text-gray-400 block uppercase font-bold tracking-wider text-[10px]">Rute Perjalanan</span>
+                                            <p className="font-semibold text-gray-800 mt-0.5">{selectedVoyage.route}</p>
                                         </div>
                                         <div>
-                                            <span className="text-gray-400 block uppercase font-bold tracking-wider text-[10px]">Kendaraan / Plat Truk</span>
-                                            <p className="font-semibold text-gray-850 mt-0.5">
-                                                {selectedVoyage.vehicleNumbers?.join(', ') || selectedVoyage.vehicleNumber || '-'}
-                                            </p>
+                                            <span className="text-gray-400 block uppercase font-bold tracking-wider text-[10px]">Kapal</span>
+                                            <p className="font-semibold text-gray-800 mt-0.5">{selectedVoyage.shipName || '-'}</p>
                                         </div>
                                         <div>
-                                            <span className="text-gray-400 block uppercase font-bold tracking-wider text-[10px]">Hari Keberangkatan</span>
-                                            <p className="font-semibold text-gray-850 mt-0.5">
+                                            <span className="text-gray-400 block uppercase font-bold tracking-wider text-[10px]">Tanggal Keberangkatan</span>
+                                            <p className="font-semibold text-gray-800 mt-0.5">
                                                 {selectedVoyage.departureDate.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
                                             </p>
+                                        </div>
+                                        <div>
+                                            <span className="text-gray-400 block uppercase font-bold tracking-wider text-[10px]">Siklus Operasional Harian</span>
+                                            <p className="font-semibold text-blue-600 mt-0.5">{cycleLabel}</p>
                                         </div>
                                     </div>
                                 </div>
@@ -919,11 +996,11 @@ export default function VoyageOperationalReportPage() {
                                 {/* Profit & Loss Summary Card */}
                                 <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm space-y-4">
                                     <h3 className="font-bold text-gray-800 text-sm border-b border-gray-100 pb-3">
-                                        Perhitungan Laba Bersih
+                                        Perhitungan Laba Rugi
                                     </h3>
                                     <div className="space-y-3 text-xs border-b border-gray-100 pb-4">
                                         <div className="flex justify-between">
-                                            <span className="text-gray-500">Pendapatan (Kargo)</span>
+                                            <span className="text-gray-500">Pendapatan Kargo</span>
                                             <span className="font-bold text-blue-600">{formatRupiah(singleTotalRevenue)}</span>
                                         </div>
                                         <div className="flex justify-between">
@@ -946,6 +1023,12 @@ export default function VoyageOperationalReportPage() {
                                             <span className="text-gray-500">Biaya Sewa Mobil</span>
                                             <span className="font-bold text-red-650">-{formatRupiah(singleSegmentedExpenses.carRentalSum)}</span>
                                         </div>
+                                        {singleSegmentedExpenses.makassarOpsSum > 0 && (
+                                            <div className="flex justify-between">
+                                                <span className="text-blue-700 font-medium">Ops Makassar</span>
+                                                <span className="font-bold text-blue-700">-{formatRupiah(singleSegmentedExpenses.makassarOpsSum)}</span>
+                                            </div>
+                                        )}
                                     </div>
                                     <div className="flex justify-between items-center pt-1 font-bold text-sm">
                                         <span className="text-gray-800">Laba Bersih</span>
@@ -982,22 +1065,28 @@ export default function VoyageOperationalReportPage() {
                     <div className="space-y-6">
                         
                         {/* Monthly recap summary banner */}
-                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                            <div className="bg-white p-5 rounded-2xl border border-gray-150 shadow-sm flex flex-col justify-center">
-                                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Total Pendapatan Bulanan</span>
-                                <p className="text-xl font-bold text-blue-600 mt-1">{formatRupiah(monthlyTotalRevenue)}</p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                            <div className="bg-white p-4 rounded-2xl border border-gray-150 shadow-sm flex flex-col justify-center">
+                                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Total Pendapatan</span>
+                                <p className="text-lg font-bold text-blue-600 mt-1">{formatRupiah(monthlyTotalRevenue)}</p>
                             </div>
-                            <div className="bg-white p-5 rounded-2xl border border-gray-150 shadow-sm flex flex-col justify-center">
-                                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Total Biaya Kapal (Direct)</span>
-                                <p className="text-xl font-bold text-red-500 mt-1">-{formatRupiah(monthlyTotalDirectExpenses)}</p>
+                            <div className="bg-white p-4 rounded-2xl border border-gray-150 shadow-sm flex flex-col justify-center">
+                                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Biaya Kapal (Direct)</span>
+                                <p className="text-lg font-bold text-red-500 mt-1">-{formatRupiah(monthlyTotalDirectExpenses)}</p>
                             </div>
-                            <div className="bg-white p-5 rounded-2xl border border-gray-150 shadow-sm flex flex-col justify-center">
-                                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Total Operasional Harian</span>
-                                <p className="text-xl font-bold text-orange-600 mt-1">-{formatRupiah(monthlyTotalDailyOps)}</p>
+                            <div className="bg-blue-50/70 p-4 rounded-2xl border border-blue-200 shadow-sm flex flex-col justify-center">
+                                <span className="text-[10px] font-bold text-blue-700 uppercase tracking-wider flex items-center gap-1">
+                                    <Truck size={12} /> Ops Makassar (Net)
+                                </span>
+                                <p className="text-lg font-bold text-blue-800 mt-1">-{formatRupiah(monthlySegmentedExpenses.makassarOpsSum)}</p>
                             </div>
-                            <div className={`p-5 rounded-2xl border shadow-sm flex flex-col justify-center ${monthlyNetProfit >= 0 ? 'bg-green-600 text-white border-green-600 shadow-green-600/10' : 'bg-red-600 text-white border-red-600 shadow-red-600/10'}`}>
+                            <div className="bg-white p-4 rounded-2xl border border-gray-150 shadow-sm flex flex-col justify-center">
+                                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Ops Harian Lainnya</span>
+                                <p className="text-lg font-bold text-orange-600 mt-1">-{formatRupiah(monthlyTotalDailyOps - monthlySegmentedExpenses.makassarOpsSum)}</p>
+                            </div>
+                            <div className={`p-4 rounded-2xl border shadow-sm flex flex-col justify-center ${monthlyNetProfit >= 0 ? 'bg-green-600 text-white border-green-600 shadow-green-600/10' : 'bg-red-600 text-white border-red-600 shadow-red-600/10'}`}>
                                 <span className="text-[10px] font-bold text-white/80 uppercase tracking-wider">Laba Bersih Bulanan</span>
-                                <p className="text-2xl font-black mt-1">{formatRupiah(monthlyNetProfit)}</p>
+                                <p className="text-xl font-black mt-1">{formatRupiah(monthlyNetProfit)}</p>
                             </div>
                         </div>
 
@@ -1052,14 +1141,14 @@ export default function VoyageOperationalReportPage() {
                         {/* Special itemized tables and grouped operational expenses */}
                         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
                             
-                            {/* Left detailed tables (Tiket, Gaji, Sewa) */}
+                            {/* Left detailed tables (Tiket, Gaji, Sewa, Makassar) */}
                             <div className="lg:col-span-8 space-y-6">
                                 
                                 {/* A. Sewa Mobil (Itemized) */}
                                 <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
                                     <div className="p-4 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center">
                                         <h4 className="font-bold text-gray-800 text-xs flex items-center gap-1.5 uppercase tracking-wider">
-                                            <Ship size={14} className="text-blue-500" /> Rincian Sewa Mobil
+                                            <Ship size={14} className="text-blue-500" /> A. Rincian Sewa Mobil
                                         </h4>
                                         <span className="text-xs text-red-600 font-bold">{formatRupiah(monthlySegmentedExpenses.carRentalSum)}</span>
                                     </div>
@@ -1096,7 +1185,7 @@ export default function VoyageOperationalReportPage() {
                                 <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
                                     <div className="p-4 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center">
                                         <h4 className="font-bold text-gray-800 text-xs flex items-center gap-1.5 uppercase tracking-wider">
-                                            <UserCheck size={14} className="text-blue-500" /> Rincian Gaji / Uang Jalan Sopir
+                                            <UserCheck size={14} className="text-blue-500" /> B. Rincian Gaji / Uang Jalan Sopir
                                         </h4>
                                         <span className="text-xs text-red-600 font-bold">{formatRupiah(monthlySegmentedExpenses.salarySum)}</span>
                                     </div>
@@ -1133,7 +1222,7 @@ export default function VoyageOperationalReportPage() {
                                 <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
                                     <div className="p-4 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center">
                                         <h4 className="font-bold text-gray-800 text-xs flex items-center gap-1.5 uppercase tracking-wider">
-                                            <CreditCard size={14} className="text-blue-500" /> Rincian Tiket Kapal
+                                            <CreditCard size={14} className="text-blue-500" /> C. Rincian Tiket Kapal
                                         </h4>
                                         <span className="text-xs text-red-600 font-bold">{formatRupiah(monthlySegmentedExpenses.ticketSum)}</span>
                                     </div>
@@ -1159,6 +1248,99 @@ export default function VoyageOperationalReportPage() {
                                                 {monthlySegmentedExpenses.ticketList.length === 0 && (
                                                     <tr>
                                                         <td colSpan={4} className="p-4 text-center text-gray-400 italic">Tidak ada data biaya tiket kapal.</td>
+                                                    </tr>
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+
+                                {/* D. Operasional Cabang Makassar (Itemized) */}
+                                <div className="bg-white rounded-2xl border border-blue-200 overflow-hidden shadow-sm">
+                                    <div className="p-4 border-b border-blue-100 bg-blue-50/70 flex flex-wrap justify-between items-center gap-2">
+                                        <div className="flex items-center gap-2">
+                                            <Truck size={16} className="text-blue-600" />
+                                            <h4 className="font-bold text-gray-900 text-xs uppercase tracking-wider">
+                                                D. Rincian Operasional Cabang Makassar ({monthlyMakassarRecords.length} Lembar)
+                                            </h4>
+                                        </div>
+                                        <div className="flex items-center gap-3">
+                                            <Link
+                                                href="/finance/operasional-makassar"
+                                                className="text-[11px] font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1 underline"
+                                            >
+                                                Buka Lembar Ops <ExternalLink size={12} />
+                                            </Link>
+                                            <span className="text-xs text-blue-800 font-extrabold bg-white px-2.5 py-1 rounded-lg border border-blue-200">
+                                                Net: {formatRupiah(monthlySegmentedExpenses.makassarOpsSum)}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-left text-xs border-collapse">
+                                            <thead>
+                                                <tr className="bg-blue-50/40 border-b border-blue-100 text-gray-600 font-semibold uppercase text-[9px]">
+                                                    <th className="p-2.5 text-center w-[5%]">No</th>
+                                                    <th className="p-2.5 w-[11%]">Tanggal</th>
+                                                    <th className="p-2.5 w-[20%]">Armada / Tim</th>
+                                                    <th className="p-2.5 text-right w-[11%]">Bongkar</th>
+                                                    <th className="p-2.5 text-right w-[11%]">Pemuatan</th>
+                                                    <th className="p-2.5 text-right w-[11%]">Transit</th>
+                                                    <th className="p-2.5 text-right w-[11%]">Tiket Kapal</th>
+                                                    <th className="p-2.5 text-right w-[10%]">Deposit (-)</th>
+                                                    <th className="p-2.5 text-right w-[12%]">Net Ops (Rp)</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-gray-100 text-gray-700">
+                                                {monthlyMakassarRecords.map((r, idx) => (
+                                                    <tr key={r.id || idx} className="hover:bg-blue-50/30">
+                                                        <td className="p-2.5 text-center text-gray-400 font-mono">{idx + 1}.</td>
+                                                        <td className="p-2.5 font-semibold text-gray-900">
+                                                            {new Date(r.date + 'T00:00:00').toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
+                                                        </td>
+                                                        <td className="p-2.5 text-[11px]">
+                                                            {r.bongkarMobilTim && <div className="text-gray-800 truncate"><span className="text-[9px] font-bold text-gray-400">B:</span> {r.bongkarMobilTim}</div>}
+                                                            {r.pemuatanMobilTim && <div className="text-gray-600 truncate"><span className="text-[9px] font-bold text-gray-400">M:</span> {r.pemuatanMobilTim}</div>}
+                                                            {!r.bongkarMobilTim && !r.pemuatanMobilTim && <span className="text-gray-400 italic">-</span>}
+                                                        </td>
+                                                        <td className="p-2.5 text-right font-medium text-gray-800">{formatRupiah(r.totalBongkar || 0)}</td>
+                                                        <td className="p-2.5 text-right font-medium text-gray-800">{formatRupiah(r.totalPemuatan || 0)}</td>
+                                                        <td className="p-2.5 text-right font-medium text-purple-700">{formatRupiah(r.totalTransit || 0)}</td>
+                                                        <td className="p-2.5 text-right font-medium text-blue-700">{formatRupiah(r.totalTiket || 0)}</td>
+                                                        <td className="p-2.5 text-right font-medium text-emerald-700">-{formatRupiah(r.totalDeposit || 0)}</td>
+                                                        <td className="p-2.5 text-right font-bold text-blue-700">{formatRupiah(r.totalNetOps || 0)}</td>
+                                                    </tr>
+                                                ))}
+                                                {monthlyMakassarRecords.length === 0 && monthlySegmentedExpenses.makassarOpsList.length > 0 && (
+                                                    monthlySegmentedExpenses.makassarOpsList.map((e, idx) => (
+                                                        <tr key={e.id} className="hover:bg-blue-50/30">
+                                                            <td className="p-2.5 text-center text-gray-400 font-mono">{idx + 1}.</td>
+                                                            <td className="p-2.5 font-semibold text-gray-900">
+                                                                {new Date(e.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
+                                                            </td>
+                                                            <td colSpan={6} className="p-2.5 text-gray-700">{e.description}</td>
+                                                            <td className="p-2.5 text-right font-bold text-blue-700">{formatRupiah(e.amount)}</td>
+                                                        </tr>
+                                                    ))
+                                                )}
+                                                {monthlyMakassarRecords.length === 0 && monthlySegmentedExpenses.makassarOpsList.length === 0 && (
+                                                    <tr>
+                                                        <td colSpan={9} className="p-4 text-center text-gray-400 italic">
+                                                            Tidak ada catatan operasional Makassar pada bulan ini.
+                                                        </td>
+                                                    </tr>
+                                                )}
+                                                {(monthlyMakassarRecords.length > 0 || monthlySegmentedExpenses.makassarOpsList.length > 0) && (
+                                                    <tr className="bg-blue-50/50 font-bold border-t border-blue-100 text-[11px]">
+                                                        <td colSpan={3} className="p-2.5 text-right uppercase text-[9px] text-gray-600 tracking-wider">
+                                                            Total Operasional Makassar:
+                                                        </td>
+                                                        <td className="p-2.5 text-right text-gray-800">{formatRupiah(monthlyMakassarTotals.totalBongkar)}</td>
+                                                        <td className="p-2.5 text-right text-gray-800">{formatRupiah(monthlyMakassarTotals.totalPemuatan)}</td>
+                                                        <td className="p-2.5 text-right text-purple-800">{formatRupiah(monthlyMakassarTotals.totalTransit)}</td>
+                                                        <td className="p-2.5 text-right text-blue-800">{formatRupiah(monthlyMakassarTotals.totalTiket)}</td>
+                                                        <td className="p-2.5 text-right text-emerald-800">-{formatRupiah(monthlyMakassarTotals.totalDeposit)}</td>
+                                                        <td className="p-2.5 text-right text-blue-800 text-xs">{formatRupiah(monthlySegmentedExpenses.makassarOpsSum)}</td>
                                                     </tr>
                                                 )}
                                             </tbody>
@@ -1215,6 +1397,10 @@ export default function VoyageOperationalReportPage() {
                                         <div className="flex justify-between">
                                             <span className="text-gray-500">Total Biaya Tiket</span>
                                             <span className="font-bold text-red-650">-{formatRupiah(monthlySegmentedExpenses.ticketSum)}</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                            <span className="text-blue-700 font-medium">Total Ops Makassar</span>
+                                            <span className="font-bold text-blue-700">-{formatRupiah(monthlySegmentedExpenses.makassarOpsSum)}</span>
                                         </div>
                                         <div className="flex justify-between">
                                             <span className="text-gray-500">Total Harian Lain-Lain</span>
