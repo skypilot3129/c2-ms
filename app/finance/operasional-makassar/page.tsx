@@ -17,6 +17,11 @@ import type {
     MakassarOpsTransitItem,
     MakassarOpsDepositItem
 } from '@/types/voyage';
+import {
+    saveMakassarOpsServerAction,
+    getMakassarOpsByDateServerAction,
+    deleteMakassarOpsServerAction
+} from '@/app/actions/makassar-ops';
 import { parseMakassarOpsImage } from '@/app/actions/ocr-makassar';
 import { formatRupiah } from '@/lib/currency';
 import {
@@ -105,13 +110,14 @@ export default function MakassarOperationalExpensesPage() {
     const [aiProgress, setAiProgress] = useState<string>('');
     const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-    // Subscribe to date record
+    // Subscribe to date record with Server Action fallback
     useEffect(() => {
         if (!user) return;
-        return subscribeToMakassarOpsByDate(selectedDate, user.uid, (rec) => {
+        let isMounted = true;
+
+        const populateFromRecord = (rec: any) => {
             setSavedRecord(rec);
             if (rec) {
-                // If record exists for this date, load it
                 setBongkarMobilTim(rec.bongkarMobilTim || '');
                 setBongkarItems(rec.bongkarItems?.length ? rec.bongkarItems : BLANK_BONGKAR_ITEMS());
                 setPemuatanMobilTim(rec.pemuatanMobilTim || '');
@@ -120,7 +126,6 @@ export default function MakassarOperationalExpensesPage() {
                 setDepositItems(rec.depositItems || []);
                 setNotes(rec.notes || '');
             } else {
-                // New / unsaved date: Reset to clean blank items
                 setBongkarMobilTim('');
                 setBongkarItems(BLANK_BONGKAR_ITEMS());
                 setPemuatanMobilTim('');
@@ -129,15 +134,35 @@ export default function MakassarOperationalExpensesPage() {
                 setDepositItems([]);
                 setNotes('');
             }
+        };
+
+        const unsubscribe = subscribeToMakassarOpsByDate(selectedDate, user.uid, (rec) => {
+            if (isMounted) populateFromRecord(rec);
         });
+
+        // Also fetch via Server Action in case client security rules are still propagating
+        getMakassarOpsByDateServerAction(selectedDate).then(res => {
+            if (isMounted && res.success && res.data) {
+                populateFromRecord(res.data);
+            }
+        }).catch(err => console.warn('Server fetch fallback notice:', err));
+
+        return () => {
+            isMounted = false;
+            unsubscribe();
+        };
     }, [user, selectedDate]);
 
     // Subscribe to all records list for history drawer
     useEffect(() => {
         if (!user) return;
-        return subscribeToMakassarOpsList(user.uid, (list) => {
-            setAllRecords(list);
-        });
+        try {
+            return subscribeToMakassarOpsList(user.uid, (list) => {
+                setAllRecords(list);
+            });
+        } catch (e) {
+            console.warn('Subscription list notice:', e);
+        }
     }, [user]);
 
     // ── Calculations ──
@@ -343,7 +368,7 @@ export default function MakassarOperationalExpensesPage() {
             const idToUse = savedRecord?.id;
             const expDocIdToUse = savedRecord?.expenseDocId;
 
-            await saveMakassarOpsRecord({
+            const payloadData = {
                 id: idToUse,
                 date: selectedDate,
                 userId: user.uid,
@@ -364,7 +389,30 @@ export default function MakassarOperationalExpensesPage() {
                 totalNetOps,
                 notes,
                 expenseDocId: expDocIdToUse,
-            }, user.uid);
+            };
+
+            let savedId: string | undefined;
+
+            try {
+                // First try standard Client SDK save
+                savedId = await saveMakassarOpsRecord(payloadData, user.uid);
+            } catch (clientErr: any) {
+                console.warn('Client save failed, attempting Server Action save:', clientErr);
+                // Fallback to Server Action (Admin SDK)
+                const res = await saveMakassarOpsServerAction(payloadData, user.uid);
+                if (!res.success) {
+                    throw new Error(res.error || 'Server action gagal menyimpan');
+                }
+                savedId = res.id;
+            }
+
+            // Immediately refresh local saved record
+            if (savedId) {
+                const refreshed = await getMakassarOpsByDateServerAction(selectedDate);
+                if (refreshed.success && refreshed.data) {
+                    setSavedRecord(refreshed.data);
+                }
+            }
 
             alert(`✅ Operasional Makassar tanggal ${selectedDate} berhasil disimpan dan otomatis memotong Laporan Laba Rugi!`);
         } catch (err: any) {
@@ -379,12 +427,18 @@ export default function MakassarOperationalExpensesPage() {
     const handleDelete = async () => {
         if (!savedRecord || !confirm('Hapus lembar operasional Makassar ini beserta entri laporan kasnya?')) return;
         try {
-            await deleteMakassarOpsRecord(savedRecord.id, savedRecord.expenseDocId);
+            try {
+                await deleteMakassarOpsRecord(savedRecord.id, savedRecord.expenseDocId);
+            } catch (clientErr) {
+                console.warn('Client delete failed, attempting Server Action delete:', clientErr);
+                const res = await deleteMakassarOpsServerAction(savedRecord.id, savedRecord.expenseDocId);
+                if (!res.success) throw new Error(res.error || 'Gagal menghapus di server');
+            }
             setSavedRecord(null);
             alert('Data operasional Makassar berhasil dihapus.');
-        } catch (err) {
+        } catch (err: any) {
             console.error(err);
-            alert('Gagal menghapus data.');
+            alert(`Gagal menghapus data: ${err?.message || err}`);
         }
     };
 
