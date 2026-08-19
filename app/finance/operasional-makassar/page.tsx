@@ -473,7 +473,7 @@ export default function MakassarOperationalExpensesPage() {
         }
     };
 
-    // Print Handler
+    // Print Handler (Daily Sheet)
     const handleOpenPrint = () => {
         const draftPayload = {
             id: savedRecord?.id || 'draft',
@@ -498,6 +498,13 @@ export default function MakassarOperationalExpensesPage() {
         router.push(`/finance/operasional-makassar/print-daily?date=${selectedDate}`);
     };
 
+    // Print Handler (Monthly Report)
+    const handleOpenMonthlyPrint = () => {
+        const [yearStr, monthStr] = selectedDate.split('-');
+        const monthIdx = Number(monthStr) - 1;
+        router.push(`/finance/operasional-makassar/print-monthly?month=${monthIdx}&year=${yearStr}`);
+    };
+
     const formattedDateTitle = new Date(selectedDate + 'T00:00:00').toLocaleDateString('id-ID', {
         weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
     });
@@ -517,12 +524,20 @@ export default function MakassarOperationalExpensesPage() {
                                 <Truck size={24} className="text-blue-600" /> Operasional Cabang Makassar
                             </h1>
                             <p className="text-xs text-gray-500">
-                                Pencatatan biaya bongkar, pemuatan, ekspedisi transit, & deposit kantor yang otomatis memotong Omzet & Laba Rugi
+                                Pencatatan biaya bongkar, pemuatan, ekspedisi transit, & deposit kantor yang terintegrasi ke Laporan Bulanan
                             </p>
                         </div>
                     </div>
 
                     <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                        <button
+                            onClick={handleOpenMonthlyPrint}
+                            className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-bold bg-blue-50 text-blue-800 border border-blue-200 hover:bg-blue-100 transition-colors shadow-xs"
+                            title="Buka Lembar Cetak Laporan PDF Bulanan Makassar"
+                        >
+                            <Printer size={15} className="text-blue-600" /> 📑 Cetak Laporan Bulanan (PDF)
+                        </button>
+
                         <button
                             onClick={() => setIsAiModalOpen(true)}
                             className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white shadow-md shadow-purple-600/20 transition-all active:scale-95"
@@ -1100,9 +1115,17 @@ export default function MakassarOperationalExpensesPage() {
                         )}
                         <button
                             onClick={handleOpenPrint}
-                            className="flex items-center gap-1.5 px-5 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-xl text-xs font-bold transition-colors"
+                            className="flex items-center gap-1.5 px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-xl text-xs font-bold transition-colors"
+                            title="Cetak formulir operasional untuk tanggal terpilih"
                         >
-                            <Printer size={16} /> Cetak PDF Laporan
+                            <Printer size={15} /> 📄 Cetak Lembar Harian
+                        </button>
+                        <button
+                            onClick={handleOpenMonthlyPrint}
+                            className="flex items-center gap-1.5 px-4 py-2.5 bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 rounded-xl text-xs font-bold transition-colors"
+                            title="Cetak rekapitulasi operasional 1 bulan penuh"
+                        >
+                            <Printer size={15} className="text-blue-600" /> 📑 Cetak Rekap Bulanan
                         </button>
                     </div>
 
