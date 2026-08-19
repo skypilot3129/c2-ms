@@ -219,9 +219,9 @@ export default function MakassarOperationalExpensesPage() {
         }
     };
 
-    // Load Sample Data (Matching Handwritten Notes: 04-07-2026)
+    // Load Sample Data (Matching Handwritten Notes: 04-08-2026)
     const handleLoadSampleNotes = () => {
-        setSelectedDate('2026-07-04');
+        setSelectedDate('2026-08-04');
         setBongkarMobilTim('HERUL + ISDAR ALMET');
         setBongkarItems([
             { id: uid(), name: 'Buruh Bongkar', amount: 1100000 },
@@ -259,7 +259,7 @@ export default function MakassarOperationalExpensesPage() {
             { id: uid(), resiNumber: '18880', description: 'Deposit Kantor', amount: 1078000 }
         ]);
 
-        setNotes('Lembar operasional Makassar 04-07-2026 telah disesuaikan dengan catatan resmi lapangan.');
+        setNotes('Lembar operasional Makassar 04-08-2026 telah disesuaikan dengan catatan resmi lapangan.');
     };
 
     // AI OCR File Selection Handler
@@ -500,9 +500,9 @@ export default function MakassarOperationalExpensesPage() {
                         <button
                             onClick={handleLoadSampleNotes}
                             className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100 transition-colors shadow-xs"
-                            title="Isi otomatis data sesuai gambar catatan tangan 04-07-2026"
+                            title="Isi otomatis data sesuai gambar catatan tangan 04-08-2026"
                         >
-                            <Sparkles size={14} className="text-amber-600" /> Contoh 04-07-2026
+                            <Sparkles size={14} className="text-amber-600" /> Contoh 04-08-2026
                         </button>
 
                         <button

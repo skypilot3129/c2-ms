@@ -293,7 +293,7 @@ export interface MakassarOpsDepositItem {
 
 export interface MakassarOpsRecord {
     id: string;
-    date: string;          // YYYY-MM-DD (e.g. 2026-07-04)
+    date: string;          // YYYY-MM-DD (e.g. 2026-08-04)
     userId: string;
     pemuatanMobilTim?: string; // e.g. "ALFIAN + HAERUDDIN + RISWAN"
     pemuatanItems: MakassarOpsPemuatanItem[];
