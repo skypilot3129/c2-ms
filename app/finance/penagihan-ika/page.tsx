@@ -8,6 +8,9 @@ import type { Invoice } from '@/types/invoice';
 import type { Transaction } from '@/types/transaction';
 import { formatRupiah, terbilang } from '@/lib/currency';
 import { COMPANY_INFO } from '@/lib/company-config';
+import type { RealBankAccount } from '@/types/saldo-real';
+import { IKA_SYNC_START_DATE } from '@/types/saldo-real';
+import { addRealMutation, removeIkaInvoiceMutation } from '@/lib/firestore-saldo-real';
 import {
     Send, Search, Filter, CheckCircle2, Clock, Calendar,
     User, Phone, Copy, Check, ExternalLink, Printer, FileText,
@@ -32,6 +35,7 @@ export default function PenagihanIkaPage() {
     // Payment Modal State
     const [selectedInvoiceToPay, setSelectedInvoiceToPay] = useState<Invoice | null>(null);
     const [paymentMethod, setPaymentMethod] = useState<'Transfer' | 'Cash'>('Transfer');
+    const [paymentBank, setPaymentBank] = useState<RealBankAccount>('bca');
     const [paymentRef, setPaymentRef] = useState('');
     const [processingPayment, setProcessingPayment] = useState(false);
 
@@ -331,24 +335,53 @@ Mohon bantuan untuk segera diproses pelunasannya. Terima kasih banyak atas kerja
     const handleOpenPayModal = (inv: Invoice) => {
         setSelectedInvoiceToPay(inv);
         setPaymentMethod('Transfer');
+        setPaymentBank('bca');
         setPaymentRef('');
     };
 
     // Process Payment Execution
     const handleExecutePayment = async () => {
-        if (!selectedInvoiceToPay) return;
+        if (!selectedInvoiceToPay || !user) return;
         setProcessingPayment(true);
 
         try {
             const operatorName = user?.displayName || user?.email || 'Officer Penagihan IKA';
+            const payDate = new Date();
+            const dateStr = payDate.toISOString().split('T')[0];
+            const targetBank = paymentMethod === 'Cash' ? 'perusahaan' : paymentBank;
+            const methodLabel = paymentMethod === 'Cash' ? 'Cash / Kas Perusahaan' : `Transfer (${targetBank.toUpperCase()})`;
+
+            // 1. Update Invoice Status to Paid
             await updateInvoiceStatus(selectedInvoiceToPay.id, 'Paid', {
-                date: new Date(),
-                method: paymentMethod,
+                date: payDate,
+                method: methodLabel,
                 ref: paymentRef.trim() || undefined,
                 paidBy: operatorName,
             });
 
-            showToast(`Invoice ${selectedInvoiceToPay.invoiceNumber} berhasil dilunasi!`);
+            // 2. Automatically sync to Saldo Real if payment date >= 2026-08-23
+            if (dateStr >= IKA_SYNC_START_DATE) {
+                try {
+                    await addRealMutation({
+                        userId: user.uid,
+                        date: dateStr,
+                        type: 'in',
+                        source: 'penagihan_ika',
+                        bank: targetBank,
+                        amount: Number(selectedInvoiceToPay.totalAmount) || 0,
+                        category: 'Penagihan IKA',
+                        description: `[PENAGIHAN IKA] Pelunasan Invoice ${selectedInvoiceToPay.invoiceNumber} - ${selectedInvoiceToPay.clientName}`,
+                        refNumber: paymentRef.trim() || selectedInvoiceToPay.invoiceNumber,
+                        invoiceId: selectedInvoiceToPay.id,
+                        clientName: selectedInvoiceToPay.clientName,
+                        paidBy: operatorName,
+                    }, user.uid);
+                } catch (mutErr) {
+                    console.warn('Auto mutation sync notice:', mutErr);
+                }
+            }
+
+            showToast(`Invoice ${selectedInvoiceToPay.invoiceNumber} berhasil dilunasi & tercatat di Saldo Real!`);
             setSelectedInvoiceToPay(null);
         } catch (error: any) {
             console.error('Failed to execute payment:', error);
@@ -363,6 +396,8 @@ Mohon bantuan untuk segera diproses pelunasannya. Terima kasih banyak atas kerja
         if (confirm(`Batalkan pelunasan invoice ${inv.invoiceNumber} dan ubah status menjadi BELUM LUNAS?`)) {
             try {
                 await updateInvoiceStatus(inv.id, 'Unpaid');
+                // Remove auto mutation from Saldo Real if present
+                await removeIkaInvoiceMutation(inv.id);
                 showToast(`Status invoice ${inv.invoiceNumber} berhasil diubah menjadi BELUM LUNAS.`);
             } catch (error: any) {
                 console.error('Failed to revert payment:', error);
@@ -1140,13 +1175,61 @@ Mohon bantuan untuk segera diproses pelunasannya. Terima kasih banyak atas kerja
                                         </button>
                                         <button
                                             type="button"
-                                            onClick={() => setPaymentMethod('Cash')}
+                                            onClick={() => {
+                                                setPaymentMethod('Cash');
+                                                setPaymentBank('perusahaan');
+                                            }}
                                             className={`p-3 rounded-xl border font-bold flex items-center justify-center gap-2 transition-all ${paymentMethod === 'Cash' ? 'bg-emerald-50 border-emerald-500 text-emerald-900 shadow-xs' : 'bg-gray-50 border-gray-200 text-gray-600'}`}
                                         >
-                                            💵 Tunai (Cash)
+                                            💵 Tunai (Kas Perusahaan)
                                         </button>
                                     </div>
                                 </div>
+
+                                {paymentMethod === 'Transfer' && (
+                                    <div>
+                                        <label className="font-extrabold text-gray-800 block mb-1.5">
+                                            Rekening Bank Penerima (Masuk Saldo Real)
+                                        </label>
+                                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => setPaymentBank('bca')}
+                                                className={`p-2.5 rounded-xl border text-left transition-all ${paymentBank === 'bca' ? 'bg-blue-50 border-blue-500 text-blue-900 ring-2 ring-blue-300' : 'bg-gray-50 border-gray-200 text-gray-700'}`}
+                                            >
+                                                <div className="font-bold text-xs">Bank BCA</div>
+                                                <div className="text-[10px] text-gray-500 font-mono">1870444342</div>
+                                            </button>
+
+                                            <button
+                                                type="button"
+                                                onClick={() => setPaymentBank('bri')}
+                                                className={`p-2.5 rounded-xl border text-left transition-all ${paymentBank === 'bri' ? 'bg-sky-50 border-sky-500 text-sky-900 ring-2 ring-sky-300' : 'bg-gray-50 border-gray-200 text-gray-700'}`}
+                                            >
+                                                <div className="font-bold text-xs">Bank BRI</div>
+                                                <div className="text-[10px] text-gray-500 font-mono">0328...501</div>
+                                            </button>
+
+                                            <button
+                                                type="button"
+                                                onClick={() => setPaymentBank('mandiri')}
+                                                className={`p-2.5 rounded-xl border text-left transition-all ${paymentBank === 'mandiri' ? 'bg-amber-50 border-amber-500 text-amber-900 ring-2 ring-amber-300' : 'bg-gray-50 border-gray-200 text-gray-700'}`}
+                                            >
+                                                <div className="font-bold text-xs">Mandiri</div>
+                                                <div className="text-[10px] text-gray-500 font-mono">14000...851</div>
+                                            </button>
+
+                                            <button
+                                                type="button"
+                                                onClick={() => setPaymentBank('perusahaan')}
+                                                className={`p-2.5 rounded-xl border text-left transition-all ${paymentBank === 'perusahaan' ? 'bg-slate-100 border-slate-600 text-slate-900 ring-2 ring-slate-400' : 'bg-gray-50 border-gray-200 text-gray-700'}`}
+                                            >
+                                                <div className="font-bold text-xs">Perusahaan</div>
+                                                <div className="text-[10px] text-gray-500 font-mono">Kas Utama</div>
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
 
                                 <div>
                                     <label className="font-extrabold text-gray-800 block mb-1.5">
@@ -1154,7 +1237,7 @@ Mohon bantuan untuk segera diproses pelunasannya. Terima kasih banyak atas kerja
                                     </label>
                                     <input
                                         type="text"
-                                        placeholder={paymentMethod === 'Transfer' ? 'Contoh: BCA-98127391' : 'Contoh: Diterima oleh Kasir Hilal'}
+                                        placeholder={paymentMethod === 'Transfer' ? 'Contoh: BCA-98127391 atau No Ref Bank' : 'Contoh: Diterima oleh Kasir Hilal'}
                                         value={paymentRef}
                                         onChange={(e) => setPaymentRef(e.target.value)}
                                         className="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-200 font-medium"
