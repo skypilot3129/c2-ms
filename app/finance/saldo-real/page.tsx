@@ -61,6 +61,7 @@ export default function SaldoRealPage() {
     // Filter & Tab States
     const [activeBankTab, setActiveBankTab] = useState<'all' | RealBankAccount>('all');
     const [sourceFilter, setSourceFilter] = useState<'all' | RealMutationSource>('all');
+    const [typeFilter, setTypeFilter] = useState<'all' | 'in' | 'out' | 'transfer'>('all');
     const [searchTerm, setSearchTerm] = useState('');
     
     // Period filter
@@ -265,7 +266,12 @@ export default function SaldoRealPage() {
             list = list.filter(m => m.source === sourceFilter);
         }
 
-        // 3. Period filter
+        // 3. Type filter (In, Out, Transfer)
+        if (typeFilter !== 'all') {
+            list = list.filter(m => m.type === typeFilter);
+        }
+
+        // 4. Period filter
         list = list.filter(m => {
             if (periodMode === 'all') return true;
             if (periodMode === 'month') {
@@ -281,7 +287,7 @@ export default function SaldoRealPage() {
             return true;
         });
 
-        // 4. Search Filter
+        // 5. Search Filter
         if (searchTerm.trim()) {
             const q = searchTerm.toLowerCase();
             list = list.filter(m =>
@@ -298,6 +304,7 @@ export default function SaldoRealPage() {
         chronologicalMutationsWithBalance,
         activeBankTab,
         sourceFilter,
+        typeFilter,
         periodMode,
         selectedMonth,
         selectedYear,
@@ -317,7 +324,7 @@ export default function SaldoRealPage() {
     // Reset pagination on filter change
     useEffect(() => {
         setCurrentPage(1);
-    }, [activeBankTab, sourceFilter, periodMode, selectedMonth, selectedYear, selectedDate, startDate, endDate, searchTerm, pageSize]);
+    }, [activeBankTab, sourceFilter, typeFilter, periodMode, selectedMonth, selectedYear, selectedDate, startDate, endDate, searchTerm, pageSize]);
 
     // Open Modal: Add Mutation
     const handleOpenAddMutation = () => {
@@ -724,18 +731,44 @@ export default function SaldoRealPage() {
                             </button>
                         </div>
 
-                        {/* Source Filter */}
-                        <div className="flex items-center gap-2 text-xs">
-                            <span className="text-gray-400 font-medium">Sumber:</span>
+                        {/* Type & Source Filters */}
+                        <div className="flex flex-wrap items-center gap-2 text-xs">
+                            <div className="flex items-center gap-1 bg-gray-100 p-0.5 rounded-xl text-xs font-bold">
+                                <button
+                                    onClick={() => setTypeFilter('all')}
+                                    className={`px-2.5 py-1 rounded-lg transition-all text-[11px] ${typeFilter === 'all' ? 'bg-white text-gray-900 shadow-xs' : 'text-gray-600 hover:text-gray-900'}`}
+                                >
+                                    Semua Tipe
+                                </button>
+                                <button
+                                    onClick={() => setTypeFilter('in')}
+                                    className={`px-2.5 py-1 rounded-lg transition-all text-[11px] ${typeFilter === 'in' ? 'bg-emerald-600 text-white shadow-xs' : 'text-emerald-700 hover:bg-emerald-50'}`}
+                                >
+                                    📥 Masuk (+)
+                                </button>
+                                <button
+                                    onClick={() => setTypeFilter('out')}
+                                    className={`px-2.5 py-1 rounded-lg transition-all text-[11px] ${typeFilter === 'out' ? 'bg-rose-600 text-white shadow-xs' : 'text-rose-700 hover:bg-rose-50'}`}
+                                >
+                                    📤 Keluar (-)
+                                </button>
+                                <button
+                                    onClick={() => setTypeFilter('transfer')}
+                                    className={`px-2.5 py-1 rounded-lg transition-all text-[11px] ${typeFilter === 'transfer' ? 'bg-purple-600 text-white shadow-xs' : 'text-purple-700 hover:bg-purple-50'}`}
+                                >
+                                    🔄 Transfer
+                                </button>
+                            </div>
+
                             <select
                                 value={sourceFilter}
                                 onChange={(e) => setSourceFilter(e.target.value as any)}
-                                className="bg-gray-50 border border-gray-200 rounded-xl px-2.5 py-1.5 font-bold text-gray-700 outline-none text-xs"
+                                className="bg-gray-50 border border-gray-200 rounded-xl px-2.5 py-1 font-bold text-gray-700 outline-none text-xs"
                             >
                                 <option value="all">Semua Sumber Mutasi</option>
-                                <option value="penagihan_ika">Otomatis Penagihan IKA (Mulai 23 Ags 2026)</option>
-                                <option value="manual">Input Manual</option>
-                                <option value="transfer">Transfer Antar Bank</option>
+                                <option value="penagihan_ika">Otomatis IKA (23 Ags+)</option>
+                                <option value="manual">Manual Input</option>
+                                <option value="transfer">Transfer Bank</option>
                             </select>
                         </div>
                     </div>
@@ -894,8 +927,18 @@ export default function SaldoRealPage() {
                                     const bankInfo = REAL_BANK_ACCOUNTS[m.bank] || REAL_BANK_ACCOUNTS.bca;
                                     const targetBankInfo = m.targetBank ? REAL_BANK_ACCOUNTS[m.targetBank] : null;
 
+                                    const isIncome = m.type === 'in';
+                                    const isExpense = m.type === 'out';
+                                    const isTransfer = m.type === 'transfer';
+
+                                    const rowBgClass = isIncome 
+                                        ? 'bg-emerald-50/20 hover:bg-emerald-50/60 border-l-4 border-l-emerald-500' 
+                                        : isExpense 
+                                        ? 'bg-rose-50/20 hover:bg-rose-50/60 border-l-4 border-l-rose-500' 
+                                        : 'bg-purple-50/20 hover:bg-purple-50/60 border-l-4 border-l-purple-500';
+
                                     return (
-                                        <tr key={m.id} className="hover:bg-indigo-50/20 transition-colors">
+                                        <tr key={m.id} className={`${rowBgClass} transition-colors`}>
                                             <td className="p-3 text-center font-mono text-gray-400 text-[11px]">{rowNo}</td>
                                             <td className="p-3 font-semibold text-gray-900 whitespace-nowrap">
                                                 {new Date(m.date + 'T00:00:00').toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
