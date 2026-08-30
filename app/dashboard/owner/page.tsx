@@ -15,8 +15,10 @@ import {
     Crown,
     Wallet,
     ArrowLeft,
+    ArrowRight,
     Zap,
-    Truck
+    Truck,
+    Ship
 } from 'lucide-react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, AreaChart, Area } from 'recharts';
 
@@ -272,6 +274,26 @@ export default function OwnerDashboardPage() {
 
                 <div className="container mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6 sm:space-y-8">
 
+                    {/* Banner Utama: Laporan Omzet & Keuntungan Per-Kapal */}
+                    <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 rounded-3xl p-6 text-white shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border border-blue-800/40 relative overflow-hidden">
+                        <div className="space-y-1.5 max-w-2xl">
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-500 text-slate-950 shadow-xs">
+                                <Crown size={13} /> Modul Utama Owner Baru
+                            </span>
+                            <h2 className="text-xl sm:text-2xl font-black text-white flex items-center gap-2">
+                                <Ship size={24} className="text-blue-400" /> Laporan Omzet &amp; Keuntungan Per-Kapal
+                            </h2>
+                            <p className="text-xs text-blue-200">
+                                Rekapitulasi Omzet otomatis muatan STT kapal vs Input Biaya Manual (Tiket, Ops MKS, Ops SBY, Gaji Sopir, Sewa Mobil, Ops Tambahan) dengan kalkulasi laba bersih real-time.
+                            </p>
+                        </div>
+                        <button
+                            onClick={() => router.push('/dashboard/owner/omzet-kapal')}
+                            className="px-5 py-3 rounded-2xl bg-gradient-to-r from-amber-400 to-yellow-500 hover:from-amber-500 hover:to-yellow-600 text-slate-950 font-black text-xs shadow-lg shadow-amber-500/25 transition-all active:scale-95 flex items-center gap-2 whitespace-nowrap"
+                        >
+                            Buka Laporan Per-Kapal <ArrowRight size={16} />
+                        </button>
+                    </div>
 
                     {/* 0. Quick Actions (Pintasan Kendali) */}
                     <div className="bg-white rounded-2xl sm:rounded-3xl p-5 sm:p-6 shadow-sm border border-slate-100">
