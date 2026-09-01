@@ -21,7 +21,8 @@ import {
     FileText,
     Sparkles,
     CheckCircle2,
-    ShieldCheck
+    ShieldCheck,
+    Tag
 } from 'lucide-react';
 
 interface LostItem {
@@ -41,8 +42,8 @@ export default function DokumenLegalPage() {
     const [lineHeight, setLineHeight] = useState<string>('1.5');
     const [fontFamily, setFontFamily] = useState<string>('sans');
 
-    // Document Header Title state
-    const [documentTitle, setDocumentTitle] = useState<string>('SURAT PENAWARAN HARGA & KETENTUAN KERJA SAMA PENGANGKUTAN CARGO');
+    // Document Header Title state (Default: Kesepakatan Deal Harga Kuda 16 Ekor)
+    const [documentTitle, setDocumentTitle] = useState<string>('SURAT KESEPAKATAN & RINCIAN DEAL HARGA PENGIRIMAN KHUSUS (16 EKOR KUDA)');
     
     // Active Payment Scheme (for Terms & Conditions templates)
     const [activePaymentScheme, setActivePaymentScheme] = useState<PaymentScheme | null>(null);
@@ -54,132 +55,145 @@ export default function DokumenLegalPage() {
     // Lost items table state
     const [lostItems, setLostItems] = useState<LostItem[]>([]);
 
-    // Document Metadata state (HTML string)
+    // Document Metadata state (HTML string - Default: Dimas Andika Perkasa)
     const [documentMetadata, setDocumentMetadata] = useState<string>(
         `<div class="grid grid-cols-12 gap-1 text-[10.5pt]">
-            <div class="col-span-2 font-semibold">Nomor</div>
-            <div class="col-span-10">: 028/CCE-QUO/VII/2026</div>
+            <div class="col-span-2 font-semibold">Nomor Surat</div>
+            <div class="col-span-10">: 042/CCE-DEAL/KUDA/IX/2026</div>
             
             <div class="col-span-2 font-semibold">Lampiran</div>
             <div class="col-span-10">: -</div>
             
             <div class="col-span-2 font-semibold">Perihal</div>
-            <div class="col-span-10 font-bold">: SURAT PENAWARAN HARGA & KETENTUAN KERJA SAMA PENGANGKUTAN CARGO<br/>(RUTE: SURABAYA - PALU - MANADO & SURABAYA - MAKASSAR - MANADO)</div>
+            <div class="col-span-10 font-bold">: SURAT KESEPAKATAN RINCIAN DEAL HARGA PENGIRIMAN MUATAN KHUSUS<br/><span class="text-amber-800 font-bold text-[10pt]">[KOMODITAS: 16 EKOR KUDA | RUTE: DAGO, BANDUNG - GOWA, SULAWESI SELATAN]</span></div>
         </div>
-        <div class="mt-5 text-[10.5pt]">
-            <p>Kepada Yth,</p>
-            <p class="font-bold">Management / Procurement</p>
-            <p class="font-bold text-slate-900">J&T CARGO (PT Global Jet Cargo)</p>
-            <p class="text-slate-700">Kedudukan sebagai: PENGIRIM (SHIPPER)</p>
-            <p>Di Tempat</p>
+        
+        <div class="mt-4 grid grid-cols-2 gap-4 text-[10pt] bg-slate-50 p-3 rounded-lg border border-slate-300">
+            <div>
+                <p class="font-bold text-slate-900 border-b border-slate-300 pb-1 mb-1.5 uppercase text-[9pt] tracking-wider">Data Pengirim (Shipper):</p>
+                <p><strong>Nama:</strong> Dimas Andika Perkasa</p>
+                <p><strong>Alamat:</strong> Dago, Bandung, Jawa Barat</p>
+                <p><strong>No. HP / WA:</strong> +62 812-2175-8541</p>
+            </div>
+            <div>
+                <p class="font-bold text-slate-900 border-b border-slate-300 pb-1 mb-1.5 uppercase text-[9pt] tracking-wider">Tujuan Penerima (Consignee):</p>
+                <p><strong>Alamat Tujuan:</strong> Jl. Poros Malino, Kab. Gowa, Sulawesi Selatan</p>
+                <p><strong>Jenis Muatan:</strong> Hewan Hidup (Live Animals)</p>
+                <p><strong>Jumlah:</strong> 16 (Enam Belas) Ekor Kuda</p>
+            </div>
         </div>`
     );
 
-    // Document main body content state (HTML string)
+    // Document main body content state (HTML string - Default: Dimas Andika Perkasa Deal)
     const [documentBody, setDocumentBody] = useState<string>(
-        `<p class="mt-4">Dengan hormat,</p>
-        <p class="mt-2">Sehubungan dengan rencana kerja sama pengangkutan dan distribusi kargo muatan milik J&T Cargo (selaku PENGIRIM) rute Surabaya menuju Manado, kami dari <strong>PT CAHAYA CARGO EXPRESS</strong> (selaku PENYEDIA JASA PENGANGKUTAN / TRANSPORTER) mengajukan Penawaran Harga, Layanan Operasional, serta Syarat & Ketentuan Legal Kerjasama sebagai berikut:</p>
+        `<p class="mt-3">Dengan hormat,</p>
+        <p class="mt-1.5">Sehubungan dengan kesepakatan kerja sama pengangkutan muatan khusus hewan hidup antara pihak Pengirim dan <strong>PT CAHAYA CARGO EXPRESS</strong> selaku penyedia jasa transportasi logistik darat &amp; laut, bersama ini kami terbitkan Surat Kesepakatan &amp; Rincian Deal Harga Pengiriman dengan perincian sebagai berikut:</p>
         
-        <h3 class="font-extrabold uppercase mt-5 mb-2 text-slate-900 text-[10pt]">1. TARIF PENGANGKUTAN, SLA, DAN FREKUENSI KAPAL</h3>
-        <table class="w-full text-left border-collapse mt-2 text-[10pt] border border-slate-300">
+        <h3 class="font-extrabold uppercase mt-4 mb-2 text-slate-900 text-[10pt]">1. TOTAL KESEPAKATAN DEAL HARGA PENGIRIMAN</h3>
+        <div class="bg-amber-50 border-2 border-amber-400 rounded-lg p-3.5 my-2">
+            <div class="flex justify-between items-center">
+                <div>
+                    <p class="text-xs text-amber-900 font-semibold uppercase tracking-wider">Total Nilai Kesepakatan Deal (All-in Sesuai Rincian):</p>
+                    <p class="text-2xl font-extrabold text-amber-950 font-mono mt-0.5">Rp 42.950.000,-</p>
+                </div>
+                <div class="text-right">
+                    <span class="bg-amber-600 text-white text-[9pt] font-bold px-3 py-1 rounded-full uppercase">Deal Disepakati</span>
+                </div>
+            </div>
+            <p class="text-[9pt] italic text-amber-900 mt-1.5 font-medium">Terbilang: <em>"Empat Puluh Dua Juta Sembilan Ratus Lima Puluh Ribu Rupiah"</em></p>
+        </div>
+
+        <h3 class="font-extrabold uppercase mt-4 mb-2 text-slate-900 text-[10pt]">2. RINCIAN BIAYA &amp; FASILITAS (INCLUDE / SUDAH TERMASUK)</h3>
+        <table class="w-full text-left border-collapse mt-2 text-[9.5pt] border border-slate-300">
             <thead>
-                <tr class="bg-slate-100 border-b border-slate-350 font-semibold text-slate-700">
+                <tr class="bg-slate-200 border-b border-slate-350 font-semibold text-slate-800">
                     <th class="p-2.5 border-r border-slate-300 w-[8%] text-center">No</th>
-                    <th class="p-2.5 border-r border-slate-300 w-[36%]">Rute Pengiriman</th>
-                    <th class="p-2.5 border-r border-slate-300 w-[20%] text-center">Tarif per Kg</th>
-                    <th class="p-2.5 border-r border-slate-300 w-[18%] text-center">SLA (Hari)</th>
-                    <th class="p-2.5 w-[18%] text-center">Jadwal Kapal</th>
+                    <th class="p-2.5 border-r border-slate-300 w-[52%]">Komponen Layanan / Fasilitas Pengiriman</th>
+                    <th class="p-2.5 border-r border-slate-300 w-[20%] text-center">Status</th>
+                    <th class="p-2.5 w-[20%] text-center">Keterangan</th>
                 </tr>
             </thead>
             <tbody>
-                <tr class="border-b border-slate-300">
-                    <td class="p-2.5 border-r border-slate-300 text-center font-mono">1.</td>
-                    <td class="p-2.5 border-r border-slate-300 font-semibold text-slate-900">Surabaya - Palu - Manado</td>
-                    <td class="p-2.5 border-r border-slate-300 text-center font-mono font-bold text-slate-900">Rp 5.400 / kg</td>
-                    <td class="p-2.5 border-r border-slate-300 text-center font-semibold">8 - 9 Hari</td>
-                    <td class="p-2.5 text-center font-semibold">1 Kali Seminggu</td>
+                <tr class="border-b border-slate-300 bg-white">
+                    <td class="p-2.5 border-r border-slate-300 text-center font-mono font-semibold">1.</td>
+                    <td class="p-2.5 border-r border-slate-300 font-bold text-slate-900">Tiket Kapal (Penyeberangan Ferry / Ro-Ro Kargo)</td>
+                    <td class="p-2.5 border-r border-slate-300 text-center font-bold text-emerald-700 bg-emerald-50">✓ INCLUDE</td>
+                    <td class="p-2.5 text-center text-slate-700">Pelayaran Armada Truk Kargo</td>
                 </tr>
-                <tr class="border-b border-slate-300">
-                    <td class="p-2.5 border-r border-slate-300 text-center font-mono">2.</td>
-                    <td class="p-2.5 border-r border-slate-300 font-semibold text-slate-900">Surabaya - Makassar - Manado</td>
-                    <td class="p-2.5 border-r border-slate-300 text-center font-mono font-bold text-slate-900">Rp 5.800 / kg</td>
-                    <td class="p-2.5 border-r border-slate-300 text-center font-semibold">9 - 10 Hari</td>
-                    <td class="p-2.5 text-center font-semibold">3 Kali Seminggu</td>
+                <tr class="border-b border-slate-300 bg-white">
+                    <td class="p-2.5 border-r border-slate-300 text-center font-mono font-semibold">2.</td>
+                    <td class="p-2.5 border-r border-slate-300 font-bold text-slate-900">Tiket Penumpang Pengawal (Groomer / Handler Kuda)</td>
+                    <td class="p-2.5 border-r border-slate-300 text-center font-bold text-emerald-700 bg-emerald-50">✓ INCLUDE</td>
+                    <td class="p-2.5 text-center text-slate-700">Pendampingan Selama Berlayar</td>
                 </tr>
-                <tr class="border-b border-slate-300">
-                    <td class="p-2.5 border-r border-slate-300 text-center font-mono">3.</td>
-                    <td class="p-2.5 border-r border-slate-300 font-semibold text-slate-900">Surabaya - Palu</td>
-                    <td class="p-2.5 border-r border-slate-300 text-center font-mono font-bold text-slate-900">Rp 3.500 / kg</td>
-                    <td class="p-2.5 border-r border-slate-300 text-center font-semibold">5 - 6 Hari</td>
-                    <td class="p-2.5 text-center font-semibold">2 Kali Seminggu</td>
-                </tr>
-                <tr class="border-b border-slate-300">
-                    <td class="p-2.5 border-r border-slate-300 text-center font-mono">4.</td>
-                    <td class="p-2.5 border-r border-slate-300 font-semibold text-slate-900">Makassar - Manado</td>
-                    <td class="p-2.5 border-r border-slate-300 text-center font-mono font-bold text-slate-900">Rp 4.000 / kg</td>
-                    <td class="p-2.5 border-r border-slate-300 text-center font-semibold">4 - 5 Hari</td>
-                    <td class="p-2.5 text-center font-semibold">3 Kali Seminggu</td>
+                <tr class="bg-white">
+                    <td class="p-2.5 border-r border-slate-300 text-center font-mono font-semibold">3.</td>
+                    <td class="p-2.5 border-r border-slate-300 font-bold text-slate-900">Cas Bagasi Muatan 16 Ekor Kuda</td>
+                    <td class="p-2.5 border-r border-slate-300 text-center font-bold text-emerald-700 bg-emerald-50">✓ INCLUDE</td>
+                    <td class="p-2.5 text-center text-slate-700">Biaya Bagasi Muatan Kargo Laut</td>
                 </tr>
             </tbody>
         </table>
-        <p class="mt-1.5 text-[9pt] italic text-slate-600">* Dasar Perhitungan Berat: Kuantitas dan berat chargeable mengacu penuh pada data penimbangan resmi dari SISTEM J&T CARGO (Pengirim).</p>
 
-        <h3 class="font-extrabold uppercase mt-5 mb-2 text-slate-900 text-[10pt]">2. OPERASIONAL GUDANG & TENAGA KERJA (TKBM)</h3>
-        <div class="space-y-2 text-[9.5pt]">
-            <p><strong>a. Tenaga Kerja Bongkar Muat (TKBM):</strong><br/>
-            PT Cahaya Cargo Express menyediakan tim TKBM sebanyak 10 (sepuluh) orang per shift yang standby 1 x 24 Jam di gudang J&T Cargo untuk penanganan muat dan bongkar barang.</p>
-            <p><strong>b. Layanan Pemuatan (Loading):</strong><br/>
-            Proses pemuatan barang dilakukan secara standby 24 Jam di gudang J&T Cargo sesuai jadwal manifes pengiriman.</p>
+        <h3 class="font-extrabold uppercase mt-4 mb-2 text-rose-900 text-[10pt]">3. KETENTUAN KHUSUS &amp; BIAYA TIDAK TERMASUK (EXCLUDE)</h3>
+        <div class="bg-rose-50 border border-rose-300 rounded-lg p-3 text-[9.5pt] space-y-1.5">
+            <div class="flex items-start gap-2">
+                <span class="text-rose-700 font-extrabold text-sm">❌</span>
+                <div>
+                    <p class="font-bold text-rose-900 uppercase">TIDAK TERMASUK BIAYA KARANTINA HEWAN (EXCLUDE KARANTINA):</p>
+                    <p class="text-rose-950 mt-0.5 leading-relaxed">
+                        Biaya pemeriksaan kesehatan hewan, uji laboratorium, sertifikasi Balai Karantina Pertanian/Hewan (SKKH / Sertifikat Pelepasan Karantina), retribusi karantina, dan perizinan resmi dinas terkait <strong>TIDAK TERMASUK</strong> dalam nilai kesepakatan di atas dan menjadi <strong>tanggung jawab / biaya mandiri pihak PENGIRIM</strong>.
+                    </p>
+                </div>
+            </div>
+            <div class="pt-2 border-t border-rose-200 text-slate-800 text-[9pt] space-y-1">
+                <p>• <strong>Pakan &amp; Perawatan Hewan:</strong> Penyediaan pakan hijauan/konsentrat, air minum, serta pemeliharaan kebersihan kuda selama masa perjalanan darat &amp; laut menjadi tanggung jawab kru pengawal (handler) yang mendampingi.</p>
+                <p>• <strong>Kondisi Fisik Kuda:</strong> Seluruh kuda yang dimuat dipastikan dalam kondisi sehat, kuat, dan layak jalan (fit to travel) sebelum dinaikkan ke unit armada.</p>
+            </div>
         </div>
 
-        <h3 class="font-extrabold uppercase mt-5 mb-2 text-slate-900 text-[10pt]">3. JAMINAN DEPOSIT & SYARAT PEMBAYARAN (TOP)</h3>
-        <div class="space-y-2 text-[9.5pt]">
-            <p><strong>a. Skema Jaminan Deposit / Bank Guarantee:</strong><br/>
-            J&T Cargo (Pengirim) memberikan Deposit Uang / Bank Guarantee sebagai jaminan jangkauan operasional sebesar total Rp 150.000.000,- (Seratus Lima Puluh Juta Rupiah), dengan skema pembayaran bertahap sebagai berikut:</p>
-            <ul class="list-disc pl-5 font-mono text-[9pt] space-y-0.5">
-                <li>Tahap I (Bulan ke-1) : Rp 50.000.000,-</li>
-                <li>Tahap II (Bulan ke-2) : Rp 50.000.000,-</li>
-                <li>Tahap III (Bulan ke-3) : Rp 50.000.000,-</li>
-            </ul>
-            <p><strong>b. Syarat Pembayaran (Payment Terms):</strong><br/>
-            Pembayaran tagihan jasa pengangkutan dilakukan dalam kurun waktu 2 (dua) minggu / 14 (empat belas) hari kalender terhitung sejak barang diterima di tujuan dengan aman (dibuktikan dengan Proof of Delivery / POD yang sah).</p>
+        <h3 class="font-extrabold uppercase mt-4 mb-2 text-slate-900 text-[10pt]">4. REKENING RESMI PEMBAYARAN PERUSAHAAN</h3>
+        <div class="space-y-1.5 text-[9.5pt]">
+            <p>Pembayaran ditransfer langsung ke Rekening Resmi PT CAHAYA CARGO EXPRESS:</p>
+            <div class="grid grid-cols-3 gap-2 bg-slate-50 border border-slate-300 p-2.5 rounded text-[9pt]">
+                <div class="border-r border-slate-300 pr-2">
+                    <p class="font-bold text-blue-900">BANK BCA</p>
+                    <p class="font-mono font-bold text-[10pt] text-slate-900">1870444342</p>
+                    <p class="text-slate-600 text-[8pt]">a.n. MARTINI</p>
+                </div>
+                <div class="border-r border-slate-300 pr-2">
+                    <p class="font-bold text-blue-800">BANK BRI</p>
+                    <p class="font-mono font-bold text-[10pt] text-slate-900">0328 0107 3891 501</p>
+                    <p class="text-slate-600 text-[8pt]">a.n. MARTINI</p>
+                </div>
+                <div>
+                    <p class="font-bold text-amber-900">BANK MANDIRI</p>
+                    <p class="font-mono font-bold text-[10pt] text-slate-900">14000 2408 7851</p>
+                    <p class="text-slate-600 text-[8pt]">a.n. MARTINI</p>
+                </div>
+            </div>
         </div>
 
-        <h3 class="font-extrabold uppercase mt-5 mb-2 text-slate-900 text-[10pt]">4. ASURANSI BARANG, KLAIM, DAN FORCE MAJEURE</h3>
-        <div class="space-y-2 text-[9.5pt]">
-            <p><strong>a. Asuransi Barang Di Atas Truk:</strong><br/>
-            Seluruh kargo muatan dilindungi asuransi di atas armada truk dengan nilai pertanggungan maksimal hingga Rp 600.000.000,- (Enam Ratus Juta Rupiah) per Truk.</p>
-            <p><strong>b. Pencairan Klaim:</strong><br/>
-            Setiap terjadi klaim asuransi barang yang disetujui (approved) oleh pihak penanggung asuransi, dana klaim akan LANGSUNG DICAIRKAN / DITRANSFER KE REKENING J&T CARGO.</p>
-            <p><strong>c. Force Majeure (Keadaan Kahar):</strong><br/>
-            PT Cahaya Cargo Express dibebaskan dari tanggung jawab ganti rugi atau keterlambatan yang disebabkan oleh Keadaan Kahar (Force Majeure), termasuk namun tidak terbatas pada bencana alam, kecelakaan laut/cuaca ekstrem pelayaran, huru-hara, penutupan pelabuhan oleh otoritas pemerintah, dan kejadian di luar kendali wajar manusia.</p>
-        </div>
-
-        <h3 class="font-extrabold uppercase mt-5 mb-2 text-slate-900 text-[10pt]">5. MASA BERLAKU PENAWARAN</h3>
-        <p class="text-[9.5pt]">Penawaran harga dan ketentuan operasional ini bersifat mengikat dan tidak memiliki batas masa berlaku penawaran (tanpa masa kadaluarsa), serta menjadi acuan utama pelaksanaan Surat Perjanjian Kerja Sama (SPK) antara kedua belah pihak.</p>
-
-        <p class="mt-4 text-[9.5pt]">Demikian surat penawaran harga ini kami sampaikan. Atas perhatian dan kerja sama yang baik, kami ucapkan terima kasih.</p>
+        <p class="mt-4 text-[9.5pt]">Demikian Surat Kesepakatan &amp; Rincian Deal Harga ini dibuat dengan sebenarnya dan disetujui bersama untuk dipergunakan sebagai dasar pelaksanaan pengiriman operasional muatan.</p>
         
-        <div class="mt-8 text-[9.5pt]">
-            <p class="mb-4">Surabaya, 29 Juli 2026</p>
+        <div class="mt-6 text-[9.5pt]">
+            <p class="mb-3">Dibuat pada tanggal: ${new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
             <div class="flex justify-between items-start">
                 <div class="text-center w-[45%]">
-                    <p class="font-bold">Diajukan Oleh,</p>
+                    <p class="font-bold">Pihak Transporter,</p>
                     <p class="font-bold text-slate-900">PT CAHAYA CARGO EXPRESS</p>
-                    <p class="text-slate-600 text-[8.5pt]">(Transporter)</p>
-                    <div class="h-20"></div>
-                    <p class="font-bold underline">( ________________________ )</p>
-                    <p class="text-[8.5pt]">Nama:</p>
-                    <p class="text-[8.5pt]">Jabatan:</p>
+                    <p class="text-slate-600 text-[8.5pt]">(Penyedia Jasa Pengangkutan)</p>
+                    <div class="h-16"></div>
+                    <p class="font-bold underline">( HILAL BAFAGIH )</p>
+                    <p class="text-[8.5pt]">Operational Manager</p>
                 </div>
                 <div class="text-center w-[45%]">
-                    <p class="font-bold">Disetujui &amp; Diterima Oleh,</p>
-                    <p class="font-bold text-slate-900">J&T CARGO (PT Global Jet Cargo)</p>
-                    <p class="text-slate-600 text-[8.5pt]">(Pengirim / Shipper)</p>
-                    <div class="h-20"></div>
-                    <p class="font-bold underline">( ________________________ )</p>
-                    <p class="text-[8.5pt]">Nama:</p>
-                    <p class="text-[8.5pt]">Jabatan:</p>
+                    <p class="font-bold">Pihak Pengirim (Shipper),</p>
+                    <p class="font-bold text-slate-900">PENGIRIM MUATAN KUDA</p>
+                    <p class="text-slate-600 text-[8.5pt]">(Dago, Bandung)</p>
+                    <div class="h-16"></div>
+                    <p class="font-bold underline">( DIMAS ANDIKA PERKASA )</p>
+                    <p class="text-[8.5pt]">Pengirim / Pemilik Muatan</p>
                 </div>
             </div>
         </div>`
@@ -484,6 +498,162 @@ export default function DokumenLegalPage() {
         setDocumentMetadata(doc.metadata);
         setDocumentBody(doc.body);
         setActivePaymentScheme(newScheme);
+    };
+
+    // Load Deal Harga Muatan Kuda 16 Ekor (Dimas Andika Perkasa - Bandung ke Gowa)
+    const loadDealKudaTemplate = () => {
+        if (confirm("Muat dokumen resmi Kesepakatan Deal Harga Pengiriman 16 Ekor Kuda (Dimas Andika Perkasa)?")) {
+            setActivePaymentScheme(null);
+            setDocumentTitle('SURAT KESEPAKATAN & RINCIAN DEAL HARGA PENGIRIMAN KHUSUS (16 EKOR KUDA)');
+            setSignatoryName('HILAL BAFAGIH');
+            setSignatoryRole('Operational Manager');
+            setLostItems([]);
+
+            const todayFormatted = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+
+            setDocumentMetadata(
+                `<div class="grid grid-cols-12 gap-1 text-[10.5pt]">
+                    <div class="col-span-2 font-semibold">Nomor Surat</div>
+                    <div class="col-span-10">: 042/CCE-DEAL/KUDA/IX/2026</div>
+                    
+                    <div class="col-span-2 font-semibold">Lampiran</div>
+                    <div class="col-span-10">: -</div>
+                    
+                    <div class="col-span-2 font-semibold">Perihal</div>
+                    <div class="col-span-10 font-bold">: SURAT KESEPAKATAN RINCIAN DEAL HARGA PENGIRIMAN MUATAN KHUSUS<br/><span class="text-amber-800 font-bold text-[10pt]">[KOMODITAS: 16 EKOR KUDA | RUTE: DAGO, BANDUNG - GOWA, SULAWESI SELATAN]</span></div>
+                </div>
+                
+                <div class="mt-4 grid grid-cols-2 gap-4 text-[10pt] bg-slate-50 p-3 rounded-lg border border-slate-300">
+                    <div>
+                        <p class="font-bold text-slate-900 border-b border-slate-300 pb-1 mb-1.5 uppercase text-[9pt] tracking-wider">Data Pengirim (Shipper):</p>
+                        <p><strong>Nama:</strong> Dimas Andika Perkasa</p>
+                        <p><strong>Alamat:</strong> Dago, Bandung, Jawa Barat</p>
+                        <p><strong>No. HP / WA:</strong> +62 812-2175-8541</p>
+                    </div>
+                    <div>
+                        <p class="font-bold text-slate-900 border-b border-slate-300 pb-1 mb-1.5 uppercase text-[9pt] tracking-wider">Tujuan Penerima (Consignee):</p>
+                        <p><strong>Alamat Tujuan:</strong> Jl. Poros Malino, Kab. Gowa, Sulawesi Selatan</p>
+                        <p><strong>Jenis Muatan:</strong> Hewan Hidup (Live Animals)</p>
+                        <p><strong>Jumlah:</strong> 16 (Enam Belas) Ekor Kuda</p>
+                    </div>
+                </div>`
+            );
+
+            setDocumentBody(
+                `<p class="mt-3">Dengan hormat,</p>
+                <p class="mt-1.5">Sehubungan dengan kesepakatan kerja sama pengangkutan muatan khusus hewan hidup antara pihak Pengirim dan <strong>PT CAHAYA CARGO EXPRESS</strong> selaku penyedia jasa transportasi logistik darat &amp; laut, bersama ini kami terbitkan Surat Kesepakatan &amp; Rincian Deal Harga Pengiriman dengan perincian sebagai berikut:</p>
+                
+                <h3 class="font-extrabold uppercase mt-4 mb-2 text-slate-900 text-[10pt]">1. TOTAL KESEPAKATAN DEAL HARGA PENGIRIMAN</h3>
+                <div class="bg-amber-50 border-2 border-amber-400 rounded-lg p-3.5 my-2">
+                    <div class="flex justify-between items-center">
+                        <div>
+                            <p class="text-xs text-amber-900 font-semibold uppercase tracking-wider">Total Nilai Kesepakatan Deal (All-in Sesuai Rincian):</p>
+                            <p class="text-2xl font-extrabold text-amber-950 font-mono mt-0.5">Rp 42.950.000,-</p>
+                        </div>
+                        <div class="text-right">
+                            <span class="bg-amber-600 text-white text-[9pt] font-bold px-3 py-1 rounded-full uppercase">Deal Disepakati</span>
+                        </div>
+                    </div>
+                    <p class="text-[9pt] italic text-amber-900 mt-1.5 font-medium">Terbilang: <em>"Empat Puluh Dua Juta Sembilan Ratus Lima Puluh Ribu Rupiah"</em></p>
+                </div>
+
+                <h3 class="font-extrabold uppercase mt-4 mb-2 text-slate-900 text-[10pt]">2. RINCIAN BIAYA &amp; FASILITAS (INCLUDE / SUDAH TERMASUK)</h3>
+                <table class="w-full text-left border-collapse mt-2 text-[9.5pt] border border-slate-300">
+                    <thead>
+                        <tr class="bg-slate-200 border-b border-slate-350 font-semibold text-slate-800">
+                            <th class="p-2.5 border-r border-slate-300 w-[8%] text-center">No</th>
+                            <th class="p-2.5 border-r border-slate-300 w-[52%]">Komponen Layanan / Fasilitas Pengiriman</th>
+                            <th class="p-2.5 border-r border-slate-300 w-[20%] text-center">Status</th>
+                            <th class="p-2.5 w-[20%] text-center">Keterangan</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr class="border-b border-slate-300 bg-white">
+                            <td class="p-2.5 border-r border-slate-300 text-center font-mono font-semibold">1.</td>
+                            <td class="p-2.5 border-r border-slate-300 font-bold text-slate-900">Tiket Kapal (Penyeberangan Ferry / Ro-Ro Kargo)</td>
+                            <td class="p-2.5 border-r border-slate-300 text-center font-bold text-emerald-700 bg-emerald-50">✓ INCLUDE</td>
+                            <td class="p-2.5 text-center text-slate-700">Pelayaran Armada Truk Kargo</td>
+                        </tr>
+                        <tr class="border-b border-slate-300 bg-white">
+                            <td class="p-2.5 border-r border-slate-300 text-center font-mono font-semibold">2.</td>
+                            <td class="p-2.5 border-r border-slate-300 font-bold text-slate-900">Tiket Penumpang Pengawal (Groomer / Handler Kuda)</td>
+                            <td class="p-2.5 border-r border-slate-300 text-center font-bold text-emerald-700 bg-emerald-50">✓ INCLUDE</td>
+                            <td class="p-2.5 text-center text-slate-700">Pendampingan Selama Berlayar</td>
+                        </tr>
+                        <tr class="bg-white">
+                            <td class="p-2.5 border-r border-slate-300 text-center font-mono font-semibold">3.</td>
+                            <td class="p-2.5 border-r border-slate-300 font-bold text-slate-900">Cas Bagasi Muatan 16 Ekor Kuda</td>
+                            <td class="p-2.5 border-r border-slate-300 text-center font-bold text-emerald-700 bg-emerald-50">✓ INCLUDE</td>
+                            <td class="p-2.5 text-center text-slate-700">Biaya Bagasi Muatan Kargo Laut</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <h3 class="font-extrabold uppercase mt-4 mb-2 text-rose-900 text-[10pt]">3. KETENTUAN KHUSUS &amp; BIAYA TIDAK TERMASUK (EXCLUDE)</h3>
+                <div class="bg-rose-50 border border-rose-300 rounded-lg p-3 text-[9.5pt] space-y-1.5">
+                    <div class="flex items-start gap-2">
+                        <span class="text-rose-700 font-extrabold text-sm">❌</span>
+                        <div>
+                            <p class="font-bold text-rose-900 uppercase">TIDAK TERMASUK BIAYA KARANTINA HEWAN (EXCLUDE KARANTINA):</p>
+                            <p class="text-rose-950 mt-0.5 leading-relaxed">
+                                Biaya pemeriksaan kesehatan hewan, uji laboratorium, sertifikasi Balai Karantina Pertanian/Hewan (SKKH / Sertifikat Pelepasan Karantina), retribusi karantina, dan perizinan resmi dinas terkait <strong>TIDAK TERMASUK</strong> dalam nilai kesepakatan di atas dan menjadi <strong>tanggung jawab / biaya mandiri pihak PENGIRIM</strong>.
+                            </p>
+                        </div>
+                    </div>
+                    <div class="pt-2 border-t border-rose-200 text-slate-800 text-[9pt] space-y-1">
+                        <p>• <strong>Pakan &amp; Perawatan Hewan:</strong> Penyediaan pakan hijauan/konsentrat, air minum, serta pemeliharaan kebersihan kuda selama masa perjalanan darat &amp; laut menjadi tanggung jawab kru pengawal (handler) yang mendampingi.</p>
+                        <p>• <strong>Kondisi Fisik Kuda:</strong> Seluruh kuda yang dimuat dipastikan dalam kondisi sehat, kuat, dan layak jalan (fit to travel) sebelum dinaikkan ke unit armada.</p>
+                    </div>
+                </div>
+
+                <h3 class="font-extrabold uppercase mt-4 mb-2 text-slate-900 text-[10pt]">4. REKENING RESMI PEMBAYARAN PERUSAHAAN</h3>
+                <div class="space-y-1.5 text-[9.5pt]">
+                    <p>Pembayaran ditransfer langsung ke Rekening Resmi PT CAHAYA CARGO EXPRESS:</p>
+                    <div class="grid grid-cols-3 gap-2 bg-slate-50 border border-slate-300 p-2.5 rounded text-[9pt]">
+                        <div class="border-r border-slate-300 pr-2">
+                            <p class="font-bold text-blue-900">BANK BCA</p>
+                            <p class="font-mono font-bold text-[10pt] text-slate-900">1870444342</p>
+                            <p class="text-slate-600 text-[8pt]">a.n. MARTINI</p>
+                        </div>
+                        <div class="border-r border-slate-300 pr-2">
+                            <p class="font-bold text-blue-800">BANK BRI</p>
+                            <p class="font-mono font-bold text-[10pt] text-slate-900">0328 0107 3891 501</p>
+                            <p class="text-slate-600 text-[8pt]">a.n. MARTINI</p>
+                        </div>
+                        <div>
+                            <p class="font-bold text-amber-900">BANK MANDIRI</p>
+                            <p class="font-mono font-bold text-[10pt] text-slate-900">14000 2408 7851</p>
+                            <p class="text-slate-600 text-[8pt]">a.n. MARTINI</p>
+                        </div>
+                    </div>
+                </div>
+
+                <p class="mt-4 text-[9.5pt]">Demikian Surat Kesepakatan &amp; Rincian Deal Harga ini dibuat dengan sebenarnya dan disetujui bersama untuk dipergunakan sebagai dasar pelaksanaan pengiriman operasional muatan.</p>
+                
+                <div class="mt-6 text-[9.5pt]">
+                    <p class="mb-3">Dibuat pada tanggal: ${todayFormatted}</p>
+                    <div class="flex justify-between items-start">
+                        <div class="text-center w-[45%]">
+                            <p class="font-bold">Pihak Transporter,</p>
+                            <p class="font-bold text-slate-900">PT CAHAYA CARGO EXPRESS</p>
+                            <p class="text-slate-600 text-[8.5pt]">(Penyedia Jasa Pengangkutan)</p>
+                            <div class="h-16"></div>
+                            <p class="font-bold underline">( HILAL BAFAGIH )</p>
+                            <p class="text-[8.5pt]">Operational Manager</p>
+                        </div>
+                        <div class="text-center w-[45%]">
+                            <p class="font-bold">Pihak Pengirim (Shipper),</p>
+                            <p class="font-bold text-slate-900">PENGIRIM MUATAN KUDA</p>
+                            <p class="text-slate-600 text-[8.5pt]">(Dago, Bandung)</p>
+                            <div class="h-16"></div>
+                            <p class="font-bold underline">( DIMAS ANDIKA PERKASA )</p>
+                            <p class="text-[8.5pt]">Pengirim / Pemilik Muatan</p>
+                        </div>
+                    </div>
+                </div>`
+            );
+            setDocumentBodyEnd('');
+        }
     };
 
     // Reset to Surat Pernyataan Komitmen Bersama
@@ -983,7 +1153,7 @@ export default function DokumenLegalPage() {
                         <FileSignature className="text-emerald-400" size={24} />
                         <div>
                             <span className="font-bold text-lg block leading-tight">Cetak Dokumen Legal</span>
-                            <span className="text-[10px] text-slate-400">Legal Draft &amp; T&amp;C Generator</span>
+                            <span className="text-[10px] text-slate-400">Legal Draft &amp; Agreement Generator</span>
                         </div>
                     </div>
                     <Link href="/">
@@ -1001,6 +1171,33 @@ export default function DokumenLegalPage() {
                     >
                         <Printer size={20} />
                         Cetak Dokumen (A4)
+                    </button>
+                </div>
+
+                {/* 🐴 KESEPAKATAN DEAL HARGA MUATAN KHUSUS */}
+                <div className="bg-gradient-to-b from-amber-950/40 to-slate-800/80 p-3.5 rounded-xl border border-amber-500/40 space-y-2 shadow-inner">
+                    <div className="flex items-center justify-between">
+                        <label className="text-[11px] font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+                            <Tag size={15} /> Deal Harga Muatan Khusus
+                        </label>
+                        <span className="text-[9px] bg-amber-950 text-amber-300 font-semibold px-1.5 py-0.5 rounded border border-amber-800">
+                            Rp 42.950.000
+                        </span>
+                    </div>
+                    <button 
+                        onClick={loadDealKudaTemplate}
+                        className="w-full text-left p-2.5 rounded-lg border bg-amber-900/40 hover:bg-amber-800/60 border-amber-500/50 hover:border-amber-400 text-white transition-all flex items-start gap-2.5 shadow-sm"
+                        title="Muat Dokumen Kesepakatan Kuda 16 Ekor"
+                    >
+                        <span className="text-xl">🐴</span>
+                        <div>
+                            <div className="text-xs font-bold text-amber-300">
+                                Kesepakatan Deal Kuda 16 Ekor
+                            </div>
+                            <div className="text-[9.5px] text-amber-200/80 leading-tight mt-0.5">
+                                Dimas Andika Perkasa (Dago Bandung) ke Malino Gowa (Sulsel). Include Tiket Kapal, Penumpang &amp; Bagasi. Exclude Karantina.
+                            </div>
+                        </div>
                     </button>
                 </div>
 
