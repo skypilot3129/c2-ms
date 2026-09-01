@@ -11,10 +11,17 @@ import {
     EyeOff, 
     Plus, 
     Trash2, 
-    Type,
-    Layout,
-    FileSpreadsheet,
-    FileSignature
+    Type, 
+    Layout, 
+    FileSpreadsheet, 
+    FileSignature,
+    Ship,
+    Banknote,
+    CreditCard,
+    FileText,
+    Sparkles,
+    CheckCircle2,
+    ShieldCheck
 } from 'lucide-react';
 
 interface LostItem {
@@ -22,6 +29,8 @@ interface LostItem {
     order: string;
     notes: string;
 }
+
+export type PaymentScheme = 'dp_70_30' | 'lunas_cash' | 'tf_lunas_awal';
 
 export default function DokumenLegalPage() {
     // Layout and Display options states
@@ -35,6 +44,9 @@ export default function DokumenLegalPage() {
     // Document Header Title state
     const [documentTitle, setDocumentTitle] = useState<string>('SURAT PENAWARAN HARGA & KETENTUAN KERJA SAMA PENGANGKUTAN CARGO');
     
+    // Active Payment Scheme (for Terms & Conditions templates)
+    const [activePaymentScheme, setActivePaymentScheme] = useState<PaymentScheme | null>(null);
+
     // Signatory states
     const [signatoryName, setSignatoryName] = useState<string>('HILAL BAFAGIH');
     const [signatoryRole, setSignatoryRole] = useState<string>('Operational Manager');
@@ -200,9 +212,284 @@ export default function DokumenLegalPage() {
         }
     };
 
+    // Helper: Generate Payment Scheme HTML
+    const getPaymentSchemeHTML = (scheme: PaymentScheme): string => {
+        if (scheme === 'dp_70_30') {
+            return `
+            <div class="bg-slate-50 border border-slate-300 rounded-md p-3.5 my-2 text-[9.5pt]">
+                <div class="flex items-center gap-2 mb-2 pb-1.5 border-b border-slate-300">
+                    <span class="bg-blue-600 text-white font-bold text-[8pt] px-2 py-0.5 rounded">OPSI A</span>
+                    <p class="font-bold text-slate-900 text-[10pt]">Skema: DP 70% KAPAL BERANGKAT + 30% KAPAL SANDAR</p>
+                </div>
+                <ol class="list-decimal pl-5 space-y-2">
+                    <li>
+                        <strong>Tahap I - Uang Muka / Down Payment (DP 70%):</strong><br/>
+                        PENGIRIM wajib membayar DP sebesar <strong>70% (Tujuh Puluh Persen)</strong> dari total tagihan ongkos angkut paling lambat <strong>1 x 24 Jam</strong> setelah kapal selesai pemuatan (loading) dan telah resmi berangkat / berlayar (sailing) dari pelabuhan asal (dibuktikan dengan Surat Perintah Berlayar / SPB atau Berita Acara Keberangkatan Kapal).
+                    </li>
+                    <li>
+                        <strong>Tahap II - Pelunasan Sisa Tagihan (Pelunasan 30%):</strong><br/>
+                        PENGIRIM wajib melunasi sisa tagihan sebesar <strong>30% (Tiga Puluh Persen)</strong> pada saat kapal telah tiba dan sandar (berthing) di dermaga pelabuhan tujuan, <strong>SEBELUM</strong> proses pembongkaran kargo dilakukan dan <strong>SEBELUM</strong> penyerahan dokumen serah terima muatan / Delivery Order (DO) kepada pihak penerima (Consignee).
+                    </li>
+                </ol>
+                <table class="w-full text-left border-collapse mt-3 text-[9pt] border border-slate-300">
+                    <thead>
+                        <tr class="bg-slate-200 border-b border-slate-300 font-semibold text-slate-800">
+                            <th class="p-2 border-r border-slate-300 text-center w-[12%]">Termin</th>
+                            <th class="p-2 border-r border-slate-300 w-[18%] text-center">Persentase</th>
+                            <th class="p-2 border-r border-slate-300 w-[38%]">Waktu Penagihan</th>
+                            <th class="p-2 w-[32%]">Syarat Rilis / Pelaksanaan</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr class="border-b border-slate-300 bg-white">
+                            <td class="p-2 border-r border-slate-300 text-center font-bold">Termin I</td>
+                            <td class="p-2 border-r border-slate-300 text-center font-bold text-blue-800">DP 70%</td>
+                            <td class="p-2 border-r border-slate-300">Saat Kapal Selesai Muat &amp; Berangkat (Sailing)</td>
+                            <td class="p-2">Invoice DP 70% &amp; Konfirmasi SPB Keberangkatan</td>
+                        </tr>
+                        <tr class="bg-white">
+                            <td class="p-2 border-r border-slate-300 text-center font-bold">Termin II</td>
+                            <td class="p-2 border-r border-slate-300 text-center font-bold text-emerald-800">Pelunasan 30%</td>
+                            <td class="p-2 border-r border-slate-300">Saat Kapal Tiba &amp; Sandar di Pelabuhan Tujuan</td>
+                            <td class="p-2 font-bold text-rose-700">Wajib Lunas SEBELUM Bongkar &amp; Rilis DO</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>`;
+        } else if (scheme === 'lunas_cash') {
+            return `
+            <div class="bg-slate-50 border border-slate-300 rounded-md p-3.5 my-2 text-[9.5pt]">
+                <div class="flex items-center gap-2 mb-2 pb-1.5 border-b border-slate-300">
+                    <span class="bg-emerald-600 text-white font-bold text-[8pt] px-2 py-0.5 rounded">OPSI B</span>
+                    <p class="font-bold text-slate-900 text-[10pt]">Skema: LUNAS CASH (PEMBAYARAN TUNAI 100% DI AWAL)</p>
+                </div>
+                <ol class="list-decimal pl-5 space-y-2">
+                    <li>
+                        <strong>Pembayaran Tunai 100% di Muka (Cash on Order):</strong><br/>
+                        PENGIRIM wajib menyelesaikan pembayaran seluruh ongkos angkut secara <strong>LUNAS 100% TUNAI (Cash)</strong> di loket kasir / kantor operasional PT CAHAYA CARGO EXPRESS pada saat penyerahan barang / penimbangan muatan di gudang sebelum kargo dimuat ke kapal.
+                    </li>
+                    <li>
+                        <strong>Bukti Kwitansi Resmi Pembayaran:</strong><br/>
+                        Pembayaran tunai dinyatakan sah dan terverifikasi setelah diterbitkannya Kwitansi Resmi bermeterai / cap basah kasir PT CAHAYA CARGO EXPRESS yang menjadi dasar penerbitan Surat Jalan Muat.
+                    </li>
+                </ol>
+                <table class="w-full text-left border-collapse mt-3 text-[9pt] border border-slate-300">
+                    <thead>
+                        <tr class="bg-slate-200 border-b border-slate-300 font-semibold text-slate-800">
+                            <th class="p-2 border-r border-slate-300 text-center w-[15%]">Metode</th>
+                            <th class="p-2 border-r border-slate-300 w-[18%] text-center">Persentase</th>
+                            <th class="p-2 border-r border-slate-300 w-[37%]">Waktu Pembayaran</th>
+                            <th class="p-2 w-[30%]">Status Dokumen</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr class="bg-white">
+                            <td class="p-2 border-r border-slate-300 text-center font-bold">Tunai (Cash)</td>
+                            <td class="p-2 border-r border-slate-300 text-center font-bold text-emerald-800">100% LUNAS</td>
+                            <td class="p-2 border-r border-slate-300">Saat Penyerahan Barang di Gudang Asal</td>
+                            <td class="p-2 font-bold text-emerald-700">Kwitansi Lunas Terbit di Tempat</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>`;
+        } else {
+            return `
+            <div class="bg-slate-50 border border-slate-300 rounded-md p-3.5 my-2 text-[9.5pt]">
+                <div class="flex items-center gap-2 mb-2 pb-1.5 border-b border-slate-300">
+                    <span class="bg-indigo-600 text-white font-bold text-[8pt] px-2 py-0.5 rounded">OPSI C</span>
+                    <p class="font-bold text-slate-900 text-[10pt]">Skema: TRANSFER BANK LUNAS DI AWAL (100% PRE-PAYMENT)</p>
+                </div>
+                <ol class="list-decimal pl-5 space-y-2">
+                    <li>
+                        <strong>Transfer Bank Lunas 100% di Muka (Full Pre-Payment):</strong><br/>
+                        PENGIRIM wajib menyelesaikan seluruh tagihan ongkos angkut secara <strong>LUNAS 100% via Transfer Bank</strong> ke rekening resmi PT CAHAYA CARGO EXPRESS sebelum kapal diberangkatkan (sebelum batas closing manifest muatan kapal).
+                    </li>
+                    <li>
+                        <strong>Konfirmasi &amp; Validasi Dana Masuk:</strong><br/>
+                        Bukti transfer bank wajib dikirimkan dan divalidasi oleh Tim Finance CCE. Resi pengiriman, Surat Jalan, dan Instruksi Rilis hanya akan diproses setelah dana terverifikasi efektif masuk ke rekening perusahaan.
+                    </li>
+                </ol>
+                <table class="w-full text-left border-collapse mt-3 text-[9pt] border border-slate-300">
+                    <thead>
+                        <tr class="bg-slate-200 border-b border-slate-300 font-semibold text-slate-800">
+                            <th class="p-2 border-r border-slate-300 text-center w-[15%]">Metode</th>
+                            <th class="p-2 border-r border-slate-300 w-[18%] text-center">Persentase</th>
+                            <th class="p-2 border-r border-slate-300 w-[37%]">Waktu Pembayaran</th>
+                            <th class="p-2 w-[30%]">Syarat Rilis Muatan</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr class="bg-white">
+                            <td class="p-2 border-r border-slate-300 text-center font-bold">Transfer Bank</td>
+                            <td class="p-2 border-r border-slate-300 text-center font-bold text-indigo-800">100% LUNAS</td>
+                            <td class="p-2 border-r border-slate-300">Sebelum Kapal Berangkat (Closing Manifest)</td>
+                            <td class="p-2 font-bold text-indigo-700">Dana Efektif Masuk Rekening CCE</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>`;
+        }
+    };
+
+    // Helper: Build Full Terms & Conditions Document
+    const buildTermsCondDocument = (scheme: PaymentScheme) => {
+        const schemeTitles: Record<PaymentScheme, string> = {
+            dp_70_30: 'DP 70% KAPAL BERANGKAT + 30% KAPAL SANDAR',
+            lunas_cash: 'LUNAS CASH (PEMBAYARAN TUNAI DI AWAL)',
+            tf_lunas_awal: 'TRANSFER BANK LUNAS DI AWAL (PRE-PAYMENT)',
+        };
+
+        const schemeLabel = schemeTitles[scheme];
+        const todayFormatted = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+
+        const metadata = `<div class="grid grid-cols-12 gap-1 text-[10.5pt]">
+            <div class="col-span-2 font-semibold">Nomor</div>
+            <div class="col-span-10">: 035/CCE-TC/VIII/2026</div>
+            
+            <div class="col-span-2 font-semibold">Lampiran</div>
+            <div class="col-span-10">: -</div>
+            
+            <div class="col-span-2 font-semibold">Perihal</div>
+            <div class="col-span-10 font-bold">: SYARAT &amp; KETENTUAN PENGIRIMAN CARGO DAN SKEMA PEMBAYARAN (TERMS &amp; CONDITIONS)<br/><span class="text-slate-700 font-semibold text-[9.5pt]">[SKEMA PEMBAYARAN: ${schemeLabel}]</span></div>
+        </div>
+        <div class="mt-5 text-[10.5pt]">
+            <p>Kepada Yth,</p>
+            <p class="font-bold">Pimpinan / Management &amp; Bagian Keuangan</p>
+            <p class="font-bold text-slate-900">[NAMA PERUSAHAAN / MITRA PENGIRIM]</p>
+            <p class="text-slate-700">Kedudukan sebagai: PENGIRIM (SHIPPER / CUSTOMER)</p>
+            <p>Di Tempat</p>
+        </div>`;
+
+        const paymentClause = getPaymentSchemeHTML(scheme);
+
+        const body = `<p class="mt-4">Dengan hormat,</p>
+        <p class="mt-2">Dokumen ini memuat ketentuan hukum operasional serta syarat dan ketentuan pembayaran (<strong>Terms &amp; Conditions</strong>) yang berlaku mengikat antara <strong>PT CAHAYA CARGO EXPRESS</strong> (selaku PENYEDIA JASA PENGANGKUTAN / TRANSPORTER) dan <strong>PENGIRIM (SHIPPER / CUSTOMER)</strong> dalam pelaksanaan pengangkutan kargo logistik via jalur laut / darat / udara sebagai berikut:</p>
+        
+        <h3 class="font-extrabold uppercase mt-5 mb-2 text-slate-900 text-[10pt]">1. KETENTUAN OPERASIONAL MUATAN &amp; PERHITUNGAN BERAT</h3>
+        <div class="space-y-2 text-[9.5pt]">
+            <p><strong>a. Dasar Perhitungan Berat Chargeable (Actual vs Volume):</strong><br/>
+            Tarif ongkos angkut dihitung berdasarkan berat aktual timbangan (Actual Weight) atau berat volumetrik (Volume Weight) mana yang bernilai lebih tinggi. Rumus konversi volumetrik resmi pengiriman kargo laut/darat: <strong>(Panjang x Lebar x Tinggi dalam cm) / 4.000 = Berat Volumetrik (Kg)</strong>.</p>
+            
+            <p><strong>b. Kargo Berbahaya &amp; Barang Terlarang (Dangerous &amp; Prohibited Goods):</strong><br/>
+            PENGIRIM dilarang keras memuat barang-barang berbahaya (bahan peledak, mudah terbakar, zat kimia berbahaya/beracun tanpa sertifikat MSDS resmi), senjata api/tajam, narkotika/obat-obatan terlarang, barang selundupan yang melanggar hukum, serta hewan hidup tanpa sertifikasi karantina. Segala risiko hukum, sanksi pidana/perdata, dan ganti rugi akibat pemalsuan keterangan manifes barang menjadi tanggung jawab mutlak PENGIRIM.</p>
+            
+            <p><strong>c. Standar Kemasan (Packaging):</strong><br/>
+            PENGIRIM bertanggung jawab penuh atas kekuatan dan kelayakan kemasan barang. Barang pecah belah, cairan, mesin/peralatan elektronik wajib dikemas peti kayu (wooden crate) dan dilapisi plastik kedap air (waterproof wrapping).</p>
+        </div>
+
+        <h3 class="font-extrabold uppercase mt-5 mb-2 text-slate-900 text-[10pt]">2. SKEMA &amp; SYARAT PEMBAYARAN (PAYMENT TERMS)</h3>
+        ${paymentClause}
+
+        <h3 class="font-extrabold uppercase mt-5 mb-2 text-slate-900 text-[10pt]">3. REKENING RESMI PEMBAYARAN PERUSAHAAN</h3>
+        <div class="space-y-2 text-[9.5pt]">
+            <p>Seluruh pembayaran via Transfer Bank wajib ditujukan ke Rekening Bank Resmi PT CAHAYA CARGO EXPRESS:</p>
+            <div class="grid grid-cols-3 gap-2 bg-slate-50 border border-slate-300 p-2.5 rounded text-[9pt]">
+                <div class="border-r border-slate-300 pr-2">
+                    <p class="font-bold text-blue-900">BANK BCA</p>
+                    <p class="font-mono font-bold text-[10pt] text-slate-900">1870444342</p>
+                    <p class="text-slate-600 text-[8pt]">a.n. MARTINI</p>
+                </div>
+                <div class="border-r border-slate-300 pr-2">
+                    <p class="font-bold text-blue-800">BANK BRI</p>
+                    <p class="font-mono font-bold text-[10pt] text-slate-900">0328 0107 3891 501</p>
+                    <p class="text-slate-600 text-[8pt]">a.n. MARTINI</p>
+                </div>
+                <div>
+                    <p class="font-bold text-amber-900">BANK MANDIRI</p>
+                    <p class="font-mono font-bold text-[10pt] text-slate-900">14000 2408 7851</p>
+                    <p class="text-slate-600 text-[8pt]">a.n. MARTINI</p>
+                </div>
+            </div>
+            <p class="text-[8.5pt] italic text-rose-700 font-semibold">* Peringatan: Pembayaran di luar nomor rekening resmi di atas dinyatakan TIDAK SAH dan Transporter dibebaskan dari segala tuntutan kerugian.</p>
+        </div>
+
+        <h3 class="font-extrabold uppercase mt-5 mb-2 text-slate-900 text-[10pt]">4. HAK RETENSI, PENAHANAN MUATAN &amp; DEMURRAGE (LIEN ON CARGO)</h3>
+        <div class="space-y-2 text-[9.5pt]">
+            <p><strong>a. Hak Retensi Pengangkut (Lien on Cargo):</strong><br/>
+            Apabila PENGIRIM lalai, menunda, atau belum menyelesaikan kewajiban pembayaran sesuai termin yang disepakati (khususnya pelunasan 30% saat kapal sandar atau sebelum rilis dokumen), maka PT CAHAYA CARGO EXPRESS berhak penuh secara hukum untuk menjalankan <strong>HAK RETENSI</strong> dengan <strong>MENAHAN</strong> seluruh atau sebagian muatan kargo, Delivery Order (DO), Surat Jalan asli, serta menunda pembongkaran kargo sampai seluruh tagihan dilunasi 100%.</p>
+            
+            <p><strong>b. Biaya Penumpukan &amp; Demurrage:</strong><br/>
+            Segala timbulnya biaya penumpukan di dermaga/gudang transit pelabuhan (storage charges), biaya denda kontainer/demurrage truk, serta biaya pengawalan tambahan yang timbul akibat penahanan kargo karena keterlambatan pembayaran ditanggung sepenuhnya oleh PENGIRIM.</p>
+        </div>
+
+        <h3 class="font-extrabold uppercase mt-5 mb-2 text-slate-900 text-[10pt]">5. ASURANSI, KLAIM KERUSAKAN / KEHILANGAN &amp; FORCE MAJEURE</h3>
+        <div class="space-y-2 text-[9.5pt]">
+            <p><strong>a. Asuransi Kargo (Marine Cargo Insurance):</strong><br/>
+            Kargo bernilai tinggi sangat dianjurkan diasuransikan. Premi asuransi dan nilai pertanggungan disepakati secara tertulis sebelum pemuatan barang.</p>
+            
+            <p><strong>b. Prosedur Klaim:</strong><br/>
+            Segala bentuk komplain atau klaim atas selisih fisik atau kerusakan barang wajib dituangkan dalam <strong>Berita Acara Resmi (Discrepancy Report)</strong> yang ditandatangani bersama di lokasi tujuan saat pembongkaran berlangsung, maksimal <strong>1 x 24 Jam</strong> sejak kargo diserahterimakan. Klaim tidak berlaku apabila barang telah dipindahkan atau keluar dari area bongkar tanpa Berita Acara tertulis.</p>
+            
+            <p><strong>c. Keadaan Kahar (Force Majeure):</strong><br/>
+            Pengangkut dibebaskan dari tuntutan ganti rugi, penalti, atau kompensasi keterlambatan yang disebabkan oleh Keadaan Kahar (Force Majeure), termasuk namun tidak terbatas pada cuaca buruk laut/badai gelombang tinggi, kecelakaan pelayaran di laut lepas, penutupan pelabuhan oleh Otoritas Syahbandar, huru-hara, perang, atau bencana alam di luar kendali wajar manusia.</p>
+        </div>
+
+        <h3 class="font-extrabold uppercase mt-5 mb-2 text-slate-900 text-[10pt]">6. PERSETUJUAN &amp; PENUTUP</h3>
+        <p class="text-[9.5pt]">Dokumen Terms &amp; Conditions ini berkekuatan hukum tetap dan mengikat kedua belah pihak sejak disetujui, ditandatangani, atau sejak penyerahan kargo untuk diberangkatkan.</p>
+        
+        <div class="mt-8 text-[9.5pt]">
+            <p class="mb-4">Surabaya, ${todayFormatted}</p>
+            <div class="flex justify-between items-start">
+                <div class="text-center w-[45%]">
+                    <p class="font-bold">Pihak Pengangkut (Transporter),</p>
+                    <p class="font-bold text-slate-900">PT CAHAYA CARGO EXPRESS</p>
+                    <p class="text-slate-600 text-[8.5pt]">(Penyedia Jasa Pengangkutan)</p>
+                    <div class="h-20"></div>
+                    <p class="font-bold underline">( HILAL BAFAGIH )</p>
+                    <p class="text-[8.5pt]">Operational Manager</p>
+                </div>
+                <div class="text-center w-[45%]">
+                    <p class="font-bold">Menyetujui &amp; Mengikat Diri,</p>
+                    <p class="font-bold text-slate-900">[NAMA PERUSAHAAN / SHIPPER]</p>
+                    <p class="text-slate-600 text-[8.5pt]">(Pengirim / Customer)</p>
+                    <div class="h-20"></div>
+                    <p class="font-bold underline">( ________________________ )</p>
+                    <p class="text-[8.5pt]">Nama Jelas &amp; Jabatan</p>
+                </div>
+            </div>
+        </div>`;
+
+        return {
+            title: 'TERMS & CONDITIONS (SYARAT & KETENTUAN) LAYANAN PENGIRIMAN CARGO & SKEMA PEMBAYARAN',
+            metadata,
+            body,
+            bodyEnd: ''
+        };
+    };
+
+    // Load Terms & Conditions Template
+    const loadTermsCondTemplate = (scheme: PaymentScheme) => {
+        const schemeNames: Record<PaymentScheme, string> = {
+            dp_70_30: 'DP 70% Kapal Berangkat + 30% Kapal Sandar',
+            lunas_cash: 'Lunas Cash (Tunai di Awal)',
+            tf_lunas_awal: 'Transfer Bank Lunas di Awal (Pre-Payment)',
+        };
+
+        if (confirm(`Reset dokumen ke template Terms & Conditions (${schemeNames[scheme]})? Perubahan teks yang belum dicetak akan diganti.`)) {
+            const doc = buildTermsCondDocument(scheme);
+            setDocumentTitle(doc.title);
+            setSignatoryName('HILAL BAFAGIH');
+            setSignatoryRole('Operational Manager');
+            setLostItems([]);
+            setDocumentMetadata(doc.metadata);
+            setDocumentBody(doc.body);
+            setDocumentBodyEnd(doc.bodyEnd);
+            setActivePaymentScheme(scheme);
+        }
+    };
+
+    // Switch Payment Scheme seamlessly on active T&C document
+    const switchTermsPaymentScheme = (newScheme: PaymentScheme) => {
+        const doc = buildTermsCondDocument(newScheme);
+        setDocumentMetadata(doc.metadata);
+        setDocumentBody(doc.body);
+        setActivePaymentScheme(newScheme);
+    };
+
     // Reset to Surat Pernyataan Komitmen Bersama
     const loadKomitmenTemplate = () => {
         if (confirm("Reset dokumen ke template Surat Pernyataan Komitmen Bersama? Perubahan yang belum dicetak akan hilang.")) {
+            setActivePaymentScheme(null);
             setDocumentTitle('SURAT PERNYATAAN KOMITMEN BERSAMA');
             setSignatoryName('HILAL BAFAGIH');
             setSignatoryRole('Operational Manager');
@@ -277,6 +564,7 @@ export default function DokumenLegalPage() {
     // Load Laporan Investigasi Kehilangan
     const loadInvestigasiTemplate = () => {
         if (confirm("Reset dokumen ke template Laporan Investigasi Kehilangan? Perubahan yang belum dicetak akan hilang.")) {
+            setActivePaymentScheme(null);
             setDocumentTitle('LAPORAN INVESTIGASI & KRONOLOGI KEHILANGAN BARANG');
             setSignatoryName('HILAL BAFAGIH');
             setSignatoryRole('Operational Manager');
@@ -391,6 +679,7 @@ export default function DokumenLegalPage() {
     // Load Surat Keterangan
     const loadSuratKeteranganTemplate = () => {
         if (confirm("Reset dokumen ke template Surat Keterangan? Perubahan yang belum dicetak akan hilang.")) {
+            setActivePaymentScheme(null);
             setDocumentTitle('SURAT KETERANGAN JALAN ARMADA');
             setSignatoryName('HILAL BAFAGIH');
             setSignatoryRole('Operational Manager');
@@ -420,6 +709,7 @@ export default function DokumenLegalPage() {
     // Load Kesiapan Operasional & Keamanan Template
     const loadKesiapanTemplate = () => {
         if (confirm("Reset dokumen ke template Laporan Kesiapan Operasional? Perubahan yang belum dicetak akan hilang.")) {
+            setActivePaymentScheme(null);
             setDocumentTitle('SURAT PEMBERITAHUAN KESIAPAN OPERASIONAL DAN IMPLEMENTASI KEAMANAN');
             setSignatoryName('HILAL BAFAGIH');
             setSignatoryRole('Director of Operations / Branch Manager');
@@ -495,6 +785,7 @@ export default function DokumenLegalPage() {
     // Reset to Surat Penawaran Harga J&T Cargo
     const loadPenawaranTemplate = () => {
         if (confirm("Reset dokumen ke template Penawaran Harga & Ketentuan Kerja Sama J&T Cargo? Perubahan yang belum dicetak akan hilang.")) {
+            setActivePaymentScheme(null);
             setDocumentTitle('SURAT PENAWARAN HARGA & KETENTUAN KERJA SAMA PENGANGKUTAN CARGO');
             setSignatoryName('HILAL BAFAGIH');
             setSignatoryRole('Operational Manager');
@@ -633,6 +924,7 @@ export default function DokumenLegalPage() {
     // Load Blank
     const loadBlankTemplate = () => {
         if (confirm("Kosongkan semua konten dokumen?")) {
+            setActivePaymentScheme(null);
             setDocumentTitle('JUDUL DOKUMEN RESMI');
             setLostItems([]);
             setDocumentMetadata(
@@ -683,13 +975,16 @@ export default function DokumenLegalPage() {
             }} />
 
             {/* Left Sidebar Control Panel (no-print) */}
-            <div className="no-print w-full md:w-96 bg-slate-900 text-white p-6 md:min-h-screen flex flex-col gap-6 shadow-xl border-r border-slate-800 z-20">
+            <div className="no-print w-full md:w-96 bg-slate-900 text-white p-6 md:min-h-screen flex flex-col gap-5 shadow-xl border-r border-slate-800 z-20">
                 
                 {/* Header */}
                 <div className="flex justify-between items-center pb-4 border-b border-slate-800">
                     <div className="flex items-center gap-2">
                         <FileSignature className="text-emerald-400" size={24} />
-                        <span className="font-bold text-lg">Cetak Dokumen Legal</span>
+                        <div>
+                            <span className="font-bold text-lg block leading-tight">Cetak Dokumen Legal</span>
+                            <span className="text-[10px] text-slate-400">Legal Draft &amp; T&amp;C Generator</span>
+                        </div>
                     </div>
                     <Link href="/">
                         <button className="p-2 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white transition-colors" title="Kembali">
@@ -709,9 +1004,121 @@ export default function DokumenLegalPage() {
                     </button>
                 </div>
 
-                {/* Templates Selector */}
+                {/* ⭐ DOKUMEN TERMS & CONDITIONS (T&C) DENGAN 3 PILIHAN SKEMA PEMBAYARAN */}
+                <div className="bg-gradient-to-b from-slate-800/90 to-slate-800/50 p-3.5 rounded-xl border border-emerald-500/30 space-y-2.5 shadow-inner">
+                    <div className="flex items-center justify-between">
+                        <label className="text-[11px] font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
+                            <ShieldCheck size={15} /> Dokumen Terms &amp; Conditions (T&amp;C)
+                        </label>
+                        <span className="text-[9px] bg-emerald-950 text-emerald-300 font-semibold px-1.5 py-0.5 rounded border border-emerald-800">
+                            Legal Format
+                        </span>
+                    </div>
+                    <p className="text-[10px] text-slate-300 leading-relaxed">
+                        Pilih template Syarat &amp; Ketentuan Pengiriman Kargo dengan skema pembayaran:
+                    </p>
+
+                    <div className="flex flex-col gap-2">
+                        {/* Option 1: DP 70% Berangkat + 30% Sandar */}
+                        <button 
+                            onClick={() => loadTermsCondTemplate('dp_70_30')}
+                            className={`text-left p-2.5 rounded-lg border transition-all flex items-start gap-2.5 ${
+                                activePaymentScheme === 'dp_70_30'
+                                    ? 'bg-blue-900/60 border-blue-400 text-white shadow-md' 
+                                    : 'bg-slate-800/80 hover:bg-slate-700 border-slate-700 text-slate-200 hover:border-slate-500'
+                            }`}
+                        >
+                            <Ship size={18} className="text-blue-400 shrink-0 mt-0.5" />
+                            <div>
+                                <div className="text-xs font-bold text-blue-300 flex items-center gap-1">
+                                    DP 70% Berangkat + 30% Sandar
+                                    {activePaymentScheme === 'dp_70_30' && <CheckCircle2 size={12} className="text-blue-400" />}
+                                </div>
+                                <div className="text-[9.5px] text-slate-400 leading-tight mt-0.5">
+                                    DP 70% saat kapal sailing, pelunasan 30% saat sandar sebelum bongkar.
+                                </div>
+                            </div>
+                        </button>
+
+                        {/* Option 2: Lunas Cash */}
+                        <button 
+                            onClick={() => loadTermsCondTemplate('lunas_cash')}
+                            className={`text-left p-2.5 rounded-lg border transition-all flex items-start gap-2.5 ${
+                                activePaymentScheme === 'lunas_cash'
+                                    ? 'bg-emerald-900/60 border-emerald-400 text-white shadow-md' 
+                                    : 'bg-slate-800/80 hover:bg-slate-700 border-slate-700 text-slate-200 hover:border-slate-500'
+                            }`}
+                        >
+                            <Banknote size={18} className="text-emerald-400 shrink-0 mt-0.5" />
+                            <div>
+                                <div className="text-xs font-bold text-emerald-300 flex items-center gap-1">
+                                    Lunas Cash (Tunai di Awal)
+                                    {activePaymentScheme === 'lunas_cash' && <CheckCircle2 size={12} className="text-emerald-400" />}
+                                </div>
+                                <div className="text-[9.5px] text-slate-400 leading-tight mt-0.5">
+                                    Pembayaran 100% tunai di loket kasir saat serah terima barang di gudang.
+                                </div>
+                            </div>
+                        </button>
+
+                        {/* Option 3: TF Lunas di Awal */}
+                        <button 
+                            onClick={() => loadTermsCondTemplate('tf_lunas_awal')}
+                            className={`text-left p-2.5 rounded-lg border transition-all flex items-start gap-2.5 ${
+                                activePaymentScheme === 'tf_lunas_awal'
+                                    ? 'bg-indigo-900/60 border-indigo-400 text-white shadow-md' 
+                                    : 'bg-slate-800/80 hover:bg-slate-700 border-slate-700 text-slate-200 hover:border-slate-500'
+                            }`}
+                        >
+                            <CreditCard size={18} className="text-indigo-400 shrink-0 mt-0.5" />
+                            <div>
+                                <div className="text-xs font-bold text-indigo-300 flex items-center gap-1">
+                                    TF Lunas di Awal (Pre-Payment)
+                                    {activePaymentScheme === 'tf_lunas_awal' && <CheckCircle2 size={12} className="text-indigo-400" />}
+                                </div>
+                                <div className="text-[9.5px] text-slate-400 leading-tight mt-0.5">
+                                    Transfer 100% ke rekening BCA/BRI/Mandiri sebelum manifest kapal berangkat.
+                                </div>
+                            </div>
+                        </button>
+                    </div>
+
+                    {/* Quick Payment Switcher for Active T&C */}
+                    {activePaymentScheme && (
+                        <div className="pt-2 border-t border-slate-700/60 flex items-center justify-between text-[10px]">
+                            <span className="text-slate-400 flex items-center gap-1"><Sparkles size={11} className="text-yellow-400" /> Ganti Skema Cepat:</span>
+                            <div className="flex gap-1">
+                                <button 
+                                    onClick={() => switchTermsPaymentScheme('dp_70_30')}
+                                    className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${activePaymentScheme === 'dp_70_30' ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}`}
+                                    title="Ganti ke DP 70% + 30%"
+                                >
+                                    70/30
+                                </button>
+                                <button 
+                                    onClick={() => switchTermsPaymentScheme('lunas_cash')}
+                                    className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${activePaymentScheme === 'lunas_cash' ? 'bg-emerald-600 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}`}
+                                    title="Ganti ke Lunas Cash"
+                                >
+                                    Cash
+                                </button>
+                                <button 
+                                    onClick={() => switchTermsPaymentScheme('tf_lunas_awal')}
+                                    className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${activePaymentScheme === 'tf_lunas_awal' ? 'bg-indigo-600 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}`}
+                                    title="Ganti ke Transfer Prepayment"
+                                >
+                                    TF Awal
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                {/* Templates Selector (Other Legal Documents) */}
                 <div className="space-y-2">
-                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Template Dokumen</label>
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block flex items-center gap-1.5">
+                        <FileText size={14} /> Dokumen &amp; Surat Lainnya
+                    </label>
                     <div className="grid grid-cols-2 gap-2">
                         <button 
                             onClick={loadPenawaranTemplate}
@@ -910,7 +1317,7 @@ export default function DokumenLegalPage() {
                                     className="w-[20mm] h-[20mm] object-contain"
                                 />
                                 <div>
-                                    {/* Company name changed to black font */}
+                                    {/* Company name in bold black font */}
                                     <h2 className="text-xl md:text-2xl font-extrabold text-black tracking-wider font-serif">
                                         CV. CAHAYA CARGO EXPRESS
                                     </h2>
@@ -992,7 +1399,7 @@ export default function DokumenLegalPage() {
                                     </thead>
                                     <tbody>
                                         {lostItems.map((item, idx) => (
-                                            <tr key={idx} className="border-b border-black">
+                                             <tr key={idx} className="border-b border-black">
                                                 <td className="border border-black p-2 text-center">{idx + 1}.</td>
                                                 <td 
                                                     className="border border-black p-2 font-mono"
@@ -1049,7 +1456,7 @@ export default function DokumenLegalPage() {
                         <div className="w-[40%] text-xs">
                             <p className="font-semibold text-gray-500 mb-1">Catatan Dokumen:</p>
                             <p className="text-gray-400 italic leading-snug">
-                                Dokumen ini bersifat rahasia dan internal untuk lingkungan CV. Cahaya Cargo Express beserta mitra pengawas terkait.
+                                Dokumen ini bersifat rahasia dan resmi untuk lingkungan CV. Cahaya Cargo Express beserta mitra terkait.
                             </p>
                         </div>
 

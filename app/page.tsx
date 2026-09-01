@@ -523,7 +523,7 @@ export default function Home() {
                                         </div>
                                         <h2 className="text-2xl font-bold text-gray-800 mb-2 group-hover:text-emerald-600 transition-colors">Cetak Dokumen Legal</h2>
                                         <p className="text-gray-500 mb-6 leading-relaxed">
-                                            Buat, sesuaikan, dan cetak laporan investigasi, surat jalan khusus, dan surat resmi dengan kop Cahaya Cargo.
+                                            Buat, sesuaikan, dan cetak Terms &amp; Conditions (T&amp;C skema DP 70/30, cash, transfer), laporan investigasi, dan surat resmi kop CCE.
                                         </p>
                                         <div className="flex items-center text-emerald-600 font-semibold gap-2">
                                             Buka Dokumen Legal <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
