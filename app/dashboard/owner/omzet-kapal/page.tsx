@@ -21,7 +21,7 @@ import {
     TrendingUp, TrendingDown, DollarSign, Wallet, CheckCircle2,
     Clock, AlertCircle, Edit3, Trash2, X, Save, RefreshCw,
     Sparkles, ArrowRight, Layers, FileText, ChevronRight, PieChart,
-    Truck, UserCheck, Ticket, Building2, MapPin
+    Truck, UserCheck, Ticket, Building2, MapPin, Copy, Check, MessageSquare, Send, Share2
 } from 'lucide-react';
 
 const MONTH_NAMES = [
@@ -58,6 +58,10 @@ export default function OwnerOmzetKapalPage() {
     const [formOpsTambahan, setFormOpsTambahan] = useState<number>(0);
     const [formNotes, setFormNotes] = useState<string>('');
     const [savingCost, setSavingCost] = useState(false);
+
+    // Copy WA states
+    const [copiedShipId, setCopiedShipId] = useState<string | null>(null);
+    const [copiedAllWa, setCopiedAllWa] = useState(false);
 
     // Toast message state
     const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -333,6 +337,153 @@ export default function OwnerOmzetKapalPage() {
         router.push(`/dashboard/owner/omzet-kapal/print?${params.toString()}`);
     };
 
+    // ── WHATSAPP REPORT GENERATORS & COPY HANDLERS ──
+
+    const generateSingleShipWaText = (r: OwnerShipSummaryRow): string => {
+        const formattedDate = r.departureDate && !isNaN(r.departureDate.getTime())
+            ? r.departureDate.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
+            : '-';
+
+        const vehiclesText = r.vehicleNumbers.length > 0 ? r.vehicleNumbers.join(', ') : '-';
+        const marginStatus = r.profitMargin >= 30 ? '🟢 Surplus Tinggi' : r.profitMargin >= 10 ? '🟡 Cukup Baik' : '🔴 Tipis / Defisit';
+
+        let text = `🚢 *LAPORAN OMZET & LABA PER-KAPAL*\n`;
+        text += `*CAHAYA CARGO EXPRESS*\n`;
+        text += `━━━━━━━━━━━━━━━━━━━━━━\n`;
+        text += `🛳️ *Kapal:* ${r.shipName}\n`;
+        text += `📜 *No. Voyage:* ${r.voyageNumber}\n`;
+        text += `📅 *Tgl Berangkat:* ${formattedDate}\n`;
+        text += `📍 *Rute:* ${r.route}\n`;
+        text += `🚗 *Armada Truk:* ${vehiclesText}\n`;
+        text += `📦 *Muatan STT:* ${r.sttCount} Resi\n\n`;
+
+        text += `💰 *1. TOTAL OMZET KAPAL (STT):*\n`;
+        text += `👉 *${formatRupiah(r.totalRevenue)}*\n\n`;
+
+        text += `📉 *2. RINCIAN BIAYA PENGELUARAN:*\n`;
+        text += `• 🎟️ Tiket Kapal: ${r.tiket > 0 ? formatRupiah(r.tiket) : 'Rp 0'}\n`;
+        text += `• 🏢 Ops Makassar: ${r.opsMakassar > 0 ? formatRupiah(r.opsMakassar) : 'Rp 0'}\n`;
+        text += `• 🏢 Ops Surabaya: ${r.opsSurabaya > 0 ? formatRupiah(r.opsSurabaya) : 'Rp 0'}\n`;
+        text += `• 👨‍✈️ Gaji/Uang Jalan Sopir: ${r.gajiSopir > 0 ? formatRupiah(r.gajiSopir) : 'Rp 0'}\n`;
+        text += `• 🚛 Sewa Mobil/Unit: ${r.sewaMobil > 0 ? formatRupiah(r.sewaMobil) : 'Rp 0'}\n`;
+        text += `• ➕ Ops Tambahan: ${r.opsTambahan > 0 ? formatRupiah(r.opsTambahan) : 'Rp 0'}\n`;
+        text += `───────────────────────\n`;
+        text += `*TOTAL BIAYA:* *${formatRupiah(r.totalExpenses)}*\n\n`;
+
+        text += `💵 *3. LABA BERSIH OWNER:*\n`;
+        text += `👉 *${formatRupiah(r.netProfit)}*\n`;
+        text += `📊 *Margin Laba:* ${r.profitMargin}% (${marginStatus})\n`;
+
+        if (r.notes && r.notes.trim()) {
+            text += `━━━━━━━━━━━━━━━━━━━━━━\n`;
+            text += `📝 *Catatan:* ${r.notes.trim()}\n`;
+        }
+        text += `━━━━━━━━━━━━━━━━━━━━━━\n`;
+        text += `_Laporan dibuat otomatis oleh Sistem CCE App_`;
+
+        return text;
+    };
+
+    const generateAllShipsRecapWaText = (): string => {
+        const periodStr = filterPeriodMode === 'month' 
+            ? `Bulan ${MONTH_NAMES[selectedMonth]} ${selectedYear}` 
+            : 'Semua Riwayat Keberangkatan';
+
+        let text = `📊 *REKAPITULASI OMZET & LABA SELURUH KAPAL*\n`;
+        text += `*CAHAYA CARGO EXPRESS*\n`;
+        text += `━━━━━━━━━━━━━━━━━━━━━━\n`;
+        text += `📅 *Periode:* ${periodStr}\n`;
+        text += `🚢 *Jumlah Kapal:* ${filteredRows.length} Keberangkatan\n\n`;
+
+        text += `🌟 *RINGKASAN EKSEKUTIF OWNER:*\n`;
+        text += `• Total Omzet Kapal: *${formatRupiah(kpiTotals.totalRevenue)}*\n`;
+        text += `• Total Pengeluaran: *${formatRupiah(kpiTotals.totalExpenses)}*\n`;
+        text += `• Total Laba Bersih: *${formatRupiah(kpiTotals.netProfit)}*\n`;
+        text += `• Rata-rata Margin: *${kpiTotals.avgMargin}%*\n\n`;
+
+        text += `📋 *RINCIAN BIAYA GLOBAL:*\n`;
+        text += `• 🎟️ Tiket Kapal: ${formatRupiah(kpiTotals.totalTiket)}\n`;
+        text += `• 🏢 Ops Makassar: ${formatRupiah(kpiTotals.totalOpsMakassar)}\n`;
+        text += `• 🏢 Ops Surabaya: ${formatRupiah(kpiTotals.totalOpsSurabaya)}\n`;
+        text += `• 👨‍✈️ Gaji Sopir: ${formatRupiah(kpiTotals.totalGajiSopir)}\n`;
+        text += `• 🚛 Sewa Mobil: ${formatRupiah(kpiTotals.totalSewaMobil)}\n`;
+        text += `• ➕ Ops Tambahan: ${formatRupiah(kpiTotals.totalOpsTambahan)}\n\n`;
+
+        text += `🚢 *RINCIAN PER-KAPAL:*\n`;
+        text += `───────────────────────\n`;
+        filteredRows.forEach((r, idx) => {
+            const d = r.departureDate && !isNaN(r.departureDate.getTime())
+                ? `${r.departureDate.getDate()} ${MONTH_NAMES[r.departureDate.getMonth()].substring(0, 3)}`
+                : '-';
+            text += `${idx + 1}. *${r.shipName}* (${d})\n`;
+            text += `   Omzet: ${formatRupiah(r.totalRevenue)} | Biaya: ${formatRupiah(r.totalExpenses)}\n`;
+            text += `   👉 *Laba:* ${formatRupiah(r.netProfit)} (${r.profitMargin}%)\n`;
+        });
+        text += `━━━━━━━━━━━━━━━━━━━━━━\n`;
+        text += `_Laporan dibuat otomatis oleh Sistem CCE App_`;
+
+        return text;
+    };
+
+    const copyTextToClipboard = async (text: string): Promise<boolean> => {
+        try {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                await navigator.clipboard.writeText(text);
+                return true;
+            }
+            throw new Error('Clipboard API unavailable');
+        } catch {
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            textarea.style.position = 'fixed';
+            textarea.style.opacity = '0';
+            document.body.appendChild(textarea);
+            textarea.select();
+            const success = document.execCommand('copy');
+            document.body.removeChild(textarea);
+            return success;
+        }
+    };
+
+    const handleCopySingleShipWa = async (r: OwnerShipSummaryRow) => {
+        const text = generateSingleShipWaText(r);
+        await copyTextToClipboard(text);
+        setCopiedShipId(r.voyageId);
+        showToast(`📲 Laporan WhatsApp ${r.shipName} (${r.voyageNumber}) berhasil disalin!`);
+        setTimeout(() => setCopiedShipId(null), 2500);
+    };
+
+    const handleCopyAllShipsWa = async () => {
+        const text = generateAllShipsRecapWaText();
+        await copyTextToClipboard(text);
+        setCopiedAllWa(true);
+        showToast(`📲 Rekapitulasi WhatsApp ${filteredRows.length} Kapal berhasil disalin!`);
+        setTimeout(() => setCopiedAllWa(false), 2500);
+    };
+
+    const handleCopyModalShipWa = async () => {
+        if (!selectedVoyageForCost) return;
+        const matchingRow = consolidatedRows.find(r => r.voyageId === selectedVoyageForCost.id);
+        if (matchingRow) {
+            const tempRow: OwnerShipSummaryRow = {
+                ...matchingRow,
+                tiket: formTiket,
+                opsMakassar: formOpsMakassar,
+                opsSurabaya: formOpsSurabaya,
+                gajiSopir: formGajiSopir,
+                sewaMobil: formSewaMobil,
+                opsTambahan: formOpsTambahan,
+                totalExpenses: formTotalCost,
+                netProfit: formEstimatedProfit,
+                profitMargin: formEstimatedMargin,
+                notes: formNotes,
+            };
+            const text = generateSingleShipWaText(tempRow);
+            await copyTextToClipboard(text);
+            showToast(`📲 Laporan WhatsApp ${selectedVoyageForCost.shipName || 'Kapal'} berhasil disalin!`);
+        }
+    };
+
     // Selected Voyage Revenue for Modal Live Preview
     const selectedVoyageRevenue = useMemo(() => {
         if (!selectedVoyageForCost) return 0;
@@ -384,6 +535,14 @@ export default function OwnerOmzetKapalPage() {
                     </div>
 
                     <div className="flex flex-wrap items-center gap-2">
+                        <button
+                            onClick={handleCopyAllShipsWa}
+                            className={`flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all shadow-xs active:scale-95 ${copiedAllWa ? 'bg-emerald-600 text-white shadow-emerald-600/30' : 'bg-emerald-50 text-emerald-800 border border-emerald-300 hover:bg-emerald-100'}`}
+                        >
+                            {copiedAllWa ? <Check size={15} /> : <Share2 size={15} className="text-emerald-700" />}
+                            {copiedAllWa ? 'Rekap WA Tersalin!' : '📲 Salin Rekap WA'}
+                        </button>
+
                         <button
                             onClick={handleOpenPrintPage}
                             className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-bold bg-blue-50 text-blue-800 border border-blue-200 hover:bg-blue-100 transition-colors shadow-xs"
@@ -703,12 +862,13 @@ export default function OwnerOmzetKapalPage() {
                                         Laba Bersih (=)
                                     </th>
                                     <th className="p-3 text-center w-20">Margin</th>
-                                    <th className="p-3 text-center w-24">Aksi Biaya</th>
+                                    <th className="p-3 text-center w-44">Aksi Per-Kapal</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100 text-gray-700 text-xs">
                                 {filteredRows.map((r, idx) => {
                                     const matchingVoyage = voyages.find(v => v.id === r.voyageId);
+                                    const isCopied = copiedShipId === r.voyageId;
 
                                     return (
                                         <tr key={r.voyageId} className="hover:bg-blue-50/20 transition-colors">
@@ -781,17 +941,29 @@ export default function OwnerOmzetKapalPage() {
                                                 </span>
                                             </td>
 
-                                            {/* Action Button */}
+                                            {/* Action Buttons: Salin WA & Edit Biaya */}
                                             <td className="p-3 text-center">
-                                                {matchingVoyage && (
+                                                <div className="flex items-center justify-center gap-1.5">
                                                     <button
-                                                        onClick={() => handleOpenCostModal(matchingVoyage)}
-                                                        className={`flex items-center justify-center gap-1 w-full py-1 px-2 rounded-lg font-bold text-[10px] transition-all ${r.hasManualExpense ? 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200' : 'bg-amber-500 text-white hover:bg-amber-600 shadow-xs'}`}
+                                                        onClick={() => handleCopySingleShipWa(r)}
+                                                        title="Salin Laporan WhatsApp Kapal Ini"
+                                                        className={`flex items-center justify-center gap-1 py-1 px-2 rounded-lg font-bold text-[10px] transition-all shadow-2xs active:scale-95 whitespace-nowrap ${isCopied ? 'bg-emerald-600 text-white' : 'bg-emerald-50 text-emerald-800 border border-emerald-300 hover:bg-emerald-100'}`}
                                                     >
-                                                        <Edit3 size={11} />
-                                                        {r.hasManualExpense ? 'Edit Biaya' : '+ Isi Biaya'}
+                                                        {isCopied ? <Check size={11} /> : <Share2 size={11} className="text-emerald-700" />}
+                                                        {isCopied ? 'Tersalin' : 'Salin WA'}
                                                     </button>
-                                                )}
+
+                                                    {matchingVoyage && (
+                                                        <button
+                                                            onClick={() => handleOpenCostModal(matchingVoyage)}
+                                                            title="Input / Edit Biaya Operasional Kapal"
+                                                            className={`flex items-center justify-center gap-1 py-1 px-2 rounded-lg font-bold text-[10px] transition-all whitespace-nowrap ${r.hasManualExpense ? 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200' : 'bg-amber-500 text-white hover:bg-amber-600 shadow-xs'}`}
+                                                        >
+                                                            <Edit3 size={11} />
+                                                            {r.hasManualExpense ? 'Biaya' : '+ Biaya'}
+                                                        </button>
+                                                    )}
+                                                </div>
                                             </td>
                                         </tr>
                                     );
@@ -976,16 +1148,27 @@ export default function OwnerOmzetKapalPage() {
                                 </div>
 
                                 {/* Modal Actions */}
-                                <div className="flex items-center justify-between gap-3 pt-2">
-                                    <button
-                                        type="button"
-                                        onClick={() => handleDeleteCost(selectedVoyageForCost.id, selectedVoyageForCost.shipName || 'Kapal')}
-                                        className="py-2.5 px-4 border border-red-200 text-red-600 font-bold rounded-xl hover:bg-red-50 transition-colors"
-                                    >
-                                        Reset Biaya
-                                    </button>
+                                <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => handleDeleteCost(selectedVoyageForCost.id, selectedVoyageForCost.shipName || 'Kapal')}
+                                            className="py-2 px-3 border border-red-200 text-red-600 font-bold rounded-xl hover:bg-red-50 transition-colors text-xs"
+                                        >
+                                            Reset
+                                        </button>
 
-                                    <div className="flex items-center gap-2 flex-1 justify-end">
+                                        <button
+                                            type="button"
+                                            onClick={handleCopyModalShipWa}
+                                            className="py-2 px-3 bg-emerald-50 text-emerald-800 border border-emerald-300 font-bold rounded-xl hover:bg-emerald-100 transition-colors text-xs flex items-center gap-1.5 shadow-xs active:scale-95"
+                                        >
+                                            <Share2 size={13} className="text-emerald-700" />
+                                            Salin WA Kapal Ini
+                                        </button>
+                                    </div>
+
+                                    <div className="flex items-center gap-2">
                                         <button
                                             type="button"
                                             onClick={() => setIsCostModalOpen(false)}

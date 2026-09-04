@@ -11,7 +11,7 @@ import { subscribeToOwnerShipExpenses } from '@/lib/firestore-owner-ship-expense
 import type { Voyage } from '@/types/voyage';
 import type { Transaction } from '@/types/transaction';
 import type { OwnerShipExpense, OwnerShipSummaryRow } from '@/types/owner-ship-report';
-import { ArrowLeft, Printer, MapPin, Phone, Ship, Crown, Calendar, DollarSign, Wallet } from 'lucide-react';
+import { ArrowLeft, Printer, MapPin, Phone, Ship, Crown, Calendar, DollarSign, Wallet, Share2, Check } from 'lucide-react';
 
 const MONTH_NAMES = [
     'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
@@ -33,6 +33,7 @@ function PrintOwnerOmzetKapalContent() {
     const [manualExpenses, setManualExpenses] = useState<OwnerShipExpense[]>([]);
     const [loading, setLoading] = useState(true);
     const [printDateStr, setPrintDateStr] = useState('');
+    const [copiedWa, setCopiedWa] = useState(false);
 
     useEffect(() => {
         const now = new Date();
@@ -196,6 +197,58 @@ function PrintOwnerOmzetKapalContent() {
         window.print();
     };
 
+    const handleCopyAllShipsWa = async () => {
+        let text = `📊 *REKAPITULASI OMZET & LABA SELURUH KAPAL*\n`;
+        text += `*CAHAYA CARGO EXPRESS*\n`;
+        text += `━━━━━━━━━━━━━━━━━━━━━━\n`;
+        text += `📅 *Periode:* ${periodLabel}\n`;
+        text += `🚢 *Jumlah Kapal:* ${consolidatedRows.length} Keberangkatan\n\n`;
+
+        text += `🌟 *RINGKASAN EKSEKUTIF OWNER:*\n`;
+        text += `• Total Omzet Kapal: *${formatRupiah(totals.totalRevenue)}*\n`;
+        text += `• Total Pengeluaran: *${formatRupiah(totals.totalExpenses)}*\n`;
+        text += `• Total Laba Bersih: *${formatRupiah(totals.netProfit)}*\n`;
+        text += `• Rata-rata Margin: *${totals.avgMargin}%*\n\n`;
+
+        text += `📋 *RINCIAN BIAYA GLOBAL:*\n`;
+        text += `• 🎟️ Tiket Kapal: ${formatRupiah(totals.totalTiket)}\n`;
+        text += `• 🏢 Ops Makassar: ${formatRupiah(totals.totalOpsMakassar)}\n`;
+        text += `• 🏢 Ops Surabaya: ${formatRupiah(totals.totalOpsSurabaya)}\n`;
+        text += `• 👨‍✈️ Gaji Sopir: ${formatRupiah(totals.totalGajiSopir)}\n`;
+        text += `• 🚛 Sewa Mobil: ${formatRupiah(totals.totalSewaMobil)}\n`;
+        text += `• ➕ Ops Tambahan: ${formatRupiah(totals.totalOpsTambahan)}\n\n`;
+
+        text += `🚢 *RINCIAN PER-KAPAL:*\n`;
+        text += `───────────────────────\n`;
+        consolidatedRows.forEach((r, idx) => {
+            const d = r.departureDate && !isNaN(r.departureDate.getTime())
+                ? `${r.departureDate.getDate()} ${MONTH_NAMES[r.departureDate.getMonth()].substring(0, 3)}`
+                : '-';
+            text += `${idx + 1}. *${r.shipName}* (${d})\n`;
+            text += `   Omzet: ${formatRupiah(r.totalRevenue)} | Biaya: ${formatRupiah(r.totalExpenses)}\n`;
+            text += `   👉 *Laba:* ${formatRupiah(r.netProfit)} (${r.profitMargin}%)\n`;
+        });
+        text += `━━━━━━━━━━━━━━━━━━━━━━\n`;
+        text += `_Laporan dibuat otomatis oleh Sistem CCE App_`;
+
+        try {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                await navigator.clipboard.writeText(text);
+            } else {
+                const textarea = document.createElement('textarea');
+                textarea.value = text;
+                document.body.appendChild(textarea);
+                textarea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textarea);
+            }
+            setCopiedWa(true);
+            setTimeout(() => setCopiedWa(false), 2500);
+        } catch (e) {
+            console.error('Failed to copy', e);
+        }
+    };
+
     return (
         <div className="bg-slate-100 min-h-screen text-slate-900 font-sans print:bg-white print:p-0">
             {/* Embedded Print CSS */}
@@ -233,12 +286,22 @@ function PrintOwnerOmzetKapalContent() {
                         </div>
                     </div>
 
-                    <button
-                        onClick={handlePrint}
-                        className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-black bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-lg shadow-blue-600/25 transition-all active:scale-95"
-                    >
-                        <Printer size={16} /> 🖨️ Cetak / Unduh PDF (A4 Landscape)
-                    </button>
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={handleCopyAllShipsWa}
+                            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black transition-all shadow-sm active:scale-95 ${copiedWa ? 'bg-emerald-600 text-white' : 'bg-emerald-50 text-emerald-800 border border-emerald-300 hover:bg-emerald-100'}`}
+                        >
+                            {copiedWa ? <Check size={16} /> : <Share2 size={16} className="text-emerald-700" />}
+                            {copiedWa ? 'Rekap WA Tersalin!' : '📲 Salin Rekap WA'}
+                        </button>
+
+                        <button
+                            onClick={handlePrint}
+                            className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-black bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-lg shadow-blue-600/25 transition-all active:scale-95"
+                        >
+                            <Printer size={16} /> 🖨️ Cetak / Unduh PDF (A4 Landscape)
+                        </button>
+                    </div>
                 </div>
             </div>
 
