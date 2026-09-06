@@ -29,13 +29,14 @@ import {
     Building2, Landmark, Wallet, ArrowUpRight, ArrowDownLeft, ArrowLeftRight,
     Plus, Settings, RefreshCw, Printer, Search, Filter, Calendar,
     CheckCircle2, Clock, Trash2, Edit3, X, Save, AlertCircle, Sparkles,
-    ChevronLeft, ChevronRight, ArrowRight, DollarSign, FileText, Check
+    ChevronLeft, ChevronRight, ArrowRight, DollarSign, FileText, Check,
+    SlidersHorizontal, Eye, ChevronDown, ChevronUp
 } from 'lucide-react';
 
 type FilterPeriodMode = 'month' | 'date' | 'range' | 'all';
 
 export default function SaldoRealPage() {
-    const { user, role } = useAuth();
+    const { user } = useAuth();
     const router = useRouter();
 
     const [settings, setSettings] = useState<RealBalanceSettings>({
@@ -63,6 +64,7 @@ export default function SaldoRealPage() {
     const [sourceFilter, setSourceFilter] = useState<'all' | RealMutationSource>('all');
     const [typeFilter, setTypeFilter] = useState<'all' | 'in' | 'out' | 'transfer'>('all');
     const [searchTerm, setSearchTerm] = useState('');
+    const [showMobileFilterPanel, setShowMobileFilterPanel] = useState(false);
     
     // Period filter
     const [periodMode, setPeriodMode] = useState<FilterPeriodMode>('month');
@@ -134,7 +136,6 @@ export default function SaldoRealPage() {
     useEffect(() => {
         if (!user || invoices.length === 0) return;
         
-        // Background silent sync
         syncIkaInvoicesToRealMutations(invoices, user.uid, user.displayName || user.email || 'System')
             .catch(err => console.warn('Background IKA sync notice:', err));
     }, [user, invoices]);
@@ -150,9 +151,9 @@ export default function SaldoRealPage() {
                 user.displayName || user.email || 'Admin Finance'
             );
             if (res.addedCount > 0 || res.updatedCount > 0) {
-                showToast(`✅ Berhasil menyinkronkan ${res.addedCount} invoice baru & memperbarui ${res.updatedCount} transaksi dari Penagihan IKA!`);
+                showToast(`✅ Sinkronisasi berhasil: ${res.addedCount} invoice baru, ${res.updatedCount} diperbarui!`);
             } else {
-                showToast(`ℹ️ Semua invoice Penagihan IKA (mulai ${IKA_SYNC_START_DATE}) sudah tersinkron rapi.`);
+                showToast(`ℹ️ Semua invoice Penagihan IKA (mulai ${IKA_SYNC_START_DATE}) sudah tersinkron.`);
             }
         } catch (err: any) {
             console.error(err);
@@ -184,12 +185,10 @@ export default function SaldoRealPage() {
                     perBank[m.bank].saldoReal -= amt;
                 }
             } else if (m.type === 'transfer') {
-                // Out from source bank
                 if (perBank[m.bank]) {
                     perBank[m.bank].totalOut += amt;
                     perBank[m.bank].saldoReal -= amt;
                 }
-                // In to target bank
                 if (m.targetBank && perBank[m.targetBank]) {
                     perBank[m.targetBank].totalIn += amt;
                     perBank[m.targetBank].saldoReal += amt;
@@ -213,13 +212,11 @@ export default function SaldoRealPage() {
 
     // Calculate Running Balance in Chronological Ascending order
     const chronologicalMutationsWithBalance = useMemo(() => {
-        // Sort ascending by date & createdAt
         const sorted = [...mutations].sort((a, b) => {
             if (a.date !== b.date) return a.date.localeCompare(b.date);
             return a.createdAt.getTime() - b.createdAt.getTime();
         });
 
-        // Running balance tracker per bank
         let running: Record<RealBankAccount, number> = {
             perusahaan: settings.modalAwalPerusahaan,
             bca: settings.modalAwalBca,
@@ -253,25 +250,20 @@ export default function SaldoRealPage() {
 
     // Filter mutations for display
     const filteredMutations = useMemo(() => {
-        // Reverse back to descending for standard ledger display
         let list = [...chronologicalMutationsWithBalance].reverse();
 
-        // 1. Bank tab filter
         if (activeBankTab !== 'all') {
             list = list.filter(m => m.bank === activeBankTab || (m.type === 'transfer' && m.targetBank === activeBankTab));
         }
 
-        // 2. Source filter
         if (sourceFilter !== 'all') {
             list = list.filter(m => m.source === sourceFilter);
         }
 
-        // 3. Type filter (In, Out, Transfer)
         if (typeFilter !== 'all') {
             list = list.filter(m => m.type === typeFilter);
         }
 
-        // 4. Period filter
         list = list.filter(m => {
             if (periodMode === 'all') return true;
             if (periodMode === 'month') {
@@ -287,7 +279,6 @@ export default function SaldoRealPage() {
             return true;
         });
 
-        // 5. Search Filter
         if (searchTerm.trim()) {
             const q = searchTerm.toLowerCase();
             list = list.filter(m =>
@@ -476,343 +467,484 @@ export default function SaldoRealPage() {
         'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
     ];
 
+    const activeFilterCount = (sourceFilter !== 'all' ? 1 : 0) + (periodMode !== 'month' ? 1 : 0);
+
     return (
         <ProtectedRoute>
-            <div className="space-y-6 pb-24 max-w-7xl mx-auto font-sans">
+            <div className="space-y-4 sm:space-y-6 pb-28 max-w-7xl mx-auto font-sans px-2 sm:px-4">
                 
                 {/* Toast Notification */}
                 {toastMessage && (
-                    <div className="fixed bottom-6 right-6 z-50 bg-gray-900 text-white px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-3 animate-in fade-in slide-in-from-bottom-4 duration-200 border border-gray-700 text-xs font-semibold">
+                    <div className="fixed bottom-20 sm:bottom-6 right-4 sm:right-6 z-50 bg-gray-900/95 backdrop-blur-md text-white px-4 py-3 rounded-2xl shadow-2xl flex items-center gap-2.5 animate-in fade-in slide-in-from-bottom-4 duration-200 border border-gray-700 text-xs font-semibold max-w-sm">
+                        <CheckCircle2 size={16} className="text-emerald-400 shrink-0" />
                         <span>{toastMessage}</span>
                     </div>
                 )}
 
                 {/* ── 1. TOP HEADER & ACTION BUTTONS ── */}
-                <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-xs flex flex-wrap items-center justify-between gap-4">
-                    <div className="flex items-center gap-3">
-                        <Link href="/finance" className="p-2 hover:bg-gray-100 rounded-xl text-gray-500 transition-colors">
-                            <Building2 size={20} />
-                        </Link>
-                        <div>
-                            <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-                                <Landmark size={24} className="text-indigo-600" /> Saldo Real Bank & Kas
-                            </h1>
-                            <p className="text-xs text-gray-500">
-                                Rekapitulasi Real-Time Kas Utama Perusahaan, Bank Mandiri, Bank BRI, & Bank BCA (Auto-Sync Penagihan IKA)
-                            </p>
+                <div className="bg-white p-3.5 sm:p-5 rounded-2xl border border-gray-200/80 shadow-xs">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="flex items-center gap-2.5">
+                            <Link 
+                                href="/finance" 
+                                className="p-2 bg-gray-50 hover:bg-gray-100 rounded-xl text-gray-600 transition-colors border border-gray-200 shrink-0 active:scale-95"
+                                title="Kembali ke Menu Keuangan"
+                            >
+                                <Building2 size={18} />
+                            </Link>
+                            <div className="min-w-0">
+                                <h1 className="text-base sm:text-xl font-black text-gray-900 flex items-center gap-1.5 tracking-tight truncate">
+                                    <span className="p-1.5 bg-indigo-50 text-indigo-700 rounded-lg">
+                                        <Landmark size={18} />
+                                    </span>
+                                    Saldo Real Bank & Kas
+                                </h1>
+                                <p className="text-[11px] sm:text-xs text-gray-500 line-clamp-1 mt-0.5">
+                                    Kas Utama, Mandiri, BRI, & BCA (Auto-Sync Penagihan IKA)
+                                </p>
+                            </div>
                         </div>
-                    </div>
 
-                    <div className="flex flex-wrap items-center gap-2">
-                        <button
-                            onClick={handleManualSyncIka}
-                            disabled={syncingIka}
-                            className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-bold bg-indigo-50 text-indigo-800 border border-indigo-200 hover:bg-indigo-100 transition-colors shadow-xs disabled:opacity-50"
-                            title="Sinkronkan data pelunasan invoice dari Penagihan IKA mulai 23 Agustus 2026"
-                        >
-                            <RefreshCw size={14} className={syncingIka ? 'animate-spin text-indigo-600' : 'text-indigo-600'} />
-                            {syncingIka ? 'Menyinkronkan...' : '🔄 Sinkronkan Penagihan IKA'}
-                        </button>
+                        {/* Action Buttons Toolbar */}
+                        <div className="flex items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden pt-1 sm:pt-0">
+                            <button
+                                onClick={handleManualSyncIka}
+                                disabled={syncingIka}
+                                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-indigo-50 text-indigo-800 border border-indigo-200 hover:bg-indigo-100 transition-all shadow-xs disabled:opacity-50 shrink-0 active:scale-95"
+                                title="Sinkronkan data pelunasan invoice dari Penagihan IKA"
+                            >
+                                <RefreshCw size={13} className={syncingIka ? 'animate-spin text-indigo-600' : 'text-indigo-600'} />
+                                <span className="hidden sm:inline">{syncingIka ? 'Menyinkronkan...' : 'Sinkron IKA'}</span>
+                                <span className="sm:hidden text-[11px]">{syncingIka ? 'Sync...' : 'Sync IKA'}</span>
+                            </button>
 
-                        <button
-                            onClick={() => setIsSettingsModalOpen(true)}
-                            className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-bold bg-gray-100 text-gray-800 hover:bg-gray-200 transition-colors shadow-xs"
-                            title="Atur Modal Awal per rekening bank"
-                        >
-                            <Settings size={14} className="text-gray-600" /> Atur Modal Awal
-                        </button>
+                            <button
+                                onClick={() => setIsSettingsModalOpen(true)}
+                                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-gray-100 text-gray-800 hover:bg-gray-200 transition-all shadow-xs shrink-0 active:scale-95"
+                                title="Atur Modal Awal per rekening bank"
+                            >
+                                <Settings size={13} className="text-gray-600" /> 
+                                <span className="hidden sm:inline">Modal Awal</span>
+                                <span className="sm:hidden text-[11px]">Modal</span>
+                            </button>
 
-                        <button
-                            onClick={handleOpenPrintReport}
-                            className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-bold bg-blue-50 text-blue-800 border border-blue-200 hover:bg-blue-100 transition-colors shadow-xs"
-                            title="Cetak Rekap Laporan Saldo Real PDF A4"
-                        >
-                            <Printer size={14} className="text-blue-600" /> 🖨️ Cetak PDF
-                        </button>
+                            <button
+                                onClick={handleOpenPrintReport}
+                                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-blue-50 text-blue-800 border border-blue-200 hover:bg-blue-100 transition-all shadow-xs shrink-0 active:scale-95"
+                                title="Cetak Rekap Laporan Saldo Real PDF A4"
+                            >
+                                <Printer size={13} className="text-blue-600" />
+                                <span className="hidden sm:inline">Cetak PDF</span>
+                                <span className="sm:hidden text-[11px]">PDF</span>
+                            </button>
 
-                        <button
-                            onClick={handleOpenAddMutation}
-                            className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-md shadow-blue-600/20 transition-all active:scale-95"
-                        >
-                            <Plus size={16} /> + Input Transaksi
-                        </button>
+                            <button
+                                onClick={handleOpenAddMutation}
+                                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-md shadow-blue-600/20 transition-all active:scale-95 shrink-0"
+                            >
+                                <Plus size={15} /> 
+                                <span>+ Transaksi</span>
+                            </button>
+                        </div>
                     </div>
                 </div>
 
-                {/* ── 2. TOP KPI CARDS (5 ACCOUNTS SUMMARY) ── */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                {/* ── 2. TOP KPI CARDS (RESPONSIVE HERO & BANK CARDS) ── */}
+                <div className="space-y-3">
                     
-                    {/* Card 1: TOTAL SALDO REAL GABUNGAN */}
-                    <div className="bg-gradient-to-br from-slate-900 via-indigo-950 to-blue-950 text-white p-4 rounded-2xl shadow-md border border-indigo-900/50 relative overflow-hidden flex flex-col justify-between">
-                        <div className="flex justify-between items-start">
+                    {/* Hero Card: TOTAL SALDO REAL GABUNGAN */}
+                    <div className="bg-gradient-to-br from-slate-900 via-indigo-950 to-blue-950 text-white p-4 sm:p-5 rounded-2xl shadow-lg border border-indigo-900/50 relative overflow-hidden">
+                        <div className="absolute right-0 top-0 -mr-6 -mt-6 w-32 h-32 bg-indigo-500/10 rounded-full blur-2xl pointer-events-none" />
+                        
+                        <div className="flex justify-between items-start relative z-10">
                             <div>
-                                <span className="bg-indigo-500/30 text-indigo-200 border border-indigo-400/30 text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
-                                    Total 4 Akun
+                                <span className="bg-indigo-500/30 text-indigo-200 border border-indigo-400/30 text-[9px] sm:text-[10px] font-extrabold px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+                                    Total 4 Akun Bank
                                 </span>
-                                <h3 className="text-xs font-bold text-slate-200 mt-1">TOTAL SALDO REAL</h3>
+                                <h3 className="text-xs sm:text-sm font-bold text-slate-300 mt-1.5 flex items-center gap-1.5">
+                                    TOTAL SALDO REAL GABUNGAN
+                                </h3>
                             </div>
-                            <div className="p-2 bg-white/10 rounded-xl">
-                                <Wallet size={18} className="text-emerald-400" />
+                            <div className="p-2 sm:p-2.5 bg-white/10 rounded-xl backdrop-blur-sm">
+                                <Wallet size={20} className="text-emerald-400" />
                             </div>
                         </div>
 
-                        <div className="my-2">
-                            <div className="text-lg sm:text-xl font-black text-white tracking-tight">
+                        <div className="my-3 relative z-10">
+                            <div className="text-2xl sm:text-3xl font-black text-white tracking-tight">
                                 {formatRupiah(balances.grandTotalSaldoReal)}
                             </div>
-                            <div className="text-[10px] text-slate-300 mt-0.5">
-                                Modal Awal: <span className="font-semibold text-white">{formatRupiah(balances.totalModalAwal)}</span>
+                            <div className="text-[11px] sm:text-xs text-slate-300 mt-1 flex items-center gap-1.5">
+                                <span>Modal Awal:</span>
+                                <span className="font-bold text-white bg-white/10 px-2 py-0.5 rounded-md">
+                                    {formatRupiah(balances.totalModalAwal)}
+                                </span>
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-1 pt-2 border-t border-white/10 text-[9.5px]">
-                            <div className="text-emerald-300 flex items-center gap-1 font-semibold">
-                                <ArrowDownLeft size={12} /> +{formatRupiah(balances.totalIn)}
+                        <div className="grid grid-cols-2 gap-2 pt-2.5 border-t border-white/10 text-[11px] sm:text-xs relative z-10">
+                            <div className="text-emerald-300 flex items-center gap-1 font-bold bg-emerald-950/40 px-2.5 py-1.5 rounded-xl border border-emerald-500/20">
+                                <ArrowDownLeft size={14} className="shrink-0" />
+                                <div className="truncate">
+                                    <span className="text-[9px] block text-emerald-400 font-normal">Total Masuk</span>
+                                    +{formatRupiah(balances.totalIn)}
+                                </div>
                             </div>
-                            <div className="text-red-300 flex items-center gap-1 font-semibold justify-end">
-                                <ArrowUpRight size={12} /> -{formatRupiah(balances.totalOut)}
+                            <div className="text-red-300 flex items-center gap-1 font-bold bg-rose-950/40 px-2.5 py-1.5 rounded-xl border border-rose-500/20 justify-end text-right">
+                                <div className="truncate">
+                                    <span className="text-[9px] block text-rose-400 font-normal">Total Keluar</span>
+                                    -{formatRupiah(balances.totalOut)}
+                                </div>
+                                <ArrowUpRight size={14} className="shrink-0" />
                             </div>
                         </div>
                     </div>
 
-                    {/* Card 2: BANK PERUSAHAAN (KAS UTAMA) */}
-                    <div className="bg-white p-4 rounded-2xl shadow-xs border border-slate-200 flex flex-col justify-between hover:border-slate-400 transition-colors">
-                        <div className="flex justify-between items-start">
-                            <div>
-                                <span className="bg-slate-100 text-slate-800 border border-slate-300 text-[9px] font-bold px-2 py-0.5 rounded-full uppercase">
+                    {/* 4 Individual Bank Cards (Mobile: 2x2 Grid, Desktop: 4 Columns) */}
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
+                        
+                        {/* Card: PERUSAHAAN (KAS UTAMA) */}
+                        <div 
+                            onClick={() => setActiveBankTab(prev => prev === 'perusahaan' ? 'all' : 'perusahaan')}
+                            className={`p-3 sm:p-4 rounded-2xl border transition-all cursor-pointer select-none active:scale-[0.98] flex flex-col justify-between ${
+                                activeBankTab === 'perusahaan'
+                                    ? 'bg-slate-900 text-white border-slate-900 shadow-md ring-2 ring-slate-400'
+                                    : 'bg-white hover:border-slate-400 border-slate-200 text-gray-900 shadow-2xs'
+                            }`}
+                        >
+                            <div className="flex justify-between items-start">
+                                <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full uppercase ${
+                                    activeBankTab === 'perusahaan' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-800'
+                                }`}>
                                     Kas Utama
                                 </span>
-                                <h3 className="text-xs font-bold text-gray-900 mt-1">Bank Perusahaan</h3>
+                                <Building2 size={15} className={activeBankTab === 'perusahaan' ? 'text-slate-300' : 'text-slate-500'} />
                             </div>
-                            <div className="p-1.5 bg-slate-100 text-slate-700 rounded-lg">
-                                <Building2 size={16} />
+
+                            <div className="my-2">
+                                <h4 className={`text-[11px] font-bold ${activeBankTab === 'perusahaan' ? 'text-slate-200' : 'text-gray-700'}`}>
+                                    Perusahaan
+                                </h4>
+                                <div className="text-sm sm:text-base font-black tracking-tight mt-0.5 truncate">
+                                    {formatRupiah(balances.perBank.perusahaan.saldoReal)}
+                                </div>
+                            </div>
+
+                            <div className={`pt-2 border-t text-[10px] flex justify-between items-center ${
+                                activeBankTab === 'perusahaan' ? 'border-white/15 text-slate-300' : 'border-gray-100 text-gray-500'
+                            }`}>
+                                <span className="text-emerald-500 font-bold truncate">+{formatRupiah(balances.perBank.perusahaan.totalIn)}</span>
+                                <span className="text-rose-500 font-bold truncate">-{formatRupiah(balances.perBank.perusahaan.totalOut)}</span>
                             </div>
                         </div>
 
-                        <div className="my-2">
-                            <div className="text-base font-extrabold text-slate-900">
-                                {formatRupiah(balances.perBank.perusahaan.saldoReal)}
-                            </div>
-                            <div className="text-[10px] text-gray-500">
-                                Modal Awal: {formatRupiah(balances.perBank.perusahaan.modalAwal)}
-                            </div>
-                        </div>
-
-                        <div className="flex justify-between items-center pt-2 border-t border-gray-100 text-[9px] font-medium text-gray-500">
-                            <span className="text-emerald-600">+{formatRupiah(balances.perBank.perusahaan.totalIn)}</span>
-                            <span className="text-red-600">-{formatRupiah(balances.perBank.perusahaan.totalOut)}</span>
-                        </div>
-                    </div>
-
-                    {/* Card 3: BANK BCA */}
-                    <div className="bg-white p-4 rounded-2xl shadow-xs border border-blue-200 flex flex-col justify-between hover:border-blue-400 transition-colors">
-                        <div className="flex justify-between items-start">
-                            <div>
-                                <span className="bg-blue-50 text-blue-700 border border-blue-200 text-[9px] font-bold px-2 py-0.5 rounded-full uppercase">
-                                    1870444342
+                        {/* Card: BANK BCA */}
+                        <div 
+                            onClick={() => setActiveBankTab(prev => prev === 'bca' ? 'all' : 'bca')}
+                            className={`p-3 sm:p-4 rounded-2xl border transition-all cursor-pointer select-none active:scale-[0.98] flex flex-col justify-between ${
+                                activeBankTab === 'bca'
+                                    ? 'bg-blue-600 text-white border-blue-600 shadow-md ring-2 ring-blue-300'
+                                    : 'bg-white hover:border-blue-400 border-blue-200 text-gray-900 shadow-2xs'
+                            }`}
+                        >
+                            <div className="flex justify-between items-start">
+                                <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full uppercase ${
+                                    activeBankTab === 'bca' ? 'bg-white/20 text-white' : 'bg-blue-50 text-blue-700'
+                                }`}>
+                                    BCA 1870
                                 </span>
-                                <h3 className="text-xs font-bold text-blue-950 mt-1">Bank BCA</h3>
+                                <Landmark size={15} className={activeBankTab === 'bca' ? 'text-blue-100' : 'text-blue-600'} />
                             </div>
-                            <div className="p-1.5 bg-blue-50 text-blue-700 rounded-lg">
-                                <Landmark size={16} />
+
+                            <div className="my-2">
+                                <h4 className={`text-[11px] font-bold ${activeBankTab === 'bca' ? 'text-blue-100' : 'text-blue-950'}`}>
+                                    Bank BCA
+                                </h4>
+                                <div className="text-sm sm:text-base font-black tracking-tight mt-0.5 truncate">
+                                    {formatRupiah(balances.perBank.bca.saldoReal)}
+                                </div>
+                            </div>
+
+                            <div className={`pt-2 border-t text-[10px] flex justify-between items-center ${
+                                activeBankTab === 'bca' ? 'border-white/15 text-blue-100' : 'border-gray-100 text-gray-500'
+                            }`}>
+                                <span className="text-emerald-500 font-bold truncate">+{formatRupiah(balances.perBank.bca.totalIn)}</span>
+                                <span className="text-rose-500 font-bold truncate">-{formatRupiah(balances.perBank.bca.totalOut)}</span>
                             </div>
                         </div>
 
-                        <div className="my-2">
-                            <div className="text-base font-extrabold text-blue-900">
-                                {formatRupiah(balances.perBank.bca.saldoReal)}
-                            </div>
-                            <div className="text-[10px] text-gray-500">
-                                Modal Awal: {formatRupiah(balances.perBank.bca.modalAwal)}
-                            </div>
-                        </div>
-
-                        <div className="flex justify-between items-center pt-2 border-t border-gray-100 text-[9px] font-medium text-gray-500">
-                            <span className="text-emerald-600">+{formatRupiah(balances.perBank.bca.totalIn)}</span>
-                            <span className="text-red-600">-{formatRupiah(balances.perBank.bca.totalOut)}</span>
-                        </div>
-                    </div>
-
-                    {/* Card 4: BANK BRI */}
-                    <div className="bg-white p-4 rounded-2xl shadow-xs border border-sky-200 flex flex-col justify-between hover:border-sky-400 transition-colors">
-                        <div className="flex justify-between items-start">
-                            <div>
-                                <span className="bg-sky-50 text-sky-700 border border-sky-200 text-[9px] font-bold px-2 py-0.5 rounded-full uppercase">
-                                    0328...501
+                        {/* Card: BANK BRI */}
+                        <div 
+                            onClick={() => setActiveBankTab(prev => prev === 'bri' ? 'all' : 'bri')}
+                            className={`p-3 sm:p-4 rounded-2xl border transition-all cursor-pointer select-none active:scale-[0.98] flex flex-col justify-between ${
+                                activeBankTab === 'bri'
+                                    ? 'bg-sky-600 text-white border-sky-600 shadow-md ring-2 ring-sky-300'
+                                    : 'bg-white hover:border-sky-400 border-sky-200 text-gray-900 shadow-2xs'
+                            }`}
+                        >
+                            <div className="flex justify-between items-start">
+                                <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full uppercase ${
+                                    activeBankTab === 'bri' ? 'bg-white/20 text-white' : 'bg-sky-50 text-sky-700'
+                                }`}>
+                                    BRI 0328
                                 </span>
-                                <h3 className="text-xs font-bold text-sky-950 mt-1">Bank BRI</h3>
+                                <Landmark size={15} className={activeBankTab === 'bri' ? 'text-sky-100' : 'text-sky-600'} />
                             </div>
-                            <div className="p-1.5 bg-sky-50 text-sky-700 rounded-lg">
-                                <Landmark size={16} />
+
+                            <div className="my-2">
+                                <h4 className={`text-[11px] font-bold ${activeBankTab === 'bri' ? 'text-sky-100' : 'text-sky-950'}`}>
+                                    Bank BRI
+                                </h4>
+                                <div className="text-sm sm:text-base font-black tracking-tight mt-0.5 truncate">
+                                    {formatRupiah(balances.perBank.bri.saldoReal)}
+                                </div>
+                            </div>
+
+                            <div className={`pt-2 border-t text-[10px] flex justify-between items-center ${
+                                activeBankTab === 'bri' ? 'border-white/15 text-sky-100' : 'border-gray-100 text-gray-500'
+                            }`}>
+                                <span className="text-emerald-500 font-bold truncate">+{formatRupiah(balances.perBank.bri.totalIn)}</span>
+                                <span className="text-rose-500 font-bold truncate">-{formatRupiah(balances.perBank.bri.totalOut)}</span>
                             </div>
                         </div>
 
-                        <div className="my-2">
-                            <div className="text-base font-extrabold text-sky-900">
-                                {formatRupiah(balances.perBank.bri.saldoReal)}
-                            </div>
-                            <div className="text-[10px] text-gray-500">
-                                Modal Awal: {formatRupiah(balances.perBank.bri.modalAwal)}
-                            </div>
-                        </div>
-
-                        <div className="flex justify-between items-center pt-2 border-t border-gray-100 text-[9px] font-medium text-gray-500">
-                            <span className="text-emerald-600">+{formatRupiah(balances.perBank.bri.totalIn)}</span>
-                            <span className="text-red-600">-{formatRupiah(balances.perBank.bri.totalOut)}</span>
-                        </div>
-                    </div>
-
-                    {/* Card 5: BANK MANDIRI */}
-                    <div className="bg-white p-4 rounded-2xl shadow-xs border border-amber-200 flex flex-col justify-between hover:border-amber-400 transition-colors">
-                        <div className="flex justify-between items-start">
-                            <div>
-                                <span className="bg-amber-50 text-amber-700 border border-amber-200 text-[9px] font-bold px-2 py-0.5 rounded-full uppercase">
-                                    14000...851
+                        {/* Card: BANK MANDIRI */}
+                        <div 
+                            onClick={() => setActiveBankTab(prev => prev === 'mandiri' ? 'all' : 'mandiri')}
+                            className={`p-3 sm:p-4 rounded-2xl border transition-all cursor-pointer select-none active:scale-[0.98] flex flex-col justify-between ${
+                                activeBankTab === 'mandiri'
+                                    ? 'bg-amber-600 text-white border-amber-600 shadow-md ring-2 ring-amber-300'
+                                    : 'bg-white hover:border-amber-400 border-amber-200 text-gray-900 shadow-2xs'
+                            }`}
+                        >
+                            <div className="flex justify-between items-start">
+                                <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full uppercase ${
+                                    activeBankTab === 'mandiri' ? 'bg-white/20 text-white' : 'bg-amber-50 text-amber-700'
+                                }`}>
+                                    Mandiri 1400
                                 </span>
-                                <h3 className="text-xs font-bold text-amber-950 mt-1">Bank Mandiri</h3>
+                                <Landmark size={15} className={activeBankTab === 'mandiri' ? 'text-amber-100' : 'text-amber-600'} />
                             </div>
-                            <div className="p-1.5 bg-amber-50 text-amber-700 rounded-lg">
-                                <Landmark size={16} />
+
+                            <div className="my-2">
+                                <h4 className={`text-[11px] font-bold ${activeBankTab === 'mandiri' ? 'text-amber-100' : 'text-amber-950'}`}>
+                                    Bank Mandiri
+                                </h4>
+                                <div className="text-sm sm:text-base font-black tracking-tight mt-0.5 truncate">
+                                    {formatRupiah(balances.perBank.mandiri.saldoReal)}
+                                </div>
+                            </div>
+
+                            <div className={`pt-2 border-t text-[10px] flex justify-between items-center ${
+                                activeBankTab === 'mandiri' ? 'border-white/15 text-amber-100' : 'border-gray-100 text-gray-500'
+                            }`}>
+                                <span className="text-emerald-500 font-bold truncate">+{formatRupiah(balances.perBank.mandiri.totalIn)}</span>
+                                <span className="text-rose-500 font-bold truncate">-{formatRupiah(balances.perBank.mandiri.totalOut)}</span>
                             </div>
                         </div>
 
-                        <div className="my-2">
-                            <div className="text-base font-extrabold text-amber-900">
-                                {formatRupiah(balances.perBank.mandiri.saldoReal)}
-                            </div>
-                            <div className="text-[10px] text-gray-500">
-                                Modal Awal: {formatRupiah(balances.perBank.mandiri.modalAwal)}
-                            </div>
-                        </div>
-
-                        <div className="flex justify-between items-center pt-2 border-t border-gray-100 text-[9px] font-medium text-gray-500">
-                            <span className="text-emerald-600">+{formatRupiah(balances.perBank.mandiri.totalIn)}</span>
-                            <span className="text-red-600">-{formatRupiah(balances.perBank.mandiri.totalOut)}</span>
-                        </div>
                     </div>
-
                 </div>
 
-                {/* ── 3. FILTER TABS & TOOLBAR ── */}
-                <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-xs space-y-3">
+                {/* ── 3. FILTER TABS & SEARCH BAR ── */}
+                <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-gray-200/80 shadow-xs space-y-3">
                     
-                    {/* Bank Account Selection Tabs */}
-                    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 pb-3">
-                        <div className="flex flex-wrap items-center gap-1.5 bg-gray-100 p-1 rounded-xl text-xs font-bold">
-                            <button
-                                onClick={() => setActiveBankTab('all')}
-                                className={`px-3 py-1.5 rounded-lg transition-all ${activeBankTab === 'all' ? 'bg-white text-gray-900 shadow-xs' : 'text-gray-600 hover:text-gray-900'}`}
-                            >
-                                Semua Akun Bank ({mutations.length})
-                            </button>
-                            <button
-                                onClick={() => setActiveBankTab('perusahaan')}
-                                className={`px-3 py-1.5 rounded-lg transition-all ${activeBankTab === 'perusahaan' ? 'bg-slate-800 text-white shadow-xs' : 'text-gray-600 hover:text-gray-900'}`}
-                            >
-                                🏢 Perusahaan
-                            </button>
-                            <button
-                                onClick={() => setActiveBankTab('bca')}
-                                className={`px-3 py-1.5 rounded-lg transition-all ${activeBankTab === 'bca' ? 'bg-blue-600 text-white shadow-xs' : 'text-gray-600 hover:text-gray-900'}`}
-                            >
-                                💳 BCA
-                            </button>
-                            <button
-                                onClick={() => setActiveBankTab('bri')}
-                                className={`px-3 py-1.5 rounded-lg transition-all ${activeBankTab === 'bri' ? 'bg-sky-600 text-white shadow-xs' : 'text-gray-600 hover:text-gray-900'}`}
-                            >
-                                💳 BRI
-                            </button>
-                            <button
-                                onClick={() => setActiveBankTab('mandiri')}
-                                className={`px-3 py-1.5 rounded-lg transition-all ${activeBankTab === 'mandiri' ? 'bg-amber-600 text-white shadow-xs' : 'text-gray-600 hover:text-gray-900'}`}
-                            >
-                                💳 Mandiri
-                            </button>
-                        </div>
-
-                        {/* Type & Source Filters */}
-                        <div className="flex flex-wrap items-center gap-2 text-xs">
-                            <div className="flex items-center gap-1 bg-gray-100 p-0.5 rounded-xl text-xs font-bold">
-                                <button
-                                    onClick={() => setTypeFilter('all')}
-                                    className={`px-2.5 py-1 rounded-lg transition-all text-[11px] ${typeFilter === 'all' ? 'bg-white text-gray-900 shadow-xs' : 'text-gray-600 hover:text-gray-900'}`}
-                                >
-                                    Semua Tipe
-                                </button>
-                                <button
-                                    onClick={() => setTypeFilter('in')}
-                                    className={`px-2.5 py-1 rounded-lg transition-all text-[11px] ${typeFilter === 'in' ? 'bg-emerald-600 text-white shadow-xs' : 'text-emerald-700 hover:bg-emerald-50'}`}
-                                >
-                                    📥 Masuk (+)
-                                </button>
-                                <button
-                                    onClick={() => setTypeFilter('out')}
-                                    className={`px-2.5 py-1 rounded-lg transition-all text-[11px] ${typeFilter === 'out' ? 'bg-rose-600 text-white shadow-xs' : 'text-rose-700 hover:bg-rose-50'}`}
-                                >
-                                    📤 Keluar (-)
-                                </button>
-                                <button
-                                    onClick={() => setTypeFilter('transfer')}
-                                    className={`px-2.5 py-1 rounded-lg transition-all text-[11px] ${typeFilter === 'transfer' ? 'bg-purple-600 text-white shadow-xs' : 'text-purple-700 hover:bg-purple-50'}`}
-                                >
-                                    🔄 Transfer
-                                </button>
-                            </div>
-
-                            <select
-                                value={sourceFilter}
-                                onChange={(e) => setSourceFilter(e.target.value as any)}
-                                className="bg-gray-50 border border-gray-200 rounded-xl px-2.5 py-1 font-bold text-gray-700 outline-none text-xs"
-                            >
-                                <option value="all">Semua Sumber Mutasi</option>
-                                <option value="penagihan_ika">Otomatis IKA (23 Ags+)</option>
-                                <option value="manual">Manual Input</option>
-                                <option value="transfer">Transfer Bank</option>
-                            </select>
-                        </div>
+                    {/* Bank Account Horizontal Scrollable Pills */}
+                    <div className="flex items-center gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+                        <button
+                            onClick={() => setActiveBankTab('all')}
+                            className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all shrink-0 ${
+                                activeBankTab === 'all' 
+                                    ? 'bg-gray-900 text-white shadow-xs' 
+                                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                            }`}
+                        >
+                            Semua Rekening ({mutations.length})
+                        </button>
+                        <button
+                            onClick={() => setActiveBankTab('perusahaan')}
+                            className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all shrink-0 ${
+                                activeBankTab === 'perusahaan' 
+                                    ? 'bg-slate-800 text-white shadow-xs' 
+                                    : 'bg-slate-100 text-slate-800 hover:bg-slate-200'
+                            }`}
+                        >
+                            🏢 Perusahaan
+                        </button>
+                        <button
+                            onClick={() => setActiveBankTab('bca')}
+                            className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all shrink-0 ${
+                                activeBankTab === 'bca' 
+                                    ? 'bg-blue-600 text-white shadow-xs' 
+                                    : 'bg-blue-50 text-blue-800 hover:bg-blue-100'
+                            }`}
+                        >
+                            💳 BCA
+                        </button>
+                        <button
+                            onClick={() => setActiveBankTab('bri')}
+                            className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all shrink-0 ${
+                                activeBankTab === 'bri' 
+                                    ? 'bg-sky-600 text-white shadow-xs' 
+                                    : 'bg-sky-50 text-sky-800 hover:bg-sky-100'
+                            }`}
+                        >
+                            💳 BRI
+                        </button>
+                        <button
+                            onClick={() => setActiveBankTab('mandiri')}
+                            className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all shrink-0 ${
+                                activeBankTab === 'mandiri' 
+                                    ? 'bg-amber-600 text-white shadow-xs' 
+                                    : 'bg-amber-50 text-amber-800 hover:bg-amber-100'
+                            }`}
+                        >
+                            💳 Mandiri
+                        </button>
                     </div>
 
-                    {/* Period Controls & Search */}
-                    <div className="flex flex-wrap items-center justify-between gap-3 text-xs">
-                        <div className="flex flex-wrap items-center gap-2">
-                            
-                            {/* Period Mode Selector */}
-                            <div className="flex items-center gap-1 bg-gray-50 border border-gray-200 rounded-xl p-1">
-                                <button
-                                    onClick={() => setPeriodMode('month')}
-                                    className={`px-2.5 py-1 rounded-lg font-bold text-[11px] transition-colors ${periodMode === 'month' ? 'bg-white text-indigo-700 shadow-xs border border-gray-200' : 'text-gray-500 hover:text-gray-800'}`}
+                    {/* Search Bar & Filter Toggle Row */}
+                    <div className="flex items-center gap-2">
+                        <div className="relative flex-1">
+                            <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                            <input
+                                type="text"
+                                placeholder="Cari keterangan, invoice, resi, kategori..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="w-full pl-9 pr-8 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-200 font-medium"
+                            />
+                            {searchTerm && (
+                                <button 
+                                    onClick={() => setSearchTerm('')} 
+                                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1"
                                 >
-                                    Bulanan
+                                    <X size={13} />
                                 </button>
-                                <button
-                                    onClick={() => setPeriodMode('date')}
-                                    className={`px-2.5 py-1 rounded-lg font-bold text-[11px] transition-colors ${periodMode === 'date' ? 'bg-white text-indigo-700 shadow-xs border border-gray-200' : 'text-gray-500 hover:text-gray-800'}`}
-                                >
-                                    Harian
-                                </button>
-                                <button
-                                    onClick={() => setPeriodMode('range')}
-                                    className={`px-2.5 py-1 rounded-lg font-bold text-[11px] transition-colors ${periodMode === 'range' ? 'bg-white text-indigo-700 shadow-xs border border-gray-200' : 'text-gray-500 hover:text-gray-800'}`}
-                                >
-                                    Rentang
-                                </button>
-                                <button
-                                    onClick={() => setPeriodMode('all')}
-                                    className={`px-2.5 py-1 rounded-lg font-bold text-[11px] transition-colors ${periodMode === 'all' ? 'bg-white text-indigo-700 shadow-xs border border-gray-200' : 'text-gray-500 hover:text-gray-800'}`}
-                                >
-                                    Semua
-                                </button>
+                            )}
+                        </div>
+
+                        {/* Toggle Advanced Filters Button */}
+                        <button
+                            onClick={() => setShowMobileFilterPanel(!showMobileFilterPanel)}
+                            className={`px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 shrink-0 transition-all ${
+                                showMobileFilterPanel || activeFilterCount > 0
+                                    ? 'bg-indigo-600 text-white shadow-xs'
+                                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                            }`}
+                        >
+                            <SlidersHorizontal size={14} />
+                            <span className="hidden sm:inline">Filter</span>
+                            {activeFilterCount > 0 && (
+                                <span className="w-4 h-4 bg-white text-indigo-700 rounded-full text-[10px] font-black flex items-center justify-center">
+                                    {activeFilterCount}
+                                </span>
+                            )}
+                        </button>
+                    </div>
+
+                    {/* Transaction Type Quick Filter (All / Masuk / Keluar / Transfer) */}
+                    <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+                        <button
+                            onClick={() => setTypeFilter('all')}
+                            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all shrink-0 ${
+                                typeFilter === 'all' ? 'bg-gray-800 text-white shadow-xs' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                            }`}
+                        >
+                            Semua Tipe
+                        </button>
+                        <button
+                            onClick={() => setTypeFilter('in')}
+                            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all shrink-0 flex items-center gap-1 ${
+                                typeFilter === 'in' ? 'bg-emerald-600 text-white shadow-xs' : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
+                            }`}
+                        >
+                            <ArrowDownLeft size={13} /> Masuk (+)
+                        </button>
+                        <button
+                            onClick={() => setTypeFilter('out')}
+                            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all shrink-0 flex items-center gap-1 ${
+                                typeFilter === 'out' ? 'bg-rose-600 text-white shadow-xs' : 'bg-rose-50 text-rose-800 hover:bg-rose-100'
+                            }`}
+                        >
+                            <ArrowUpRight size={13} /> Keluar (-)
+                        </button>
+                        <button
+                            onClick={() => setTypeFilter('transfer')}
+                            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all shrink-0 flex items-center gap-1 ${
+                                typeFilter === 'transfer' ? 'bg-purple-600 text-white shadow-xs' : 'bg-purple-50 text-purple-800 hover:bg-purple-100'
+                            }`}
+                        >
+                            <ArrowLeftRight size={13} /> Transfer
+                        </button>
+                    </div>
+
+                    {/* Collapsible Advanced Filter Panel (Period & Source) */}
+                    {showMobileFilterPanel && (
+                        <div className="p-3.5 bg-gray-50 rounded-xl border border-gray-200 space-y-3 animate-in fade-in slide-in-from-top-2 duration-200 text-xs">
+                            <div className="flex justify-between items-center border-b border-gray-200 pb-2">
+                                <span className="font-bold text-gray-800 flex items-center gap-1.5">
+                                    <Filter size={13} className="text-indigo-600" /> Filter Periode & Sumber Data
+                                </span>
+                                {(sourceFilter !== 'all' || periodMode !== 'month') && (
+                                    <button
+                                        onClick={() => {
+                                            setSourceFilter('all');
+                                            setPeriodMode('month');
+                                        }}
+                                        className="text-[11px] text-red-600 font-bold hover:underline"
+                                    >
+                                        Reset Filter
+                                    </button>
+                                )}
                             </div>
 
-                            {/* Conditional Period Inputs */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                {/* Sumber Mutasi */}
+                                <div>
+                                    <label className="block font-bold text-gray-700 mb-1 text-[11px]">Sumber Mutasi</label>
+                                    <select
+                                        value={sourceFilter}
+                                        onChange={(e) => setSourceFilter(e.target.value as any)}
+                                        className="w-full bg-white border border-gray-200 rounded-xl px-3 py-1.5 font-bold text-gray-800 outline-none text-xs"
+                                    >
+                                        <option value="all">Semua Sumber Mutasi</option>
+                                        <option value="penagihan_ika">Otomatis Penagihan IKA (23 Ags+)</option>
+                                        <option value="manual">Manual Input</option>
+                                        <option value="transfer">Transfer Antar Bank</option>
+                                    </select>
+                                </div>
+
+                                {/* Mode Periode */}
+                                <div>
+                                    <label className="block font-bold text-gray-700 mb-1 text-[11px]">Mode Periode</label>
+                                    <div className="grid grid-cols-4 gap-1">
+                                        {(['month', 'date', 'range', 'all'] as FilterPeriodMode[]).map((mode) => (
+                                            <button
+                                                key={mode}
+                                                type="button"
+                                                onClick={() => setPeriodMode(mode)}
+                                                className={`py-1 px-1 rounded-lg text-center font-bold text-[10.5px] transition-all capitalize ${
+                                                    periodMode === mode 
+                                                        ? 'bg-indigo-600 text-white shadow-xs' 
+                                                        : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-100'
+                                                }`}
+                                            >
+                                                {mode === 'month' ? 'Bulan' : mode === 'date' ? 'Hari' : mode === 'range' ? 'Rentang' : 'Semua'}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Detailed Period Inputs */}
                             {periodMode === 'month' && (
-                                <div className="flex items-center gap-1.5 bg-gray-50 border border-gray-200 px-2.5 py-1 rounded-xl">
-                                    <Calendar size={13} className="text-gray-400" />
+                                <div className="flex flex-wrap items-center gap-2 pt-1">
+                                    <span className="text-gray-500 text-[11px]">Pilih Bulan & Tahun:</span>
                                     <select
                                         value={selectedMonth}
                                         onChange={(e) => setSelectedMonth(Number(e.target.value))}
-                                        className="bg-transparent font-bold text-gray-800 outline-none text-xs cursor-pointer"
+                                        className="bg-white border border-gray-200 rounded-xl px-2.5 py-1 font-bold text-gray-800 text-xs"
                                     >
                                         {MONTH_LABELS.map((m, idx) => (
                                             <option key={idx} value={idx}>{m}</option>
@@ -821,7 +953,7 @@ export default function SaldoRealPage() {
                                     <select
                                         value={selectedYear}
                                         onChange={(e) => setSelectedYear(Number(e.target.value))}
-                                        className="bg-transparent font-bold text-gray-800 outline-none text-xs cursor-pointer border-l border-gray-200 pl-1"
+                                        className="bg-white border border-gray-200 rounded-xl px-2.5 py-1 font-bold text-gray-800 text-xs"
                                     >
                                         {[2024, 2025, 2026, 2027, 2028].map((y) => (
                                             <option key={y} value={y}>{y}</option>
@@ -831,58 +963,45 @@ export default function SaldoRealPage() {
                             )}
 
                             {periodMode === 'date' && (
-                                <input
-                                    type="date"
-                                    value={selectedDate}
-                                    onChange={(e) => setSelectedDate(e.target.value)}
-                                    className="bg-gray-50 border border-gray-200 rounded-xl px-2.5 py-1 font-bold text-gray-800 outline-none text-xs"
-                                />
+                                <div className="flex items-center gap-2 pt-1">
+                                    <span className="text-gray-500 text-[11px]">Tanggal:</span>
+                                    <input
+                                        type="date"
+                                        value={selectedDate}
+                                        onChange={(e) => setSelectedDate(e.target.value)}
+                                        className="bg-white border border-gray-200 rounded-xl px-3 py-1 font-bold text-gray-800 text-xs"
+                                    />
+                                </div>
                             )}
 
                             {periodMode === 'range' && (
-                                <div className="flex items-center gap-1.5 bg-gray-50 border border-gray-200 px-2 py-1 rounded-xl text-xs">
+                                <div className="flex flex-wrap items-center gap-2 pt-1">
                                     <input
                                         type="date"
                                         value={startDate}
                                         onChange={(e) => setStartDate(e.target.value)}
-                                        className="bg-transparent font-bold text-gray-800 outline-none text-xs"
+                                        className="bg-white border border-gray-200 rounded-xl px-2 py-1 font-bold text-gray-800 text-xs"
                                     />
                                     <span className="text-gray-400">s/d</span>
                                     <input
                                         type="date"
                                         value={endDate}
                                         onChange={(e) => setEndDate(e.target.value)}
-                                        className="bg-transparent font-bold text-gray-800 outline-none text-xs"
+                                        className="bg-white border border-gray-200 rounded-xl px-2 py-1 font-bold text-gray-800 text-xs"
                                     />
                                 </div>
                             )}
                         </div>
-
-                        {/* Search Box */}
-                        <div className="relative w-full sm:w-64">
-                            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                            <input
-                                type="text"
-                                placeholder="Cari invoice, resi, keterangan..."
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                className="w-full pl-8 pr-3 py-1.5 bg-gray-50 border border-gray-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-200"
-                            />
-                            {searchTerm && (
-                                <button onClick={() => setSearchTerm('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                                    <X size={12} />
-                                </button>
-                            )}
-                        </div>
-                    </div>
+                    )}
 
                 </div>
 
-                {/* ── 4. REAL BALANCE MUTATIONS TABLE ── */}
-                <div className="bg-white rounded-2xl border border-gray-200 shadow-xs overflow-hidden">
-                    <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+                {/* ── 4. MUTATION LEDGER (DUAL VIEW: MOBILE CARDS & DESKTOP TABLE) ── */}
+                <div className="bg-white rounded-2xl border border-gray-200/80 shadow-xs overflow-hidden">
+                    {/* Header Bar */}
+                    <div className="p-3.5 sm:p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
                         <div className="flex items-center gap-2">
-                            <h3 className="font-extrabold text-gray-900 text-xs uppercase tracking-wider flex items-center gap-1.5">
+                            <h3 className="font-black text-gray-900 text-xs uppercase tracking-wider flex items-center gap-1.5">
                                 <FileText size={15} className="text-indigo-600" /> Buku Mutasi Saldo Real
                             </h3>
                             <span className="text-[10px] bg-indigo-100 text-indigo-800 font-bold px-2 py-0.5 rounded-full">
@@ -890,8 +1009,8 @@ export default function SaldoRealPage() {
                             </span>
                         </div>
 
-                        <div className="flex items-center gap-2 text-xs text-gray-500">
-                            <span>Tampilkan per hal:</span>
+                        <div className="flex items-center gap-1.5 text-xs text-gray-500">
+                            <span className="hidden sm:inline">Per hal:</span>
                             <select
                                 value={pageSize}
                                 onChange={(e) => setPageSize(Number(e.target.value))}
@@ -905,7 +1024,139 @@ export default function SaldoRealPage() {
                         </div>
                     </div>
 
-                    <div className="overflow-x-auto">
+                    {/* ── MOBILE VIEW: MODERN TRANSACTION CARDS (Visible on < md) ── */}
+                    <div className="block md:hidden divide-y divide-gray-100">
+                        {loading ? (
+                            <div className="p-8 text-center text-gray-400">
+                                <RefreshCw className="animate-spin mx-auto text-indigo-600 mb-2" size={24} />
+                                <p className="text-xs">Memuat mutasi saldo real...</p>
+                            </div>
+                        ) : paginatedMutations.length === 0 ? (
+                            <div className="p-8 text-center text-gray-400 italic text-xs">
+                                Tidak ada transaksi mutasi yang cocok dengan filter.
+                            </div>
+                        ) : (
+                            paginatedMutations.map((m, idx) => {
+                                const bankInfo = REAL_BANK_ACCOUNTS[m.bank] || REAL_BANK_ACCOUNTS.bca;
+                                const targetBankInfo = m.targetBank ? REAL_BANK_ACCOUNTS[m.targetBank] : null;
+                                const isIncome = m.type === 'in';
+                                const isExpense = m.type === 'out';
+                                const isTransfer = m.type === 'transfer';
+
+                                return (
+                                    <div 
+                                        key={m.id} 
+                                        className={`p-3.5 transition-colors ${
+                                            isIncome ? 'bg-emerald-50/25' : isExpense ? 'bg-rose-50/25' : 'bg-purple-50/25'
+                                        }`}
+                                    >
+                                        <div className="flex items-start justify-between gap-2.5">
+                                            {/* Type Icon Badge */}
+                                            <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                                                <div className={`p-2 rounded-xl shrink-0 ${
+                                                    isIncome 
+                                                        ? 'bg-emerald-100 text-emerald-700' 
+                                                        : isExpense 
+                                                        ? 'bg-rose-100 text-rose-700' 
+                                                        : 'bg-purple-100 text-purple-700'
+                                                }`}>
+                                                    {isIncome ? (
+                                                        <ArrowDownLeft size={16} />
+                                                    ) : isExpense ? (
+                                                        <ArrowUpRight size={16} />
+                                                    ) : (
+                                                        <ArrowLeftRight size={16} />
+                                                    )}
+                                                </div>
+
+                                                <div className="min-w-0 flex-1">
+                                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                                        {/* Bank Pill */}
+                                                        <span className={`inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-bold ${bankInfo.bgColor} ${bankInfo.textColor} border ${bankInfo.borderColor}`}>
+                                                            {bankInfo.shortName}
+                                                        </span>
+                                                        {isTransfer && targetBankInfo && (
+                                                            <span className="text-[10px] text-gray-500 flex items-center gap-0.5">
+                                                                <ArrowRight size={10} /> {targetBankInfo.shortName}
+                                                            </span>
+                                                        )}
+
+                                                        {/* Source Badge */}
+                                                        {m.source === 'penagihan_ika' ? (
+                                                            <span className="bg-emerald-100 text-emerald-800 text-[9px] font-extrabold px-1.5 py-0.2 rounded border border-emerald-300">
+                                                                Auto IKA
+                                                            </span>
+                                                        ) : m.source === 'transfer' ? (
+                                                            <span className="bg-purple-100 text-purple-800 text-[9px] font-bold px-1.5 py-0.2 rounded border border-purple-200">
+                                                                Transfer
+                                                            </span>
+                                                        ) : (
+                                                            <span className="bg-gray-100 text-gray-600 text-[9px] font-medium px-1.5 py-0.2 rounded border border-gray-200">
+                                                                Manual
+                                                            </span>
+                                                        )}
+
+                                                        <span className="text-[10px] text-gray-400 font-mono ml-auto">
+                                                            {new Date(m.date + 'T00:00:00').toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
+                                                        </span>
+                                                    </div>
+
+                                                    <h4 className="text-xs font-bold text-gray-900 mt-1 leading-snug break-words">
+                                                        {m.description}
+                                                    </h4>
+
+                                                    <div className="flex items-center gap-2 mt-0.5 text-[10px] text-gray-500">
+                                                        <span className="font-semibold text-gray-600">{m.category}</span>
+                                                        {m.refNumber && (
+                                                            <span className="font-mono text-gray-400">• {m.refNumber}</span>
+                                                        )}
+                                                        {m.clientName && (
+                                                            <span className="text-gray-600 truncate">• {m.clientName}</span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* Amount & Running Balance */}
+                                            <div className="text-right shrink-0">
+                                                <div className={`text-sm font-black tracking-tight ${
+                                                    isIncome ? 'text-emerald-700' : isExpense ? 'text-rose-700' : 'text-purple-700'
+                                                }`}>
+                                                    {isIncome ? `+${formatRupiah(m.amount)}` : `-${formatRupiah(m.amount)}`}
+                                                </div>
+                                                <div className="text-[10px] text-gray-500 font-mono mt-0.5">
+                                                    Saldo: <span className="font-bold text-blue-950">{formatRupiah(m.bankRunningBalance)}</span>
+                                                </div>
+
+                                                {/* Edit / Delete actions for manual entries */}
+                                                {m.source !== 'penagihan_ika' && (
+                                                    <div className="flex items-center justify-end gap-1.5 mt-1.5">
+                                                        <button
+                                                            onClick={() => handleOpenEditMutation(m)}
+                                                            className="p-1 text-gray-400 hover:text-blue-600 bg-white border border-gray-200 rounded-md shadow-2xs"
+                                                            title="Edit"
+                                                        >
+                                                            <Edit3 size={12} />
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleDeleteMutation(m)}
+                                                            className="p-1 text-gray-400 hover:text-red-600 bg-white border border-gray-200 rounded-md shadow-2xs"
+                                                            title="Hapus"
+                                                        >
+                                                            <Trash2 size={12} />
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })
+                        )}
+                    </div>
+
+                    {/* ── DESKTOP VIEW: FULL DATA TABLE (Visible on >= md) ── */}
+                    <div className="hidden md:block overflow-x-auto">
                         <table className="w-full text-left text-xs border-collapse">
                             <thead>
                                 <tr className="bg-gray-100/75 border-b border-gray-200 text-gray-600 font-bold uppercase text-[9px] tracking-wider">
@@ -1028,62 +1279,84 @@ export default function SaldoRealPage() {
 
                     {/* Pagination Bar */}
                     {totalPages > 1 && (
-                        <div className="p-3.5 border-t border-gray-100 bg-gray-50 flex items-center justify-between text-xs">
-                            <span className="text-gray-500">
-                                Halaman <strong className="text-gray-800">{currentPage}</strong> dari <strong className="text-gray-800">{totalPages}</strong> (Total {filteredMutations.length} baris)
+                        <div className="p-3 sm:p-3.5 border-t border-gray-100 bg-gray-50 flex items-center justify-between text-xs">
+                            <span className="text-gray-500 text-[11px] sm:text-xs">
+                                Hal <strong className="text-gray-800">{currentPage}</strong> / <strong className="text-gray-800">{totalPages}</strong> ({filteredMutations.length} data)
                             </span>
-                            <div className="flex items-center gap-1.5">
+                            <div className="flex items-center gap-1 sm:gap-1.5">
                                 <button
                                     onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                                     disabled={currentPage === 1}
-                                    className="p-1.5 bg-white border border-gray-200 rounded-lg disabled:opacity-40 hover:bg-gray-100 transition-colors"
+                                    className="px-2.5 py-1.5 bg-white border border-gray-200 rounded-lg disabled:opacity-40 hover:bg-gray-100 transition-colors flex items-center gap-1 font-bold text-gray-700"
                                 >
-                                    <ChevronLeft size={16} />
+                                    <ChevronLeft size={14} />
+                                    <span className="hidden sm:inline">Prev</span>
                                 </button>
                                 <button
                                     onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
                                     disabled={currentPage === totalPages}
-                                    className="p-1.5 bg-white border border-gray-200 rounded-lg disabled:opacity-40 hover:bg-gray-100 transition-colors"
+                                    className="px-2.5 py-1.5 bg-white border border-gray-200 rounded-lg disabled:opacity-40 hover:bg-gray-100 transition-colors flex items-center gap-1 font-bold text-gray-700"
                                 >
-                                    <ChevronRight size={16} />
+                                    <span className="hidden sm:inline">Next</span>
+                                    <ChevronRight size={14} />
                                 </button>
                             </div>
                         </div>
                     )}
                 </div>
 
-                {/* ── MODAL: INPUT MUTASI MANUAL / TRANSFER ANTAR BANK ── */}
+                {/* ── 5. MOBILE FLOATING ACTION BUTTON (FAB) ── */}
+                <button
+                    onClick={handleOpenAddMutation}
+                    className="sm:hidden fixed bottom-6 right-4 z-40 bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-4 py-3 rounded-full shadow-2xl flex items-center gap-2 font-bold text-xs active:scale-95 border border-white/20"
+                >
+                    <Plus size={18} />
+                    <span>+ Transaksi</span>
+                </button>
+
+                {/* ── MODAL: INPUT MUTASI MANUAL / TRANSFER ANTAR BANK (MOBILE FRIENDLY BOTTOM-SHEET) ── */}
                 {isMutationModalOpen && (
-                    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-                        <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in duration-200 border border-gray-100">
-                            <div className="flex justify-between items-center border-b border-gray-100 pb-3">
+                    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in duration-200">
+                        <div className="bg-white rounded-t-3xl sm:rounded-3xl max-w-lg w-full max-h-[90vh] flex flex-col shadow-2xl border border-gray-100 overflow-hidden animate-in slide-in-from-bottom-6 sm:zoom-in duration-200">
+                            
+                            {/* Modal Header */}
+                            <div className="p-4 sm:p-5 border-b border-gray-100 flex justify-between items-center bg-gray-50/60 shrink-0">
                                 <div>
-                                    <h3 className="font-black text-gray-900 text-base flex items-center gap-2">
-                                        <Landmark size={20} className="text-indigo-600" />
-                                        {editingMutation ? 'Edit Mutasi Saldo Real' : 'Input Transaksi Mutasi Kas / Bank'}
+                                    <h3 className="font-black text-gray-900 text-sm sm:text-base flex items-center gap-2">
+                                        <Landmark size={18} className="text-indigo-600" />
+                                        {editingMutation ? 'Edit Mutasi Saldo Real' : 'Input Transaksi Mutasi Kas & Bank'}
                                     </h3>
-                                    <p className="text-xs text-gray-500">Pencatatan uang masuk, uang keluar, atau transfer pindah saldo antar bank</p>
+                                    <p className="text-[11px] text-gray-500 mt-0.5">Pencatatan uang masuk, keluar, atau pindah antar bank</p>
                                 </div>
-                                <button onClick={() => setIsMutationModalOpen(false)} className="p-1.5 hover:bg-gray-100 rounded-full text-gray-400 transition-colors">
+                                <button 
+                                    onClick={() => setIsMutationModalOpen(false)} 
+                                    className="p-1.5 hover:bg-gray-200/80 rounded-full text-gray-400 transition-colors"
+                                >
                                     <X size={18} />
                                 </button>
                             </div>
 
-                            <form onSubmit={handleSaveMutation} className="space-y-3.5 text-xs">
+                            {/* Modal Form Scrollable Content */}
+                            <form onSubmit={handleSaveMutation} className="p-4 sm:p-6 overflow-y-auto space-y-4 text-xs">
                                 
                                 {/* Mutation Type Selector */}
                                 <div>
-                                    <label className="font-extrabold text-gray-800 block mb-1.5">Tipe Transaksi</label>
-                                    <div className="grid grid-cols-3 gap-2">
+                                    <label className="font-extrabold text-gray-800 block mb-1.5 text-xs">Tipe Transaksi</label>
+                                    <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
                                         <button
                                             type="button"
                                             onClick={() => {
                                                 setFormMutationType('in');
                                                 setFormCategory('Pemasukan');
                                             }}
-                                            className={`py-2 px-3 rounded-xl font-bold border text-center transition-all ${formMutationType === 'in' ? 'bg-emerald-50 border-emerald-500 text-emerald-900 shadow-xs ring-2 ring-emerald-200' : 'bg-gray-50 border-gray-200 text-gray-600'}`}
+                                            className={`py-2.5 px-2 rounded-xl font-bold border text-center transition-all flex flex-col sm:flex-row items-center justify-center gap-1 ${
+                                                formMutationType === 'in' 
+                                                    ? 'bg-emerald-50 border-emerald-500 text-emerald-900 shadow-xs ring-2 ring-emerald-200' 
+                                                    : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'
+                                            }`}
                                         >
-                                            📥 Uang Masuk (+)
+                                            <ArrowDownLeft size={14} className="text-emerald-600" />
+                                            <span className="text-[11px]">Masuk (+)</span>
                                         </button>
 
                                         <button
@@ -1092,9 +1365,14 @@ export default function SaldoRealPage() {
                                                 setFormMutationType('out');
                                                 setFormCategory('Pengeluaran');
                                             }}
-                                            className={`py-2 px-3 rounded-xl font-bold border text-center transition-all ${formMutationType === 'out' ? 'bg-red-50 border-red-500 text-red-900 shadow-xs ring-2 ring-red-200' : 'bg-gray-50 border-gray-200 text-gray-600'}`}
+                                            className={`py-2.5 px-2 rounded-xl font-bold border text-center transition-all flex flex-col sm:flex-row items-center justify-center gap-1 ${
+                                                formMutationType === 'out' 
+                                                    ? 'bg-red-50 border-red-500 text-red-900 shadow-xs ring-2 ring-red-200' 
+                                                    : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'
+                                            }`}
                                         >
-                                            📤 Uang Keluar (-)
+                                            <ArrowUpRight size={14} className="text-rose-600" />
+                                            <span className="text-[11px]">Keluar (-)</span>
                                         </button>
 
                                         <button
@@ -1103,9 +1381,14 @@ export default function SaldoRealPage() {
                                                 setFormMutationType('transfer');
                                                 setFormCategory('Transfer Antar Bank');
                                             }}
-                                            className={`py-2 px-3 rounded-xl font-bold border text-center transition-all ${formMutationType === 'transfer' ? 'bg-purple-50 border-purple-500 text-purple-900 shadow-xs ring-2 ring-purple-200' : 'bg-gray-50 border-gray-200 text-gray-600'}`}
+                                            className={`py-2.5 px-2 rounded-xl font-bold border text-center transition-all flex flex-col sm:flex-row items-center justify-center gap-1 ${
+                                                formMutationType === 'transfer' 
+                                                    ? 'bg-purple-50 border-purple-500 text-purple-900 shadow-xs ring-2 ring-purple-200' 
+                                                    : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'
+                                            }`}
                                         >
-                                            🔄 Pindah Bank
+                                            <ArrowLeftRight size={14} className="text-purple-600" />
+                                            <span className="text-[11px]">Transfer</span>
                                         </button>
                                     </div>
                                 </div>
@@ -1113,13 +1396,13 @@ export default function SaldoRealPage() {
                                 {/* Bank Selection */}
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                     <div>
-                                        <label className="font-extrabold text-gray-800 block mb-1">
+                                        <label className="font-extrabold text-gray-800 block mb-1 text-xs">
                                             {formMutationType === 'transfer' ? 'Dari Bank (Sumber Dana)' : 'Rekening Bank'}
                                         </label>
                                         <select
                                             value={formBank}
                                             onChange={(e) => setFormBank(e.target.value as RealBankAccount)}
-                                            className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl font-bold text-gray-800 outline-none focus:ring-2 focus:ring-indigo-200"
+                                            className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl font-bold text-gray-800 outline-none focus:ring-2 focus:ring-indigo-200 text-xs sm:text-xs"
                                         >
                                             <option value="bca">Bank BCA (1870444342)</option>
                                             <option value="bri">Bank BRI (0328 0107 3891 501)</option>
@@ -1130,11 +1413,11 @@ export default function SaldoRealPage() {
 
                                     {formMutationType === 'transfer' ? (
                                         <div>
-                                            <label className="font-extrabold text-gray-800 block mb-1">Ke Bank (Tujuan Transfer)</label>
+                                            <label className="font-extrabold text-gray-800 block mb-1 text-xs">Ke Bank (Tujuan Transfer)</label>
                                             <select
                                                 value={formTargetBank}
                                                 onChange={(e) => setFormTargetBank(e.target.value as RealBankAccount)}
-                                                className="w-full px-3 py-2 bg-purple-50 border border-purple-300 rounded-xl font-bold text-purple-900 outline-none focus:ring-2 focus:ring-purple-200"
+                                                className="w-full px-3 py-2.5 bg-purple-50 border border-purple-300 rounded-xl font-bold text-purple-900 outline-none focus:ring-2 focus:ring-purple-200 text-xs sm:text-xs"
                                             >
                                                 <option value="perusahaan">Bank Perusahaan (Kas Utama)</option>
                                                 <option value="bca">Bank BCA (1870444342)</option>
@@ -1144,12 +1427,12 @@ export default function SaldoRealPage() {
                                         </div>
                                     ) : (
                                         <div>
-                                            <label className="font-extrabold text-gray-800 block mb-1">Tanggal Transaksi</label>
+                                            <label className="font-extrabold text-gray-800 block mb-1 text-xs">Tanggal Transaksi</label>
                                             <input
                                                 type="date"
                                                 value={formDate}
                                                 onChange={(e) => setFormDate(e.target.value)}
-                                                className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl font-bold text-gray-800 outline-none focus:ring-2 focus:ring-indigo-200"
+                                                className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl font-bold text-gray-800 outline-none focus:ring-2 focus:ring-indigo-200 text-xs sm:text-xs"
                                                 required
                                             />
                                         </div>
@@ -1158,12 +1441,12 @@ export default function SaldoRealPage() {
 
                                 {formMutationType === 'transfer' && (
                                     <div>
-                                        <label className="font-extrabold text-gray-800 block mb-1">Tanggal Transfer</label>
+                                        <label className="font-extrabold text-gray-800 block mb-1 text-xs">Tanggal Transfer</label>
                                         <input
                                             type="date"
                                             value={formDate}
                                             onChange={(e) => setFormDate(e.target.value)}
-                                            className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl font-bold text-gray-800 outline-none"
+                                            className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl font-bold text-gray-800 outline-none text-xs sm:text-xs"
                                             required
                                         />
                                     </div>
@@ -1172,26 +1455,31 @@ export default function SaldoRealPage() {
                                 {/* Amount & Category */}
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                     <div>
-                                        <label className="font-extrabold text-gray-800 block mb-1">Nominal (Rp)</label>
+                                        <label className="font-extrabold text-gray-800 block mb-1 text-xs">Nominal (Rp)</label>
                                         <input
                                             type="number"
                                             min="1"
                                             placeholder="Contoh: 5000000"
                                             value={formAmount || ''}
                                             onChange={(e) => setFormAmount(Number(e.target.value))}
-                                            className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl font-mono font-bold text-gray-900 outline-none focus:ring-2 focus:ring-indigo-200 text-sm"
+                                            className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl font-mono font-bold text-gray-900 outline-none focus:ring-2 focus:ring-indigo-200 text-sm"
                                             required
                                         />
+                                        {formAmount > 0 && (
+                                            <p className="text-[11px] font-bold text-indigo-600 mt-1">
+                                                {formatRupiah(formAmount)}
+                                            </p>
+                                        )}
                                     </div>
 
                                     <div>
-                                        <label className="font-extrabold text-gray-800 block mb-1">Kategori Transaksi</label>
+                                        <label className="font-extrabold text-gray-800 block mb-1 text-xs">Kategori Transaksi</label>
                                         <input
                                             type="text"
-                                            placeholder="Contoh: Setoran Modal, Biaya Operasional, dll."
+                                            placeholder="Setoran Modal, Biaya Ops, dll."
                                             value={formCategory}
                                             onChange={(e) => setFormCategory(e.target.value)}
-                                            className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl font-medium text-gray-800 outline-none focus:ring-2 focus:ring-indigo-200"
+                                            className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl font-medium text-gray-800 outline-none focus:ring-2 focus:ring-indigo-200 text-xs sm:text-xs"
                                             required
                                         />
                                     </div>
@@ -1199,44 +1487,44 @@ export default function SaldoRealPage() {
 
                                 {/* Description */}
                                 <div>
-                                    <label className="font-extrabold text-gray-800 block mb-1">Keterangan / Berita Acara</label>
+                                    <label className="font-extrabold text-gray-800 block mb-1 text-xs">Keterangan / Berita Acara</label>
                                     <textarea
                                         rows={2}
-                                        placeholder="Tuliskan keterangan detail transaksi..."
+                                        placeholder="Tuliskan detail berita acara transaksi..."
                                         value={formDescription}
                                         onChange={(e) => setFormDescription(e.target.value)}
-                                        className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl font-medium text-gray-800 outline-none focus:ring-2 focus:ring-indigo-200"
+                                        className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl font-medium text-gray-800 outline-none focus:ring-2 focus:ring-indigo-200 text-xs sm:text-xs"
                                         required
                                     />
                                 </div>
 
                                 {/* Reference Number */}
                                 <div>
-                                    <label className="font-extrabold text-gray-800 block mb-1">Nomor Referensi / Bukti Transfer (Opsional)</label>
+                                    <label className="font-extrabold text-gray-800 block mb-1 text-xs">Nomor Referensi / Bukti Transfer (Opsional)</label>
                                     <input
                                         type="text"
                                         placeholder="Contoh: TRF-BCA-88912 atau No Kwitansi"
                                         value={formRefNumber}
                                         onChange={(e) => setFormRefNumber(e.target.value)}
-                                        className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl font-mono text-gray-800 outline-none focus:ring-2 focus:ring-indigo-200"
+                                        className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl font-mono text-gray-800 outline-none focus:ring-2 focus:ring-indigo-200 text-xs sm:text-xs"
                                     />
                                 </div>
 
-                                {/* Modal Actions */}
-                                <div className="flex items-center gap-3 pt-2">
+                                {/* Modal Actions Footer */}
+                                <div className="flex items-center gap-2.5 pt-2 pb-1 sticky bottom-0 bg-white">
                                     <button
                                         type="button"
                                         onClick={() => setIsMutationModalOpen(false)}
-                                        className="flex-1 py-2.5 border border-gray-200 text-gray-700 font-bold rounded-xl hover:bg-gray-50 transition-colors"
+                                        className="flex-1 py-3 border border-gray-200 text-gray-700 font-bold rounded-xl hover:bg-gray-50 transition-colors text-xs"
                                     >
                                         Batal
                                     </button>
                                     <button
                                         type="submit"
                                         disabled={submittingMutation}
-                                        className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50"
+                                        className="flex-1 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50 text-xs"
                                     >
-                                        <Save size={15} />
+                                        <Save size={14} />
                                         {submittingMutation ? 'Menyimpan...' : 'Simpan Transaksi'}
                                     </button>
                                 </div>
@@ -1245,23 +1533,27 @@ export default function SaldoRealPage() {
                     </div>
                 )}
 
-                {/* ── MODAL: PENGATURAN MODAL AWAL 4 REKENING BANK ── */}
+                {/* ── MODAL: PENGATURAN MODAL AWAL 4 REKENING BANK (MOBILE FRIENDLY BOTTOM-SHEET) ── */}
                 {isSettingsModalOpen && (
-                    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-                        <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in duration-200 border border-gray-100">
-                            <div className="flex justify-between items-center border-b border-gray-100 pb-3">
+                    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in duration-200">
+                        <div className="bg-white rounded-t-3xl sm:rounded-3xl max-w-md w-full max-h-[90vh] flex flex-col shadow-2xl border border-gray-100 overflow-hidden animate-in slide-in-from-bottom-6 sm:zoom-in duration-200">
+                            
+                            <div className="p-4 sm:p-5 border-b border-gray-100 flex justify-between items-center bg-gray-50/60 shrink-0">
                                 <div>
-                                    <h3 className="font-black text-gray-900 text-base flex items-center gap-2">
-                                        <Settings size={20} className="text-gray-700" /> Atur Modal Awal Saldo Real
+                                    <h3 className="font-black text-gray-900 text-sm sm:text-base flex items-center gap-2">
+                                        <Settings size={18} className="text-gray-700" /> Atur Modal Awal Saldo Real
                                     </h3>
-                                    <p className="text-xs text-gray-500">Saldo awal untuk masing-masing 4 rekening bank</p>
+                                    <p className="text-[11px] text-gray-500 mt-0.5">Saldo awal untuk 4 rekening bank</p>
                                 </div>
-                                <button onClick={() => setIsSettingsModalOpen(false)} className="p-1.5 hover:bg-gray-100 rounded-full text-gray-400 transition-colors">
+                                <button 
+                                    onClick={() => setIsSettingsModalOpen(false)} 
+                                    className="p-1.5 hover:bg-gray-200/80 rounded-full text-gray-400 transition-colors"
+                                >
                                     <X size={18} />
                                 </button>
                             </div>
 
-                            <form onSubmit={handleSaveSettings} className="space-y-3.5 text-xs">
+                            <form onSubmit={handleSaveSettings} className="p-4 sm:p-6 overflow-y-auto space-y-3.5 text-xs">
                                 
                                 <div>
                                     <label className="font-extrabold text-gray-800 block mb-1">Tanggal Mulai Efektif</label>
@@ -1269,7 +1561,7 @@ export default function SaldoRealPage() {
                                         type="date"
                                         value={formEffectiveDate}
                                         onChange={(e) => setFormEffectiveDate(e.target.value)}
-                                        className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl font-bold text-gray-800 outline-none"
+                                        className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl font-bold text-gray-800 outline-none text-xs"
                                     />
                                     <p className="text-[10px] text-indigo-600 mt-1">
                                         Penagihan IKA otomatis dihitung masuk mulai tanggal <strong>23 Agustus 2026</strong>.
@@ -1286,7 +1578,7 @@ export default function SaldoRealPage() {
                                             value={formModalPerusahaan || ''}
                                             onChange={(e) => setFormModalPerusahaan(Number(e.target.value))}
                                             placeholder="Rp 0"
-                                            className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl font-mono font-bold text-slate-900 outline-none focus:ring-2 focus:ring-slate-300"
+                                            className="w-full px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl font-mono font-bold text-slate-900 outline-none focus:ring-2 focus:ring-slate-300 text-xs sm:text-xs"
                                         />
                                     </div>
 
@@ -1299,7 +1591,7 @@ export default function SaldoRealPage() {
                                             value={formModalBca || ''}
                                             onChange={(e) => setFormModalBca(Number(e.target.value))}
                                             placeholder="Rp 0"
-                                            className="w-full px-3 py-2 bg-blue-50 border border-blue-300 rounded-xl font-mono font-bold text-blue-900 outline-none focus:ring-2 focus:ring-blue-300"
+                                            className="w-full px-3 py-2.5 bg-blue-50 border border-blue-300 rounded-xl font-mono font-bold text-blue-900 outline-none focus:ring-2 focus:ring-blue-300 text-xs sm:text-xs"
                                         />
                                     </div>
 
@@ -1312,7 +1604,7 @@ export default function SaldoRealPage() {
                                             value={formModalBri || ''}
                                             onChange={(e) => setFormModalBri(Number(e.target.value))}
                                             placeholder="Rp 0"
-                                            className="w-full px-3 py-2 bg-sky-50 border border-sky-300 rounded-xl font-mono font-bold text-sky-900 outline-none focus:ring-2 focus:ring-sky-300"
+                                            className="w-full px-3 py-2.5 bg-sky-50 border border-sky-300 rounded-xl font-mono font-bold text-sky-900 outline-none focus:ring-2 focus:ring-sky-300 text-xs sm:text-xs"
                                         />
                                     </div>
 
@@ -1325,31 +1617,31 @@ export default function SaldoRealPage() {
                                             value={formModalMandiri || ''}
                                             onChange={(e) => setFormModalMandiri(Number(e.target.value))}
                                             placeholder="Rp 0"
-                                            className="w-full px-3 py-2 bg-amber-50 border border-amber-300 rounded-xl font-mono font-bold text-amber-900 outline-none focus:ring-2 focus:ring-amber-300"
+                                            className="w-full px-3 py-2.5 bg-amber-50 border border-amber-300 rounded-xl font-mono font-bold text-amber-900 outline-none focus:ring-2 focus:ring-amber-300 text-xs sm:text-xs"
                                         />
                                     </div>
                                 </div>
 
                                 <div className="bg-indigo-50 p-3 rounded-xl border border-indigo-200 text-[11px] text-indigo-950 flex justify-between items-center font-bold">
-                                    <span>Total Modal Awal Gabungan:</span>
+                                    <span>Total Modal Awal:</span>
                                     <span className="font-mono text-sm">{formatRupiah(formModalPerusahaan + formModalBca + formModalBri + formModalMandiri)}</span>
                                 </div>
 
-                                <div className="flex items-center gap-3 pt-2">
+                                <div className="flex items-center gap-2.5 pt-2 sticky bottom-0 bg-white">
                                     <button
                                         type="button"
                                         onClick={() => setIsSettingsModalOpen(false)}
-                                        className="flex-1 py-2.5 border border-gray-200 text-gray-700 font-bold rounded-xl hover:bg-gray-50 transition-colors"
+                                        className="flex-1 py-3 border border-gray-200 text-gray-700 font-bold rounded-xl hover:bg-gray-50 transition-colors text-xs"
                                     >
                                         Batal
                                     </button>
                                     <button
                                         type="submit"
                                         disabled={savingSettings}
-                                        className="flex-1 py-2.5 bg-gray-900 hover:bg-black text-white font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50"
+                                        className="flex-1 py-3 bg-gray-900 hover:bg-black text-white font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50 text-xs"
                                     >
-                                        <Save size={15} />
-                                        {savingSettings ? 'Menyimpan...' : 'Simpan Modal Awal'}
+                                        <Save size={14} />
+                                        {savingSettings ? 'Menyimpan...' : 'Simpan Modal'}
                                     </button>
                                 </div>
                             </form>
