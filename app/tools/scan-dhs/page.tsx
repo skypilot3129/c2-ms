@@ -23,7 +23,8 @@ import {
     Search,
     Edit,
     MessageSquare,
-    Headphones
+    Headphones,
+    FileSpreadsheet
 } from 'lucide-react';
 import { translateVoiceAlerts, generateAllVoiceClips } from '@/app/actions/chat';
 
@@ -1907,6 +1908,315 @@ export default function ScanDhsPage() {
             .catch(() => alert('Gagal menyalin laporan.'));
     };
 
+    // State for Excel export loading indicator
+    const [isExportingExcel, setIsExportingExcel] = useState<boolean>(false);
+
+    // Export comprehensive DHS scan report to formatted Excel workbook (.xlsx)
+    const handleExportExcel = async (historyItem?: HistoryItem) => {
+        try {
+            setIsExportingExcel(true);
+            const XLSX = await import('xlsx');
+
+            const targetSessionType = historyItem ? historyItem.sessionType : sessionType;
+            const targetDriverName = historyItem ? historyItem.driverName : driverName;
+            const targetNoPolisi = historyItem ? historyItem.noPolisi : noPolisi;
+            const targetDate = historyItem 
+                ? historyItem.date 
+                : `${new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })} ${new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} WIB`;
+            const targetManifest = historyItem ? (historyItem.manifest || []) : manifest;
+            const targetExtra = historyItem ? (historyItem.extraScans || []) : extraScans;
+            const targetIsNoManifest = historyItem ? !!historyItem.isNoManifestMode : isNoManifestMode;
+
+            // Calculations
+            const tTarget = targetManifest.length;
+            const tScanned = targetManifest.filter(i => i.status === 'scanned').length;
+            const tPending = targetManifest.filter(i => i.status === 'pending').length;
+            const tExtra = targetExtra.length;
+            const tPercent = tTarget > 0 ? Math.round((tScanned / tTarget) * 100) : (tExtra > 0 ? 100 : 0);
+
+            const tTargetPaket = targetManifest.reduce((sum, i) => sum + (i.jmlhPaket || 0), 0);
+            const tScannedPaket = targetManifest.filter(i => i.status === 'scanned').reduce((sum, i) => sum + (i.jmlhPaket || 0), 0);
+            const tTargetBerat = targetManifest.reduce((sum, i) => sum + (i.berat || 0), 0);
+            const tScannedBerat = targetManifest.filter(i => i.status === 'scanned').reduce((sum, i) => sum + (i.berat || 0), 0);
+
+            const tLiquidTotal = targetManifest.filter(isLiquidItem).length;
+            const tLiquidScanned = targetManifest.filter(i => isLiquidItem(i) && i.status === 'scanned').length;
+            const tDgTotal = targetManifest.filter(i => isDgItem(i) && !isLiquidItem(i)).length;
+            const tDgScanned = targetManifest.filter(i => isDgItem(i) && !isLiquidItem(i) && i.status === 'scanned').length;
+
+            const wb = XLSX.utils.book_new();
+
+            // -------------------------------------------------------------
+            // SHEET 1: LAPORAN SCAN & REKAP (Summary & Granular Table)
+            // -------------------------------------------------------------
+            const sheet1Rows: any[][] = [
+                ['CV. CAHAYA CARGO EXPRESS'],
+                ['LAPORAN HASIL PEMINDAIAN BARCODE DHS'],
+                ['Spesialis Ekspedisi Pengiriman Barang - Jawa ke Sulawesi'],
+                [],
+                ['--- INFORMASI OPERASIONAL ---'],
+                ['Tipe Operasi', `${targetSessionType} KOLI`, '', 'Waktu Laporan', targetDate],
+                ['Nama Driver', (targetDriverName || '-').toUpperCase(), '', 'No. Polisi (Plat)', (targetNoPolisi || '-').toUpperCase()],
+                ['Penyelesaian Scan', `${tPercent}%`, '', 'Mode Manifes', targetIsNoManifest ? 'Operasional Bebas (Tanpa Manifes)' : 'Pencocokan Manifes DHS Resmi'],
+                [],
+                ['--- RINGKASAN STATISTIK PEMINDAIAN ---'],
+                ['Target Manifes (TO)', tTarget, 'Total Target Koli', `${tTargetPaket} Koli`, 'Total Target Berat', `${tTargetBerat.toFixed(3)} kg`],
+                ['Cocok Terverifikasi (TO)', tScanned, 'Total Koli Ter-scan', `${tScannedPaket + tExtra} Koli`, 'Total Berat Ter-scan', `${tScannedBerat.toFixed(3)} kg`],
+                ['Kurang / Belum Scan (TO)', tPending, 'Kargo Cairan (Liquid)', `${tLiquidScanned} / ${tLiquidTotal} Koli`, 'Status Selisih Koli', tPending === 0 && tExtra === 0 ? 'NIHIL / 100% COCOK' : `SELISIH: ${tPending} Kurang, ${tExtra} Lebih`],
+                ['Lebih / Di Luar Manifes (TO)', tExtra, 'Kargo Berbahaya (DG)', `${tDgScanned} / ${tDgTotal} Koli`, '', ''],
+                []
+            ];
+
+            // Add Destination Breakdown if there are destinations
+            const destMap: Record<string, { manifestItems: ManifestItem[]; extraItems: ExtraScan[] }> = {};
+            targetManifest.forEach(item => {
+                const d = (item.tujuan || (targetIsNoManifest ? 'OPERASIONAL BEBAS' : 'LAINNYA')).trim().toUpperCase();
+                if (!destMap[d]) destMap[d] = { manifestItems: [], extraItems: [] };
+                destMap[d].manifestItems.push(item);
+            });
+            targetExtra.forEach(item => {
+                const d = (item.tujuan || (targetIsNoManifest ? 'OPERASIONAL BEBAS' : 'LAINNYA')).trim().toUpperCase();
+                if (!destMap[d]) destMap[d] = { manifestItems: [], extraItems: [] };
+                destMap[d].extraItems.push(item);
+            });
+
+            const destEntries = Object.entries(destMap);
+            if (destEntries.length > 0) {
+                sheet1Rows.push(['--- REKAPITULASI PER KOTA TUJUAN ---']);
+                sheet1Rows.push([
+                    'Kota Tujuan',
+                    'Target TO',
+                    'Cocok TO',
+                    'Kurang TO',
+                    'Lebih TO',
+                    '% Selesai',
+                    'Target Koli',
+                    'Fisik Koli',
+                    'Target Berat (kg)',
+                    'Fisik Berat (kg)'
+                ]);
+
+                destEntries.forEach(([dName, dData]) => {
+                    const dTargetTO = dData.manifestItems.length;
+                    const dScannedTO = dData.manifestItems.filter(i => i.status === 'scanned').length;
+                    const dPendingTO = dData.manifestItems.filter(i => i.status === 'pending').length;
+                    const dExtraTO = dData.extraItems.length;
+                    const dPct = dTargetTO > 0 ? Math.round((dScannedTO / dTargetTO) * 100) : 100;
+
+                    const dTargetPaket = dData.manifestItems.reduce((s, i) => s + (i.jmlhPaket || 0), 0);
+                    const dScannedPaket = dData.manifestItems.filter(i => i.status === 'scanned').reduce((s, i) => s + (i.jmlhPaket || 0), 0);
+                    const dTargetBerat = dData.manifestItems.reduce((s, i) => s + (i.berat || 0), 0);
+                    const dScannedBerat = dData.manifestItems.filter(i => i.status === 'scanned').reduce((s, i) => s + (i.berat || 0), 0);
+
+                    sheet1Rows.push([
+                        dName,
+                        dTargetTO,
+                        dScannedTO,
+                        dPendingTO,
+                        dExtraTO,
+                        `${dPct}%`,
+                        dTargetPaket,
+                        dScannedPaket + dExtraTO,
+                        Number(dTargetBerat.toFixed(3)),
+                        Number(dScannedBerat.toFixed(3))
+                    ]);
+                });
+                sheet1Rows.push([]);
+            }
+
+            // Main Data Table
+            sheet1Rows.push(['--- RINCIAN SELURUH DATA BARCODE / KOLI ---']);
+            sheet1Rows.push([
+                'No',
+                'Nomor TO / Barcode',
+                'Status',
+                'Paket (Koli)',
+                'Berat (kg)',
+                'Kota Tujuan',
+                'Tipe TO',
+                'Tipe DG',
+                'Waktu Scan',
+                'Catatan Khusus',
+                'Sumber Data'
+            ]);
+
+            let rowNo = 1;
+            targetManifest.forEach(item => {
+                sheet1Rows.push([
+                    rowNo++,
+                    item.code,
+                    item.status === 'scanned' ? 'COCOK' : 'KURANG',
+                    item.jmlhPaket !== undefined ? item.jmlhPaket : 1,
+                    item.berat !== undefined ? Number(item.berat.toFixed(3)) : 0,
+                    item.tujuan || '-',
+                    item.toType || 'REGULER',
+                    item.dgType || '-',
+                    item.scanTime || '-',
+                    item.note || '-',
+                    'Manifes Resmi'
+                ]);
+            });
+
+            targetExtra.forEach(item => {
+                sheet1Rows.push([
+                    rowNo++,
+                    item.code,
+                    'LEBIH',
+                    1,
+                    0,
+                    item.tujuan || '-',
+                    '-',
+                    '-',
+                    item.scanTime || '-',
+                    item.note || '-',
+                    'Extra (Tidak Ada di Manifes)'
+                ]);
+            });
+
+            const ws1 = XLSX.utils.aoa_to_sheet(sheet1Rows);
+            ws1['!cols'] = [
+                { wch: 6 },  // No
+                { wch: 22 }, // Nomor TO
+                { wch: 14 }, // Status
+                { wch: 14 }, // Paket
+                { wch: 14 }, // Berat
+                { wch: 18 }, // Tujuan
+                { wch: 16 }, // Tipe TO
+                { wch: 16 }, // Tipe DG
+                { wch: 18 }, // Scan Time
+                { wch: 30 }, // Catatan
+                { wch: 22 }  // Sumber Data
+            ];
+            XLSX.utils.book_append_sheet(wb, ws1, 'Rekap Scan & Data');
+
+            // -------------------------------------------------------------
+            // SHEET 2: DAFTAR SELISIH (Discrepancy Sheet: Kurang & Lebih)
+            // -------------------------------------------------------------
+            const sheet2Rows: any[][] = [
+                ['CV. CAHAYA CARGO EXPRESS'],
+                ['DAFTAR SELISIH KOLI HASIL SCAN BARCODE DHS'],
+                [`Sesi: ${targetSessionType} KOLI | Driver: ${(targetDriverName || '-').toUpperCase()} (${(targetNoPolisi || '-').toUpperCase()}) | Tanggal: ${targetDate}`],
+                [],
+                ['1. DAFTAR BARANG KURANG (BELUM DI-SCAN DARI MANIFES)'],
+                ['No', 'Nomor TO', 'Status', 'Paket (Koli)', 'Berat (kg)', 'Kota Tujuan', 'Tipe Kargo', 'Catatan Khusus']
+            ];
+
+            const pendingItems = targetManifest.filter(i => i.status === 'pending');
+            if (pendingItems.length > 0) {
+                pendingItems.forEach((item, idx) => {
+                    sheet2Rows.push([
+                        idx + 1,
+                        item.code,
+                        'KURANG',
+                        item.jmlhPaket !== undefined ? item.jmlhPaket : 1,
+                        item.berat !== undefined ? Number(item.berat.toFixed(3)) : 0,
+                        item.tujuan || '-',
+                        `${item.toType || ''} ${item.dgType ? `(${item.dgType})` : ''}`.trim() || 'REGULER',
+                        item.note || '-'
+                    ]);
+                });
+            } else {
+                sheet2Rows.push(['-', 'Nihil (Semua barang manifes berhasil di-scan 100%)', '-', '-', '-', '-', '-', '-']);
+            }
+
+            sheet2Rows.push([]);
+            sheet2Rows.push(['2. DAFTAR BARANG LEBIH (FISIK DITEMUKAN, TIDAK ADA DI MANIFES)']);
+            sheet2Rows.push(['No', 'Nomor TO', 'Status', 'Paket (Koli)', 'Kota Tujuan', 'Waktu Scan', 'Catatan Khusus']);
+
+            if (targetExtra.length > 0) {
+                targetExtra.forEach((item, idx) => {
+                    sheet2Rows.push([
+                        idx + 1,
+                        item.code,
+                        'LEBIH',
+                        1,
+                        item.tujuan || '-',
+                        item.scanTime || '-',
+                        item.note || '-'
+                    ]);
+                });
+            } else {
+                sheet2Rows.push(['-', 'Nihil (Tidak ada koli lebih di luar manifes)', '-', '-', '-', '-', '-']);
+            }
+
+            const ws2 = XLSX.utils.aoa_to_sheet(sheet2Rows);
+            ws2['!cols'] = [
+                { wch: 6 },
+                { wch: 22 },
+                { wch: 14 },
+                { wch: 14 },
+                { wch: 14 },
+                { wch: 18 },
+                { wch: 20 },
+                { wch: 30 }
+            ];
+            XLSX.utils.book_append_sheet(wb, ws2, 'Daftar Selisih Koli');
+
+            // -------------------------------------------------------------
+            // SHEET 3: BERITA ACARA (Jika dibuat pada sesi ini)
+            // -------------------------------------------------------------
+            if (!historyItem && baCreated) {
+                const sheet3Rows: any[][] = [
+                    ['CV. CAHAYA CARGO EXPRESS'],
+                    ['BERITA ACARA SELISIH BARANG DHS'],
+                    [`Nomor: ${baNo} | Tanggal: ${baDate}`],
+                    [],
+                    ['INFORMASI BERITA ACARA'],
+                    ['Nomor Berita Acara', baNo],
+                    ['Tanggal Kejadian', baDate],
+                    ['Tipe Operasi', `${sessionType} DHS`],
+                    ['Driver / Pembawa Armada', (driverName || '-').toUpperCase()],
+                    ['No. Polisi (Plat Truk)', (noPolisi || '-').toUpperCase()],
+                    ['Keterangan Kejadian', baDescription || '-'],
+                    [],
+                    ['DAFTAR NOMOR TO YANG BERMASALAH / DILAPORKAN'],
+                    ['No', 'Nomor TO', 'Status Selisih']
+                ];
+
+                if (allBaTOs.length > 0) {
+                    allBaTOs.forEach((item, idx) => {
+                        sheet3Rows.push([
+                            idx + 1,
+                            item.code,
+                            item.type === 'KURANG' ? 'KURANG (BELUM SCAN)' : item.type === 'LEBIH' ? 'LEBIH (TIDAK ADA DI MANIFES)' : 'DOUBLE / KEDOBELAN'
+                        ]);
+                    });
+                } else {
+                    sheet3Rows.push(['-', 'Nihil', '-']);
+                }
+
+                sheet3Rows.push([]);
+                sheet3Rows.push(['PENGESAHAN DOKUMEN:']);
+                sheet3Rows.push(['Pihak I (Pengawas DHS)', '', 'Pihak II (Driver Pembawa)']);
+                sheet3Rows.push([]);
+                sheet3Rows.push([]);
+                sheet3Rows.push(['( Pengawas DHS )', '', `( ${(driverName || 'Driver').toUpperCase()} )`]);
+
+                const ws3 = XLSX.utils.aoa_to_sheet(sheet3Rows);
+                ws3['!cols'] = [
+                    { wch: 6 },
+                    { wch: 24 },
+                    { wch: 32 }
+                ];
+                XLSX.utils.book_append_sheet(wb, ws3, 'Berita Acara');
+            }
+
+            // Generate clean filename
+            const cleanDriver = (targetDriverName || 'Driver').replace(/[^a-zA-Z0-9]/g, '_');
+            const cleanNopol = (targetNoPolisi || 'Armada').replace(/[^a-zA-Z0-9]/g, '_');
+            const dateFile = new Date().toISOString().slice(0, 10);
+            const fileName = `Laporan_Scan_DHS_${targetSessionType}_${cleanDriver}_${cleanNopol}_${dateFile}.xlsx`;
+
+            // Trigger download
+            XLSX.writeFile(wb, fileName);
+        } catch (error) {
+            console.error('Error generating Excel file:', error);
+            alert('Gagal mengekspor laporan ke Excel. Silakan coba kembali.');
+        } finally {
+            setIsExportingExcel(false);
+        }
+    };
+
     // Load a completed history session for details viewing / printing
     const handleViewHistoryReport = (item: HistoryItem) => {
         setCurrentSessionId(item.id);
@@ -2456,12 +2766,21 @@ export default function ScanDhsPage() {
                                                     )}
                                                 </div>
                                             </div>
-                                            <div className="flex gap-2 self-start md:self-center">
+                                            <div className="flex gap-2 self-start md:self-center flex-wrap">
                                                 <button
                                                     onClick={() => handleViewHistoryReport(item)}
                                                     className="bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold py-2 px-3 rounded-lg border border-slate-700 transition-colors"
                                                 >
                                                     Lihat Laporan
+                                                </button>
+                                                <button
+                                                    onClick={() => handleExportExcel(item)}
+                                                    disabled={isExportingExcel}
+                                                    className="bg-emerald-950/40 hover:bg-emerald-900/60 text-emerald-400 text-xs font-bold py-2 px-3 rounded-lg border border-emerald-800/40 transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                                                    title="Export Laporan Sesi Ini ke Excel (.xlsx)"
+                                                >
+                                                    <FileSpreadsheet size={14} />
+                                                    Excel
                                                 </button>
                                                 <button
                                                     onClick={() => handleEditHistorySession(item)}
@@ -3561,6 +3880,46 @@ export default function ScanDhsPage() {
                 {step === 'report' && (
                     <div className="space-y-6">
 
+                        {/* Top Quick Actions Ribbon (no-print) */}
+                        <div className="no-print flex flex-wrap items-center justify-between gap-3 max-w-4xl mx-auto bg-slate-900/90 border border-slate-800 p-4 rounded-2xl shadow-xl">
+                            <div>
+                                <h2 className="text-sm md:text-base font-bold text-white flex items-center gap-2">
+                                    <span>📊 Laporan Pemindaian Barcode DHS</span>
+                                    <span className="text-[10px] font-mono bg-blue-950 border border-blue-800 text-blue-300 px-2 py-0.5 rounded-full uppercase font-bold">
+                                        {sessionType} KOLI
+                                    </span>
+                                </h2>
+                                <p className="text-xs text-slate-400 mt-0.5">
+                                    Driver: <strong className="text-slate-200">{driverName || '-'}</strong> | No. Polisi: <strong className="text-slate-200">{noPolisi || '-'}</strong>
+                                </p>
+                            </div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                                <button
+                                    onClick={() => handleExportExcel()}
+                                    disabled={isExportingExcel}
+                                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-2.5 px-4 rounded-xl flex items-center gap-2 shadow-lg shadow-emerald-950/40 transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 cursor-pointer"
+                                    title="Download Laporan Format Excel (.xlsx)"
+                                >
+                                    <FileSpreadsheet size={16} />
+                                    {isExportingExcel ? 'Membuat Excel...' : 'Export Excel (.xlsx)'}
+                                </button>
+                                <button
+                                    onClick={handleCopyWhatsApp}
+                                    className="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-bold text-xs py-2.5 px-3.5 rounded-xl flex items-center gap-1.5 transition-all cursor-pointer"
+                                >
+                                    <Copy size={15} />
+                                    Salin WA
+                                </button>
+                                <button
+                                    onClick={() => window.print()}
+                                    className="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-bold text-xs py-2.5 px-3.5 rounded-xl flex items-center gap-1.5 transition-all cursor-pointer"
+                                >
+                                    <Printer size={15} />
+                                    Cetak (A4)
+                                </button>
+                            </div>
+                        </div>
+
                         {/* Printable Report Panel */}
                         <div id="print-dhs-report" className="bg-slate-950 border border-slate-800 rounded-3xl p-6 md:p-8 shadow-2xl space-y-6 text-white max-w-4xl mx-auto">
                             <div className={isPrintingOnlyBa ? 'print-ba-only-hide space-y-8' : 'space-y-8'}>
@@ -4176,17 +4535,25 @@ export default function ScanDhsPage() {
                         </div>
 
                         {/* Export Action Buttons */}
-                        <div className="flex flex-col sm:flex-row gap-4 max-w-4xl mx-auto">
+                        <div className="flex flex-col sm:flex-row flex-wrap gap-3 max-w-4xl mx-auto">
+                            <button
+                                onClick={() => handleExportExcel()}
+                                disabled={isExportingExcel}
+                                className="flex-1 min-w-[200px] bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 px-6 rounded-xl flex items-center justify-center gap-2 hover:scale-[1.01] active:scale-[0.99] transition-all shadow-lg shadow-emerald-950/20 disabled:opacity-50 cursor-pointer"
+                            >
+                                <FileSpreadsheet size={18} />
+                                {isExportingExcel ? 'Membuat File Excel...' : 'Export Laporan Excel (.xlsx)'}
+                            </button>
                             <button
                                 onClick={handleCopyWhatsApp}
-                                className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 px-6 rounded-xl flex items-center justify-center gap-2 hover:scale-[1.01] active:scale-[0.99] transition-all shadow-lg shadow-emerald-950/20"
+                                className="flex-1 min-w-[170px] bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 text-slate-200 font-bold py-3.5 px-5 rounded-xl flex items-center justify-center gap-2 transition-all cursor-pointer"
                             >
                                 <Copy size={18} />
-                                Salin Laporan WhatsApp (WA)
+                                Salin WA
                             </button>
                             <button
                                 onClick={() => window.print()}
-                                className="flex-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 text-slate-200 font-bold py-3.5 px-6 rounded-xl flex items-center justify-center gap-2 transition-all"
+                                className="flex-1 min-w-[170px] bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 text-slate-200 font-bold py-3.5 px-5 rounded-xl flex items-center justify-center gap-2 transition-all cursor-pointer"
                             >
                                 <Printer size={18} />
                                 Cetak Laporan (A4)
@@ -4194,22 +4561,22 @@ export default function ScanDhsPage() {
                             {baCreated && (
                                 <button
                                     onClick={handlePrintOnlyBa}
-                                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 px-6 rounded-xl flex items-center justify-center gap-2 transition-all hover:scale-[1.01]"
+                                    className="flex-1 min-w-[180px] bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 px-5 rounded-xl flex items-center justify-center gap-2 transition-all hover:scale-[1.01] cursor-pointer"
                                 >
                                     <Printer size={18} />
-                                    Cetak Berita Acara Saja (A4)
+                                    Cetak BA Saja (A4)
                                 </button>
                             )}
                             <button
                                 onClick={handleEditSession}
-                                className="flex-1 bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-3.5 px-6 rounded-xl flex items-center justify-center gap-2 transition-all hover:scale-[1.01]"
+                                className="bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-3.5 px-5 rounded-xl flex items-center justify-center gap-2 transition-all hover:scale-[1.01] cursor-pointer"
                             >
                                 <Edit size={18} />
-                                Edit / Lanjutkan Scan
+                                Edit / Scan Lagi
                             </button>
                             <button
                                 onClick={handleNewSession}
-                                className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 px-6 rounded-xl flex items-center justify-center gap-2 transition-all hover:scale-[1.01]"
+                                className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 px-5 rounded-xl flex items-center justify-center gap-2 transition-all hover:scale-[1.01] cursor-pointer"
                             >
                                 <RefreshCcw size={18} />
                                 Sesi Baru
