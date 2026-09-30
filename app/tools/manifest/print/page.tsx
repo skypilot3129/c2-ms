@@ -81,13 +81,18 @@ function PrintContent() {
     return (
         <>
             <style dangerouslySetInnerHTML={{ __html: `
+                @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+
                 * { box-sizing: border-box; margin: 0; padding: 0; }
 
                 body {
-                    font-family: Arial, Helvetica, sans-serif;
+                    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
                     background: #64748b;
                     color: #000;
                     padding: 10px 0;
+                    -webkit-font-smoothing: antialiased;
+                    -moz-osx-font-smoothing: grayscale;
+                    text-rendering: optimizeLegibility;
                 }
 
                 .print-canvas {
@@ -96,6 +101,7 @@ function PrintContent() {
                     background: white;
                     margin: 0 auto;
                     padding: 3mm 6mm;
+                    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
                     font-size: 8pt;
                     line-height: 1.15;
                     position: relative;
@@ -104,18 +110,22 @@ function PrintContent() {
                     page-break-after: avoid;
                     page-break-inside: avoid;
                     overflow: hidden;
+                    -webkit-font-smoothing: antialiased;
+                    -moz-osx-font-smoothing: grayscale;
+                    text-rendering: optimizeLegibility;
                 }
 
                 /* Header Title */
                 .manifest-title {
                     text-align: center;
-                    font-size: 13pt;
+                    font-size: 13.5pt;
                     font-weight: 900;
                     letter-spacing: 0.8px;
                     text-transform: uppercase;
                     text-decoration: underline;
                     text-underline-offset: 3px;
                     margin-bottom: 2.5mm;
+                    color: #000;
                 }
 
                 /* Header Metadata Grid */
@@ -128,14 +138,16 @@ function PrintContent() {
                 .header-meta-table td {
                     vertical-align: middle;
                     padding: 1px 4px;
+                    color: #000;
                 }
 
                 /* Main Manifest Table */
                 .manifest-table {
                     width: 100%;
                     border-collapse: collapse;
-                    font-size: 7.5pt;
+                    font-size: 8pt;
                     page-break-inside: avoid;
+                    color: #000;
                 }
 
                 .manifest-table th {
@@ -143,28 +155,30 @@ function PrintContent() {
                     padding: 3px 2px;
                     text-align: center;
                     font-weight: 900;
-                    background: #ffffff;
+                    background: #f8fafc;
+                    color: #000;
                     text-transform: uppercase;
-                    font-size: 7.5pt;
+                    font-size: 8pt;
                     letter-spacing: 0.3px;
                     height: 5.5mm;
                 }
 
                 .manifest-table td {
                     border: 1px solid #000;
-                    padding: 1.5px 3px;
+                    padding: 1.8px 3.5px;
                     vertical-align: middle;
-                    height: 5mm;
+                    height: 5.2mm;
                     text-transform: uppercase;
-                    font-size: 7.5pt;
+                    font-size: 8pt;
                     line-height: 1.15;
+                    color: #000;
                 }
 
-                .row-purple { background-color: #c084fc !important; color: #000 !important; }
-                .row-yellow { background-color: #fef08a !important; color: #000 !important; }
-                .row-green { background-color: #bbf7d0 !important; color: #000 !important; }
-                .row-red { background-color: #fca5a5 !important; color: #000 !important; }
-                .row-blue { background-color: #93c5fd !important; color: #000 !important; }
+                .row-purple { background-color: #f3e8ff !important; color: #000 !important; }
+                .row-yellow { background-color: #fef9c3 !important; color: #000 !important; }
+                .row-green { background-color: #dcfce7 !important; color: #000 !important; }
+                .row-red { background-color: #fee2e2 !important; color: #000 !important; }
+                .row-blue { background-color: #dbeafe !important; color: #000 !important; }
                 .row-white { background-color: #ffffff !important; color: #000 !important; }
 
                 @media print {
@@ -178,8 +192,11 @@ function PrintContent() {
                         margin: 0 !important;
                         height: 100% !important;
                         overflow: hidden !important;
+                        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
                         print-color-adjust: exact !important;
                         -webkit-print-color-adjust: exact !important;
+                        -webkit-font-smoothing: antialiased;
+                        -moz-osx-font-smoothing: grayscale;
                     }
                     .print-canvas {
                         width: 100% !important;
@@ -270,31 +287,31 @@ function PrintContent() {
 
                             return (
                                 <tr key={index} className={rowColorClass}>
-                                    <td style={{ textAlign: 'center', fontWeight: 'bold' }}>
+                                    <td style={{ textAlign: 'center', fontWeight: '800', fontVariantNumeric: 'tabular-nums' }}>
                                         {index + 1}.
                                     </td>
-                                    <td style={{ textAlign: 'center', fontWeight: 'bold', fontFamily: 'monospace' }}>
+                                    <td style={{ textAlign: 'center', fontWeight: '900', letterSpacing: '0.4px', fontVariantNumeric: 'tabular-nums', color: '#000' }}>
                                         {item.noSTT || ''}
                                     </td>
-                                    <td style={{ textAlign: 'center', fontWeight: item.koli ? 'bold' : 'normal' }}>
+                                    <td style={{ textAlign: 'center', fontWeight: '800', fontVariantNumeric: 'tabular-nums', color: '#000' }}>
                                         {item.koli ? item.koli : ''}
                                     </td>
-                                    <td style={{ textAlign: 'center', fontWeight: item.berat ? 'bold' : 'normal' }}>
+                                    <td style={{ textAlign: 'center', fontWeight: '800', fontVariantNumeric: 'tabular-nums', color: '#000' }}>
                                         {item.berat !== undefined && item.berat !== 0 ? item.berat : ''}
                                     </td>
-                                    <td style={{ fontWeight: item.color && item.color !== 'white' ? 'bold' : 'bold' }}>
+                                    <td style={{ fontWeight: '800', letterSpacing: '0.1px', color: '#000' }}>
                                         {item.pengirim || ''}
                                     </td>
-                                    <td style={{ fontWeight: item.color && item.color !== 'white' ? 'bold' : 'bold' }}>
+                                    <td style={{ fontWeight: '800', letterSpacing: '0.1px', color: '#000' }}>
                                         {item.penerima || ''}
                                     </td>
-                                    <td style={{ fontWeight: 'normal' }}>
+                                    <td style={{ fontWeight: '600', color: '#000' }}>
                                         {item.isiBarang || ''}
                                     </td>
-                                    <td style={{ fontWeight: item.color && item.color !== 'white' ? 'bold' : 'normal' }}>
+                                    <td style={{ fontWeight: '600', color: '#000' }}>
                                         {item.alamat || ''}
                                     </td>
-                                    <td style={{ textAlign: 'center', fontWeight: 'bold' }}>
+                                    <td style={{ textAlign: 'center', fontWeight: '800', color: '#000' }}>
                                         {item.keterangan || ''}
                                     </td>
                                 </tr>
@@ -302,11 +319,11 @@ function PrintContent() {
                         })}
 
                         {/* Summary Row */}
-                        <tr style={{ fontWeight: '900', background: '#e2e8f0', borderTop: '2px solid #000' }}>
-                            <td colSpan={2} style={{ textAlign: 'right', paddingRight: '8px' }}>TOTAL :</td>
-                            <td style={{ textAlign: 'center', fontSize: '9pt' }}>{totalKoli > 0 ? totalKoli : ''}</td>
-                            <td style={{ textAlign: 'center', fontSize: '9pt' }}>{totalBerat > 0 ? totalBerat.toLocaleString('id-ID') : ''}</td>
-                            <td colSpan={5}></td>
+                        <tr style={{ fontWeight: '900', background: '#f1f5f9', borderTop: '2px solid #000' }}>
+                            <td colSpan={2} style={{ textAlign: 'right', paddingRight: '8px', fontWeight: '900', fontSize: '8.5pt', color: '#000', height: '5.5mm' }}>TOTAL :</td>
+                            <td style={{ textAlign: 'center', fontWeight: '900', fontSize: '8.5pt', color: '#000', fontVariantNumeric: 'tabular-nums', height: '5.5mm' }}>{totalKoli > 0 ? totalKoli : ''}</td>
+                            <td style={{ textAlign: 'center', fontWeight: '900', fontSize: '8.5pt', color: '#000', fontVariantNumeric: 'tabular-nums', height: '5.5mm' }}>{totalBerat > 0 ? totalBerat.toLocaleString('id-ID') : ''}</td>
+                            <td colSpan={5} style={{ height: '5.5mm' }}></td>
                         </tr>
                     </tbody>
                 </table>

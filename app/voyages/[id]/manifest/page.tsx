@@ -90,6 +90,15 @@ export default function ManifestPage({ params }: { params: Promise<{ id: string 
         <ProtectedRoute>
             {/* Print Page CSS */}
             <style>{`
+                @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+                
+                body {
+                    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif !important;
+                    -webkit-font-smoothing: antialiased;
+                    -moz-osx-font-smoothing: grayscale;
+                    text-rendering: optimizeLegibility;
+                }
+
                 @media print {
                     @page {
                         size: A4 portrait;
@@ -197,7 +206,7 @@ function ManifestContent({
     printDate: string;
 }) {
     return (
-        <div style={{ fontFamily: 'Arial, sans-serif', fontSize: '9px', color: '#000' }}>
+        <div style={{ fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif", fontSize: '9px', color: '#000' }}>
 
             {/* Header */}
             <div style={{ textAlign: 'center', borderBottom: '2px solid black', paddingBottom: '4px', marginBottom: '4px' }}>
@@ -255,7 +264,7 @@ function ManifestContent({
                     {sortedTransactions.map((tx, index) => (
                         <tr key={tx.id} style={{ background: index % 2 === 0 ? '#fff' : '#f9fafb' }}>
                             <td style={tdStyle({ textAlign: 'center' })}>{index + 1}</td>
-                            <td style={tdStyle({ textAlign: 'center', fontFamily: 'monospace', fontSize: '7.5px' })}>
+                            <td style={tdStyle({ textAlign: 'center', fontWeight: 800, fontSize: '8px', letterSpacing: '0.3px' })}>
                                 {tx.noSTT.replace(/^STT0*/i, '')}
                             </td>
                             <td style={tdStyle({})}>
