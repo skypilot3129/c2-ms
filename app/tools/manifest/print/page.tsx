@@ -61,10 +61,10 @@ function PrintContent() {
         return sum + (isNaN(val) ? 0 : val);
     }, 0);
 
-    // Ensure at least 30 rows display like in the screenshot
+    // For single-page A4 landscape, display actual items and pad with empty rows up to max 16-20 rows if few items
     const rows = [...data.items];
-    const minRows = 30;
-    while (rows.length < minRows) {
+    const targetRows = Math.min(Math.max(data.items.length, 16), 20);
+    while (rows.length < targetRows) {
         rows.push({
             noSTT: '',
             koli: 0,
@@ -87,44 +87,46 @@ function PrintContent() {
                     font-family: Arial, Helvetica, sans-serif;
                     background: #64748b;
                     color: #000;
-                    padding: 20px 0;
+                    padding: 10px 0;
                 }
 
                 .print-canvas {
                     width: ${isLandscape ? '297mm' : '210mm'};
-                    min-height: ${isLandscape ? '210mm' : '297mm'};
+                    max-height: ${isLandscape ? '204mm' : '289mm'};
                     background: white;
                     margin: 0 auto;
-                    padding: 8mm 10mm;
-                    font-size: 8.5pt;
-                    line-height: 1.2;
+                    padding: 3mm 6mm;
+                    font-size: 8pt;
+                    line-height: 1.15;
                     position: relative;
                     box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+                    box-sizing: border-box;
+                    page-break-after: avoid;
+                    page-break-inside: avoid;
+                    overflow: hidden;
                 }
 
                 /* Header Title */
                 .manifest-title {
                     text-align: center;
-                    font-size: 15pt;
+                    font-size: 13pt;
                     font-weight: 900;
-                    letter-spacing: 1px;
+                    letter-spacing: 0.8px;
                     text-transform: uppercase;
                     text-decoration: underline;
-                    text-underline-offset: 4px;
-                    margin-bottom: 5mm;
+                    text-underline-offset: 3px;
+                    margin-bottom: 2.5mm;
                 }
 
                 /* Header Metadata Grid */
                 .header-meta-table {
                     width: 100%;
-                    margin-bottom: 4mm;
+                    margin-bottom: 2.5mm;
                     border-collapse: collapse;
-                    font-size: 9pt;
-                    font-weight: bold;
                 }
 
                 .header-meta-table td {
-                    vertical-align: top;
+                    vertical-align: middle;
                     padding: 1px 4px;
                 }
 
@@ -132,27 +134,30 @@ function PrintContent() {
                 .manifest-table {
                     width: 100%;
                     border-collapse: collapse;
-                    font-size: 8pt;
+                    font-size: 7.5pt;
+                    page-break-inside: avoid;
                 }
 
                 .manifest-table th {
                     border: 1.5px solid #000;
-                    padding: 4px 4px;
+                    padding: 3px 2px;
                     text-align: center;
                     font-weight: 900;
                     background: #ffffff;
                     text-transform: uppercase;
-                    font-size: 8pt;
-                    letter-spacing: 0.5px;
+                    font-size: 7.5pt;
+                    letter-spacing: 0.3px;
+                    height: 5.5mm;
                 }
 
                 .manifest-table td {
                     border: 1px solid #000;
-                    padding: 3px 5px;
+                    padding: 1.5px 3px;
                     vertical-align: middle;
-                    height: 6mm;
+                    height: 5mm;
                     text-transform: uppercase;
-                    font-size: 8pt;
+                    font-size: 7.5pt;
+                    line-height: 1.15;
                 }
 
                 .row-purple { background-color: #c084fc !important; color: #000 !important; }
@@ -165,19 +170,27 @@ function PrintContent() {
                 @media print {
                     @page {
                         size: ${isLandscape ? 'A4 landscape' : 'A4 portrait'};
-                        margin: 4mm;
+                        margin: 3mm 4mm;
                     }
-                    body {
-                        background: white;
-                        padding: 0;
+                    html, body {
+                        background: white !important;
+                        padding: 0 !important;
+                        margin: 0 !important;
+                        height: 100% !important;
+                        overflow: hidden !important;
                         print-color-adjust: exact !important;
                         -webkit-print-color-adjust: exact !important;
                     }
                     .print-canvas {
                         width: 100% !important;
+                        max-height: 100vh !important;
                         margin: 0 !important;
                         box-shadow: none !important;
-                        padding: 4mm 6mm !important;
+                        padding: 1mm 2mm !important;
+                        page-break-inside: avoid !important;
+                        page-break-after: avoid !important;
+                        page-break-before: avoid !important;
+                        overflow: hidden !important;
                     }
                     .no-print { display: none !important; }
                 }
@@ -215,17 +228,21 @@ function PrintContent() {
                 <table className="header-meta-table">
                     <tbody>
                         <tr>
-                            <td style={{ width: '30%' }}>
-                                <div>Tgl : {data.tanggal || '-'}</div>
-                                <div style={{ marginTop: '2px' }}>Kapal : {data.kapal || '-'}</div>
+                            <td style={{ width: '28%', verticalAlign: 'middle' }}>
+                                <div style={{ fontSize: '9pt', fontWeight: 'bold' }}>Tgl : {data.tanggal || '-'}</div>
+                                <div style={{ marginTop: '2px', fontSize: '9pt', fontWeight: 'bold' }}>Kapal : {data.kapal || '-'}</div>
                             </td>
-                            <td style={{ width: '35%', textAlign: 'center' }}>
-                                <div>Nopol : {data.nopol || '-'}</div>
-                                <div style={{ marginTop: '2px' }}>Sopir : {data.sopir || '-'}</div>
+                            <td style={{ width: '44%', textAlign: 'center', verticalAlign: 'middle' }}>
+                                <div style={{ fontSize: '13pt', fontWeight: '900', letterSpacing: '0.8px', textTransform: 'uppercase', color: '#000', lineHeight: 1.15 }}>
+                                    NOPOL : <span style={{ textDecoration: 'underline' }}>{data.nopol || '-'}</span>
+                                </div>
+                                <div style={{ fontSize: '13pt', fontWeight: '900', marginTop: '2px', letterSpacing: '0.8px', textTransform: 'uppercase', color: '#000', lineHeight: 1.15 }}>
+                                    SOPIR : <span style={{ textDecoration: 'underline' }}>{data.sopir || '-'}</span>
+                                </div>
                             </td>
-                            <td style={{ width: '35%', textAlign: 'right' }}>
-                                <div>Kepada Yth,</div>
-                                <div style={{ marginTop: '2px', fontSize: '10pt', fontWeight: '900' }}>{data.kepadaYth || 'CAHAYA CARGO EXP MKS'}</div>
+                            <td style={{ width: '28%', textAlign: 'right', verticalAlign: 'middle' }}>
+                                <div style={{ fontSize: '8.5pt', fontWeight: 'bold' }}>Kepada Yth,</div>
+                                <div style={{ marginTop: '1px', fontSize: '10pt', fontWeight: '900' }}>{data.kepadaYth || 'CAHAYA CARGO EXP MKS'}</div>
                             </td>
                         </tr>
                     </tbody>

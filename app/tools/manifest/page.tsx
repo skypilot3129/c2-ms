@@ -832,7 +832,6 @@ export default function ManifestCargoPage() {
                                                 red: 'bg-red-100 hover:bg-red-200/80', 
                                                 blue: 'bg-blue-100 hover:bg-blue-200/80' 
                                             };
-                                            const isSearching = searchLoadingIdx === index;
 
                                             return (
                                                 <tr key={index} className={`border-b border-gray-200 transition-colors ${colorMap[item.color || 'white']}`}>
@@ -842,27 +841,12 @@ export default function ManifestCargoPage() {
                                                     <td className="py-1 px-1 border-r border-gray-200">
                                                         <div className="relative flex items-center">
                                                             <input 
+                                                                type="text"
                                                                 value={item.noSTT} 
                                                                 onChange={e => handleCellChange(index, 'noSTT', e.target.value)} 
-                                                                onBlur={() => handleSTTLookup(index, item.noSTT)}
-                                                                onKeyDown={e => {
-                                                                    if (e.key === 'Enter') {
-                                                                        e.preventDefault();
-                                                                        handleSTTLookup(index, item.noSTT);
-                                                                    }
-                                                                }}
-                                                                placeholder="Ketik STT..."
+                                                                placeholder="No STT..."
                                                                 className="w-full border border-gray-300 rounded px-2 py-1 text-xs font-mono font-bold focus:border-blue-500 outline-none bg-white/90"
                                                             />
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => handleSTTLookup(index, item.noSTT)}
-                                                                disabled={isSearching}
-                                                                className="absolute right-1 text-gray-400 hover:text-blue-600 p-0.5"
-                                                                title="Cari transaksi STT ini"
-                                                            >
-                                                                {isSearching ? <Loader2 size={12} className="animate-spin text-blue-600" /> : <Search size={12} />}
-                                                            </button>
                                                         </div>
                                                     </td>
                                                     <td className="py-1 px-1 border-r border-gray-200">

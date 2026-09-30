@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { getVoyageById, deleteVoyage, removeTransactionsFromVoyage, updateVoyage } from '@/lib/firestore-voyages';
 import { getTransactionById } from '@/lib/firestore-transactions';
-import { subscribeToExpensesByVoyage, calculateVoyageExpenses } from '@/lib/firestore-expenses';
+import { subscribeToExpensesByVoyage, calculateVoyageExpenses, deleteExpense } from '@/lib/firestore-expenses';
 import { subscribeToOwnerShipExpenses, saveOwnerShipExpense } from '@/lib/firestore-owner-ship-expenses';
 import type { Voyage, Expense, VoyageStatus } from '@/types/voyage';
 import type { Transaction } from '@/types/transaction';
@@ -274,6 +274,18 @@ export default function VoyageDetailPage({ params }: { params: Promise<{ id: str
     const handleEditExpense = (expense: Expense) => {
         setEditingExpense(expense);
         setShowExpenseForm(true);
+    };
+
+    const handleDeleteExpense = async (id: string, description: string) => {
+        if (!confirm(`Hapus pengeluaran "${description}"? Tindakan ini tidak dapat dibatalkan.`)) {
+            return;
+        }
+        try {
+            await deleteExpense(id);
+        } catch (error) {
+            console.error('Error deleting expense:', error);
+            alert('Gagal menghapus pengeluaran.');
+        }
     };
 
     // Prepare chart data (combine ship costs + general expenses)
@@ -892,9 +904,17 @@ export default function VoyageDetailPage({ params }: { params: Promise<{ id: str
                                                     <span className="font-mono font-bold text-rose-600 text-xs">{formatRupiah(exp.amount)}</span>
                                                     <button
                                                         onClick={() => handleEditExpense(exp)}
-                                                        className="p-1 text-gray-400 hover:text-blue-600"
+                                                        className="p-1 text-gray-400 hover:text-blue-600 transition-colors"
+                                                        title="Edit Pengeluaran"
                                                     >
                                                         <Pencil size={13} />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleDeleteExpense(exp.id, exp.description || EXPENSE_CATEGORY_LABELS[exp.category])}
+                                                        className="p-1 text-gray-400 hover:text-rose-600 transition-colors"
+                                                        title="Hapus Pengeluaran"
+                                                    >
+                                                        <Trash2 size={13} />
                                                     </button>
                                                 </div>
                                             </div>
