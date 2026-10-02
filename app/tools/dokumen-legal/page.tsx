@@ -22,7 +22,9 @@ import {
     Sparkles,
     CheckCircle2,
     ShieldCheck,
-    Tag
+    Tag,
+    Handshake,
+    Scale
 } from 'lucide-react';
 
 interface LostItem {
@@ -31,19 +33,311 @@ interface LostItem {
     notes: string;
 }
 
-export type PaymentScheme = 'dp_70_30' | 'lunas_cash' | 'tf_lunas_awal';
+type PaymentScheme = 'dp_70_30' | 'lunas_cash' | 'tf_lunas_awal';
+
+type PaperSize = 'legal' | 'a4' | 'folio';
+
+const PAPER_CONFIG: Record<PaperSize, { name: string; width: string; minHeight: string; cssSize: string; description: string }> = {
+    legal: {
+        name: 'Legal (Standar Hukum)',
+        width: '216mm',
+        minHeight: '356mm',
+        cssSize: 'legal portrait',
+        description: '216 x 356 mm (8.5 x 14 in)'
+    },
+    a4: {
+        name: 'A4 (Standar Surat)',
+        width: '210mm',
+        minHeight: '297mm',
+        cssSize: 'A4 portrait',
+        description: '210 x 297 mm'
+    },
+    folio: {
+        name: 'Folio / F4',
+        width: '215mm',
+        minHeight: '330mm',
+        cssSize: '215mm 330mm',
+        description: '215 x 330 mm'
+    }
+};
+
+/**
+ * Template Builder: Surat Kesepakatan Tarif Khusus CCE & Aditya Mandiri Logistik (PT Gesit)
+ * Format Dokumen Legal 2 Pihak dengan Tarif Rp 450.000 / m³ (CBM)
+ */
+const buildAmlGesitAgreementDocument = () => {
+    const today = new Date();
+    const dayNames = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+    const monthNames = [
+        'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 
+        'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+    ];
+    const hari = dayNames[today.getDay()];
+    const tanggal = today.getDate();
+    const bulan = monthNames[today.getMonth()];
+    const tahun = today.getFullYear();
+    const todayFormatted = `${tanggal} ${bulan} ${tahun}`;
+
+    const title = 'SURAT PERJANJIAN KESEPAKATAN TARIF KHUSUS PENGIRIMAN KARGO';
+
+    const metadata = `
+    <div class="grid grid-cols-12 gap-1 text-[9.5pt] border-b border-slate-300 pb-2.5">
+        <div class="col-span-2 font-semibold text-slate-700">Nomor Surat</div>
+        <div class="col-span-6 font-mono font-bold text-slate-900">: 062/CCE-AML/SPK-TARIF/X/${tahun}</div>
+        <div class="col-span-4 text-right text-slate-600 font-medium">Surabaya, ${todayFormatted}</div>
+        
+        <div class="col-span-2 font-semibold text-slate-700">Lampiran</div>
+        <div class="col-span-10">: 1 (Satu) Berkas Ketentuan Operasional</div>
+        
+        <div class="col-span-2 font-semibold text-slate-700">Perihal</div>
+        <div class="col-span-10 font-bold text-slate-900">: SURAT PERJANJIAN KESEPAKATAN TARIF KHUSUS PENGIRIMAN KARGO (RP 450.000 / M³)<br/>
+            <span class="text-blue-900 font-bold text-[8.5pt] tracking-wide bg-blue-50 px-2 py-0.5 rounded border border-blue-200 inline-block mt-0.5">
+                EKSKLUSIF UNTUK CUSTOMER: PT. GESIT
+            </span>
+        </div>
+    </div>
+
+    <div class="mt-3 grid grid-cols-2 gap-3 text-[8.5pt] bg-slate-50 p-2.5 rounded-lg border border-slate-300">
+        <div class="border-r border-slate-300 pr-3">
+            <p class="font-extrabold text-blue-950 border-b border-slate-300 pb-0.5 mb-1 uppercase text-[8pt] tracking-wider">
+                PIHAK PERTAMA (TRANSPORTER):
+            </p>
+            <p class="font-bold text-slate-900 text-[9pt]">PT. CAHAYA CARGO EXPRESS (CCE)</p>
+            <p class="text-slate-700 text-[8pt]">Kantor Pusat: Jl. Kemudi No. 4, Surabaya, Jawa Timur</p>
+            <p class="text-slate-700 text-[8pt]">Hotline / Telp: 081 337 878 138 / 0852 4228 0396</p>
+            <p class="text-slate-700 text-[8pt]">Perwakilan: <strong>HILAL BAFAGIH</strong> (Operational Manager)</p>
+        </div>
+        <div class="pl-1">
+            <p class="font-extrabold text-emerald-950 border-b border-slate-300 pb-0.5 mb-1 uppercase text-[8pt] tracking-wider">
+                PIHAK KEDUA (MITRA LOGISTIK / SHIPPER):
+            </p>
+            <p class="font-bold text-slate-900 text-[9pt]">PT. ADITYA MANDIRI LOGISTIK (AML)</p>
+            <p class="text-slate-700 text-[8pt]">Bidang Usaha: Jasa Ekspedisi &amp; Freight Forwarding</p>
+            <p class="text-slate-700 text-[8pt]">Customer Rujukan: <strong>PT. GESIT</strong> (Khusus / Eksklusif)</p>
+            <p class="text-slate-700 text-[8pt]">Perwakilan: <strong>PIMPINAN / OPERATIONAL MANAGER AML</strong></p>
+        </div>
+    </div>
+    `;
+
+    const body = `
+    <p class="mt-2.5 text-[8.5pt] leading-relaxed">
+        Pada hari ini, <strong>${hari}</strong> tanggal <strong>${tanggal}</strong> bulan <strong>${bulan}</strong> tahun <strong>${tahun} (${todayFormatted})</strong>, bertempat di Surabaya, yang bertanda tangan di bawah ini telah bersepakat mengikatkan diri dalam Perjanjian Kerjasama Penetapan Tarif Khusus Pengiriman Kargo antara <strong>PT. CAHAYA CARGO EXPRESS (CCE)</strong> selaku PIHAK PERTAMA dan <strong>PT. ADITYA MANDIRI LOGISTIK (AML)</strong> selaku PIHAK KEDUA dengan ketentuan pasal-pasal sebagai berikut:
+    </p>
+
+    <!-- BOX DEAL HIGHLIGHT -->
+    <div class="bg-gradient-to-r from-blue-50 via-indigo-50 to-slate-50 border-2 border-blue-500 rounded-lg p-2.5 my-2 shadow-sm">
+        <div class="flex justify-between items-center">
+            <div>
+                <p class="text-[8pt] text-blue-900 font-bold uppercase tracking-wider">Tarif Kesepakatan Khusus (Special Contract Rate):</p>
+                <div class="flex items-baseline gap-2 mt-0.5">
+                    <span class="text-2xl font-black text-blue-950 font-mono">Rp 450.000,-</span>
+                    <span class="text-xs font-bold text-blue-800">/ m³ (Per Meter Kubik / CBM)</span>
+                </div>
+            </div>
+            <div class="text-right">
+                <span class="bg-blue-700 text-white text-[7.5pt] font-black px-2.5 py-1 rounded-full uppercase tracking-wider shadow-sm inline-block">
+                    KHUSUS CUSTOMER PT. GESIT
+                </span>
+                <p class="text-[7pt] text-slate-600 font-semibold mt-0.5">Rumus: (P × L × T cm) ÷ 1.000.000</p>
+            </div>
+        </div>
+        <p class="text-[7.5pt] italic text-blue-950 mt-1 font-medium border-t border-blue-200/80 pt-1">
+            Terbilang: <em>"Empat Ratus Lima Puluh Ribu Rupiah per Meter Kubik (CBM)"</em>.
+        </p>
+    </div>
+
+    <!-- PASAL 1 -->
+    <div class="mt-2.5">
+        <h4 class="font-extrabold uppercase text-slate-900 text-[8.5pt] border-b border-slate-300 pb-0.5 mb-1 flex items-center gap-1.5">
+            <span class="bg-slate-800 text-white text-[7pt] px-1.5 py-0.2 rounded font-mono">PASAL 1</span>
+            RUANG LINGKUP &amp; EKSKLUSIVITAS CUSTOMER
+        </h4>
+        <ol class="list-decimal pl-5 space-y-1 text-[8pt] text-slate-800 leading-relaxed">
+            <li>
+                <strong>Objek Layanan:</strong> PIHAK PERTAMA (CCE) bertindak sebagai penyedia jasa transportasi dan pengangkutan kargo logistik via jalur laut dan darat untuk mendistribusikan barang yang diserahkan oleh PIHAK KEDUA (AML).
+            </li>
+            <li>
+                <strong>Eksklusivitas Customer PT. GESIT:</strong> Tarif khusus yang disepakati sebesar <strong>Rp 450.000,- / m³</strong> ini <strong>HANYA BERLAKU KHUSUS DAN EKSKLUSIF</strong> untuk muatan/kargo milik customer <strong>PT. GESIT</strong> yang dibuktikan dengan pencantuman identitas PT Gesit pada dokumen Manifes, Resi, Surat Jalan, atau Packing List resmi AML.
+            </li>
+            <li>
+                <strong>Muatan Customer Non-Gesit:</strong> Setiap kargo di luar customer PT. GESIT yang diserahkan oleh PIHAK KEDUA kepada PIHAK PERTAMA akan diberlakukan tarif reguler atau tarif negosiasi terpisah di luar surat perjanjian ini.
+            </li>
+        </ol>
+    </div>
+
+    <!-- PASAL 2 -->
+    <div class="mt-2.5">
+        <h4 class="font-extrabold uppercase text-slate-900 text-[8.5pt] border-b border-slate-300 pb-0.5 mb-1 flex items-center gap-1.5">
+            <span class="bg-slate-800 text-white text-[7pt] px-1.5 py-0.2 rounded font-mono">PASAL 2</span>
+            PENETAPAN TARIF &amp; METODE PERHITUNGAN KUBIKASI
+        </h4>
+        <ol class="list-decimal pl-5 space-y-1 text-[8pt] text-slate-800 leading-relaxed">
+            <li>
+                <strong>Besaran Tarif:</strong> PARA PIHAK menyepakati nilai tarif pengiriman kargo customer PT. GESIT adalah sebesar <strong>Rp 450.000,- (Empat Ratus Lima Puluh Ribu Rupiah) per meter kubik (m³ / CBM)</strong>.
+            </li>
+            <li>
+                <strong>Rumus Kubikasi:</strong> Perhitungan volume kubikasi kargo menggunakan standar internasional:
+                <br/>
+                <span class="font-mono font-bold bg-slate-100 text-slate-900 px-1.5 py-0.5 rounded border border-slate-300 text-[7.5pt] inline-block mt-0.5">
+                    Kubikasi (m³) = [ Panjang (cm) × Lebar (cm) × Tinggi (cm) ] ÷ 1.000.000
+                </span>
+            </li>
+            <li>
+                <strong>Komponen Termasuk (Include):</strong> Jasa muat di gudang asal/pelabuhan, pelayaran armada kapal kargo/truk hingga pelabuhan/gudang tujuan, serta penerbitan manifes dan tanda terima pengiriman (POD).
+            </li>
+            <li>
+                <strong>Komponen Tidak Termasuk (Exclude):</strong> Pajak Pertambahan Nilai (PPN bila ada kewajiban faktur pajak terpisah), premi asuransi kargo, dan biaya langsir/kuli bongkar di luar jangkauan standar.
+            </li>
+        </ol>
+    </div>
+
+    <!-- PASAL 3 -->
+    <div class="mt-2.5">
+        <h4 class="font-extrabold uppercase text-slate-900 text-[8.5pt] border-b border-slate-300 pb-0.5 mb-1 flex items-center gap-1.5">
+            <span class="bg-slate-800 text-white text-[7pt] px-1.5 py-0.2 rounded font-mono">PASAL 3</span>
+            OPERASIONAL SERAH TERIMA &amp; PENGUKURAN FISIK
+        </h4>
+        <ol class="list-decimal pl-5 space-y-1 text-[8pt] text-slate-800 leading-relaxed">
+            <li>
+                <strong>Pencocokan Dimensi:</strong> Pengukuran dimensi fisik kargo dilakukan bersama antara tim operasional CCE dan perwakilan AML saat serah terima barang di gudang asal, atau didasarkan pada data Packing List resmi AML yang telah diverifikasi silang.
+            </li>
+            <li>
+                <strong>Kelayakan Kemasan:</strong> PIHAK KEDUA memastikan setiap koli barang PT. GESIT dikemas secara layak, aman, dan kuat untuk perlindungan muatan selama proses handling dan pelayaran.
+            </li>
+        </ol>
+    </div>
+
+    <!-- PASAL 4 -->
+    <div class="mt-2.5">
+        <h4 class="font-extrabold uppercase text-slate-900 text-[8.5pt] border-b border-slate-300 pb-0.5 mb-1 flex items-center gap-1.5">
+            <span class="bg-slate-800 text-white text-[7pt] px-1.5 py-0.2 rounded font-mono">PASAL 4</span>
+            TATA CARA PENAGIHAN &amp; SYARAT PEMBAYARAN (TOP)
+        </h4>
+        <ol class="list-decimal pl-5 space-y-1 text-[8pt] text-slate-800 leading-relaxed">
+            <li>
+                <strong>Penerbitan Invoice:</strong> PIHAK PERTAMA menerbitkan Invoice resmi penagihan ongkos angkut yang dilampiri rincian <em>Detail Invoice AML (Customer PT GESIT)</em>, mencakup nomor resi/STT, jumlah koli, berat, dan total volume kubikasi m³.
+            </li>
+            <li>
+                <strong>Jatuh Tempo Pembayaran (TOP):</strong> PIHAK KEDUA wajib melunasi tagihan paling lambat dalam waktu <strong>14 (Empat Belas) Hari Kalender</strong> terhitung sejak invoice resmi diterima.
+            </li>
+            <li>
+                <strong>Rekening Pembayaran Resmi:</strong> Pembayaran ditransfer ke Rekening Bank Resmi PT CAHAYA CARGO EXPRESS:
+            </li>
+        </ol>
+        <div class="grid grid-cols-3 gap-2 bg-slate-50 border border-slate-300 p-2 rounded mt-1 text-[7.5pt]">
+            <div class="border-r border-slate-300 pr-2">
+                <p class="font-bold text-blue-900">BANK BCA</p>
+                <p class="font-mono font-bold text-[8.5pt] text-slate-900">1870444342</p>
+                <p class="text-slate-600 text-[7pt]">a.n. MARTINI</p>
+            </div>
+            <div class="border-r border-slate-300 pr-2">
+                <p class="font-bold text-blue-800">BANK BRI</p>
+                <p class="font-mono font-bold text-[8.5pt] text-slate-900">0328 0107 3891 501</p>
+                <p class="text-slate-600 text-[7pt]">a.n. MARTINI</p>
+            </div>
+            <div>
+                <p class="font-bold text-amber-900">BANK MANDIRI</p>
+                <p class="font-mono font-bold text-[8.5pt] text-slate-900">14000 2408 7851</p>
+                <p class="text-slate-600 text-[7pt]">a.n. MARTINI</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- PASAL 5 & 6 -->
+    <div class="mt-2.5 grid grid-cols-2 gap-3">
+        <div>
+            <h4 class="font-extrabold uppercase text-slate-900 text-[8pt] border-b border-slate-300 pb-0.5 mb-1 flex items-center gap-1">
+                <span class="bg-slate-800 text-white text-[6.5pt] px-1 py-0.2 rounded font-mono">PASAL 5</span>
+                KLAIM &amp; FORCE MAJEURE
+            </h4>
+            <p class="text-[7.5pt] text-slate-800 leading-relaxed">
+                Klaim kerusakan atau selisih wajib dilaporkan tertulis dalam Berita Acara maksimal <strong>1 x 24 Jam</strong> setelah barang tiba. PARA PIHAK dibebaskan dari tanggung jawab atas keterlambatan akibat Keadaan Kahar (<em>Force Majeure</em>) seperti cuaca buruk laut, gelombang tinggi, penutupan pelabuhan oleh Syahbandar, huru-hara, atau bencana alam.
+            </p>
+        </div>
+        <div>
+            <h4 class="font-extrabold uppercase text-slate-900 text-[8pt] border-b border-slate-300 pb-0.5 mb-1 flex items-center gap-1">
+                <span class="bg-slate-800 text-white text-[6.5pt] px-1 py-0.2 rounded font-mono">PASAL 6</span>
+                MASA BERLAKU PERJANJIAN
+            </h4>
+            <p class="text-[7.5pt] text-slate-800 leading-relaxed">
+                Perjanjian kesepakatan tarif ini berlaku efektif sejak tanggal penandatanganan untuk masa berlaku selama <strong>1 (Satu) Tahun</strong> dan dapat diperpanjang secara otomatis atas evaluasi serta persetujuan tertulis PARA PIHAK.
+            </p>
+        </div>
+    </div>
+
+    <!-- PENUTUP & TANDA TANGAN 2 PIHAK -->
+    <div class="mt-3.5 pt-2 border-t-2 border-slate-300 text-[8pt]">
+        <p class="leading-relaxed">
+            Demikian Surat Perjanjian Kesepakatan Tarif ini dibuat rangkap 2 (dua) asli bermaterai cukup dan ditandatangani oleh wakil yang sah dari masing-masing pihak. Masing-masing pihak memegang 1 (satu) rangkap asli yang memiliki kekuatan hukum yang sama dan mengikat sejak tanggal ditetapkan.
+        </p>
+
+        <div class="mt-3.5 grid grid-cols-2 gap-6">
+            <!-- PIHAK PERTAMA (CCE) -->
+            <div class="border border-slate-300 rounded-lg p-2.5 bg-slate-50/70 text-center flex flex-col justify-between">
+                <div>
+                    <p class="font-bold text-slate-700 uppercase text-[7.5pt]">PIHAK PERTAMA (TRANSPORTER)</p>
+                    <p class="font-extrabold text-blue-950 text-[9pt]">PT. CAHAYA CARGO EXPRESS</p>
+                    <p class="text-slate-500 text-[7pt]">(Penyedia Jasa Pengangkutan)</p>
+                </div>
+                
+                <div class="my-2 flex flex-col items-center justify-center">
+                    <div class="w-24 h-11 border border-dashed border-slate-400 rounded flex items-center justify-center text-[6.5pt] text-slate-400 bg-white">
+                        Materai Rp 10.000,-<br/>&amp; Stempel CCE
+                    </div>
+                </div>
+
+                <div>
+                    <p class="font-black text-slate-950 underline text-[9pt] uppercase tracking-wide">HILAL BAFAGIH</p>
+                    <p class="text-[7.5pt] text-slate-700 font-semibold">Operational Manager</p>
+                </div>
+            </div>
+
+            <!-- PIHAK KEDUA (AML) -->
+            <div class="border border-slate-300 rounded-lg p-2.5 bg-slate-50/70 text-center flex flex-col justify-between">
+                <div>
+                    <p class="font-bold text-slate-700 uppercase text-[7.5pt]">PIHAK KEDUA (MITRA LOGISTIK / SHIPPER)</p>
+                    <p class="font-extrabold text-emerald-950 text-[9pt]">PT. ADITYA MANDIRI LOGISTIK</p>
+                    <p class="text-slate-500 text-[7pt]">(Customer Khusus: PT. GESIT)</p>
+                </div>
+
+                <div class="my-2 flex flex-col items-center justify-center">
+                    <div class="w-24 h-11 border border-dashed border-slate-400 rounded flex items-center justify-center text-[6.5pt] text-slate-400 bg-white">
+                        Materai Rp 10.000,-<br/>&amp; Stempel AML
+                    </div>
+                </div>
+
+                <div>
+                    <p class="font-black text-slate-950 underline text-[9pt] uppercase tracking-wide">( ____________________________ )</p>
+                    <p class="text-[7.5pt] text-slate-700 font-semibold">Direktur / Operational Manager AML</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    `;
+
+    return {
+        title,
+        metadata,
+        body,
+        bodyEnd: ''
+    };
+};
 
 export default function DokumenLegalPage() {
+    const defaultDoc = buildAmlGesitAgreementDocument();
+
     // Layout and Display options states
+    const [paperSize, setPaperSize] = useState<PaperSize>('legal');
     const [showKop, setShowKop] = useState<boolean>(true);
     const [showTtd, setShowTtd] = useState<boolean>(true);
-    const [fontSize, setFontSize] = useState<string>('11pt');
-    const [paddingSize, setPaddingSize] = useState<string>('20mm');
-    const [lineHeight, setLineHeight] = useState<string>('1.5');
+    const [hideFooterSignatures, setHideFooterSignatures] = useState<boolean>(true);
+    const [fontSize, setFontSize] = useState<string>('9.5pt');
+    const [paddingSize, setPaddingSize] = useState<string>('15mm');
+    const [lineHeight, setLineHeight] = useState<string>('1.4');
     const [fontFamily, setFontFamily] = useState<string>('sans');
 
-    // Document Header Title state (Default: Kesepakatan Deal Harga Kuda 16 Ekor)
-    const [documentTitle, setDocumentTitle] = useState<string>('SURAT KESEPAKATAN & RINCIAN DEAL HARGA PENGIRIMAN KHUSUS (16 EKOR KUDA)');
+    // Document Header Title state
+    const [documentTitle, setDocumentTitle] = useState<string>(defaultDoc.title);
     
     // Active Payment Scheme (for Terms & Conditions templates)
     const [activePaymentScheme, setActivePaymentScheme] = useState<PaymentScheme | null>(null);
@@ -55,152 +349,14 @@ export default function DokumenLegalPage() {
     // Lost items table state
     const [lostItems, setLostItems] = useState<LostItem[]>([]);
 
-    // Document Metadata state (HTML string - Default: Dimas Andika Perkasa)
-    const [documentMetadata, setDocumentMetadata] = useState<string>(
-        `<div class="grid grid-cols-12 gap-1 text-[10.5pt]">
-            <div class="col-span-2 font-semibold">Nomor Surat</div>
-            <div class="col-span-10">: 042/CCE-DEAL/KUDA/IX/2026</div>
-            
-            <div class="col-span-2 font-semibold">Lampiran</div>
-            <div class="col-span-10">: -</div>
-            
-            <div class="col-span-2 font-semibold">Perihal</div>
-            <div class="col-span-10 font-bold">: SURAT KESEPAKATAN RINCIAN DEAL HARGA PENGIRIMAN MUATAN KHUSUS<br/><span class="text-amber-800 font-bold text-[10pt]">[KOMODITAS: 16 EKOR KUDA | RUTE: DAGO, BANDUNG - GOWA, SULAWESI SELATAN]</span></div>
-        </div>
-        
-        <div class="mt-4 grid grid-cols-2 gap-4 text-[10pt] bg-slate-50 p-3 rounded-lg border border-slate-300">
-            <div>
-                <p class="font-bold text-slate-900 border-b border-slate-300 pb-1 mb-1.5 uppercase text-[9pt] tracking-wider">Data Pengirim (Shipper):</p>
-                <p><strong>Nama:</strong> Dimas Andika Perkasa</p>
-                <p><strong>Alamat:</strong> Dago, Bandung, Jawa Barat</p>
-                <p><strong>No. HP / WA:</strong> +62 812-2175-8541</p>
-            </div>
-            <div>
-                <p class="font-bold text-slate-900 border-b border-slate-300 pb-1 mb-1.5 uppercase text-[9pt] tracking-wider">Tujuan Penerima (Consignee):</p>
-                <p><strong>Alamat Tujuan:</strong> Jl. Poros Malino, Kab. Gowa, Sulawesi Selatan</p>
-                <p><strong>Jenis Muatan:</strong> Hewan Hidup (Live Animals)</p>
-                <p><strong>Jumlah:</strong> 16 (Enam Belas) Ekor Kuda</p>
-            </div>
-        </div>`
-    );
+    // Document Metadata state (HTML string)
+    const [documentMetadata, setDocumentMetadata] = useState<string>(defaultDoc.metadata);
 
-    // Document main body content state (HTML string - Default: Dimas Andika Perkasa Deal)
-    const [documentBody, setDocumentBody] = useState<string>(
-        `<p class="mt-3">Dengan hormat,</p>
-        <p class="mt-1.5">Sehubungan dengan kesepakatan kerja sama pengangkutan muatan khusus hewan hidup antara pihak Pengirim dan <strong>PT CAHAYA CARGO EXPRESS</strong> selaku penyedia jasa transportasi logistik darat &amp; laut, bersama ini kami terbitkan Surat Kesepakatan &amp; Rincian Deal Harga Pengiriman dengan perincian sebagai berikut:</p>
-        
-        <h3 class="font-extrabold uppercase mt-4 mb-2 text-slate-900 text-[10pt]">1. TOTAL KESEPAKATAN DEAL HARGA PENGIRIMAN</h3>
-        <div class="bg-amber-50 border-2 border-amber-400 rounded-lg p-3.5 my-2">
-            <div class="flex justify-between items-center">
-                <div>
-                    <p class="text-xs text-amber-900 font-semibold uppercase tracking-wider">Total Nilai Kesepakatan Deal (All-in Sesuai Rincian):</p>
-                    <p class="text-2xl font-extrabold text-amber-950 font-mono mt-0.5">Rp 42.950.000,-</p>
-                </div>
-                <div class="text-right">
-                    <span class="bg-amber-600 text-white text-[9pt] font-bold px-3 py-1 rounded-full uppercase">Deal Disepakati</span>
-                </div>
-            </div>
-            <p class="text-[9pt] italic text-amber-900 mt-1.5 font-medium">Terbilang: <em>"Empat Puluh Dua Juta Sembilan Ratus Lima Puluh Ribu Rupiah"</em></p>
-        </div>
-
-        <h3 class="font-extrabold uppercase mt-4 mb-2 text-slate-900 text-[10pt]">2. RINCIAN BIAYA &amp; FASILITAS (INCLUDE / SUDAH TERMASUK)</h3>
-        <table class="w-full text-left border-collapse mt-2 text-[9.5pt] border border-slate-300">
-            <thead>
-                <tr class="bg-slate-200 border-b border-slate-350 font-semibold text-slate-800">
-                    <th class="p-2.5 border-r border-slate-300 w-[8%] text-center">No</th>
-                    <th class="p-2.5 border-r border-slate-300 w-[52%]">Komponen Layanan / Fasilitas Pengiriman</th>
-                    <th class="p-2.5 border-r border-slate-300 w-[20%] text-center">Status</th>
-                    <th class="p-2.5 w-[20%] text-center">Keterangan</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr class="border-b border-slate-300 bg-white">
-                    <td class="p-2.5 border-r border-slate-300 text-center font-mono font-semibold">1.</td>
-                    <td class="p-2.5 border-r border-slate-300 font-bold text-slate-900">Tiket Kapal (Penyeberangan Ferry / Ro-Ro Kargo)</td>
-                    <td class="p-2.5 border-r border-slate-300 text-center font-bold text-emerald-700 bg-emerald-50">✓ INCLUDE</td>
-                    <td class="p-2.5 text-center text-slate-700">Pelayaran Armada Truk Kargo</td>
-                </tr>
-                <tr class="border-b border-slate-300 bg-white">
-                    <td class="p-2.5 border-r border-slate-300 text-center font-mono font-semibold">2.</td>
-                    <td class="p-2.5 border-r border-slate-300 font-bold text-slate-900">Tiket Penumpang Pengawal (Groomer / Handler Kuda)</td>
-                    <td class="p-2.5 border-r border-slate-300 text-center font-bold text-emerald-700 bg-emerald-50">✓ INCLUDE</td>
-                    <td class="p-2.5 text-center text-slate-700">Pendampingan Selama Berlayar</td>
-                </tr>
-                <tr class="bg-white">
-                    <td class="p-2.5 border-r border-slate-300 text-center font-mono font-semibold">3.</td>
-                    <td class="p-2.5 border-r border-slate-300 font-bold text-slate-900">Cas Bagasi Muatan 16 Ekor Kuda</td>
-                    <td class="p-2.5 border-r border-slate-300 text-center font-bold text-emerald-700 bg-emerald-50">✓ INCLUDE</td>
-                    <td class="p-2.5 text-center text-slate-700">Biaya Bagasi Muatan Kargo Laut</td>
-                </tr>
-            </tbody>
-        </table>
-
-        <h3 class="font-extrabold uppercase mt-4 mb-2 text-rose-900 text-[10pt]">3. KETENTUAN KHUSUS &amp; BIAYA TIDAK TERMASUK (EXCLUDE)</h3>
-        <div class="bg-rose-50 border border-rose-300 rounded-lg p-3 text-[9.5pt] space-y-1.5">
-            <div class="flex items-start gap-2">
-                <span class="text-rose-700 font-extrabold text-sm">❌</span>
-                <div>
-                    <p class="font-bold text-rose-900 uppercase">TIDAK TERMASUK BIAYA KARANTINA HEWAN (EXCLUDE KARANTINA):</p>
-                    <p class="text-rose-950 mt-0.5 leading-relaxed">
-                        Biaya pemeriksaan kesehatan hewan, uji laboratorium, sertifikasi Balai Karantina Pertanian/Hewan (SKKH / Sertifikat Pelepasan Karantina), retribusi karantina, dan perizinan resmi dinas terkait <strong>TIDAK TERMASUK</strong> dalam nilai kesepakatan di atas dan menjadi <strong>tanggung jawab / biaya mandiri pihak PENGIRIM</strong>.
-                    </p>
-                </div>
-            </div>
-            <div class="pt-2 border-t border-rose-200 text-slate-800 text-[9pt] space-y-1">
-                <p>• <strong>Pakan &amp; Perawatan Hewan:</strong> Penyediaan pakan hijauan/konsentrat, air minum, serta pemeliharaan kebersihan kuda selama masa perjalanan darat &amp; laut menjadi tanggung jawab kru pengawal (handler) yang mendampingi.</p>
-                <p>• <strong>Kondisi Fisik Kuda:</strong> Seluruh kuda yang dimuat dipastikan dalam kondisi sehat, kuat, dan layak jalan (fit to travel) sebelum dinaikkan ke unit armada.</p>
-            </div>
-        </div>
-
-        <h3 class="font-extrabold uppercase mt-4 mb-2 text-slate-900 text-[10pt]">4. REKENING RESMI PEMBAYARAN PERUSAHAAN</h3>
-        <div class="space-y-1.5 text-[9.5pt]">
-            <p>Pembayaran ditransfer langsung ke Rekening Resmi PT CAHAYA CARGO EXPRESS:</p>
-            <div class="grid grid-cols-3 gap-2 bg-slate-50 border border-slate-300 p-2.5 rounded text-[9pt]">
-                <div class="border-r border-slate-300 pr-2">
-                    <p class="font-bold text-blue-900">BANK BCA</p>
-                    <p class="font-mono font-bold text-[10pt] text-slate-900">1870444342</p>
-                    <p class="text-slate-600 text-[8pt]">a.n. MARTINI</p>
-                </div>
-                <div class="border-r border-slate-300 pr-2">
-                    <p class="font-bold text-blue-800">BANK BRI</p>
-                    <p class="font-mono font-bold text-[10pt] text-slate-900">0328 0107 3891 501</p>
-                    <p class="text-slate-600 text-[8pt]">a.n. MARTINI</p>
-                </div>
-                <div>
-                    <p class="font-bold text-amber-900">BANK MANDIRI</p>
-                    <p class="font-mono font-bold text-[10pt] text-slate-900">14000 2408 7851</p>
-                    <p class="text-slate-600 text-[8pt]">a.n. MARTINI</p>
-                </div>
-            </div>
-        </div>
-
-        <p class="mt-4 text-[9.5pt]">Demikian Surat Kesepakatan &amp; Rincian Deal Harga ini dibuat dengan sebenarnya dan disetujui bersama untuk dipergunakan sebagai dasar pelaksanaan pengiriman operasional muatan.</p>
-        
-        <div class="mt-6 text-[9.5pt]">
-            <p class="mb-3">Dibuat pada tanggal: ${new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
-            <div class="flex justify-between items-start">
-                <div class="text-center w-[45%]">
-                    <p class="font-bold">Pihak Transporter,</p>
-                    <p class="font-bold text-slate-900">PT CAHAYA CARGO EXPRESS</p>
-                    <p class="text-slate-600 text-[8.5pt]">(Penyedia Jasa Pengangkutan)</p>
-                    <div class="h-16"></div>
-                    <p class="font-bold underline">( HILAL BAFAGIH )</p>
-                    <p class="text-[8.5pt]">Operational Manager</p>
-                </div>
-                <div class="text-center w-[45%]">
-                    <p class="font-bold">Pihak Pengirim (Shipper),</p>
-                    <p class="font-bold text-slate-900">PENGIRIM MUATAN KUDA</p>
-                    <p class="text-slate-600 text-[8.5pt]">(Dago, Bandung)</p>
-                    <div class="h-16"></div>
-                    <p class="font-bold underline">( DIMAS ANDIKA PERKASA )</p>
-                    <p class="text-[8.5pt]">Pengirim / Pemilik Muatan</p>
-                </div>
-            </div>
-        </div>`
-    );
+    // Document main body content state (HTML string)
+    const [documentBody, setDocumentBody] = useState<string>(defaultDoc.body);
 
     // Content after the table state (HTML string)
-    const [documentBodyEnd, setDocumentBodyEnd] = useState<string>('');
+    const [documentBodyEnd, setDocumentBodyEnd] = useState<string>(defaultDoc.bodyEnd);
 
     // Dynamic styles mappings
     const fontFamilies: { [key: string]: string } = {
@@ -481,6 +637,11 @@ export default function DokumenLegalPage() {
 
         if (confirm(`Reset dokumen ke template Terms & Conditions (${schemeNames[scheme]})? Perubahan teks yang belum dicetak akan diganti.`)) {
             const doc = buildTermsCondDocument(scheme);
+            setPaperSize('a4');
+            setHideFooterSignatures(true);
+            setFontSize('10pt');
+            setPaddingSize('15mm');
+            setLineHeight('1.5');
             setDocumentTitle(doc.title);
             setSignatoryName('HILAL BAFAGIH');
             setSignatoryRole('Operational Manager');
@@ -500,10 +661,33 @@ export default function DokumenLegalPage() {
         setActivePaymentScheme(newScheme);
     };
 
+    // Load Kesepakatan CCE & Aditya Mandiri Logistik (PT Gesit - Rp 450.000 / m³)
+    const loadAmlGesitTemplate = () => {
+        if (confirm("Muat dokumen resmi Surat Perjanjian Kesepakatan Tarif CCE & Aditya Mandiri Logistik (Customer PT GESIT)?")) {
+            setActivePaymentScheme(null);
+            setPaperSize('legal');
+            setHideFooterSignatures(true);
+            setFontSize('9.5pt');
+            setPaddingSize('15mm');
+            setLineHeight('1.4');
+            const doc = buildAmlGesitAgreementDocument();
+            setDocumentTitle(doc.title);
+            setDocumentMetadata(doc.metadata);
+            setDocumentBody(doc.body);
+            setDocumentBodyEnd(doc.bodyEnd);
+            setLostItems([]);
+        }
+    };
+
     // Load Deal Harga Muatan Kuda 16 Ekor (Dimas Andika Perkasa - Bandung ke Gowa)
     const loadDealKudaTemplate = () => {
         if (confirm("Muat dokumen resmi Kesepakatan Deal Harga Pengiriman 16 Ekor Kuda (Dimas Andika Perkasa)?")) {
             setActivePaymentScheme(null);
+            setPaperSize('a4');
+            setHideFooterSignatures(true);
+            setFontSize('11pt');
+            setPaddingSize('20mm');
+            setLineHeight('1.5');
             setDocumentTitle('SURAT KESEPAKATAN & RINCIAN DEAL HARGA PENGIRIMAN KHUSUS (16 EKOR KUDA)');
             setSignatoryName('HILAL BAFAGIH');
             setSignatoryRole('Operational Manager');
@@ -660,6 +844,10 @@ export default function DokumenLegalPage() {
     const loadKomitmenTemplate = () => {
         if (confirm("Reset dokumen ke template Surat Pernyataan Komitmen Bersama? Perubahan yang belum dicetak akan hilang.")) {
             setActivePaymentScheme(null);
+            setPaperSize('a4');
+            setHideFooterSignatures(false);
+            setFontSize('11pt');
+            setPaddingSize('20mm');
             setDocumentTitle('SURAT PERNYATAAN KOMITMEN BERSAMA');
             setSignatoryName('HILAL BAFAGIH');
             setSignatoryRole('Operational Manager');
@@ -735,6 +923,10 @@ export default function DokumenLegalPage() {
     const loadInvestigasiTemplate = () => {
         if (confirm("Reset dokumen ke template Laporan Investigasi Kehilangan? Perubahan yang belum dicetak akan hilang.")) {
             setActivePaymentScheme(null);
+            setPaperSize('a4');
+            setHideFooterSignatures(false);
+            setFontSize('10pt');
+            setPaddingSize('20mm');
             setDocumentTitle('LAPORAN INVESTIGASI & KRONOLOGI KEHILANGAN BARANG');
             setSignatoryName('HILAL BAFAGIH');
             setSignatoryRole('Operational Manager');
@@ -850,6 +1042,10 @@ export default function DokumenLegalPage() {
     const loadSuratKeteranganTemplate = () => {
         if (confirm("Reset dokumen ke template Surat Keterangan? Perubahan yang belum dicetak akan hilang.")) {
             setActivePaymentScheme(null);
+            setPaperSize('a4');
+            setHideFooterSignatures(false);
+            setFontSize('11pt');
+            setPaddingSize('20mm');
             setDocumentTitle('SURAT KETERANGAN JALAN ARMADA');
             setSignatoryName('HILAL BAFAGIH');
             setSignatoryRole('Operational Manager');
@@ -880,6 +1076,10 @@ export default function DokumenLegalPage() {
     const loadKesiapanTemplate = () => {
         if (confirm("Reset dokumen ke template Laporan Kesiapan Operasional? Perubahan yang belum dicetak akan hilang.")) {
             setActivePaymentScheme(null);
+            setPaperSize('a4');
+            setHideFooterSignatures(false);
+            setFontSize('10.5pt');
+            setPaddingSize('20mm');
             setDocumentTitle('SURAT PEMBERITAHUAN KESIAPAN OPERASIONAL DAN IMPLEMENTASI KEAMANAN');
             setSignatoryName('HILAL BAFAGIH');
             setSignatoryRole('Director of Operations / Branch Manager');
@@ -956,6 +1156,10 @@ export default function DokumenLegalPage() {
     const loadPenawaranTemplate = () => {
         if (confirm("Reset dokumen ke template Penawaran Harga & Ketentuan Kerja Sama J&T Cargo? Perubahan yang belum dicetak akan hilang.")) {
             setActivePaymentScheme(null);
+            setPaperSize('a4');
+            setHideFooterSignatures(true);
+            setFontSize('10pt');
+            setPaddingSize('15mm');
             setDocumentTitle('SURAT PENAWARAN HARGA & KETENTUAN KERJA SAMA PENGANGKUTAN CARGO');
             setSignatoryName('HILAL BAFAGIH');
             setSignatoryRole('Operational Manager');
@@ -1095,6 +1299,8 @@ export default function DokumenLegalPage() {
     const loadBlankTemplate = () => {
         if (confirm("Kosongkan semua konten dokumen?")) {
             setActivePaymentScheme(null);
+            setPaperSize('a4');
+            setHideFooterSignatures(false);
             setDocumentTitle('JUDUL DOKUMEN RESMI');
             setLostItems([]);
             setDocumentMetadata(
@@ -1137,7 +1343,7 @@ export default function DokumenLegalPage() {
                         border: none !important;
                     }
                     @page {
-                        size: A4 portrait;
+                        size: ${PAPER_CONFIG[paperSize].cssSize};
                         margin: ${paddingSize}; /* Dynamically sets browser print margins matching selected padding */
                     }
                 }
@@ -1170,7 +1376,37 @@ export default function DokumenLegalPage() {
                         className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 px-4 rounded-xl shadow-lg shadow-emerald-950/20 flex items-center justify-center gap-2 hover:scale-[1.02] active:scale-[0.98] transition-all"
                     >
                         <Printer size={20} />
-                        Cetak Dokumen (A4)
+                        Cetak Dokumen ({paperSize === 'legal' ? 'Legal' : paperSize === 'folio' ? 'F4 / Folio' : 'A4'})
+                    </button>
+                </div>
+
+                {/* 🤝 KESEPAKATAN DEAL HARGA CCE & ADITYA MANDIRI LOGISTIK (PT GESIT) */}
+                <div className="bg-gradient-to-b from-blue-950/80 to-slate-800/90 p-3.5 rounded-xl border border-blue-400/60 space-y-2 shadow-lg ring-1 ring-blue-500/20">
+                    <div className="flex items-center justify-between">
+                        <label className="text-[11px] font-extrabold text-blue-300 uppercase tracking-wider flex items-center gap-1.5">
+                            <Handshake size={15} className="text-blue-400" /> Kesepakatan Tarif Kerjasama
+                        </label>
+                        <span className="text-[9px] bg-blue-900/90 text-blue-200 font-bold px-2 py-0.5 rounded border border-blue-400/60 uppercase">
+                            Kertas Legal
+                        </span>
+                    </div>
+                    <button 
+                        onClick={loadAmlGesitTemplate}
+                        className="w-full text-left p-2.5 rounded-lg border bg-blue-900/50 hover:bg-blue-800/70 border-blue-400/60 hover:border-blue-300 text-white transition-all flex items-start gap-2.5 shadow-sm group"
+                        title="Muat Dokumen Kesepakatan CCE & Aditya Mandiri Logistik (Customer PT Gesit)"
+                    >
+                        <span className="text-2xl mt-0.5 group-hover:scale-110 transition-transform">🤝</span>
+                        <div>
+                            <div className="text-xs font-extrabold text-blue-200 flex items-center gap-1.5">
+                                <span>CCE &amp; Aditya Mandiri Logistik</span>
+                                <span className="text-[9px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-1 py-0.2 rounded font-mono">
+                                    Rp 450.000/m³
+                                </span>
+                            </div>
+                            <div className="text-[9.5px] text-blue-100/80 leading-tight mt-1">
+                                Tarif khusus Rp 450.000 / m³ (meter kubik / CBM) untuk customer <strong>PT GESIT</strong>. Format legal 2 pihak bermaterai.
+                            </div>
+                        </div>
                     </button>
                 </div>
 
@@ -1444,6 +1680,25 @@ export default function DokumenLegalPage() {
                             <option value="25mm">Lebar (25mm)</option>
                         </select>
                     </div>
+
+                    {/* Paper Size Selector */}
+                    <div className="flex flex-col gap-1.5">
+                        <span className="text-sm text-slate-300 flex items-center gap-1 font-semibold text-emerald-400">
+                            <Scale size={16} /> Ukuran Kertas Cetak
+                        </span>
+                        <select 
+                            value={paperSize}
+                            onChange={(e) => setPaperSize(e.target.value as PaperSize)}
+                            className="bg-slate-800 text-white border border-slate-700 rounded-lg p-2 text-sm outline-none font-medium focus:border-emerald-500"
+                        >
+                            <option value="legal">Legal (216 x 356 mm) - Standar Perjanjian Hukum</option>
+                            <option value="a4">A4 (210 x 297 mm) - Standar Surat Biasa</option>
+                            <option value="folio">Folio / F4 (215 x 330 mm)</option>
+                        </select>
+                        <span className="text-[10px] text-slate-400">
+                            {PAPER_CONFIG[paperSize].description}
+                        </span>
+                    </div>
                 </div>
 
                 {/* Signatory Control */}
@@ -1494,10 +1749,12 @@ export default function DokumenLegalPage() {
             {/* Right Live Preview Area */}
             <div className="flex-1 overflow-y-auto p-4 md:p-8 flex justify-center items-start">
                 
-                {/* A4 Paper page container */}
+                {/* Document Paper page container */}
                 <div 
-                    className="a4-page bg-white text-black min-h-[297mm] w-[210mm] transition-all relative"
+                    className="a4-page bg-white text-black transition-all relative shadow-xl rounded-sm"
                     style={{
+                        width: PAPER_CONFIG[paperSize].width,
+                        minHeight: PAPER_CONFIG[paperSize].minHeight,
                         padding: paddingSize,
                         fontSize: fontSize,
                         lineHeight: lineHeight,
@@ -1648,52 +1905,54 @@ export default function DokumenLegalPage() {
 
                     </div>
 
-                    {/* 4. PENUTUP & AREA TANDA TANGAN */}
-                    <div className="mt-12 flex justify-between items-start avoid-break-inside">
-                        <div className="w-[40%] text-xs">
-                            <p className="font-semibold text-gray-500 mb-1">Catatan Dokumen:</p>
-                            <p className="text-gray-400 italic leading-snug">
-                                Dokumen ini bersifat rahasia dan resmi untuk lingkungan CV. Cahaya Cargo Express beserta mitra terkait.
-                            </p>
-                        </div>
-
-                        {/* Signatory Area */}
-                        <div className="w-[45%] text-center flex flex-col items-center">
-                            
-                            {/* Signature Stamp Image */}
-                            <div className="h-[25mm] flex items-center justify-center my-1">
-                                {showTtd ? (
-                                    <img 
-                                        src="/ttd.png" 
-                                        alt="Tanda Tangan &amp; Stempel" 
-                                        className="h-[25mm] w-auto object-contain"
-                                    />
-                                ) : (
-                                    <div className="h-[20mm] w-[40mm] border border-dashed border-gray-300 rounded flex items-center justify-center text-[7pt] text-gray-300 no-print">
-                                        Area Tanda Tangan
-                                    </div>
-                                )}
+                    {/* 4. PENUTUP & AREA TANDA TANGAN (Hanya tampil jika dokumen tidak memiliki blok tanda tangan internal sendiri) */}
+                    {!hideFooterSignatures && (
+                        <div className="mt-12 flex justify-between items-start avoid-break-inside">
+                            <div className="w-[40%] text-xs">
+                                <p className="font-semibold text-gray-500 mb-1">Catatan Dokumen:</p>
+                                <p className="text-gray-400 italic leading-snug">
+                                    Dokumen ini bersifat rahasia dan resmi untuk lingkungan CV. Cahaya Cargo Express beserta mitra terkait.
+                                </p>
                             </div>
 
-                            {/* Signatory Names */}
-                            <span 
-                                className="text-xs font-bold underline block outline-none"
-                                contentEditable
-                                suppressContentEditableWarning
-                                onBlur={(e) => setSignatoryName(e.currentTarget.textContent || '')}
-                            >
-                                {signatoryName}
-                            </span>
-                            <span 
-                                className="text-[8pt] text-gray-600 block outline-none leading-tight"
-                                contentEditable
-                                suppressContentEditableWarning
-                                onBlur={(e) => setSignatoryRole(e.currentTarget.textContent || '')}
-                            >
-                                {signatoryRole}
-                            </span>
+                            {/* Signatory Area */}
+                            <div className="w-[45%] text-center flex flex-col items-center">
+                                
+                                {/* Signature Stamp Image */}
+                                <div className="h-[25mm] flex items-center justify-center my-1">
+                                    {showTtd ? (
+                                        <img 
+                                            src="/ttd.png" 
+                                            alt="Tanda Tangan &amp; Stempel" 
+                                            className="h-[25mm] w-auto object-contain"
+                                        />
+                                    ) : (
+                                        <div className="h-[20mm] w-[40mm] border border-dashed border-gray-300 rounded flex items-center justify-center text-[7pt] text-gray-300 no-print">
+                                            Area Tanda Tangan
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Signatory Names */}
+                                <span 
+                                    className="text-xs font-bold underline block outline-none"
+                                    contentEditable
+                                    suppressContentEditableWarning
+                                    onBlur={(e) => setSignatoryName(e.currentTarget.textContent || '')}
+                                >
+                                    {signatoryName}
+                                </span>
+                                <span 
+                                    className="text-[8pt] text-gray-600 block outline-none leading-tight"
+                                    contentEditable
+                                    suppressContentEditableWarning
+                                    onBlur={(e) => setSignatoryRole(e.currentTarget.textContent || '')}
+                                >
+                                    {signatoryRole}
+                                </span>
+                            </div>
                         </div>
-                    </div>
+                    )}
 
                 </div>
 
