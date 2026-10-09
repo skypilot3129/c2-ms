@@ -323,17 +323,112 @@ const buildAmlGesitAgreementDocument = () => {
     };
 };
 
+/**
+ * Template Builder: Surat Permohonan Penundaan Docking KM. Dharma Kencana VII
+ * Ditujukan kepada Manajer Cabang Surabaya PT. Dharma Lautan Utama: Pak Donie Surya P, S.E, M.M
+ * Kop Surat: CCE | TTD: PNG Hilal Bafagih
+ */
+const buildPermohonanDockingDluDocument = () => {
+    const today = new Date();
+    const monthNames = [
+        'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 
+        'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+    ];
+    const tanggal = today.getDate();
+    const bulan = monthNames[today.getMonth()];
+    const tahun = today.getFullYear();
+    const todayFormatted = `${tanggal} ${bulan} ${tahun}`;
+
+    // Standard business letter: Title is omitted in <h1> because it is officially stated in "Perihal"
+    const title = '';
+
+    const metadata = `
+    <div class="grid grid-cols-12 gap-1 text-[10.5pt] leading-normal pb-2">
+        <div class="col-span-2 font-semibold text-slate-800">Nomor</div>
+        <div class="col-span-5 font-mono font-bold text-slate-900">: 00171/CCE-OPS/X/${tahun}</div>
+        <div class="col-span-5 text-right font-medium text-slate-700">Surabaya, ${todayFormatted}</div>
+        
+        <div class="col-span-2 font-semibold text-slate-800">Lampiran</div>
+        <div class="col-span-10 text-slate-900">: -</div>
+        
+        <div class="col-span-2 font-semibold text-slate-800">Perihal</div>
+        <div class="col-span-10 font-bold text-slate-950 leading-snug">
+            : Permohonan Penundaan Docking KM. Dharma Kencana VII
+        </div>
+    </div>
+
+    <div class="mt-6 text-[10.5pt] leading-relaxed">
+        <p class="text-slate-800">Kepada Yth.</p>
+        <p class="font-extrabold text-slate-950 text-[11pt]">Bapak Donie Surya P, S.E, M.M</p>
+        <p class="font-bold text-slate-800">Manajer Cabang Surabaya</p>
+        <p class="font-extrabold text-slate-900">PT. DHARMA LAUTAN UTAMA</p>
+        <p class="text-slate-700">Di,-</p>
+        <p class="font-semibold text-slate-900 pl-4">Surabaya</p>
+    </div>
+    `;
+
+    const body = `
+    <p class="mt-6 text-[10.5pt] leading-relaxed font-semibold text-slate-900">Dengan Hormat,</p>
+
+    <table class="w-full mt-4 text-[10.5pt] border-collapse leading-relaxed">
+        <tbody>
+            <tr class="align-top">
+                <td class="w-8 font-bold text-slate-900 pr-2">I.</td>
+                <td class="text-justify text-slate-900">
+                    Sehubungan dengan adanya informasi <em>docking</em> tahunan <strong>KM. Dharma Kencana VII</strong> pada pertengahan Oktober 2026.
+                </td>
+            </tr>
+            <tr class="align-top">
+                <td class="w-8 font-bold text-slate-900 pr-2 pt-4">II.</td>
+                <td class="text-justify text-slate-900 pt-4">
+                    Sehubungan dengan hal tersebut diatas, kami mengajukan permohonan penundaan <em>docking</em> tahunan <strong>KM. Dharma Kencana VII</strong> dikarenakan tingginya pengiriman barang dari <strong>Surabaya – Makassar</strong> dan <strong>Makassar – Surabaya</strong>.
+                </td>
+            </tr>
+            <tr class="align-top">
+                <td class="w-8 font-bold text-slate-900 pr-2 pt-4">III.</td>
+                <td class="text-justify text-slate-900 pt-4">
+                    Demikian Permohonan ini kami sampaikan, atas perhatian dan kerjasamanya kami haturkan terima kasih.
+                </td>
+            </tr>
+        </tbody>
+    </table>
+
+    <!-- Blok Tanda Tangan Resmi Hilal Bafagih (PNG TTD + Stempel) -->
+    <div class="mt-12 flex justify-end avoid-break-inside">
+        <div class="text-center w-64 flex flex-col items-center">
+            <div class="h-36 flex items-center justify-center">
+                <img 
+                    src="/ttd.png" 
+                    alt="Tanda Tangan & Stempel CCE - Hilal Bafagih" 
+                    class="h-36 w-auto object-contain"
+                />
+            </div>
+            <p class="font-bold text-slate-900 text-[10pt] uppercase -mt-2">
+                Operational Manager
+            </p>
+        </div>
+    </div>
+    `;
+
+    return {
+        title,
+        metadata,
+        body,
+        bodyEnd: ''
+    };
+};
+
 export default function DokumenLegalPage() {
-    const defaultDoc = buildAmlGesitAgreementDocument();
+    const defaultDoc = buildPermohonanDockingDluDocument();
 
     // Layout and Display options states
-    const [paperSize, setPaperSize] = useState<PaperSize>('legal');
+    const [paperSize, setPaperSize] = useState<PaperSize>('a4');
     const [showKop, setShowKop] = useState<boolean>(true);
     const [showTtd, setShowTtd] = useState<boolean>(true);
     const [hideFooterSignatures, setHideFooterSignatures] = useState<boolean>(true);
-    const [fontSize, setFontSize] = useState<string>('9.5pt');
-    const [paddingSize, setPaddingSize] = useState<string>('15mm');
-    const [lineHeight, setLineHeight] = useState<string>('1.4');
+    const [fontSize, setFontSize] = useState<string>('10.5pt');
+    const [paddingSize, setPaddingSize] = useState<string>('20mm');
+    const [lineHeight, setLineHeight] = useState<string>('1.5');
     const [fontFamily, setFontFamily] = useState<string>('sans');
 
     // Document Header Title state
@@ -659,6 +754,27 @@ export default function DokumenLegalPage() {
         setDocumentMetadata(doc.metadata);
         setDocumentBody(doc.body);
         setActivePaymentScheme(newScheme);
+    };
+
+    // Load Permohonan Penundaan Docking DLU (KM. Dharma Kencana VII)
+    const loadPermohonanDockingDluTemplate = () => {
+        if (confirm("Muat dokumen resmi Permohonan Penundaan Docking KM. Dharma Kencana VII (Tujuan: Pak Donie Surya P, S.E, M.M)?")) {
+            setActivePaymentScheme(null);
+            setPaperSize('a4');
+            setHideFooterSignatures(true);
+            setShowKop(true);
+            setFontSize('10.5pt');
+            setPaddingSize('20mm');
+            setLineHeight('1.5');
+            const doc = buildPermohonanDockingDluDocument();
+            setDocumentTitle(doc.title);
+            setDocumentMetadata(doc.metadata);
+            setDocumentBody(doc.body);
+            setDocumentBodyEnd(doc.bodyEnd);
+            setLostItems([]);
+            setSignatoryName('HILAL BAFAGIH');
+            setSignatoryRole('Operational Manager');
+        }
     };
 
     // Load Kesepakatan CCE & Aditya Mandiri Logistik (PT Gesit - Rp 450.000 / m³)
@@ -1380,6 +1496,33 @@ export default function DokumenLegalPage() {
                     </button>
                 </div>
 
+                {/* 🚢 PERMOHONAN PENUNDAAN DOCKING DLU (KM. DHARMA KENCANA VII) */}
+                <div className="bg-gradient-to-b from-blue-950/90 to-slate-800/90 p-3.5 rounded-xl border border-sky-400/70 space-y-2 shadow-lg ring-1 ring-sky-500/20">
+                    <div className="flex items-center justify-between">
+                        <label className="text-[11px] font-extrabold text-sky-300 uppercase tracking-wider flex items-center gap-1.5">
+                            <Ship size={15} className="text-sky-400" /> Permohonan Docking Kapal
+                        </label>
+                        <span className="text-[9px] bg-sky-900/90 text-sky-200 font-bold px-2 py-0.5 rounded border border-sky-400/60 uppercase">
+                            A4 / Resmi
+                        </span>
+                    </div>
+                    <button 
+                        onClick={loadPermohonanDockingDluTemplate}
+                        className="w-full text-left p-2.5 rounded-lg border bg-sky-950/60 hover:bg-sky-900/80 border-sky-400/60 hover:border-sky-300 text-white transition-all flex items-start gap-2.5 shadow-sm group"
+                        title="Muat Dokumen Permohonan Penundaan Docking KM. Dharma Kencana VII"
+                    >
+                        <span className="text-2xl mt-0.5 group-hover:scale-110 transition-transform">🚢</span>
+                        <div>
+                            <div className="text-xs font-extrabold text-sky-200 flex items-center gap-1.5">
+                                <span>Penundaan Docking KM. DK VII</span>
+                            </div>
+                            <div className="text-[9.5px] text-sky-100/80 leading-tight mt-1">
+                                Tujuan: <strong>Bapak Donie Surya P, S.E, M.M</strong> (Manajer Cabang Surabaya PT. Dharma Lautan Utama). Kop CCE + TTD PNG Hilal Bafagih.
+                            </div>
+                        </div>
+                    </button>
+                </div>
+
                 {/* 🤝 KESEPAKATAN DEAL HARGA CCE & ADITYA MANDIRI LOGISTIK (PT GESIT) */}
                 <div className="bg-gradient-to-b from-blue-950/80 to-slate-800/90 p-3.5 rounded-xl border border-blue-400/60 space-y-2 shadow-lg ring-1 ring-blue-500/20">
                     <div className="flex items-center justify-between">
@@ -1801,17 +1944,19 @@ export default function DokumenLegalPage() {
                     )}
 
                     {/* 2. DOKUMEN HEADER & METADATA */}
-                    <div className="text-center mb-6">
-                        <h1 
-                            className="text-base font-extrabold tracking-wide uppercase border-b border-black pb-1 inline-block"
-                            contentEditable
-                            suppressContentEditableWarning
-                            onBlur={(e) => setDocumentTitle(e.currentTarget.textContent || '')}
-                            style={{ outline: 'none' }}
-                        >
-                            {documentTitle}
-                        </h1>
-                    </div>
+                    {documentTitle && (
+                        <div className="text-center mb-6">
+                            <h1 
+                                className="text-base font-extrabold tracking-wide uppercase border-b border-black pb-1 inline-block"
+                                contentEditable
+                                suppressContentEditableWarning
+                                onBlur={(e) => setDocumentTitle(e.currentTarget.textContent || '')}
+                                style={{ outline: 'none' }}
+                            >
+                                {documentTitle}
+                            </h1>
+                        </div>
+                    )}
 
                     <div className="mb-6">
                         <div
