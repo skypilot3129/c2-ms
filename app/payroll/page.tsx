@@ -44,7 +44,7 @@ export default function PayrollPage() {
     const { role } = useAuth();
     const router = useRouter();
 
-    if (role !== 'admin' && role !== 'pengurus') {
+    if (role !== 'admin' && role !== 'pengurus' && role !== 'owner') {
         return (
             <ProtectedRoute>
                 <div className="min-h-screen flex items-center justify-center bg-gray-50">

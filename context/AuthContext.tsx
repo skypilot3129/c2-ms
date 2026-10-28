@@ -22,7 +22,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const [user, setUser] = useState<User | null>(null);
     const [loading, setLoading] = useState(true);
-    const [role, setRole] = useState<UserRole>('admin'); // Default to admin for backward compatibility
+    const [role, setRole] = useState<UserRole>('owner');
     const [employee, setEmployee] = useState<Employee | null>(null);
 
     useEffect(() => {
@@ -33,11 +33,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             if (user) {
                 // Fetch employee record to determine role
                 try {
-                    const q = query(
+                    let q = query(
                         collection(db, 'employees'),
                         where('authUid', '==', user.uid)
                     );
-                    const snapshot = await getDocs(q);
+                    let snapshot = await getDocs(q);
+
+                    // If not found by authUid, check by email
+                    if (snapshot.empty && user.email) {
+                        q = query(
+                            collection(db, 'employees'),
+                            where('email', '==', user.email)
+                        );
+                        snapshot = await getDocs(q);
+                    }
 
                     if (!snapshot.empty) {
                         const doc = snapshot.docs[0];
@@ -56,8 +65,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                             photoUrl: data.photoUrl,
                             jobdesk: data.jobdesk,
                             notes: data.notes,
-                            authUid: data.authUid || null,
-                            email: data.email || '',
+                            authUid: data.authUid || user.uid,
+                            email: data.email || user.email || '',
                             accountStatus: data.accountStatus || 'pending',
                             createdAt: data.createdAt?.toDate() || new Date(),
                             updatedAt: data.updatedAt?.toDate() || new Date(),
@@ -66,17 +75,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                         setEmployee(empData);
                         setRole(data.role);
                     } else {
-                        // No employee record = assume admin (backward compatibility)
+                        // User exists in Firebase Auth, but NOT in employees collection:
+                        // As stated: "petugas owner yang sekarang di data akun email mereka tidak ada karena email mereka di daftarkan manual langsung di firebase database sebelum modul akun dibuat"
                         setEmployee(null);
-                        setRole('admin');
+                        setRole('owner');
                     }
                 } catch (error) {
                     console.error('Error fetching employee data:', error);
-                    setRole('admin'); // Fallback
+                    setRole('owner'); // Fallback to owner
                 }
             } else {
                 setEmployee(null);
-                setRole('admin');
+                setRole('owner');
             }
 
             setLoading(false);

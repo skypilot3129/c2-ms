@@ -28,7 +28,7 @@ export default function PayslipPage() {
                     const calc = payroll.calculations.find(c => c.employeeId === employeeId);
 
                     // Access control: employees can only see their own slip
-                    if (role !== 'admin' && role !== 'pengurus') {
+                    if (role !== 'admin' && role !== 'pengurus' && role !== 'owner') {
                         if (employee?.employeeId !== employeeId) {
                             router.push('/');
                             return;

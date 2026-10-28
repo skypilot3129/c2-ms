@@ -449,7 +449,7 @@ Mohon bantuan untuk segera diproses pelunasannya. Terima kasih banyak atas kerja
                         >
                             <Printer size={16} /> Cetak Laporan Penagihan Harian
                         </Link>
-                        {role === 'admin' && (
+                        {(role === 'admin' || role === 'owner') && (
                             <Link
                                 href="/finance/invoices"
                                 className="bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 px-4 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center gap-2"

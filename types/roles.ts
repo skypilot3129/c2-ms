@@ -1,8 +1,9 @@
 // User roles in the system
-export type UserRole = 'admin' | 'pengurus' | 'helper';
+export type UserRole = 'owner' | 'admin' | 'pengurus' | 'helper';
 
 // Role labels for UI
 export const ROLE_LABELS: Record<UserRole, string> = {
+    'owner': 'Owner',
     'admin': 'Administrator',
     'pengurus': 'Pengurus',
     'helper': 'Helper',
@@ -10,7 +11,8 @@ export const ROLE_LABELS: Record<UserRole, string> = {
 
 // Role hierarchy (higher number = more privileges)
 export const ROLE_HIERARCHY: Record<UserRole, number> = {
-    'admin': 100,
+    'owner': 100,
+    'admin': 80,
     'pengurus': 60,
     'helper': 20,
 };
@@ -52,6 +54,21 @@ export const getRolePermissions = (role: UserRole): FeaturePermissions => {
     };
 
     switch (role) {
+        case 'owner':
+            return {
+                canViewDashboardOwner: true,
+                canManageTransactions: false,
+                canManageClients: false,
+                canManageVoyages: true,
+                canViewFinance: true,
+                canManageFinance: true,
+                canViewPenagihanIka: true,
+                canManageFleet: false,
+                canManageEmployees: false,
+                canViewOwnAttendance: false,
+                canViewAllAttendance: false
+            };
+
         case 'admin':
             return {
                 canViewDashboardOwner: true,

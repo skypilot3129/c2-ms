@@ -185,7 +185,7 @@ export default function PayrollDetailPage() {
                     </div>
 
                     {/* Actions */}
-                    {(role === 'admin' || role === 'pengurus') && payroll.status !== 'paid' && (
+                    {(role === 'admin' || role === 'pengurus' || role === 'owner') && payroll.status !== 'paid' && (
                         <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4">
                             <div className="flex items-center justify-between">
                                 <div>

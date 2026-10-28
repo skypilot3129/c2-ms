@@ -12,7 +12,7 @@ import Link from 'next/link';
 
 export default function BudgetPage() {
     const { user, role } = useAuth();
-    const isManager = ['admin', 'pengurus'].includes(role);
+    const isManager = ['admin', 'pengurus', 'owner'].includes(role);
 
     const [expenses, setExpenses] = useState<Expense[]>([]);
     const [budgets, setBudgets] = useState<Partial<Record<string, number>>>({});

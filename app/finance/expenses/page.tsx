@@ -42,7 +42,7 @@ const STATUS_CONFIG = {
 export default function GeneralExpensesPage() {
     const { user, role } = useAuth();
     const router = useRouter();
-    const isManager = ['admin', 'pengurus'].includes(role);
+    const isManager = ['admin', 'pengurus', 'owner'].includes(role);
 
     const [expenses, setExpenses] = useState<Expense[]>([]);
     const [topups, setTopups] = useState<PettyCashTopUp[]>([]);

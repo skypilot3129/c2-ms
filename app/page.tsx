@@ -8,12 +8,13 @@ import InstallPrompt from "@/components/InstallPrompt";
 import { useState, useEffect } from "react";
 
 export default function Home() {
-    const { user, logout, loading, role } = useAuth();
+    const { user, logout, loading, role, employee } = useAuth();
     const [greeting, setGreeting] = useState('');
 
     // Role helpers
-    const isAdmin = role === 'admin';
-    const isManager = isAdmin || role === 'pengurus';
+    const isOwner = role === 'owner' || (!employee && Boolean(user));
+    const isAdmin = role === 'admin' && !isOwner;
+    const isManager = (role === 'admin' || role === 'pengurus') && !isOwner;
 
     useEffect(() => {
         const hour = new Date().getHours();
@@ -92,7 +93,7 @@ export default function Home() {
                         {!loading && user ? (
                             <h1 className="text-4xl md:text-6xl font-bold text-gray-900 tracking-tight mb-4">
                                 {greeting}, <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600">
-                                    {user.displayName?.split(' ')[0] || 'Admin'}
+                                    {user.displayName?.split(' ')[0] || (isOwner ? 'Owner' : 'Admin')}
                                 </span>
                             </h1>
                         ) : (
@@ -201,8 +202,8 @@ export default function Home() {
 
                     {/* Main Features Grid */}
                     <div className="grid md:grid-cols-2 gap-6 relative z-10">
-                        {/* Attendance - Accessible to ALL authenticated users */}
-                        {user && isModuleActive('attendance') && (
+                        {/* Attendance - Accessible to non-owner authenticated users */}
+                        {user && !isOwner && isModuleActive('attendance') && (
                             <Link href="/attendance" className="group">
                                 <div className="bg-white rounded-3xl p-8 shadow-xl shadow-gray-200/50 border border-gray-100 hover:border-blue-300 hover:shadow-2xl hover:shadow-blue-500/10 transition-all duration-300 relative overflow-hidden group-hover:-translate-y-1">
                                     <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-blue-50 to-transparent rounded-bl-full opacity-50 group-hover:scale-110 transition-transform origin-top-right"></div>
@@ -243,8 +244,8 @@ export default function Home() {
                             </Link>
                         )}
 
-                        {/* Operasional Truk & Jadwal Muat - Accessible to ALL */}
-                        {user && isModuleActive('operations') && (
+                        {/* Operasional Truk & Jadwal Muat - Accessible to non-owner */}
+                        {user && !isOwner && isModuleActive('operations') && (
                             <>
                                  {isManager && (
                                     <>
@@ -306,8 +307,8 @@ export default function Home() {
                             </>
                         )}
 
-                        {/* My Profile - Accessible to ALL authenticated users */}
-                        {user && (
+                        {/* My Profile - Accessible to ALL non-owner authenticated users */}
+                        {user && !isOwner && (
                             <Link href="/my-profile" className="group">
                                 <div className="bg-white rounded-3xl p-8 shadow-xl shadow-gray-200/50 border border-gray-100 hover:border-indigo-300 hover:shadow-2xl hover:shadow-indigo-500/10 transition-all duration-300 relative overflow-hidden group-hover:-translate-y-1">
                                     <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-indigo-50 to-transparent rounded-bl-full opacity-50 group-hover:scale-110 transition-transform origin-top-right"></div>
@@ -329,8 +330,8 @@ export default function Home() {
 
 
 
-                        {/* Owner Dashboard (Executive) - Admin ONLY */}
-                        {user && isAdmin && isModuleActive('finance') && (
+                        {/* Owner Dashboard (Executive) - Owner & Admin */}
+                        {user && (isAdmin || isOwner) && isModuleActive('finance') && (
                             <Link href="/dashboard/owner" className="group md:col-span-2">
                                 <div className="bg-slate-900 rounded-3xl p-8 shadow-xl shadow-slate-900/20 border border-slate-700 hover:border-indigo-500 hover:shadow-2xl hover:shadow-indigo-500/20 transition-all duration-300 relative overflow-hidden group-hover:-translate-y-1">
                                     <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-600/20 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none"></div>
@@ -449,8 +450,8 @@ export default function Home() {
                             </Link>
                         )}
  
-                        {/* Volume Calculator - All authenticated users */}
-                        {user && isModuleActive('volume_calculator') && (
+                        {/* Volume Calculator - All non-owner authenticated users */}
+                        {user && !isOwner && isModuleActive('volume_calculator') && (
                             <Link href="/tools/volume-calculator" className="group">
                                 <div className="bg-white rounded-3xl p-8 shadow-xl shadow-gray-200/50 border border-gray-100 hover:border-orange-300 hover:shadow-2xl hover:shadow-orange-500/10 transition-all duration-300 relative overflow-hidden group-hover:-translate-y-1">
                                     <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-orange-50 to-transparent rounded-bl-full opacity-50 group-hover:scale-110 transition-transform origin-top-right"></div>
@@ -470,8 +471,8 @@ export default function Home() {
                             </Link>
                         )}
 
-                        {/* Manifest Cargo - All authenticated users */}
-                        {user && isModuleActive('manifest') && (
+                        {/* Manifest Cargo - All non-owner authenticated users */}
+                        {user && !isOwner && isModuleActive('manifest') && (
                             <Link href="/tools/manifest" className="group">
                                 <div className="bg-white rounded-3xl p-8 shadow-xl shadow-gray-200/50 border border-gray-100 hover:border-blue-300 hover:shadow-2xl hover:shadow-blue-500/10 transition-all duration-300 relative overflow-hidden group-hover:-translate-y-1">
                                     <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-blue-50 to-transparent rounded-bl-full opacity-50 group-hover:scale-110 transition-transform origin-top-right"></div>
@@ -491,8 +492,8 @@ export default function Home() {
                             </Link>
                         )}
 
-                        {/* Cetak Label Resi A6 - All authenticated users */}
-                        {user && isModuleActive('label_resi') && (
+                        {/* Cetak Label Resi A6 - All non-owner authenticated users */}
+                        {user && !isOwner && isModuleActive('label_resi') && (
                             <Link href="/tools/label-resi" className="group">
                                 <div className="bg-white rounded-3xl p-8 shadow-xl shadow-gray-200/50 border border-gray-100 hover:border-indigo-300 hover:shadow-2xl hover:shadow-indigo-500/10 transition-all duration-300 relative overflow-hidden group-hover:-translate-y-1">
                                     <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-indigo-50 to-transparent rounded-bl-full opacity-50 group-hover:scale-110 transition-transform origin-top-right"></div>
@@ -512,8 +513,8 @@ export default function Home() {
                             </Link>
                         )}
 
-                        {/* Cetak Dokumen Legal - All authenticated users */}
-                        {user && isModuleActive('dokumen_legal') && (
+                        {/* Cetak Dokumen Legal - All non-owner authenticated users */}
+                        {user && !isOwner && isModuleActive('dokumen_legal') && (
                             <Link href="/tools/dokumen-legal" className="group">
                                 <div className="bg-white rounded-3xl p-8 shadow-xl shadow-gray-200/50 border border-gray-100 hover:border-emerald-300 hover:shadow-2xl hover:shadow-emerald-500/10 transition-all duration-300 relative overflow-hidden group-hover:-translate-y-1">
                                     <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-emerald-50 to-transparent rounded-bl-full opacity-50 group-hover:scale-110 transition-transform origin-top-right"></div>
@@ -533,8 +534,8 @@ export default function Home() {
                             </Link>
                         )}
 
-                        {/* Scan Barcode DHS - All authenticated users */}
-                        {user && isModuleActive('scan_dhs') && (
+                        {/* Scan Barcode DHS - All non-owner authenticated users */}
+                        {user && !isOwner && isModuleActive('scan_dhs') && (
                             <Link href="/tools/scan-dhs" className="group">
                                 <div className="bg-white rounded-3xl p-8 shadow-xl shadow-gray-200/50 border border-gray-100 hover:border-blue-300 hover:shadow-2xl hover:shadow-blue-500/10 transition-all duration-300 relative overflow-hidden group-hover:-translate-y-1">
                                     <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-blue-50 to-transparent rounded-bl-full opacity-50 group-hover:scale-110 transition-transform origin-top-right"></div>
@@ -554,8 +555,8 @@ export default function Home() {
                             </Link>
                         )}
 
-                        {/* Detail Invoice AML - All authenticated users */}
-                        {user && isModuleActive('invoice_aml') && (
+                        {/* Detail Invoice AML - All non-owner authenticated users */}
+                        {user && !isOwner && isModuleActive('invoice_aml') && (
                             <Link href="/tools/detail-invoice-aml" className="group">
                                 <div className="bg-white rounded-3xl p-8 shadow-xl shadow-gray-200/50 border border-gray-100 hover:border-indigo-300 hover:shadow-2xl hover:shadow-indigo-500/10 transition-all duration-300 relative overflow-hidden group-hover:-translate-y-1">
                                     <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-indigo-50 to-transparent rounded-bl-full opacity-50 group-hover:scale-110 transition-transform origin-top-right"></div>
@@ -575,8 +576,8 @@ export default function Home() {
                             </Link>
                         )}
 
-                        {/* Cetak Slip & SKK Karyawan - All authenticated users */}
-                        {user && isModuleActive('slip_skk') && (
+                        {/* Cetak Slip & SKK Karyawan - All non-owner authenticated users */}
+                        {user && !isOwner && isModuleActive('slip_skk') && (
                             <Link href="/tools/cetak-slip-skk" className="group">
                                 <div className="bg-white rounded-3xl p-8 shadow-xl shadow-gray-200/50 border border-gray-100 hover:border-emerald-300 hover:shadow-2xl hover:shadow-emerald-500/10 transition-all duration-300 relative overflow-hidden group-hover:-translate-y-1">
                                     <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-emerald-50 to-transparent rounded-bl-full opacity-50 group-hover:scale-110 transition-transform origin-top-right"></div>
@@ -597,7 +598,7 @@ export default function Home() {
                         )}
 
                         {/* Pemberangkatan - Owner & Admin only */}
-                        {user && isAdmin && isModuleActive('voyages') && (
+                        {user && (isAdmin || isOwner) && isModuleActive('voyages') && (
                             <Link href="/voyages" className="group">
                                 <div className="bg-white rounded-3xl p-8 shadow-xl shadow-gray-200/50 border border-gray-100 hover:border-purple-300 hover:shadow-2xl hover:shadow-purple-500/10 transition-all duration-300 relative overflow-hidden group-hover:-translate-y-1">
                                     <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-purple-50 to-transparent rounded-bl-full opacity-50 group-hover:scale-110 transition-transform origin-top-right"></div>
@@ -639,7 +640,7 @@ export default function Home() {
                         )}
 
                         {/* Finance Module - Owner & Admin only */}
-                        {user && isAdmin && isModuleActive('finance') && (
+                        {user && (isAdmin || isOwner) && isModuleActive('finance') && (
                             <Link href="/finance/receivables" className="group">
                                 <div className="bg-white rounded-3xl p-8 shadow-xl shadow-gray-200/50 border border-gray-100 hover:border-teal-300 hover:shadow-2xl hover:shadow-teal-500/10 transition-all duration-300 relative overflow-hidden group-hover:-translate-y-1">
                                     <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-teal-50 to-transparent rounded-bl-full opacity-50 group-hover:scale-110 transition-transform origin-top-right"></div>
@@ -660,7 +661,7 @@ export default function Home() {
                         )}
 
                         {/* Modul Operasional Makassar - Owner & Admin only */}
-                        {user && isAdmin && isModuleActive('finance') && (
+                        {user && (isAdmin || isOwner) && isModuleActive('finance') && (
                             <Link href="/finance/operasional-makassar" className="group">
                                 <div className="bg-white rounded-3xl p-8 shadow-xl shadow-gray-200/50 border border-gray-100 hover:border-blue-300 hover:shadow-2xl hover:shadow-blue-500/10 transition-all duration-300 relative overflow-hidden group-hover:-translate-y-1">
                                     <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-blue-50 to-transparent rounded-bl-full opacity-50 group-hover:scale-110 transition-transform origin-top-right"></div>
@@ -681,7 +682,7 @@ export default function Home() {
                         )}
 
                         {/* Modul Saldo Real Bank - Owner & Admin */}
-                        {user && isManager && isModuleActive('finance') && (
+                        {user && (isManager || isOwner) && isModuleActive('finance') && (
                             <Link href="/finance/saldo-real" className="group">
                                 <div className="bg-white rounded-3xl p-8 shadow-xl shadow-gray-200/50 border border-gray-100 hover:border-indigo-300 hover:shadow-2xl hover:shadow-indigo-500/10 transition-all duration-300 relative overflow-hidden group-hover:-translate-y-1">
                                     <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-indigo-50 to-transparent rounded-bl-full opacity-50 group-hover:scale-110 transition-transform origin-top-right"></div>
@@ -745,7 +746,7 @@ export default function Home() {
                         )}
 
                         {/* Payroll & Gaji Module - Admin & Pengurus */}
-                        {user && isManager && isModuleActive('payroll') && (
+                        {user && (isManager || isOwner) && isModuleActive('payroll') && (
                             <Link href="/payroll" className="group">
                                 <div className="bg-white rounded-3xl p-8 shadow-xl shadow-gray-200/50 border border-gray-100 hover:border-emerald-300 hover:shadow-2xl hover:shadow-emerald-500/10 transition-all duration-300 relative overflow-hidden group-hover:-translate-y-1">
                                     <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-emerald-50 to-transparent rounded-bl-full opacity-50 group-hover:scale-110 transition-transform origin-top-right"></div>
