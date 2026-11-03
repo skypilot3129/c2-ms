@@ -49,8 +49,10 @@ export default function OwnerOmzetKapalPage() {
     const [isCostModalOpen, setIsCostModalOpen] = useState(false);
     const [selectedVoyageForCost, setSelectedVoyageForCost] = useState<Voyage | null>(null);
 
-    // Cost Form Fields
+    // Cost & Revenue Form Fields
+    const [formPenjualanMakassar, setFormPenjualanMakassar] = useState<number>(0);
     const [formTiket, setFormTiket] = useState<number>(0);
+    const [formTiketMakassar, setFormTiketMakassar] = useState<number>(0);
     const [formOpsMakassar, setFormOpsMakassar] = useState<number>(0);
     const [formOpsSurabaya, setFormOpsSurabaya] = useState<number>(0);
     const [formGajiSopir, setFormGajiSopir] = useState<number>(0);
@@ -126,16 +128,20 @@ export default function OwnerOmzetKapalPage() {
                 .map(id => txMap.get(id))
                 .filter((t): t is Transaction => t !== undefined && t.status !== 'dibatalkan');
 
-            let totalRevenue = 0;
+            let omzetStt = 0;
             linkedTxList.forEach(t => {
                 const subtotal = Number(t.jumlah) || 0;
                 const ppn = t.isTaxable || (t.ppn && Number(t.ppn) > 0) ? Math.round(subtotal * 0.011) : 0;
-                totalRevenue += (subtotal + ppn);
+                omzetStt += (subtotal + ppn);
             });
 
-            // 2. Lookup manual expenses
+            // 2. Lookup manual expenses & revenue
             const manualCost = expensesMap.get(v.id);
+            const penjualanMakassar = manualCost?.penjualanMakassar || 0;
+            const totalRevenue = omzetStt + penjualanMakassar;
+
             const tiket = manualCost?.tiket || 0;
+            const tiketMakassar = manualCost?.tiketMakassar || 0;
             const opsMakassar = manualCost?.opsMakassar || 0;
             const opsSurabaya = manualCost?.opsSurabaya || 0;
             const gajiSopir = manualCost?.gajiSopir || 0;
@@ -144,7 +150,7 @@ export default function OwnerOmzetKapalPage() {
             const notes = manualCost?.notes || '';
             const hasManualExpense = manualCost !== undefined;
 
-            const totalExpenses = tiket + opsMakassar + opsSurabaya + gajiSopir + sewaMobil + opsTambahan;
+            const totalExpenses = tiket + tiketMakassar + opsMakassar + opsSurabaya + gajiSopir + sewaMobil + opsTambahan;
             const netProfit = totalRevenue - totalExpenses;
             const profitMargin = totalRevenue > 0 ? Math.round((netProfit / totalRevenue) * 100) : 0;
 
@@ -161,8 +167,11 @@ export default function OwnerOmzetKapalPage() {
                 vehicleNumbers: v.vehicleNumbers || (v.vehicleNumber ? [v.vehicleNumber] : []),
                 status: v.status,
                 sttCount: linkedTxList.length,
+                omzetStt,
+                penjualanMakassar,
                 totalRevenue,
                 tiket,
+                tiketMakassar,
                 opsMakassar,
                 opsSurabaya,
                 gajiSopir,
@@ -212,7 +221,10 @@ export default function OwnerOmzetKapalPage() {
     // Overall Totals for Executive KPI
     const kpiTotals = useMemo(() => {
         let totalRevenue = 0;
+        let totalOmzetStt = 0;
+        let totalPenjualanMakassar = 0;
         let totalTiket = 0;
+        let totalTiketMakassar = 0;
         let totalOpsMakassar = 0;
         let totalOpsSurabaya = 0;
         let totalGajiSopir = 0;
@@ -222,7 +234,10 @@ export default function OwnerOmzetKapalPage() {
 
         filteredRows.forEach(r => {
             totalRevenue += r.totalRevenue;
+            totalOmzetStt += r.omzetStt;
+            totalPenjualanMakassar += r.penjualanMakassar;
             totalTiket += r.tiket;
+            totalTiketMakassar += r.tiketMakassar;
             totalOpsMakassar += r.opsMakassar;
             totalOpsSurabaya += r.opsSurabaya;
             totalGajiSopir += r.gajiSopir;
@@ -236,7 +251,10 @@ export default function OwnerOmzetKapalPage() {
 
         return {
             totalRevenue,
+            totalOmzetStt,
+            totalPenjualanMakassar,
             totalTiket,
+            totalTiketMakassar,
             totalOpsMakassar,
             totalOpsSurabaya,
             totalGajiSopir,
@@ -254,7 +272,9 @@ export default function OwnerOmzetKapalPage() {
         setSelectedVoyageForCost(voyage);
         const existing = expensesMap.get(voyage.id);
         if (existing) {
+            setFormPenjualanMakassar(existing.penjualanMakassar || 0);
             setFormTiket(existing.tiket || 0);
+            setFormTiketMakassar(existing.tiketMakassar || 0);
             setFormOpsMakassar(existing.opsMakassar || 0);
             setFormOpsSurabaya(existing.opsSurabaya || 0);
             setFormGajiSopir(existing.gajiSopir || 0);
@@ -262,7 +282,9 @@ export default function OwnerOmzetKapalPage() {
             setFormOpsTambahan(existing.opsTambahan || 0);
             setFormNotes(existing.notes || '');
         } else {
+            setFormPenjualanMakassar(0);
             setFormTiket(0);
+            setFormTiketMakassar(0);
             setFormOpsMakassar(0);
             setFormOpsSurabaya(0);
             setFormGajiSopir(0);
@@ -291,7 +313,9 @@ export default function OwnerOmzetKapalPage() {
                 shipName: selectedVoyageForCost.shipName || '',
                 departureDate: depDateStr,
                 route: selectedVoyageForCost.route || '',
+                penjualanMakassar: Number(formPenjualanMakassar) || 0,
                 tiket: Number(formTiket) || 0,
+                tiketMakassar: Number(formTiketMakassar) || 0,
                 opsMakassar: Number(formOpsMakassar) || 0,
                 opsSurabaya: Number(formOpsSurabaya) || 0,
                 gajiSopir: Number(formGajiSopir) || 0,
@@ -357,11 +381,16 @@ export default function OwnerOmzetKapalPage() {
         text += `🚗 *Armada Truk:* ${vehiclesText}\n`;
         text += `📦 *Muatan STT:* ${r.sttCount} Resi\n\n`;
 
-        text += `💰 *1. TOTAL OMZET KAPAL (STT):*\n`;
-        text += `👉 *${formatRupiah(r.totalRevenue)}*\n\n`;
+        text += `💰 *1. TOTAL OMZET KAPAL:*\n`;
+        text += `• Muatan STT: ${formatRupiah(r.omzetStt)} (${r.sttCount} Resi)\n`;
+        if (r.penjualanMakassar > 0) {
+            text += `• 💵 Penjualan Makassar: ${formatRupiah(r.penjualanMakassar)}\n`;
+        }
+        text += `👉 *TOTAL OMZET:* *${formatRupiah(r.totalRevenue)}*\n\n`;
 
         text += `📉 *2. RINCIAN BIAYA PENGELUARAN:*\n`;
-        text += `• 🎟️ Tiket Kapal: ${r.tiket > 0 ? formatRupiah(r.tiket) : 'Rp 0'}\n`;
+        text += `• 🎟️ Tiket Kapal (SBY): ${r.tiket > 0 ? formatRupiah(r.tiket) : 'Rp 0'}\n`;
+        text += `• 🎟️ Tiket Makassar: ${r.tiketMakassar > 0 ? formatRupiah(r.tiketMakassar) : 'Rp 0'}\n`;
         text += `• 🏢 Ops Makassar: ${r.opsMakassar > 0 ? formatRupiah(r.opsMakassar) : 'Rp 0'}\n`;
         text += `• 🏢 Ops Surabaya: ${r.opsSurabaya > 0 ? formatRupiah(r.opsSurabaya) : 'Rp 0'}\n`;
         text += `• 👨‍✈️ Gaji/Uang Jalan Sopir: ${r.gajiSopir > 0 ? formatRupiah(r.gajiSopir) : 'Rp 0'}\n`;
@@ -396,13 +425,16 @@ export default function OwnerOmzetKapalPage() {
         text += `🚢 *Jumlah Kapal:* ${filteredRows.length} Keberangkatan\n\n`;
 
         text += `🌟 *RINGKASAN EKSEKUTIF OWNER:*\n`;
+        text += `• Total Omzet STT: *${formatRupiah(kpiTotals.totalOmzetStt)}*\n`;
+        text += `• Total Penjualan MKS: *${formatRupiah(kpiTotals.totalPenjualanMakassar)}*\n`;
         text += `• Total Omzet Kapal: *${formatRupiah(kpiTotals.totalRevenue)}*\n`;
         text += `• Total Pengeluaran: *${formatRupiah(kpiTotals.totalExpenses)}*\n`;
         text += `• Total Laba Bersih: *${formatRupiah(kpiTotals.netProfit)}*\n`;
         text += `• Rata-rata Margin: *${kpiTotals.avgMargin}%*\n\n`;
 
         text += `📋 *RINCIAN BIAYA GLOBAL:*\n`;
-        text += `• 🎟️ Tiket Kapal: ${formatRupiah(kpiTotals.totalTiket)}\n`;
+        text += `• 🎟️ Tiket Kapal (SBY): ${formatRupiah(kpiTotals.totalTiket)}\n`;
+        text += `• 🎟️ Tiket Makassar: ${formatRupiah(kpiTotals.totalTiketMakassar)}\n`;
         text += `• 🏢 Ops Makassar: ${formatRupiah(kpiTotals.totalOpsMakassar)}\n`;
         text += `• 🏢 Ops Surabaya: ${formatRupiah(kpiTotals.totalOpsSurabaya)}\n`;
         text += `• 👨‍✈️ Gaji Sopir: ${formatRupiah(kpiTotals.totalGajiSopir)}\n`;
@@ -467,7 +499,11 @@ export default function OwnerOmzetKapalPage() {
         if (matchingRow) {
             const tempRow: OwnerShipSummaryRow = {
                 ...matchingRow,
+                omzetStt: selectedVoyageRevenue,
+                penjualanMakassar: formPenjualanMakassar,
+                totalRevenue: formTotalRevenue,
                 tiket: formTiket,
+                tiketMakassar: formTiketMakassar,
                 opsMakassar: formOpsMakassar,
                 opsSurabaya: formOpsSurabaya,
                 gajiSopir: formGajiSopir,
@@ -497,9 +533,10 @@ export default function OwnerOmzetKapalPage() {
         }, 0);
     }, [selectedVoyageForCost, txMap]);
 
-    const formTotalCost = formTiket + formOpsMakassar + formOpsSurabaya + formGajiSopir + formSewaMobil + formOpsTambahan;
-    const formEstimatedProfit = selectedVoyageRevenue - formTotalCost;
-    const formEstimatedMargin = selectedVoyageRevenue > 0 ? Math.round((formEstimatedProfit / selectedVoyageRevenue) * 100) : 0;
+    const formTotalRevenue = selectedVoyageRevenue + (Number(formPenjualanMakassar) || 0);
+    const formTotalCost = (Number(formTiket) || 0) + (Number(formTiketMakassar) || 0) + (Number(formOpsMakassar) || 0) + (Number(formOpsSurabaya) || 0) + (Number(formGajiSopir) || 0) + (Number(formSewaMobil) || 0) + (Number(formOpsTambahan) || 0);
+    const formEstimatedProfit = formTotalRevenue - formTotalCost;
+    const formEstimatedMargin = formTotalRevenue > 0 ? Math.round((formEstimatedProfit / formTotalRevenue) * 100) : 0;
 
     return (
         <ProtectedRoute>
@@ -529,7 +566,7 @@ export default function OwnerOmzetKapalPage() {
                                 </h1>
                             </div>
                             <p className="text-xs text-gray-500 mt-0.5">
-                                Omzet otomatis dari data Pemberangkatan (STT) vs Input Biaya Manual (Tiket, Ops MKS, Ops SBY, Gaji Sopir, Sewa Mobil, Ops Tambahan)
+                                Omzet otomatis STT &amp; Penjualan Makassar vs Input Biaya Manual (Tiket SBY &amp; MKS, Ops MKS, Ops SBY, Gaji Sopir, Sewa Mobil, Ops Tambahan)
                             </p>
                         </div>
                     </div>
@@ -573,8 +610,11 @@ export default function OwnerOmzetKapalPage() {
                             <div className="text-2xl font-black text-white tracking-tight">
                                 {formatRupiah(kpiTotals.totalRevenue)}
                             </div>
-                            <div className="text-[11px] text-blue-200 mt-1">
-                                Akumulasi seluruh muatan STT kapal
+                            <div className="text-[11px] text-blue-200 mt-1 flex flex-wrap gap-x-2">
+                                <span>Muatan STT: {formatRupiah(kpiTotals.totalOmzetStt)}</span>
+                                {kpiTotals.totalPenjualanMakassar > 0 && (
+                                    <span className="text-emerald-300 font-bold">• Jual MKS: +{formatRupiah(kpiTotals.totalPenjualanMakassar)}</span>
+                                )}
                             </div>
                         </div>
 
@@ -678,24 +718,34 @@ export default function OwnerOmzetKapalPage() {
 
                 </div>
 
-                {/* ── 3. RINCIAN 6 BIAYA OPERASIONAL (SUB-CARD BREAKDOWN) ── */}
+                {/* ── 3. RINCIAN BIAYA OPERASIONAL (SUB-CARD BREAKDOWN) ── */}
                 <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-xs">
                     <div className="text-xs font-extrabold text-gray-800 uppercase tracking-wider mb-3 flex items-center gap-2">
-                        <PieChart size={16} className="text-indigo-600" /> Ringkasan 6 Pos Biaya Operasional Kapal ({filterPeriodMode === 'month' ? `Bulan ${MONTH_NAMES[selectedMonth]} ${selectedYear}` : 'Semua Periode'})
+                        <PieChart size={16} className="text-indigo-600" /> Ringkasan Pos Biaya Operasional Kapal ({filterPeriodMode === 'month' ? `Bulan ${MONTH_NAMES[selectedMonth]} ${selectedYear}` : 'Semua Periode'})
                     </div>
 
-                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 text-xs">
-                        {/* 1. Tiket */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2.5 text-xs">
+                        {/* 1. Tiket SBY */}
                         <div className="bg-blue-50/70 border border-blue-200 p-2.5 rounded-xl">
                             <div className="text-[10px] font-bold text-blue-900 flex items-center gap-1">
-                                <Ticket size={12} /> Tiket Kapal
+                                <Ticket size={12} /> Tiket SBY
                             </div>
                             <div className="text-xs font-black text-blue-950 mt-1 font-mono">
                                 {formatRupiah(kpiTotals.totalTiket)}
                             </div>
                         </div>
 
-                        {/* 2. Ops Makassar */}
+                        {/* 2. Tiket Makassar */}
+                        <div className="bg-cyan-50/70 border border-cyan-200 p-2.5 rounded-xl">
+                            <div className="text-[10px] font-bold text-cyan-900 flex items-center gap-1">
+                                <Ticket size={12} /> Tiket Mks
+                            </div>
+                            <div className="text-xs font-black text-cyan-950 mt-1 font-mono">
+                                {formatRupiah(kpiTotals.totalTiketMakassar)}
+                            </div>
+                        </div>
+
+                        {/* 3. Ops Makassar */}
                         <div className="bg-sky-50/70 border border-sky-200 p-2.5 rounded-xl">
                             <div className="text-[10px] font-bold text-sky-900 flex items-center gap-1">
                                 <Building2 size={12} /> Ops Makassar
@@ -705,7 +755,7 @@ export default function OwnerOmzetKapalPage() {
                             </div>
                         </div>
 
-                        {/* 3. Ops Surabaya */}
+                        {/* 4. Ops Surabaya */}
                         <div className="bg-indigo-50/70 border border-indigo-200 p-2.5 rounded-xl">
                             <div className="text-[10px] font-bold text-indigo-900 flex items-center gap-1">
                                 <Building2 size={12} /> Ops Surabaya
@@ -715,7 +765,7 @@ export default function OwnerOmzetKapalPage() {
                             </div>
                         </div>
 
-                        {/* 4. Gaji Sopir */}
+                        {/* 5. Gaji Sopir */}
                         <div className="bg-amber-50/70 border border-amber-200 p-2.5 rounded-xl">
                             <div className="text-[10px] font-bold text-amber-900 flex items-center gap-1">
                                 <UserCheck size={12} /> Gaji Sopir
@@ -725,7 +775,7 @@ export default function OwnerOmzetKapalPage() {
                             </div>
                         </div>
 
-                        {/* 5. Sewa Mobil */}
+                        {/* 6. Sewa Mobil */}
                         <div className="bg-purple-50/70 border border-purple-200 p-2.5 rounded-xl">
                             <div className="text-[10px] font-bold text-purple-900 flex items-center gap-1">
                                 <Truck size={12} /> Sewa Mobil
@@ -735,7 +785,7 @@ export default function OwnerOmzetKapalPage() {
                             </div>
                         </div>
 
-                        {/* 6. Ops Tambahan */}
+                        {/* 7. Ops Tambahan */}
                         <div className="bg-rose-50/70 border border-rose-200 p-2.5 rounded-xl">
                             <div className="text-[10px] font-bold text-rose-900 flex items-center gap-1">
                                 <Plus size={12} /> Ops Tambahan
@@ -850,6 +900,7 @@ export default function OwnerOmzetKapalPage() {
                                         Omzet Kapal (Auto)
                                     </th>
                                     <th className="p-3 text-right w-24 text-gray-700">Tiket</th>
+                                    <th className="p-3 text-right w-24 text-gray-700">Tiket Mks</th>
                                     <th className="p-3 text-right w-24 text-gray-700">Ops Mks</th>
                                     <th className="p-3 text-right w-24 text-gray-700">Ops Sby</th>
                                     <th className="p-3 text-right w-24 text-gray-700">Gaji Sopir</th>
@@ -896,17 +947,25 @@ export default function OwnerOmzetKapalPage() {
                                                 )}
                                             </td>
 
-                                            {/* Omzet Kapal (Auto STT) */}
+                                            {/* Omzet Kapal (Auto STT + Penjualan Makassar) */}
                                             <td className="p-3 text-right font-black text-blue-900 font-mono bg-blue-50/30 whitespace-nowrap">
                                                 {formatRupiah(r.totalRevenue)}
                                                 <div className="text-[9px] text-blue-600 font-medium font-sans">
                                                     {r.sttCount} Resi STT
                                                 </div>
+                                                {r.penjualanMakassar > 0 && (
+                                                    <div className="text-[9px] text-emerald-700 font-medium font-sans">
+                                                        + Mks: {formatRupiah(r.penjualanMakassar)}
+                                                    </div>
+                                                )}
                                             </td>
 
-                                            {/* 6 Manual Cost Columns */}
+                                            {/* Manual Cost Columns */}
                                             <td className="p-3 text-right font-mono text-gray-700 whitespace-nowrap">
                                                 {r.tiket > 0 ? formatRupiah(r.tiket) : '—'}
+                                            </td>
+                                            <td className="p-3 text-right font-mono text-gray-700 whitespace-nowrap">
+                                                {r.tiketMakassar > 0 ? formatRupiah(r.tiketMakassar) : '—'}
                                             </td>
                                             <td className="p-3 text-right font-mono text-gray-700 whitespace-nowrap">
                                                 {r.opsMakassar > 0 ? formatRupiah(r.opsMakassar) : '—'}
@@ -971,7 +1030,7 @@ export default function OwnerOmzetKapalPage() {
 
                                 {filteredRows.length === 0 && (
                                     <tr>
-                                        <td colSpan={15} className="p-8 text-center text-gray-400 italic">
+                                        <td colSpan={16} className="p-8 text-center text-gray-400 italic">
                                             {loading ? 'Memuat data omzet per-kapal...' : 'Tidak ada data keberangkatan kapal yang cocok dengan filter.'}
                                         </td>
                                     </tr>
@@ -985,8 +1044,14 @@ export default function OwnerOmzetKapalPage() {
                                         </td>
                                         <td className="p-3 text-right text-blue-900 font-mono font-black bg-blue-100/70">
                                             {formatRupiah(kpiTotals.totalRevenue)}
+                                            {kpiTotals.totalPenjualanMakassar > 0 && (
+                                                <div className="text-[9px] text-emerald-800 font-normal">
+                                                    (STT: {formatRupiah(kpiTotals.totalOmzetStt)} + Mks: {formatRupiah(kpiTotals.totalPenjualanMakassar)})
+                                                </div>
+                                            )}
                                         </td>
                                         <td className="p-3 text-right font-mono text-gray-800">{formatRupiah(kpiTotals.totalTiket)}</td>
+                                        <td className="p-3 text-right font-mono text-gray-800">{formatRupiah(kpiTotals.totalTiketMakassar)}</td>
                                         <td className="p-3 text-right font-mono text-gray-800">{formatRupiah(kpiTotals.totalOpsMakassar)}</td>
                                         <td className="p-3 text-right font-mono text-gray-800">{formatRupiah(kpiTotals.totalOpsSurabaya)}</td>
                                         <td className="p-3 text-right font-mono text-gray-800">{formatRupiah(kpiTotals.totalGajiSopir)}</td>
@@ -1032,8 +1097,18 @@ export default function OwnerOmzetKapalPage() {
                             {/* Revenue & Live Profit Summary Box */}
                             <div className="bg-gradient-to-r from-blue-900 to-indigo-900 text-white p-4 rounded-2xl shadow-inner space-y-2">
                                 <div className="flex justify-between items-center text-xs">
-                                    <span className="text-blue-200">Total Omzet Muatan Kapal (Auto STT):</span>
-                                    <span className="font-mono font-black text-sm text-emerald-300">{formatRupiah(selectedVoyageRevenue)}</span>
+                                    <span className="text-blue-200">Muatan Kapal (Auto STT):</span>
+                                    <span className="font-mono font-black text-sm text-blue-200">{formatRupiah(selectedVoyageRevenue)}</span>
+                                </div>
+                                {formPenjualanMakassar > 0 && (
+                                    <div className="flex justify-between items-center text-xs">
+                                        <span className="text-emerald-300">Penjualan Makassar:</span>
+                                        <span className="font-mono font-black text-sm text-emerald-300">+{formatRupiah(formPenjualanMakassar)}</span>
+                                    </div>
+                                )}
+                                <div className="flex justify-between items-center text-xs pt-1 border-t border-white/10 font-bold">
+                                    <span className="text-white">Total Omzet Kapal:</span>
+                                    <span className="font-mono font-black text-sm text-emerald-300">{formatRupiah(formTotalRevenue)}</span>
                                 </div>
                                 <div className="flex justify-between items-center text-xs pt-1 border-t border-white/10">
                                     <span className="text-blue-200">Total Biaya Pengeluaran Kapal:</span>
@@ -1049,11 +1124,33 @@ export default function OwnerOmzetKapalPage() {
 
                             <form onSubmit={handleSaveCost} className="space-y-3.5 text-xs">
                                 
+                                {/* Penjualan Makassar Input (Revenue Enhancer) */}
+                                <div className="bg-emerald-50/70 border border-emerald-200 p-3 rounded-2xl">
+                                    <label className="font-extrabold text-emerald-950 block mb-1 text-xs flex items-center justify-between">
+                                        <span className="flex items-center gap-1.5">
+                                            <TrendingUp size={14} className="text-emerald-600" /> Penjualan Makassar (Rp)
+                                        </span>
+                                        <span className="text-[10px] text-emerald-700 font-semibold bg-emerald-100 px-2 py-0.5 rounded-full">
+                                            Penambah Omzet Kapal
+                                        </span>
+                                    </label>
+                                    <input
+                                        type="number"
+                                        value={formPenjualanMakassar || ''}
+                                        onChange={(e) => setFormPenjualanMakassar(Number(e.target.value))}
+                                        placeholder="Rp 0"
+                                        className="w-full px-3 py-2 bg-white border border-emerald-300 rounded-xl font-mono font-bold text-gray-900 outline-none focus:ring-2 focus:ring-emerald-400 text-sm"
+                                    />
+                                    <p className="text-[10px] text-emerald-700 mt-1">
+                                        Nominal penjualan di Makassar ini otomatis ditambahkan ke total omzet muatan STT kapal.
+                                    </p>
+                                </div>
+
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                     {/* 1. Tiket */}
                                     <div>
                                         <label className="font-extrabold text-gray-800 block mb-1">
-                                            🎟️ Biaya Tiket Kapal (Rp)
+                                            🎟️ Biaya Tiket Kapal / SBY (Rp)
                                         </label>
                                         <input
                                             type="number"
@@ -1064,7 +1161,21 @@ export default function OwnerOmzetKapalPage() {
                                         />
                                     </div>
 
-                                    {/* 2. Ops Makassar */}
+                                    {/* 2. Tiket Makassar */}
+                                    <div>
+                                        <label className="font-extrabold text-gray-800 block mb-1">
+                                            🎟️ Biaya Tiket Makassar (Rp)
+                                        </label>
+                                        <input
+                                            type="number"
+                                            value={formTiketMakassar || ''}
+                                            onChange={(e) => setFormTiketMakassar(Number(e.target.value))}
+                                            placeholder="Rp 0"
+                                            className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl font-mono font-bold text-gray-900 outline-none focus:ring-2 focus:ring-blue-300 text-sm"
+                                        />
+                                    </div>
+
+                                    {/* 3. Ops Makassar */}
                                     <div>
                                         <label className="font-extrabold text-gray-800 block mb-1">
                                             🏢 Biaya Ops Makassar (Rp)

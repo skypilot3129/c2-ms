@@ -6,8 +6,10 @@ import { useAuth } from '@/context/AuthContext';
 import { getVoyageById } from '@/lib/firestore-voyages';
 import { getTransactionById } from '@/lib/firestore-transactions';
 import { subscribeToExpensesByVoyage } from '@/lib/firestore-expenses';
+import { subscribeToOwnerShipExpenses } from '@/lib/firestore-owner-ship-expenses';
 import type { Voyage, Expense } from '@/types/voyage';
 import type { Transaction } from '@/types/transaction';
+import type { OwnerShipExpense } from '@/types/owner-ship-report';
 import { formatRupiah } from '@/lib/currency';
 import { EXPENSE_CATEGORY_LABELS } from '@/types/voyage';
 
@@ -18,6 +20,7 @@ function PrintVoyageReportContent({ params }: { params: Promise<{ id: string }> 
     const [voyage, setVoyage] = useState<Voyage | null>(null);
     const [transactions, setTransactions] = useState<Transaction[]>([]);
     const [expenses, setExpenses] = useState<Expense[]>([]);
+    const [ownerShipExpense, setOwnerShipExpense] = useState<OwnerShipExpense | null>(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -43,7 +46,15 @@ function PrintVoyageReportContent({ params }: { params: Promise<{ id: string }> 
                     setLoading(false);
                 });
 
-                return () => unsubscribe();
+                const unsubscribeShipExp = subscribeToOwnerShipExpenses((list) => {
+                    const match = list.find(e => e.voyageId === voyageData.id);
+                    setOwnerShipExpense(match || null);
+                });
+
+                return () => {
+                    unsubscribe();
+                    unsubscribeShipExp();
+                };
             } catch (error) {
                 console.error('Error loading voyage report data:', error);
                 setLoading(false);
@@ -64,8 +75,23 @@ function PrintVoyageReportContent({ params }: { params: Promise<{ id: string }> 
     if (loading) return <div className="p-8 text-center text-gray-500">Memuat laporan keuangan...</div>;
     if (!voyage) return null;
 
-    const totalRevenue = transactions.reduce((sum, tx) => sum + tx.jumlah, 0);
-    const totalExpenses = expenses.reduce((sum, tx) => sum + tx.amount, 0);
+    const omzetStt = transactions.reduce((sum, tx) => sum + tx.jumlah, 0);
+    const penjualanMakassar = ownerShipExpense?.penjualanMakassar || 0;
+    const totalRevenue = omzetStt + penjualanMakassar;
+
+    const shipExpenses = ownerShipExpense ? [
+        ...(ownerShipExpense.tiket > 0 ? [{ name: 'Tiket Kapal (SBY)', amount: ownerShipExpense.tiket }] : []),
+        ...(ownerShipExpense.tiketMakassar && ownerShipExpense.tiketMakassar > 0 ? [{ name: 'Tiket Makassar', amount: ownerShipExpense.tiketMakassar }] : []),
+        ...(ownerShipExpense.opsMakassar > 0 ? [{ name: 'Operasional Makassar', amount: ownerShipExpense.opsMakassar }] : []),
+        ...(ownerShipExpense.opsSurabaya > 0 ? [{ name: 'Operasional Surabaya', amount: ownerShipExpense.opsSurabaya }] : []),
+        ...(ownerShipExpense.gajiSopir > 0 ? [{ name: 'Gaji Sopir / Uang Jalan', amount: ownerShipExpense.gajiSopir }] : []),
+        ...(ownerShipExpense.sewaMobil > 0 ? [{ name: 'Sewa Mobil / Armada Luar', amount: ownerShipExpense.sewaMobil }] : []),
+        ...(ownerShipExpense.opsTambahan > 0 ? [{ name: 'Operasional Tambahan', amount: ownerShipExpense.opsTambahan }] : []),
+    ] : [];
+
+    const shipCostsTotal = shipExpenses.reduce((sum, e) => sum + e.amount, 0);
+    const fieldExpensesTotal = expenses.reduce((sum, tx) => sum + tx.amount, 0);
+    const totalExpenses = shipCostsTotal + fieldExpensesTotal;
     const profit = totalRevenue - totalExpenses;
 
     return (
@@ -150,10 +176,19 @@ function PrintVoyageReportContent({ params }: { params: Promise<{ id: string }> 
                                 <td className="py-3 text-right font-medium">{formatRupiah(t.jumlah)}</td>
                             </tr>
                         ))}
+                        {penjualanMakassar > 0 && (
+                            <tr className="bg-emerald-50/50 font-semibold text-emerald-900">
+                                <td className="py-3 text-emerald-700">{transactions.length + 1}</td>
+                                <td className="py-3 font-mono font-bold text-emerald-700">MKS-SALES</td>
+                                <td className="py-3 text-sm">Penjualan Makassar</td>
+                                <td className="py-3 text-center">-</td>
+                                <td className="py-3 text-right font-black text-emerald-700">{formatRupiah(penjualanMakassar)}</td>
+                            </tr>
+                        )}
                         <tr className="bg-blue-50 font-bold border-t border-blue-100">
                             <td colSpan={3} className="py-3 text-right pr-4 uppercase text-xs tracking-wider">Total Pendapatan</td>
                             <td className="py-3 text-center">{transactions.reduce((sum, t) => sum + t.koli, 0)}</td>
-                            <td className="py-3 text-right text-blue-700">{formatRupiah(totalRevenue)}</td>
+                            <td className="py-3 text-right text-blue-700 font-mono font-black">{formatRupiah(totalRevenue)}</td>
                         </tr>
                     </tbody>
                 </table>
@@ -173,9 +208,18 @@ function PrintVoyageReportContent({ params }: { params: Promise<{ id: string }> 
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
+                        {shipExpenses.map((se, idx) => (
+                            <tr key={`ship-${idx}`} className="bg-purple-50/30">
+                                <td className="py-3 text-gray-500">{idx + 1}</td>
+                                <td className="py-3 text-gray-600 font-mono">-</td>
+                                <td className="py-3 font-bold text-purple-900">Operasional Kapal</td>
+                                <td className="py-3 text-gray-800 font-semibold">{se.name}</td>
+                                <td className="py-3 text-right font-mono font-bold text-red-600">{formatRupiah(se.amount)}</td>
+                            </tr>
+                        ))}
                         {expenses.map((e, i) => (
                             <tr key={e.id}>
-                                <td className="py-3 text-gray-500">{i + 1}</td>
+                                <td className="py-3 text-gray-500">{shipExpenses.length + i + 1}</td>
                                 <td className="py-3 text-gray-600">{new Date(e.date).toLocaleDateString('id-ID')}</td>
                                 <td className="py-3 font-medium text-gray-800">{EXPENSE_CATEGORY_LABELS[e.category]}</td>
                                 <td className="py-3 text-gray-600">{e.description}</td>
@@ -184,7 +228,7 @@ function PrintVoyageReportContent({ params }: { params: Promise<{ id: string }> 
                         ))}
                         <tr className="bg-red-50 font-bold border-t border-red-100">
                             <td colSpan={4} className="py-3 text-right pr-4 uppercase text-xs tracking-wider">Total Pengeluaran</td>
-                            <td className="py-3 text-right text-red-700">{formatRupiah(totalExpenses)}</td>
+                            <td className="py-3 text-right text-red-700 font-mono font-black">{formatRupiah(totalExpenses)}</td>
                         </tr>
                     </tbody>
                 </table>

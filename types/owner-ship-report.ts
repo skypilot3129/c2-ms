@@ -5,7 +5,9 @@ export interface OwnerShipExpense {
     shipName: string;
     departureDate: string; // YYYY-MM-DD
     route: string;
-    tiket: number;
+    penjualanMakassar?: number; // Penjualan / omzet tambahan di Makassar (menambah omzet kapal)
+    tiket: number;              // Biaya Tiket Kapal (Surabaya)
+    tiketMakassar?: number;     // Biaya Tiket Makassar
     opsMakassar: number;
     opsSurabaya: number;
     gajiSopir: number;
@@ -26,16 +28,19 @@ export interface OwnerShipSummaryRow {
     vehicleNumbers: string[];
     status: string;
     sttCount: number;
-    totalRevenue: number; // Omzet otomatis dari data STT di Pemberangkatan
-    tiket: number;
+    omzetStt: number;          // Omzet otomatis muatan STT kapal dari Surabaya
+    penjualanMakassar: number; // Penjualan / omzet tambahan di Makassar
+    totalRevenue: number;      // Total Omzet Keseluruhan: omzetStt + penjualanMakassar
+    tiket: number;             // Tiket Kapal (Surabaya)
+    tiketMakassar: number;     // Tiket Makassar
     opsMakassar: number;
     opsSurabaya: number;
     gajiSopir: number;
     sewaMobil: number;
     opsTambahan: number;
-    totalExpenses: number; // Tiket + Ops MKS + Ops SBY + Gaji Sopir + Sewa Mobil + Ops Tambahan
-    netProfit: number; // totalRevenue - totalExpenses
-    profitMargin: number; // (netProfit / totalRevenue) * 100
+    totalExpenses: number;     // Tiket + Tiket Mks + Ops MKS + Ops SBY + Gaji Sopir + Sewa Mobil + Ops Tambahan
+    netProfit: number;         // totalRevenue - totalExpenses
+    profitMargin: number;      // (netProfit / totalRevenue) * 100
     notes?: string;
     hasManualExpense: boolean;
 }

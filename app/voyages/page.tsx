@@ -28,8 +28,11 @@ interface EnrichedVoyage extends Voyage {
     sttCount: number;
     totalKoli: number;
     totalWeight: number; // in kg
+    omzetStt: number;
+    penjualanMakassar: number;
     totalRevenue: number;
     tiket: number;
+    tiketMakassar: number;
     opsMakassar: number;
     opsSurabaya: number;
     gajiSopir: number;
@@ -63,7 +66,9 @@ export default function VoyagesPage() {
     // Cost Modal States
     const [isCostModalOpen, setIsCostModalOpen] = useState(false);
     const [selectedVoyageForCost, setSelectedVoyageForCost] = useState<EnrichedVoyage | null>(null);
+    const [formPenjualanMakassar, setFormPenjualanMakassar] = useState<number>(0);
     const [formTiket, setFormTiket] = useState<number>(0);
+    const [formTiketMakassar, setFormTiketMakassar] = useState<number>(0);
     const [formOpsMakassar, setFormOpsMakassar] = useState<number>(0);
     const [formOpsSurabaya, setFormOpsSurabaya] = useState<number>(0);
     const [formGajiSopir, setFormGajiSopir] = useState<number>(0);
@@ -152,7 +157,9 @@ export default function VoyagesPage() {
 
             // Lookup manual costs
             const costDoc = expensesMap.get(v.id);
+            const penjualanMakassar = costDoc?.penjualanMakassar || 0;
             const tiket = costDoc?.tiket || 0;
+            const tiketMakassar = costDoc?.tiketMakassar || 0;
             const opsMakassar = costDoc?.opsMakassar || 0;
             const opsSurabaya = costDoc?.opsSurabaya || 0;
             const gajiSopir = costDoc?.gajiSopir || 0;
@@ -161,9 +168,11 @@ export default function VoyagesPage() {
             const notesText = costDoc?.notes || v.notes || '';
             const hasManualExpense = costDoc !== undefined;
 
-            const totalExpenses = tiket + opsMakassar + opsSurabaya + gajiSopir + sewaMobil + opsTambahan;
-            const netProfit = totalRevenue - totalExpenses;
-            const profitMargin = totalRevenue > 0 ? Math.round((netProfit / totalRevenue) * 100) : 0;
+            const omzetStt = totalRevenue;
+            const totalShipRevenue = omzetStt + penjualanMakassar;
+            const totalExpenses = tiket + tiketMakassar + opsMakassar + opsSurabaya + gajiSopir + sewaMobil + opsTambahan;
+            const netProfit = totalShipRevenue - totalExpenses;
+            const profitMargin = totalShipRevenue > 0 ? Math.round((netProfit / totalShipRevenue) * 100) : 0;
             const costPerKg = totalWeight > 0 ? Math.round(totalExpenses / totalWeight) : 0;
 
             return {
@@ -171,8 +180,11 @@ export default function VoyagesPage() {
                 sttCount: linkedTxs.length,
                 totalKoli,
                 totalWeight,
-                totalRevenue,
+                omzetStt,
+                penjualanMakassar,
+                totalRevenue: totalShipRevenue,
                 tiket,
+                tiketMakassar,
                 opsMakassar,
                 opsSurabaya,
                 gajiSopir,
@@ -296,7 +308,9 @@ export default function VoyagesPage() {
     const handleOpenCostModal = (voyage: EnrichedVoyage, e?: React.MouseEvent) => {
         if (e) e.stopPropagation();
         setSelectedVoyageForCost(voyage);
+        setFormPenjualanMakassar(voyage.penjualanMakassar || 0);
         setFormTiket(voyage.tiket || 0);
+        setFormTiketMakassar(voyage.tiketMakassar || 0);
         setFormOpsMakassar(voyage.opsMakassar || 0);
         setFormOpsSurabaya(voyage.opsSurabaya || 0);
         setFormGajiSopir(voyage.gajiSopir || 0);
@@ -323,7 +337,9 @@ export default function VoyagesPage() {
                 shipName: selectedVoyageForCost.shipName || '',
                 departureDate: depDateStr,
                 route: selectedVoyageForCost.route || '',
+                penjualanMakassar: Number(formPenjualanMakassar) || 0,
                 tiket: Number(formTiket) || 0,
+                tiketMakassar: Number(formTiketMakassar) || 0,
                 opsMakassar: Number(formOpsMakassar) || 0,
                 opsSurabaya: Number(formOpsSurabaya) || 0,
                 gajiSopir: Number(formGajiSopir) || 0,
@@ -1179,6 +1195,11 @@ export default function VoyagesPage() {
                                                     </td>
                                                     <td className="p-3 text-right font-mono font-bold text-blue-900 whitespace-nowrap">
                                                         {formatRupiah(v.totalRevenue)}
+                                                        {v.penjualanMakassar > 0 && (
+                                                            <div className="text-[9.5px] text-emerald-600 font-sans font-medium">
+                                                                + Mks: {formatRupiah(v.penjualanMakassar)}
+                                                            </div>
+                                                        )}
                                                     </td>
                                                     <td className="p-3 text-right font-mono font-semibold text-rose-700 whitespace-nowrap">
                                                         {formatRupiah(v.totalExpenses)}
@@ -1262,16 +1283,50 @@ export default function VoyagesPage() {
                             {/* Modal Form Scrollable Content */}
                             <form onSubmit={handleSaveCost} className="p-4 sm:p-6 overflow-y-auto space-y-4 text-xs">
                                 
-                                {/* Omzet STT Context Box */}
-                                <div className="bg-blue-50 p-3 rounded-xl border border-blue-200 flex justify-between items-center text-xs">
-                                    <span className="text-blue-800 font-medium">Omzet Otomatis dari STT ({selectedVoyageForCost.sttCount} Resi):</span>
-                                    <span className="font-black text-blue-950 font-mono text-sm">{formatRupiah(selectedVoyageForCost.totalRevenue)}</span>
+                                {/* Omzet & Penjualan Context Box */}
+                                <div className="bg-gradient-to-r from-blue-900 to-indigo-900 text-white p-3.5 rounded-xl space-y-2 text-xs">
+                                    <div className="flex justify-between items-center text-blue-200">
+                                        <span>Omzet Muatan STT ({selectedVoyageForCost.sttCount} Resi):</span>
+                                        <span className="font-mono font-bold text-white">{formatRupiah(selectedVoyageForCost.omzetStt)}</span>
+                                    </div>
+                                    {formPenjualanMakassar > 0 && (
+                                        <div className="flex justify-between items-center text-emerald-300">
+                                            <span>Penjualan Makassar:</span>
+                                            <span className="font-mono font-bold">+{formatRupiah(formPenjualanMakassar)}</span>
+                                        </div>
+                                    )}
+                                    <div className="flex justify-between items-center font-black pt-1 border-t border-white/20">
+                                        <span>Total Omzet Kapal:</span>
+                                        <span className="font-mono text-emerald-300 text-sm">
+                                            {formatRupiah(selectedVoyageForCost.omzetStt + (Number(formPenjualanMakassar) || 0))}
+                                        </span>
+                                    </div>
                                 </div>
 
-                                {/* Form Fields for 6 Voyage Costs */}
+                                {/* Penjualan Makassar Input */}
+                                <div className="bg-emerald-50 border border-emerald-200 p-3 rounded-xl">
+                                    <label className="font-extrabold text-emerald-950 block mb-1 text-xs flex items-center justify-between">
+                                        <span>💵 Penjualan Makassar (Rp)</span>
+                                        <span className="text-[10px] text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full font-bold">
+                                            Penambah Omzet Kapal
+                                        </span>
+                                    </label>
+                                    <input
+                                        type="number"
+                                        value={formPenjualanMakassar || ''}
+                                        onChange={(e) => setFormPenjualanMakassar(Number(e.target.value))}
+                                        placeholder="Rp 0"
+                                        className="w-full px-3 py-2 bg-white border border-emerald-300 rounded-xl font-mono font-bold text-gray-900 outline-none focus:ring-2 focus:ring-emerald-300 text-xs"
+                                    />
+                                    <p className="text-[10px] text-emerald-700 mt-1">
+                                        Nilai ini akan otomatis menambah total omzet muatan kapal.
+                                    </p>
+                                </div>
+
+                                {/* Form Fields for Voyage Costs */}
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                     <div>
-                                        <label className="font-extrabold text-gray-800 block mb-1">Tiket Kapal (Rp)</label>
+                                        <label className="font-extrabold text-gray-800 block mb-1">🎟️ Tiket Kapal / SBY (Rp)</label>
                                         <input
                                             type="number"
                                             value={formTiket || ''}
@@ -1281,7 +1336,17 @@ export default function VoyagesPage() {
                                         />
                                     </div>
                                     <div>
-                                        <label className="font-extrabold text-gray-800 block mb-1">Operasional Makassar (Rp)</label>
+                                        <label className="font-extrabold text-gray-800 block mb-1">🎟️ Tiket Makassar (Rp)</label>
+                                        <input
+                                            type="number"
+                                            value={formTiketMakassar || ''}
+                                            onChange={(e) => setFormTiketMakassar(Number(e.target.value))}
+                                            placeholder="Rp 0"
+                                            className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl font-mono font-bold text-gray-900 outline-none focus:ring-2 focus:ring-blue-200 text-xs"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="font-extrabold text-gray-800 block mb-1">🏢 Operasional Makassar (Rp)</label>
                                         <input
                                             type="number"
                                             value={formOpsMakassar || ''}
@@ -1291,7 +1356,7 @@ export default function VoyagesPage() {
                                         />
                                     </div>
                                     <div>
-                                        <label className="font-extrabold text-gray-800 block mb-1">Operasional Surabaya (Rp)</label>
+                                        <label className="font-extrabold text-gray-800 block mb-1">🏢 Operasional Surabaya (Rp)</label>
                                         <input
                                             type="number"
                                             value={formOpsSurabaya || ''}
@@ -1301,7 +1366,7 @@ export default function VoyagesPage() {
                                         />
                                     </div>
                                     <div>
-                                        <label className="font-extrabold text-gray-800 block mb-1">Gaji Sopir (Rp)</label>
+                                        <label className="font-extrabold text-gray-800 block mb-1">👨‍✈️ Gaji Sopir (Rp)</label>
                                         <input
                                             type="number"
                                             value={formGajiSopir || ''}
@@ -1311,7 +1376,7 @@ export default function VoyagesPage() {
                                         />
                                     </div>
                                     <div>
-                                        <label className="font-extrabold text-gray-800 block mb-1">Sewa Mobil (Rp)</label>
+                                        <label className="font-extrabold text-gray-800 block mb-1">🚛 Sewa Mobil (Rp)</label>
                                         <input
                                             type="number"
                                             value={formSewaMobil || ''}
@@ -1320,8 +1385,8 @@ export default function VoyagesPage() {
                                             className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl font-mono font-bold text-gray-900 outline-none focus:ring-2 focus:ring-blue-200 text-xs"
                                         />
                                     </div>
-                                    <div>
-                                        <label className="font-extrabold text-gray-800 block mb-1">Operasional Tambahan (Rp)</label>
+                                    <div className="sm:col-span-2">
+                                        <label className="font-extrabold text-gray-800 block mb-1">➕ Operasional Tambahan (Rp)</label>
                                         <input
                                             type="number"
                                             value={formOpsTambahan || ''}
@@ -1346,17 +1411,22 @@ export default function VoyagesPage() {
 
                                 {/* Live P&L Preview */}
                                 {(() => {
-                                    const totalCostCalc = formTiket + formOpsMakassar + formOpsSurabaya + formGajiSopir + formSewaMobil + formOpsTambahan;
-                                    const netProfitCalc = selectedVoyageForCost.totalRevenue - totalCostCalc;
-                                    const marginCalc = selectedVoyageForCost.totalRevenue > 0
-                                        ? Math.round((netProfitCalc / selectedVoyageForCost.totalRevenue) * 100)
+                                    const totalRevCalc = selectedVoyageForCost.omzetStt + (Number(formPenjualanMakassar) || 0);
+                                    const totalCostCalc = formTiket + formTiketMakassar + formOpsMakassar + formOpsSurabaya + formGajiSopir + formSewaMobil + formOpsTambahan;
+                                    const netProfitCalc = totalRevCalc - totalCostCalc;
+                                    const marginCalc = totalRevCalc > 0
+                                        ? Math.round((netProfitCalc / totalRevCalc) * 100)
                                         : 0;
 
                                     return (
                                         <div className="bg-slate-900 text-white p-3.5 rounded-xl space-y-1.5">
                                             <div className="flex justify-between text-[11px] text-slate-300">
+                                                <span>Total Omzet Kapal:</span>
+                                                <span className="font-mono text-emerald-300 font-bold">{formatRupiah(totalRevCalc)}</span>
+                                            </div>
+                                            <div className="flex justify-between text-[11px] text-slate-300">
                                                 <span>Total Biaya Terinput:</span>
-                                                <span className="font-mono text-rose-300 font-bold">{formatRupiah(totalCostCalc)}</span>
+                                                <span className="font-mono text-rose-300 font-bold">-{formatRupiah(totalCostCalc)}</span>
                                             </div>
                                             <div className="flex justify-between text-xs font-bold pt-1.5 border-t border-white/10">
                                                 <span>Estimasi Laba Bersih:</span>

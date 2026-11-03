@@ -97,7 +97,9 @@ function PrintOwnerOmzetKapalContent() {
             });
 
             const manualCost = expensesMap.get(v.id);
+            const penjualanMakassar = manualCost?.penjualanMakassar || 0;
             const tiket = manualCost?.tiket || 0;
+            const tiketMakassar = manualCost?.tiketMakassar || 0;
             const opsMakassar = manualCost?.opsMakassar || 0;
             const opsSurabaya = manualCost?.opsSurabaya || 0;
             const gajiSopir = manualCost?.gajiSopir || 0;
@@ -106,9 +108,11 @@ function PrintOwnerOmzetKapalContent() {
             const notes = manualCost?.notes || '';
             const hasManualExpense = manualCost !== undefined;
 
-            const totalExpenses = tiket + opsMakassar + opsSurabaya + gajiSopir + sewaMobil + opsTambahan;
-            const netProfit = totalRevenue - totalExpenses;
-            const profitMargin = totalRevenue > 0 ? Math.round((netProfit / totalRevenue) * 100) : 0;
+            const omzetStt = totalRevenue;
+            const totalShipRevenue = omzetStt + penjualanMakassar;
+            const totalExpenses = tiket + tiketMakassar + opsMakassar + opsSurabaya + gajiSopir + sewaMobil + opsTambahan;
+            const netProfit = totalShipRevenue - totalExpenses;
+            const profitMargin = totalShipRevenue > 0 ? Math.round((netProfit / totalShipRevenue) * 100) : 0;
 
             const depDateObj = v.departureDate instanceof Date ? v.departureDate : new Date(v.departureDate);
             const depDateStr = !isNaN(depDateObj.getTime()) ? depDateObj.toISOString().split('T')[0] : '';
@@ -123,8 +127,11 @@ function PrintOwnerOmzetKapalContent() {
                 vehicleNumbers: v.vehicleNumbers || (v.vehicleNumber ? [v.vehicleNumber] : []),
                 status: v.status,
                 sttCount: linkedTxList.length,
-                totalRevenue,
+                omzetStt,
+                penjualanMakassar,
+                totalRevenue: totalShipRevenue,
                 tiket,
+                tiketMakassar,
                 opsMakassar,
                 opsSurabaya,
                 gajiSopir,
@@ -156,8 +163,11 @@ function PrintOwnerOmzetKapalContent() {
     }, [voyages, txMap, expensesMap, modeParam, monthParam, yearParam, shipParam]);
 
     const totals = useMemo(() => {
+        let totalOmzetStt = 0;
+        let totalPenjualanMakassar = 0;
         let totalRevenue = 0;
         let totalTiket = 0;
+        let totalTiketMakassar = 0;
         let totalOpsMakassar = 0;
         let totalOpsSurabaya = 0;
         let totalGajiSopir = 0;
@@ -166,8 +176,11 @@ function PrintOwnerOmzetKapalContent() {
         let totalExpenses = 0;
 
         consolidatedRows.forEach(r => {
+            totalOmzetStt += r.omzetStt;
+            totalPenjualanMakassar += r.penjualanMakassar;
             totalRevenue += r.totalRevenue;
             totalTiket += r.tiket;
+            totalTiketMakassar += r.tiketMakassar;
             totalOpsMakassar += r.opsMakassar;
             totalOpsSurabaya += r.opsSurabaya;
             totalGajiSopir += r.gajiSopir;
@@ -180,8 +193,11 @@ function PrintOwnerOmzetKapalContent() {
         const avgMargin = totalRevenue > 0 ? Math.round((netProfit / totalRevenue) * 100) : 0;
 
         return {
+            totalOmzetStt,
+            totalPenjualanMakassar,
             totalRevenue,
             totalTiket,
+            totalTiketMakassar,
             totalOpsMakassar,
             totalOpsSurabaya,
             totalGajiSopir,
@@ -205,13 +221,18 @@ function PrintOwnerOmzetKapalContent() {
         text += `🚢 *Jumlah Kapal:* ${consolidatedRows.length} Keberangkatan\n\n`;
 
         text += `🌟 *RINGKASAN EKSEKUTIF OWNER:*\n`;
+        text += `• Total Omzet STT: *${formatRupiah(totals.totalOmzetStt)}*\n`;
+        if (totals.totalPenjualanMakassar > 0) {
+            text += `• Total Penjualan MKS: *${formatRupiah(totals.totalPenjualanMakassar)}*\n`;
+        }
         text += `• Total Omzet Kapal: *${formatRupiah(totals.totalRevenue)}*\n`;
         text += `• Total Pengeluaran: *${formatRupiah(totals.totalExpenses)}*\n`;
         text += `• Total Laba Bersih: *${formatRupiah(totals.netProfit)}*\n`;
         text += `• Rata-rata Margin: *${totals.avgMargin}%*\n\n`;
 
         text += `📋 *RINCIAN BIAYA GLOBAL:*\n`;
-        text += `• 🎟️ Tiket Kapal: ${formatRupiah(totals.totalTiket)}\n`;
+        text += `• 🎟️ Tiket Kapal (SBY): ${formatRupiah(totals.totalTiket)}\n`;
+        text += `• 🎟️ Tiket Makassar: ${formatRupiah(totals.totalTiketMakassar)}\n`;
         text += `• 🏢 Ops Makassar: ${formatRupiah(totals.totalOpsMakassar)}\n`;
         text += `• 🏢 Ops Surabaya: ${formatRupiah(totals.totalOpsSurabaya)}\n`;
         text += `• 👨‍✈️ Gaji Sopir: ${formatRupiah(totals.totalGajiSopir)}\n`;
@@ -355,7 +376,9 @@ function PrintOwnerOmzetKapalContent() {
                     {/* Total Omzet */}
                     <div className="bg-blue-50 border-2 border-blue-300 p-2 rounded-xl text-center">
                         <div className="text-[8px] font-black text-blue-900 uppercase">1. TOTAL OMZET KAPAL</div>
-                        <div className="text-[7.5px] text-blue-700 font-mono">Muatan STT ({consolidatedRows.length} Kapal)</div>
+                        <div className="text-[7.5px] text-blue-700 font-mono">
+                            STT ({formatRupiah(totals.totalOmzetStt)}){totals.totalPenjualanMakassar > 0 ? ` + Mks (${formatRupiah(totals.totalPenjualanMakassar)})` : ''}
+                        </div>
                         <div className="text-[12px] font-black text-blue-950 mt-1 font-mono">
                             {formatRupiah(totals.totalRevenue)}
                         </div>
@@ -364,7 +387,7 @@ function PrintOwnerOmzetKapalContent() {
                     {/* Total Biaya */}
                     <div className="bg-rose-50 border-2 border-rose-300 p-2 rounded-xl text-center">
                         <div className="text-[8px] font-black text-rose-900 uppercase">2. TOTAL BIAYA PENGELUARAN</div>
-                        <div className="text-[7.5px] text-rose-700 font-mono">Tiket + Ops MKS/SBY + Gaji + Sewa + Tambahan</div>
+                        <div className="text-[7.5px] text-rose-700 font-mono">Tiket SBY/MKS + Ops MKS/SBY + Gaji + Sewa + Tambahan</div>
                         <div className="text-[12px] font-black text-rose-950 mt-1 font-mono">
                             -{formatRupiah(totals.totalExpenses)}
                         </div>
@@ -411,6 +434,7 @@ function PrintOwnerOmzetKapalContent() {
                                 <th className="w-28">Rute &amp; Armada</th>
                                 <th className="text-right w-24 bg-blue-100/70 text-blue-950 font-black">Omzet Kapal (+)</th>
                                 <th className="text-right w-16">Tiket</th>
+                                <th className="text-right w-16">Tiket Mks</th>
                                 <th className="text-right w-16">Ops Mks</th>
                                 <th className="text-right w-16">Ops Sby</th>
                                 <th className="text-right w-16">Gaji Sopir</th>
@@ -444,11 +468,19 @@ function PrintOwnerOmzetKapalContent() {
                                     {/* Omzet */}
                                     <td className="text-right font-black text-blue-900 font-mono whitespace-nowrap bg-blue-50/40">
                                         {formatRupiah(r.totalRevenue)}
+                                        {r.penjualanMakassar > 0 && (
+                                            <div className="text-[6.5px] text-emerald-700 font-sans font-medium">
+                                                + Mks: {formatRupiah(r.penjualanMakassar)}
+                                            </div>
+                                        )}
                                     </td>
 
-                                    {/* 6 Biaya Manual */}
+                                    {/* Biaya Manual */}
                                     <td className="text-right font-mono text-slate-800 whitespace-nowrap">
                                         {r.tiket > 0 ? formatRupiah(r.tiket) : '—'}
+                                    </td>
+                                    <td className="text-right font-mono text-slate-800 whitespace-nowrap">
+                                        {r.tiketMakassar > 0 ? formatRupiah(r.tiketMakassar) : '—'}
                                     </td>
                                     <td className="text-right font-mono text-slate-800 whitespace-nowrap">
                                         {r.opsMakassar > 0 ? formatRupiah(r.opsMakassar) : '—'}
@@ -485,7 +517,7 @@ function PrintOwnerOmzetKapalContent() {
 
                             {consolidatedRows.length === 0 && (
                                 <tr>
-                                    <td colSpan={14} className="text-center py-6 text-slate-400 italic">
+                                    <td colSpan={15} className="text-center py-6 text-slate-400 italic">
                                         {loading ? 'Memuat data kapal...' : `Tidak ada data kapal pada periode ${periodLabel}.`}
                                     </td>
                                 </tr>
@@ -501,6 +533,7 @@ function PrintOwnerOmzetKapalContent() {
                                         {formatRupiah(totals.totalRevenue)}
                                     </td>
                                     <td className="text-right p-2 font-mono">{formatRupiah(totals.totalTiket)}</td>
+                                    <td className="text-right p-2 font-mono">{formatRupiah(totals.totalTiketMakassar)}</td>
                                     <td className="text-right p-2 font-mono">{formatRupiah(totals.totalOpsMakassar)}</td>
                                     <td className="text-right p-2 font-mono">{formatRupiah(totals.totalOpsSurabaya)}</td>
                                     <td className="text-right p-2 font-mono">{formatRupiah(totals.totalGajiSopir)}</td>
