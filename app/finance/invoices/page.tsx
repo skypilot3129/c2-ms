@@ -3,12 +3,14 @@
 import { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
-import { subscribeToInvoices, deleteInvoice, updateInvoiceStatus } from '@/lib/firestore-invoices';
+import { subscribeToInvoices, deleteInvoice, updateInvoiceStatus, updateInvoiceTransactions } from '@/lib/firestore-invoices';
 import { subscribeToTransactions } from '@/lib/firestore-transactions';
+import { subscribeToVoyages } from '@/lib/firestore-voyages';
 import type { Invoice } from '@/types/invoice';
 import type { Transaction } from '@/types/transaction';
+import type { Voyage } from '@/types/voyage';
 import { formatRupiah } from '@/lib/currency';
-import { Plus, Search, Trash2, CheckCircle2, Printer, CheckSquare, Eye, ChevronLeft, ChevronRight, AlertCircle, ArrowUpDown, ArrowUp, ArrowDown, Filter, FileText, Receipt, RotateCcw } from 'lucide-react';
+import { Plus, Search, Trash2, CheckCircle2, Printer, CheckSquare, Eye, ChevronLeft, ChevronRight, AlertCircle, ArrowUpDown, ArrowUp, ArrowDown, Filter, FileText, Receipt, RotateCcw, Link2, X, Ship } from 'lucide-react';
 import ProtectedRoute from '@/components/ProtectedRoute';
 
 type SortField = 'date' | 'totalAmount' | 'clientName' | 'dueDate';
@@ -18,10 +20,18 @@ export default function InvoicesPage() {
     const { user } = useAuth();
     const [invoices, setInvoices] = useState<Invoice[]>([]);
     const [transactions, setTransactions] = useState<Transaction[]>([]);
+    const [voyages, setVoyages] = useState<Voyage[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [activeTab, setActiveTab] = useState<'all' | 'paid' | 'unpaid'>('all');
     const [processingId, setProcessingId] = useState<string | null>(null);
+
+    // Manage linked STTs modal state
+    const [managingInvoice, setManagingInvoice] = useState<Invoice | null>(null);
+    const [managingSelectedIds, setManagingSelectedIds] = useState<string[]>([]);
+    const [managingSearch, setManagingSearch] = useState('');
+    const [managingOnlySameClient, setManagingOnlySameClient] = useState(true);
+    const [savingManage, setSavingManage] = useState(false);
 
     // Filter & Pagination State
     const [currentPage, setCurrentPage] = useState(1);
@@ -48,20 +58,41 @@ export default function InvoicesPage() {
             setTransactions(txData);
         }, user.uid);
 
+        const unsubscribeVoyages = subscribeToVoyages(user.uid, (voyageData) => {
+            setVoyages(voyageData);
+        });
+
         return () => {
             unsubscribeInvoices();
             unsubscribeTx();
+            unsubscribeVoyages();
         };
     }, [user]);
 
-    // Dynamically compute live sender name & total amount for invoices based on their linked transactions
-    const liveInvoices = useMemo(() => {
-        if (transactions.length === 0) return invoices;
+    const voyageByTxId = useMemo(() => {
+        const map = new Map<string, Voyage>();
+        voyages.forEach(v => {
+            (v.transactionIds || []).forEach(tid => map.set(tid, v));
+        });
+        return map;
+    }, [voyages]);
+
+    const { liveInvoices, sttNumbersByInvId } = useMemo(() => {
+        const sttMap = new Map<string, string[]>();
         const txMap = new Map(transactions.map(t => [t.id, t]));
-        return invoices.map(inv => {
-            if (!inv.transactionIds || inv.transactionIds.length === 0) return inv;
-            const linked = inv.transactionIds.map(tid => txMap.get(tid)).filter((t): t is Transaction => t !== undefined);
-            if (linked.length === 0) return inv;
+
+        const enriched = invoices.map(inv => {
+            const idSet = new Set<string>(inv.transactionIds || []);
+            transactions.forEach(t => {
+                if (t.invoiceId === inv.id) idSet.add(t.id);
+            });
+            const resolvedIds = Array.from(idSet);
+            const linked = resolvedIds.map(tid => txMap.get(tid)).filter((t): t is Transaction => t !== undefined);
+            sttMap.set(inv.id, linked.map(t => t.noSTT).filter(Boolean));
+
+            if (linked.length === 0) {
+                return { ...inv, transactionIds: resolvedIds };
+            }
 
             const primaryTx = linked[0];
             const liveClientName = primaryTx.pengirimName || inv.clientName;
@@ -71,10 +102,13 @@ export default function InvoicesPage() {
 
             return {
                 ...inv,
+                transactionIds: resolvedIds,
                 clientName: liveClientName,
                 totalAmount: liveTotalAmount,
             };
         });
+
+        return { liveInvoices: enriched, sttNumbersByInvId: sttMap };
     }, [invoices, transactions]);
 
     const isOverdue = (inv: Invoice) => {
@@ -96,10 +130,14 @@ export default function InvoicesPage() {
 
         let unpaidCount = 0;
         let paidCount = 0;
+        const searchQ = searchTerm.trim().toLowerCase();
 
         let filtered = liveInvoices.filter(inv => {
-            const matchesSearch = inv.invoiceNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                inv.clientName.toLowerCase().includes(searchTerm.toLowerCase());
+            const sttNumbers = sttNumbersByInvId.get(inv.id) || [];
+            const matchesSearch = !searchQ ||
+                inv.invoiceNumber.toLowerCase().includes(searchQ) ||
+                inv.clientName.toLowerCase().includes(searchQ) ||
+                sttNumbers.some(stt => stt.toLowerCase().includes(searchQ));
 
             // Collect months for filter
             const monthStr = `${inv.issueDate.getFullYear()}-${String(inv.issueDate.getMonth() + 1).padStart(2, '0')}`;
@@ -160,7 +198,7 @@ export default function InvoicesPage() {
             tabCounts: { all: liveInvoices.length, unpaid: unpaidCount, paid: paidCount },
             months: monthOptions
         };
-    }, [liveInvoices, searchTerm, activeTab, dateFilter, showOverdueOnly, sortField, sortDir]);
+    }, [liveInvoices, sttNumbersByInvId, searchTerm, activeTab, dateFilter, showOverdueOnly, sortField, sortDir]);
 
     // Pagination
     const totalPages = Math.ceil(filteredInvoices.length / pageSize);
@@ -209,6 +247,73 @@ export default function InvoicesPage() {
             }
         }
     };
+
+    const handleOpenManageModal = (inv: Invoice) => {
+        setManagingInvoice(inv);
+        setManagingSelectedIds(inv.transactionIds || []);
+        setManagingSearch('');
+        setManagingOnlySameClient(true);
+    };
+
+    const handleSaveManagedTransactions = async () => {
+        if (!managingInvoice) return;
+        setSavingManage(true);
+        try {
+            await updateInvoiceTransactions(managingInvoice.id, managingSelectedIds);
+            setManagingInvoice(null);
+        } catch (error: any) {
+            console.error('Error updating invoice transactions:', error);
+            alert(`Gagal menyimpan daftar STT: ${error?.message || 'Unknown error'}`);
+        } finally {
+            setSavingManage(false);
+        }
+    };
+
+    const manageableTransactions = useMemo(() => {
+        if (!managingInvoice) return [];
+        const clientNorm = (managingInvoice.clientName || '').trim().toLowerCase();
+        const q = managingSearch.trim().toLowerCase();
+
+        return transactions
+            .filter(t => t.status !== 'dibatalkan')
+            .filter(t => {
+                const isAlreadySelected = managingSelectedIds.includes(t.id);
+                if (isAlreadySelected) return true;
+                if (managingOnlySameClient && clientNorm) {
+                    const senderNorm = (t.pengirimName || '').trim().toLowerCase();
+                    if (senderNorm !== clientNorm && !senderNorm.includes(clientNorm)) return false;
+                }
+                return true;
+            })
+            .filter(t => {
+                if (!q) return true;
+                const voyage = voyageByTxId.get(t.id);
+                return (
+                    (t.noSTT || '').toLowerCase().includes(q) ||
+                    (t.pengirimName || '').toLowerCase().includes(q) ||
+                    (t.penerimaName || '').toLowerCase().includes(q) ||
+                    (t.tujuan || '').toLowerCase().includes(q) ||
+                    (voyage?.shipName || '').toLowerCase().includes(q) ||
+                    (voyage?.voyageNumber || '').toLowerCase().includes(q)
+                );
+            })
+            .sort((a, b) => {
+                const aSel = managingSelectedIds.includes(a.id) ? 0 : 1;
+                const bSel = managingSelectedIds.includes(b.id) ? 0 : 1;
+                if (aSel !== bSel) return aSel - bSel;
+                const da = a.tanggal instanceof Date ? a.tanggal.getTime() : new Date(a.tanggal).getTime();
+                const db = b.tanggal instanceof Date ? b.tanggal.getTime() : new Date(b.tanggal).getTime();
+                return db - da;
+            });
+    }, [managingInvoice, managingSelectedIds, managingOnlySameClient, managingSearch, transactions, voyageByTxId]);
+
+    const managingComputedTotal = useMemo(() => {
+        const selectedSet = new Set(managingSelectedIds);
+        const picked = transactions.filter(t => selectedSet.has(t.id));
+        const sub = picked.reduce((sum, t) => sum + (Number(t.jumlah) || 0), 0);
+        const taxable = picked.some(t => Boolean(t.isTaxable) || (Number(t.ppn) || 0) > 0);
+        return sub + (taxable ? Math.round(sub * 0.011) : 0);
+    }, [managingSelectedIds, transactions]);
 
     const toggleSort = (field: SortField) => {
         if (sortField === field) {
@@ -338,7 +443,7 @@ export default function InvoicesPage() {
                             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                             <input
                                 type="text"
-                                placeholder="Cari No. Invoice / Client..."
+                                placeholder="Cari No. Invoice, Client, atau No. STT..."
                                 className="pl-9 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm w-full focus:ring-2 focus:ring-blue-100 transition-all outline-none"
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -396,6 +501,12 @@ export default function InvoicesPage() {
                                             <td className="px-6 py-4 font-mono font-medium text-blue-600">
                                                 {inv.invoiceNumber}
                                                 <div className="text-xs text-gray-400 font-sans mt-0.5">{inv.transactionIds.length} Resi</div>
+                                                {(sttNumbersByInvId.get(inv.id) || []).length > 0 && (
+                                                    <div className="text-[10px] text-gray-500 font-mono mt-0.5 truncate max-w-[180px]" title={(sttNumbersByInvId.get(inv.id) || []).join(', ')}>
+                                                        {(sttNumbersByInvId.get(inv.id) || []).slice(0, 2).join(', ')}
+                                                        {(sttNumbersByInvId.get(inv.id) || []).length > 2 ? ` +${(sttNumbersByInvId.get(inv.id) || []).length - 2}` : ''}
+                                                    </div>
+                                                )}
                                             </td>
                                             <td className="px-6 py-4 text-gray-500">
                                                 {inv.issueDate.toLocaleDateString('id-ID')}
@@ -458,6 +569,13 @@ export default function InvoicesPage() {
                                                             )}
                                                         </button>
                                                     )}
+                                                    <button
+                                                        onClick={() => handleOpenManageModal(inv)}
+                                                        className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors border border-gray-200"
+                                                        title="Kelola Daftar STT pada Invoice Ini"
+                                                    >
+                                                        <Link2 size={16} />
+                                                    </button>
                                                     <Link
                                                         href={`/finance/invoices/${inv.id}/print`}
                                                         target="_blank"
@@ -543,6 +661,12 @@ export default function InvoicesPage() {
                                                 {processingId === inv.id ? 'Memproses...' : 'Ubah ke Belum Lunas'}
                                             </button>
                                         )}
+                                        <button
+                                            onClick={() => handleOpenManageModal(inv)}
+                                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-indigo-600 bg-indigo-50 border border-indigo-200 rounded-lg active:scale-95 transition-transform"
+                                        >
+                                            <Link2 size={14} /> Kelola STT
+                                        </button>
                                         <Link
                                             href={`/finance/invoices/${inv.id}/print`}
                                             target="_blank"
@@ -608,6 +732,140 @@ export default function InvoicesPage() {
                         </div>
                     )}
                 </div>
+
+                {/* Modal: Kelola Daftar STT pada Invoice */}
+                {managingInvoice && (
+                    <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+                        <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] flex flex-col overflow-hidden">
+                            <div className="p-5 border-b border-gray-100 flex items-start justify-between gap-4 bg-gradient-to-r from-indigo-50 to-blue-50">
+                                <div>
+                                    <h3 className="font-bold text-gray-900 text-lg flex items-center gap-2">
+                                        <Link2 size={18} className="text-indigo-600" />
+                                        Kelola Resi STT — Invoice #{managingInvoice.invoiceNumber}
+                                    </h3>
+                                    <p className="text-xs text-gray-600 mt-0.5">
+                                        Client: <strong>{managingInvoice.clientName}</strong> • Status:{' '}
+                                        <span className={managingInvoice.status === 'Paid' ? 'text-emerald-700 font-bold' : 'text-amber-700 font-bold'}>
+                                            {managingInvoice.status === 'Paid' ? 'LUNAS' : 'BELUM LUNAS'}
+                                        </span>
+                                    </p>
+                                </div>
+                                <button
+                                    onClick={() => setManagingInvoice(null)}
+                                    className="p-1.5 hover:bg-white rounded-lg text-gray-500"
+                                >
+                                    <X size={18} />
+                                </button>
+                            </div>
+
+                            <div className="p-4 border-b border-gray-100 space-y-3 bg-gray-50/50">
+                                <div className="relative">
+                                    <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                                    <input
+                                        type="text"
+                                        placeholder="Cari No. STT, Pengirim, Tujuan, Kapal / Voyage..."
+                                        className="w-full pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                                        value={managingSearch}
+                                        onChange={(e) => setManagingSearch(e.target.value)}
+                                    />
+                                </div>
+                                <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                                    <label className="inline-flex items-center gap-2 cursor-pointer text-gray-700 font-medium">
+                                        <input
+                                            type="checkbox"
+                                            checked={managingOnlySameClient}
+                                            onChange={(e) => setManagingOnlySameClient(e.target.checked)}
+                                            className="rounded border-gray-300 text-indigo-600"
+                                        />
+                                        Hanya tampilkan resi pengirim ini ({managingInvoice.clientName})
+                                    </label>
+                                    <div className="text-gray-600">
+                                        Terpilih: <strong className="text-indigo-700">{managingSelectedIds.length} STT</strong> • Total baru:{' '}
+                                        <strong className="text-gray-900">{formatRupiah(managingComputedTotal)}</strong>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="flex-1 overflow-y-auto p-4 space-y-2">
+                                {manageableTransactions.length === 0 ? (
+                                    <p className="text-center py-8 text-sm text-gray-400">
+                                        Tidak ada resi STT yang ditemukan. Coba hilangkan centang filter pengirim.
+                                    </p>
+                                ) : (
+                                    manageableTransactions.map(tx => {
+                                        const isChecked = managingSelectedIds.includes(tx.id);
+                                        const voyage = voyageByTxId.get(tx.id);
+                                        const otherInv = tx.invoiceId && tx.invoiceId !== managingInvoice.id ? tx.invoiceNumber : null;
+                                        const amount = (Number(tx.jumlah) || 0) + (tx.isTaxable || (tx.ppn && Number(tx.ppn) > 0) ? Math.round((Number(tx.jumlah) || 0) * 0.011) : 0);
+                                        return (
+                                            <label
+                                                key={tx.id}
+                                                className={`flex items-center gap-3 p-3 rounded-xl border transition-colors cursor-pointer ${
+                                                    isChecked ? 'bg-indigo-50/70 border-indigo-300' : 'bg-white border-gray-200 hover:bg-gray-50'
+                                                }`}
+                                            >
+                                                <input
+                                                    type="checkbox"
+                                                    checked={isChecked}
+                                                    onChange={(e) => {
+                                                        if (e.target.checked) {
+                                                            setManagingSelectedIds(prev => [...prev, tx.id]);
+                                                        } else {
+                                                            setManagingSelectedIds(prev => prev.filter(id => id !== tx.id));
+                                                        }
+                                                    }}
+                                                    className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                                                />
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex items-center justify-between gap-2">
+                                                        <div className="flex items-center gap-2 flex-wrap">
+                                                            <span className="font-mono font-bold text-sm text-gray-900">{tx.noSTT}</span>
+                                                            {voyage && (
+                                                                <span className="inline-flex items-center gap-1 text-[10px] bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded font-semibold">
+                                                                    <Ship size={10} /> {voyage.shipName || voyage.voyageNumber}
+                                                                </span>
+                                                            )}
+                                                            {otherInv && (
+                                                                <span className="text-[10px] bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded font-semibold">
+                                                                    Saat ini di #{otherInv}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        <span className="font-bold text-sm text-gray-800 shrink-0">{formatRupiah(amount)}</span>
+                                                    </div>
+                                                    <div className="text-xs text-gray-500 mt-0.5 truncate">
+                                                        {new Date(tx.tanggal).toLocaleDateString('id-ID')} • {tx.pengirimName} → {tx.penerimaName} ({tx.tujuan})
+                                                    </div>
+                                                </div>
+                                            </label>
+                                        );
+                                    })
+                                )}
+                            </div>
+
+                            <div className="p-4 border-t border-gray-100 bg-gray-50 flex items-center justify-between gap-3">
+                                <span className="text-[11px] text-gray-500">
+                                    Status lunas STT akan otomatis sinkron dengan status invoice ini.
+                                </span>
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        onClick={() => setManagingInvoice(null)}
+                                        className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-200/60 rounded-xl font-medium"
+                                    >
+                                        Batal
+                                    </button>
+                                    <button
+                                        onClick={handleSaveManagedTransactions}
+                                        disabled={savingManage}
+                                        className="px-5 py-2 text-sm bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold disabled:opacity-50"
+                                    >
+                                        {savingManage ? 'Menyimpan...' : 'Simpan Daftar STT'}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
         </ProtectedRoute>
     );

@@ -1,42 +1,58 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
-import { getTransactionById, deleteTransaction, updateSuratJalanData } from '@/lib/firestore-transactions';
+import { subscribeToTransactions, deleteTransaction, updateSuratJalanData } from '@/lib/firestore-transactions';
+import { subscribeToInvoices } from '@/lib/firestore-invoices';
+import { buildInvoiceLookup, resolveTransactionPaymentInfo } from '@/lib/invoice-reconciliation';
 import type { Transaction, SuratJalanData } from '@/types/transaction';
+import type { Invoice } from '@/types/invoice';
 import { formatRupiah } from '@/lib/currency';
 import StatusBadge from '@/components/StatusBadge';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import SuratJalanModal from '@/components/SuratJalanModal';
-import { ArrowLeft, Edit2, Trash2, Printer, Package, User, MapPin, Banknote, FileText, Truck, Calendar, Clock, CreditCard } from 'lucide-react';
+import LinkInvoiceModal from '@/components/LinkInvoiceModal';
+import { ArrowLeft, Edit2, Trash2, Printer, Package, User, MapPin, Banknote, FileText, Truck, Calendar, Clock, CreditCard, Link2, CheckCircle2 } from 'lucide-react';
 
 export default function TransactionDetailPage() {
     const params = useParams();
     const router = useRouter();
     const { user } = useAuth();
     const [transaction, setTransaction] = useState<Transaction | null>(null);
+    const [invoices, setInvoices] = useState<Invoice[]>([]);
     const [loading, setLoading] = useState(true);
     const [deleteConfirm, setDeleteConfirm] = useState(false);
     const [suratJalanModalOpen, setSuratJalanModalOpen] = useState(false);
+    const [linkInvoiceOpen, setLinkInvoiceOpen] = useState(false);
+    const [toastMsg, setToastMsg] = useState<string | null>(null);
 
     useEffect(() => {
-        const loadTransaction = async () => {
-            if (!params.id || typeof params.id !== 'string') return;
+        if (!params.id || typeof params.id !== 'string' || !user) return;
+        const targetId = params.id;
 
-            try {
-                const data = await getTransactionById(params.id);
-                setTransaction(data);
-            } catch (error) {
-                console.error('Error loading transaction:', error);
-            } finally {
-                setLoading(false);
-            }
+        const unsubTx = subscribeToTransactions((all) => {
+            const found = all.find(t => t.id === targetId) || null;
+            setTransaction(found);
+            setLoading(false);
+        }, user.uid);
+
+        const unsubInv = subscribeToInvoices(user.uid, (invList) => {
+            setInvoices(invList);
+        });
+
+        return () => {
+            unsubTx();
+            unsubInv();
         };
+    }, [params.id, user]);
 
-        loadTransaction();
-    }, [params.id]);
+    const invoiceLookup = useMemo(() => buildInvoiceLookup(invoices), [invoices]);
+    const paymentInfo = useMemo(() => {
+        if (!transaction) return null;
+        return resolveTransactionPaymentInfo(transaction, invoiceLookup);
+    }, [transaction, invoiceLookup]);
 
     const handleDelete = async () => {
         if (!transaction) return;
@@ -205,11 +221,75 @@ export default function TransactionDetailPage() {
                                             {transaction.tujuan}
                                         </div>
                                     </div>
-                                    <div className="bg-gray-50 p-3 rounded-xl sm:col-span-2">
-                                        <label className="text-xs text-gray-500 font-medium uppercase tracking-wider mb-1 block">No Invoice</label>
-                                        <div className="font-mono text-gray-800 font-semibold tracking-wide">
-                                            {transaction.noInvoice}
+                                    <div className="bg-gray-50 p-3 rounded-xl sm:col-span-2 space-y-3">
+                                        <div className="flex flex-wrap items-center justify-between gap-2">
+                                            <div>
+                                                <label className="text-xs text-gray-500 font-medium uppercase tracking-wider mb-1 block">No Invoice (Resi)</label>
+                                                <div className="font-mono text-gray-800 font-semibold tracking-wide">
+                                                    {transaction.noInvoice || '-'}
+                                                </div>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => setLinkInvoiceOpen(true)}
+                                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 transition-colors"
+                                            >
+                                                <Link2 size={14} />
+                                                {paymentInfo?.linkedInvoice ? 'Ganti Invoice Keuangan' : 'Hubungkan / Buat Invoice'}
+                                            </button>
                                         </div>
+
+                                        {/* Connected Finance Invoice Card */}
+                                        {paymentInfo?.linkedInvoice ? (
+                                            <div className={`p-3 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                                                paymentInfo.isPaid
+                                                    ? 'bg-emerald-50 border-emerald-200'
+                                                    : paymentInfo.isOverdue
+                                                        ? 'bg-rose-50 border-rose-200'
+                                                        : 'bg-amber-50 border-amber-200'
+                                            }`}>
+                                                <div>
+                                                    <div className="text-[11px] font-bold uppercase tracking-wider text-gray-600">
+                                                        Invoice Penagihan Keuangan
+                                                    </div>
+                                                    <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                                                        <Link
+                                                            href={`/finance/invoices/${paymentInfo.linkedInvoice.id}/print`}
+                                                            target="_blank"
+                                                            className="font-mono font-bold text-sm text-indigo-700 hover:underline"
+                                                        >
+                                                            #{paymentInfo.linkedInvoice.invoiceNumber}
+                                                        </Link>
+                                                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                                            paymentInfo.isPaid
+                                                                ? 'bg-emerald-600 text-white'
+                                                                : paymentInfo.isOverdue
+                                                                    ? 'bg-rose-600 text-white'
+                                                                    : 'bg-amber-600 text-white'
+                                                        }`}>
+                                                            {paymentInfo.isPaid ? 'LUNAS' : paymentInfo.isOverdue ? 'JATUH TEMPO' : 'BELUM LUNAS'}
+                                                        </span>
+                                                    </div>
+                                                    <div className="text-xs text-gray-600 mt-1">
+                                                        {paymentInfo.isPaid
+                                                            ? `Dilunasi${paymentInfo.paymentMethod ? ` via ${paymentInfo.paymentMethod}` : ''}${paymentInfo.paidAt ? ` pada ${new Date(paymentInfo.paidAt).toLocaleDateString('id-ID')}` : ''}`
+                                                            : `Jatuh tempo: ${new Date(paymentInfo.linkedInvoice.dueDate).toLocaleDateString('id-ID')}`}
+                                                    </div>
+                                                </div>
+                                                <Link
+                                                    href={`/finance/invoices/${paymentInfo.linkedInvoice.id}/print`}
+                                                    target="_blank"
+                                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-gray-200 text-xs font-semibold text-gray-700 hover:bg-gray-50 self-start sm:self-center"
+                                                >
+                                                    <Printer size={13} /> Cetak Invoice
+                                                </Link>
+                                            </div>
+                                        ) : (
+                                            <div className="text-xs text-gray-500 bg-white px-3 py-2 rounded-lg border border-dashed border-gray-300">
+                                                Resi ini belum dihubungkan ke Invoice Konsolidasi di Modul Keuangan.
+                                            </div>
+                                        )}
+
                                         {transaction.isTaxable && (
                                             <div className="bg-blue-50 p-3 rounded-xl sm:col-span-2 border border-blue-100 flex items-center justify-between">
                                                 <div>
@@ -344,9 +424,18 @@ export default function TransactionDetailPage() {
                                         </div>
                                         <div className="flex justify-between items-center text-sm">
                                             <span className="text-blue-100">Status Bayar</span>
-                                            <span className={`px-2 py-0.5 rounded text-xs font-bold ${transaction.pelunasan === 'Pending' ? 'bg-yellow-400 text-yellow-900' : 'bg-green-400 text-green-900'
-                                                }`}>
-                                                {transaction.pelunasan.toUpperCase()}
+                                            <span className={`px-2 py-0.5 rounded text-xs font-bold ${
+                                                paymentInfo?.isPaid
+                                                    ? 'bg-green-400 text-green-900'
+                                                    : paymentInfo?.isOverdue
+                                                        ? 'bg-rose-400 text-rose-950'
+                                                        : 'bg-yellow-400 text-yellow-900'
+                                            }`}>
+                                                {paymentInfo?.isPaid
+                                                    ? `LUNAS${paymentInfo.paymentMethod ? ` (${paymentInfo.paymentMethod})` : ''}`
+                                                    : paymentInfo?.state === 'invoiced_unpaid'
+                                                        ? 'BELUM LUNAS'
+                                                        : transaction.pelunasan.toUpperCase()}
                                             </span>
                                         </div>
                                     </div>
@@ -429,6 +518,27 @@ export default function TransactionDetailPage() {
                                     </button>
                                 </div>
                             </div>
+                        </div>
+                    )}
+                    {/* Link Finance Invoice Modal */}
+                    {linkInvoiceOpen && (
+                        <LinkInvoiceModal
+                            targetTransactions={[transaction]}
+                            invoices={invoices}
+                            userId={user?.uid || ''}
+                            onClose={() => setLinkInvoiceOpen(false)}
+                            onSuccess={(msg) => {
+                                setLinkInvoiceOpen(false);
+                                setToastMsg(msg);
+                                setTimeout(() => setToastMsg(null), 5000);
+                            }}
+                        />
+                    )}
+
+                    {toastMsg && (
+                        <div className="fixed bottom-6 right-6 z-50 bg-emerald-600 text-white px-5 py-3 rounded-xl shadow-xl font-semibold text-sm flex items-center gap-2">
+                            <CheckCircle2 size={18} />
+                            <span>{toastMsg}</span>
                         </div>
                     )}
                 </div>

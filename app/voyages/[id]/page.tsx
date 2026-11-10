@@ -4,28 +4,44 @@ import { use, useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
-import { getVoyageById, deleteVoyage, removeTransactionsFromVoyage, updateVoyage } from '@/lib/firestore-voyages';
-import { getTransactionById } from '@/lib/firestore-transactions';
+import {
+    getVoyageById,
+    deleteVoyage,
+    removeTransactionsFromVoyage,
+    updateVoyage,
+    subscribeToVoyages
+} from '@/lib/firestore-voyages';
+import { subscribeToTransactions } from '@/lib/firestore-transactions';
+import { subscribeToInvoices, unlinkTransactionFromInvoice } from '@/lib/firestore-invoices';
 import { subscribeToExpensesByVoyage, calculateVoyageExpenses, deleteExpense } from '@/lib/firestore-expenses';
 import { subscribeToOwnerShipExpenses, saveOwnerShipExpense } from '@/lib/firestore-owner-ship-expenses';
 import type { Voyage, Expense, VoyageStatus } from '@/types/voyage';
 import type { Transaction } from '@/types/transaction';
+import type { Invoice } from '@/types/invoice';
 import type { OwnerShipExpense } from '@/types/owner-ship-report';
+import {
+    buildInvoiceLookup,
+    resolveTransactionPaymentInfo,
+    summarizeVoyagePayments,
+    type ResolvedTransactionPayment
+} from '@/lib/invoice-reconciliation';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import {
     ArrowLeft, Ship, Package, DollarSign, TrendingUp, TrendingDown,
     Trash2, Edit, Edit3, MapPin, Calendar, Printer, CheckCircle2, Circle,
     Truck, Anchor, Pencil, Plus, Layers, Weight, Compass, Save, X,
     ArrowRight, Wallet, Check, AlertCircle, Clock, FileText, ChevronRight,
-    PieChart as PieChartIcon
+    PieChart as PieChartIcon, Link2, Search, ExternalLink, Unlink
 } from 'lucide-react';
 import { formatRupiah } from '@/lib/currency';
 import ExpenseForm from '@/components/ExpenseForm';
 import AssignTransactionsModal from '@/components/AssignTransactionsModal';
+import LinkInvoiceModal from '@/components/LinkInvoiceModal';
 import { EXPENSE_CATEGORY_LABELS } from '@/types/voyage';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 
 type TabType = 'overview' | 'cargo' | 'expenses' | 'summary';
+type CargoPaymentFilter = 'all' | 'lunas' | 'belum_lunas' | 'invoiced_unpaid' | 'uninvoiced';
 
 const PIE_COLORS = ['#2563eb', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899'];
 
@@ -36,13 +52,18 @@ export default function VoyageDetailPage({ params }: { params: Promise<{ id: str
 
     // Data States
     const [voyage, setVoyage] = useState<Voyage | null>(null);
-    const [transactions, setTransactions] = useState<Transaction[]>([]);
+    const [allTransactions, setAllTransactions] = useState<Transaction[]>([]);
+    const [invoices, setInvoices] = useState<Invoice[]>([]);
     const [expenses, setExpenses] = useState<Expense[]>([]);
     const [ownerShipExpense, setOwnerShipExpense] = useState<OwnerShipExpense | null>(null);
     const [loading, setLoading] = useState(true);
 
-    // Tab State
+    // Tab & Cargo Filter States
     const [activeTab, setActiveTab] = useState<TabType>('overview');
+    const [cargoPaymentFilter, setCargoPaymentFilter] = useState<CargoPaymentFilter>('all');
+    const [cargoSearchTerm, setCargoSearchTerm] = useState('');
+    const [selectedCargoIds, setSelectedCargoIds] = useState<string[]>([]);
+    const [linkModalTransactions, setLinkModalTransactions] = useState<Transaction[] | null>(null);
     const [generalExpensesTotal, setGeneralExpensesTotal] = useState(0);
 
     // Modals State
@@ -70,36 +91,132 @@ export default function VoyageDetailPage({ params }: { params: Promise<{ id: str
         setTimeout(() => setToastMessage(null), 3500);
     };
 
-    // 1. Load Voyage & Linked Transactions
+    // Support deep link query ?tab=cargo&filter=...
     useEffect(() => {
-        const loadData = async () => {
-            try {
-                const voyageData = await getVoyageById(id);
-                if (!voyageData) {
-                    alert('Pemberangkatan tidak ditemukan');
-                    router.push('/voyages');
-                    return;
-                }
-                setVoyage(voyageData);
+        if (typeof window === 'undefined') return;
+        const paramsObj = new URLSearchParams(window.location.search);
+        const tabParam = paramsObj.get('tab');
+        if (tabParam === 'overview' || tabParam === 'cargo' || tabParam === 'expenses' || tabParam === 'summary') {
+            setActiveTab(tabParam);
+        }
+        const filterParam = paramsObj.get('payment');
+        if (filterParam === 'lunas' || filterParam === 'belum_lunas' || filterParam === 'invoiced_unpaid' || filterParam === 'uninvoiced') {
+            setCargoPaymentFilter(filterParam);
+        }
+    }, []);
 
-                // Load transactions
-                if (voyageData.transactionIds && voyageData.transactionIds.length > 0) {
-                    const txPromises = voyageData.transactionIds.map(txId => getTransactionById(txId));
-                    const txData = await Promise.all(txPromises);
-                    setTransactions(txData.filter((tx): tx is Transaction => tx !== null));
-                } else {
-                    setTransactions([]);
-                }
+    // 1. Real-time subscriptions for Voyage, Transactions, and Invoices
+    useEffect(() => {
+        if (!user) return;
+        let isMounted = true;
 
-                setLoading(false);
-            } catch (error) {
-                console.error('Error loading voyage:', error);
+        // Ensure voyage exists initially
+        getVoyageById(id).then((v) => {
+            if (!isMounted) return;
+            if (!v) {
+                alert('Pemberangkatan tidak ditemukan');
+                router.push('/voyages');
+                return;
+            }
+            setVoyage(v);
+            setLoading(false);
+        }).catch((err) => {
+            console.error('Error loading initial voyage:', err);
+            if (isMounted) setLoading(false);
+        });
+
+        const unsubVoyages = subscribeToVoyages(user.uid, (list) => {
+            if (!isMounted) return;
+            const found = list.find(v => v.id === id);
+            if (found) {
+                setVoyage(found);
                 setLoading(false);
             }
-        };
+        });
 
-        loadData();
-    }, [id, router]);
+        const unsubTx = subscribeToTransactions((txList) => {
+            if (!isMounted) return;
+            setAllTransactions(txList);
+        }, user.uid);
+
+        const unsubInvoices = subscribeToInvoices(user.uid, (invList) => {
+            if (!isMounted) return;
+            setInvoices(invList);
+        });
+
+        return () => {
+            isMounted = false;
+            unsubVoyages();
+            unsubTx();
+            unsubInvoices();
+        };
+    }, [id, user, router]);
+
+    // Derive linked transactions for this voyage cleanly (live synced)
+    const transactions = useMemo(() => {
+        if (!voyage) return [];
+        const txMap = new Map(allTransactions.map(t => [t.id, t]));
+        return (voyage.transactionIds || [])
+            .map(txId => txMap.get(txId))
+            .filter((t): t is Transaction => t !== undefined && t.status !== 'dibatalkan');
+    }, [voyage, allTransactions]);
+
+    // Invoice Lookup & Resolved Payment States
+    const invoiceLookup = useMemo(() => buildInvoiceLookup(invoices), [invoices]);
+
+    const txPaymentMap = useMemo(() => {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const map = new Map<string, ResolvedTransactionPayment>();
+        transactions.forEach(tx => {
+            map.set(tx.id, resolveTransactionPaymentInfo(tx, invoiceLookup, today));
+        });
+        return map;
+    }, [transactions, invoiceLookup]);
+
+    const paymentSummary = useMemo(
+        () => summarizeVoyagePayments(transactions, invoiceLookup),
+        [transactions, invoiceLookup]
+    );
+
+    const filteredCargoTransactions = useMemo(() => {
+        const q = cargoSearchTerm.trim().toLowerCase();
+        return transactions.filter(tx => {
+            const pInfo = txPaymentMap.get(tx.id);
+            if (cargoPaymentFilter === 'lunas' && !pInfo?.isPaid) return false;
+            if (cargoPaymentFilter === 'belum_lunas' && pInfo?.isPaid) return false;
+            if (cargoPaymentFilter === 'invoiced_unpaid' && pInfo?.state !== 'invoiced_unpaid') return false;
+            if (cargoPaymentFilter === 'uninvoiced' && pInfo?.state !== 'uninvoiced') return false;
+
+            if (q) {
+                const matchStt = tx.noSTT.toLowerCase().includes(q);
+                const matchSender = (tx.pengirimName || '').toLowerCase().includes(q);
+                const matchReceiver = (tx.penerimaName || '').toLowerCase().includes(q);
+                const matchInv = (pInfo?.displayInvoiceNumber || '').toLowerCase().includes(q);
+                const matchDest = (tx.tujuan || '').toLowerCase().includes(q);
+                if (!matchStt && !matchSender && !matchReceiver && !matchInv && !matchDest) return false;
+            }
+
+            return true;
+        });
+    }, [transactions, txPaymentMap, cargoPaymentFilter, cargoSearchTerm]);
+
+    const handleUnlinkInvoice = async (invoiceId: string, invoiceNumber: string, txId: string, noSTT: string) => {
+        if (!confirm(`Lepas hubungan STT ${noSTT} dari Invoice #${invoiceNumber}?`)) return;
+        try {
+            await unlinkTransactionFromInvoice(invoiceId, txId);
+            showToast(`STT ${noSTT} dilepas dari Invoice #${invoiceNumber}.`);
+        } catch (err: any) {
+            console.error('Failed to unlink invoice:', err);
+            alert('Gagal melepas tautan invoice: ' + (err?.message || ''));
+        }
+    };
+
+    const toggleCargoSelection = (txId: string) => {
+        setSelectedCargoIds(prev =>
+            prev.includes(txId) ? prev.filter(item => item !== txId) : [...prev, txId]
+        );
+    };
 
     // 2. Subscribe to general expenses
     useEffect(() => {
@@ -275,7 +392,7 @@ export default function VoyageDetailPage({ params }: { params: Promise<{ id: str
 
         try {
             await removeTransactionsFromVoyage(voyage.id, [transactionId]);
-            setTransactions(prev => prev.filter(tx => tx.id !== transactionId));
+            setSelectedCargoIds(prev => prev.filter(id => id !== transactionId));
             setVoyage(prev => {
                 if (!prev) return prev;
                 return {
@@ -615,6 +732,40 @@ export default function VoyageDetailPage({ params }: { params: Promise<{ id: str
 
                             </div>
 
+                            {/* STT Invoice & Payment Collection Status Ribbon */}
+                            <div className="bg-white/5 border border-white/10 rounded-xl p-3 space-y-2">
+                                <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                                    <div className="flex items-center gap-2 font-bold">
+                                        <CheckCircle2 size={14} className="text-emerald-400" />
+                                        <span className="text-emerald-300">
+                                            STT Lunas: {paymentSummary.paidCount}/{paymentSummary.totalSttCount} Resi ({formatRupiah(paymentSummary.paidRevenue)})
+                                        </span>
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                        <span className={`font-bold ${paymentSummary.unpaidCount > 0 ? 'text-amber-300' : 'text-emerald-300'}`}>
+                                            {paymentSummary.unpaidCount > 0
+                                                ? `Belum Lunas: ${paymentSummary.unpaidCount} Resi (${formatRupiah(paymentSummary.unpaidRevenue)})`
+                                                : 'Semua Tagihan Lunas'}
+                                        </span>
+                                        <button
+                                            onClick={() => {
+                                                setActiveTab('cargo');
+                                                setCargoPaymentFilter(paymentSummary.unpaidCount > 0 ? 'belum_lunas' : 'all');
+                                            }}
+                                            className="px-2.5 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-[11px] font-bold transition-colors"
+                                        >
+                                            Cek STT ➔
+                                        </button>
+                                    </div>
+                                </div>
+                                <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
+                                    <div
+                                        className="h-full bg-gradient-to-r from-emerald-400 to-teal-300 transition-all duration-500"
+                                        style={{ width: `${paymentSummary.collectionPercent}%` }}
+                                    />
+                                </div>
+                            </div>
+
                             {/* Breakdown summary pills */}
                             <div className="pt-2 border-t border-white/10 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-300">
                                 <div className="flex items-center gap-3 flex-wrap text-[11px]">
@@ -641,7 +792,7 @@ export default function VoyageDetailPage({ params }: { params: Promise<{ id: str
                         <div className="flex overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden border-b border-gray-200">
                             {[
                                 { id: 'overview', label: 'Ringkasan & Grafik' },
-                                { id: 'cargo', label: `Kargo (${transactions.length} STT • ${(totalWeight / 1000).toFixed(1)} Ton)` },
+                                { id: 'cargo', label: `Kargo & Pelunasan (${paymentSummary.paidCount}/${transactions.length} Lunas)` },
                                 { id: 'expenses', label: `Biaya Operasional (${formatRupiah(combinedExpensesTotal)})` },
                                 { id: 'summary', label: 'Laporan Finansial Trip' }
                             ].map((tab) => (
@@ -665,6 +816,113 @@ export default function VoyageDetailPage({ params }: { params: Promise<{ id: str
                         {/* TAB 1: OVERVIEW */}
                         {activeTab === 'overview' && (
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+                                {/* Invoice & STT Payment Status Overview Card */}
+                                <div className="md:col-span-2 bg-white rounded-2xl p-5 shadow-xs border border-gray-200 space-y-4">
+                                    <div className="flex flex-wrap justify-between items-center gap-3 border-b border-gray-100 pb-3">
+                                        <div>
+                                            <h3 className="font-extrabold text-sm text-gray-900 flex items-center gap-2">
+                                                <Link2 size={18} className="text-indigo-600" />
+                                                Monitoring Status Penagihan Invoice &amp; Pelunasan STT
+                                            </h3>
+                                            <p className="text-xs text-gray-500 mt-0.5">
+                                                Terhubung real-time dengan Modul Keuangan (Invoice &amp; Penagihan IKA)
+                                            </p>
+                                        </div>
+                                        <button
+                                            onClick={() => setActiveTab('cargo')}
+                                            className="px-3.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors"
+                                        >
+                                            Kelola Status STT <ArrowRight size={14} />
+                                        </button>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                                        <div
+                                            onClick={() => { setActiveTab('cargo'); setCargoPaymentFilter('lunas'); }}
+                                            className="cursor-pointer bg-emerald-50/70 border border-emerald-200 hover:border-emerald-400 p-3.5 rounded-xl transition-all"
+                                        >
+                                            <div className="flex items-center justify-between text-emerald-800 font-bold mb-1">
+                                                <span>✅ STT Sudah Lunas</span>
+                                                <span className="bg-emerald-200/80 text-emerald-900 px-2 py-0.5 rounded-full text-[10px]">
+                                                    {paymentSummary.paidCount} Resi
+                                                </span>
+                                            </div>
+                                            <div className="font-mono font-black text-base text-emerald-950">
+                                                {formatRupiah(paymentSummary.paidRevenue)}
+                                            </div>
+                                        </div>
+
+                                        <div
+                                            onClick={() => { setActiveTab('cargo'); setCargoPaymentFilter('invoiced_unpaid'); }}
+                                            className="cursor-pointer bg-amber-50/70 border border-amber-200 hover:border-amber-400 p-3.5 rounded-xl transition-all"
+                                        >
+                                            <div className="flex items-center justify-between text-amber-800 font-bold mb-1">
+                                                <span>⏳ Invoice Belum Lunas</span>
+                                                <span className="bg-amber-200/80 text-amber-900 px-2 py-0.5 rounded-full text-[10px]">
+                                                    {paymentSummary.invoicedUnpaidCount} Resi
+                                                </span>
+                                            </div>
+                                            <div className="font-mono font-black text-base text-amber-950">
+                                                {formatRupiah(
+                                                    transactions
+                                                        .filter(tx => txPaymentMap.get(tx.id)?.state === 'invoiced_unpaid')
+                                                        .reduce((s, tx) => s + (txPaymentMap.get(tx.id)?.effectiveAmount || 0), 0)
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        <div
+                                            onClick={() => { setActiveTab('cargo'); setCargoPaymentFilter('uninvoiced'); }}
+                                            className="cursor-pointer bg-rose-50/70 border border-rose-200 hover:border-rose-400 p-3.5 rounded-xl transition-all"
+                                        >
+                                            <div className="flex items-center justify-between text-rose-800 font-bold mb-1">
+                                                <span>⚠️ Belum Dibuat Invoice</span>
+                                                <span className="bg-rose-200/80 text-rose-900 px-2 py-0.5 rounded-full text-[10px]">
+                                                    {paymentSummary.uninvoicedCount} Resi
+                                                </span>
+                                            </div>
+                                            <div className="font-mono font-black text-base text-rose-950">
+                                                {formatRupiah(
+                                                    transactions
+                                                        .filter(tx => txPaymentMap.get(tx.id)?.state === 'uninvoiced')
+                                                        .reduce((s, tx) => s + (txPaymentMap.get(tx.id)?.effectiveAmount || 0), 0)
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {paymentSummary.linkedInvoices.length > 0 && (
+                                        <div className="pt-2 border-t border-gray-100">
+                                            <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider block mb-2">
+                                                Invoice Terhubung ({paymentSummary.linkedInvoices.length}):
+                                            </span>
+                                            <div className="flex flex-wrap gap-2">
+                                                {paymentSummary.linkedInvoices.map(inv => (
+                                                    <Link
+                                                        key={inv.id}
+                                                        href={`/finance/invoices/${inv.id}/print`}
+                                                        target="_blank"
+                                                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-bold transition-all hover:shadow-xs ${
+                                                            inv.status === 'Paid'
+                                                                ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                                                                : 'bg-amber-50 border-amber-200 text-amber-800'
+                                                        }`}
+                                                    >
+                                                        <FileText size={12} />
+                                                        <span className="font-mono">#{inv.invoiceNumber}</span>
+                                                        <span className="text-[10px] font-normal text-gray-600">({inv.clientName})</span>
+                                                        <span className={`px-1.5 py-0.2 rounded text-[9px] font-black uppercase ${
+                                                            inv.status === 'Paid' ? 'bg-emerald-600 text-white' : 'bg-amber-500 text-white'
+                                                        }`}>
+                                                            {inv.status === 'Paid' ? 'LUNAS' : 'BELUM'}
+                                                        </span>
+                                                    </Link>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
                                 
                                 {/* Expense Pie Chart */}
                                 <div className="bg-white rounded-2xl p-6 shadow-xs border border-gray-200 space-y-4">
@@ -752,14 +1010,14 @@ export default function VoyageDetailPage({ params }: { params: Promise<{ id: str
                                     <div>
                                         <h2 className="text-base font-black text-gray-900 flex items-center gap-2">
                                             <Package size={18} className="text-blue-600" />
-                                            Daftar Kargo STT Terangkut ({transactions.length} Resi)
+                                            Daftar Kargo STT &amp; Status Pelunasan ({transactions.length} Resi)
                                         </h2>
                                         <p className="text-xs text-gray-500 mt-0.5">
-                                            Total: <strong>{totalKoli.toLocaleString('id-ID')} Koli</strong> • <strong>{(totalWeight / 1000).toFixed(2)} Ton</strong> ({totalWeight.toLocaleString('id-ID')} kg)
+                                            Total: <strong>{totalKoli.toLocaleString('id-ID')} Koli</strong> • <strong>{(totalWeight / 1000).toFixed(2)} Ton</strong> • <strong className="text-emerald-700">{paymentSummary.paidCount} Lunas</strong> • <strong className="text-amber-700">{paymentSummary.unpaidCount} Belum Lunas</strong>
                                         </p>
                                     </div>
 
-                                    <div className="flex items-center gap-2">
+                                    <div className="flex flex-wrap items-center gap-2">
                                         <Link
                                             href={`/voyages/${voyage.id}/manifest`}
                                             className="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all"
@@ -775,57 +1033,275 @@ export default function VoyageDetailPage({ params }: { params: Promise<{ id: str
                                     </div>
                                 </div>
 
-                                <div className="space-y-2.5">
-                                    {transactions.map(tx => (
-                                        <div key={tx.id} className="bg-white border border-gray-200 hover:border-blue-400 p-3.5 rounded-xl transition-all shadow-2xs group flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                                            <div className="flex items-start gap-3">
-                                                <div className="w-10 h-10 bg-blue-50 text-blue-700 rounded-xl flex items-center justify-center font-mono font-extrabold text-xs shrink-0 border border-blue-200">
-                                                    STT
-                                                </div>
-                                                <div>
-                                                    <div className="flex items-center gap-2">
-                                                        <h4 className="font-mono font-black text-sm text-blue-900">{tx.noSTT}</h4>
-                                                        <span className="text-[10px] bg-gray-100 text-gray-600 px-2 py-0.2 rounded font-medium">
-                                                            {new Date(tx.tanggal).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
-                                                        </span>
-                                                        {tx.tujuan && (
-                                                            <span className="text-[10px] bg-blue-50 text-blue-700 px-2 py-0.2 rounded font-bold uppercase">
-                                                                ➔ {tx.tujuan}
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                    <p className="text-xs text-gray-600 mt-1">
-                                                        <strong className="text-gray-800">{tx.pengirimName}</strong> ➔ <strong className="text-gray-800">{tx.penerimaName}</strong>
-                                                    </p>
-                                                    {tx.isiBarang && (
-                                                        <p className="text-[11px] text-gray-400 mt-0.5">Isi: {tx.isiBarang}</p>
-                                                    )}
-                                                </div>
-                                            </div>
+                                {/* Payment Filter Tabs */}
+                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">
+                                    <button
+                                        type="button"
+                                        onClick={() => setCargoPaymentFilter('all')}
+                                        className={`p-3 rounded-xl border text-left transition-all ${
+                                            cargoPaymentFilter === 'all'
+                                                ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                                                : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'
+                                        }`}
+                                    >
+                                        <div className="text-[10px] font-bold uppercase opacity-80">Semua STT</div>
+                                        <div className="text-sm font-black mt-0.5">{paymentSummary.totalSttCount} Resi</div>
+                                        <div className="text-[10px] font-mono opacity-90">{formatRupiah(paymentSummary.totalRevenue)}</div>
+                                    </button>
 
-                                            <div className="flex items-center justify-between sm:justify-end gap-4 border-t sm:border-t-0 pt-2 sm:pt-0">
-                                                <div className="text-left sm:text-right">
-                                                    <p className="font-mono font-black text-sm text-gray-900">{formatRupiah(tx.jumlah)}</p>
-                                                    <p className="text-[11px] text-gray-500 font-bold">
-                                                        {tx.koli || 0} Koli • {tx.berat || 0} kg
-                                                    </p>
-                                                </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => setCargoPaymentFilter('lunas')}
+                                        className={`p-3 rounded-xl border text-left transition-all ${
+                                            cargoPaymentFilter === 'lunas'
+                                                ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                                                : 'bg-emerald-50/70 text-emerald-900 border-emerald-200 hover:bg-emerald-100/70'
+                                        }`}
+                                    >
+                                        <div className="text-[10px] font-bold uppercase opacity-80">✅ Sudah Lunas</div>
+                                        <div className="text-sm font-black mt-0.5">{paymentSummary.paidCount} Resi</div>
+                                        <div className="text-[10px] font-mono opacity-90">{formatRupiah(paymentSummary.paidRevenue)}</div>
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => setCargoPaymentFilter('belum_lunas')}
+                                        className={`p-3 rounded-xl border text-left transition-all ${
+                                            cargoPaymentFilter === 'belum_lunas'
+                                                ? 'bg-amber-600 text-white border-amber-600 shadow-sm'
+                                                : 'bg-amber-50/70 text-amber-900 border-amber-200 hover:bg-amber-100/70'
+                                        }`}
+                                    >
+                                        <div className="text-[10px] font-bold uppercase opacity-80">⏳ Semua Belum Lunas</div>
+                                        <div className="text-sm font-black mt-0.5">{paymentSummary.unpaidCount} Resi</div>
+                                        <div className="text-[10px] font-mono opacity-90">{formatRupiah(paymentSummary.unpaidRevenue)}</div>
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => setCargoPaymentFilter('uninvoiced')}
+                                        className={`p-3 rounded-xl border text-left transition-all ${
+                                            cargoPaymentFilter === 'uninvoiced'
+                                                ? 'bg-rose-600 text-white border-rose-600 shadow-sm'
+                                                : 'bg-rose-50/70 text-rose-900 border-rose-200 hover:bg-rose-100/70'
+                                        }`}
+                                    >
+                                        <div className="text-[10px] font-bold uppercase opacity-80">⚠️ Belum Ada Invoice</div>
+                                        <div className="text-sm font-black mt-0.5">{paymentSummary.uninvoicedCount} Resi</div>
+                                        <div className="text-[10px] font-mono opacity-90">Perlu dibuatkan invoice</div>
+                                    </button>
+                                </div>
+
+                                {/* Search & Bulk Action Toolbar */}
+                                <div className="flex flex-wrap items-center justify-between gap-2.5 bg-gray-50 p-3 rounded-xl border border-gray-200">
+                                    <div className="relative flex-1 min-w-[200px]">
+                                        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                                        <input
+                                            type="text"
+                                            placeholder="Cari No STT, Pengirim, Penerima, No Invoice..."
+                                            value={cargoSearchTerm}
+                                            onChange={(e) => setCargoSearchTerm(e.target.value)}
+                                            className="w-full pl-8 pr-3 py-1.5 bg-white border border-gray-200 rounded-lg text-xs outline-none focus:ring-2 focus:ring-blue-200"
+                                        />
+                                    </div>
+
+                                    <div className="flex flex-wrap items-center gap-2 text-xs">
+                                        {paymentSummary.uninvoicedCount > 0 && (
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    const uninvIds = transactions
+                                                        .filter(t => txPaymentMap.get(t.id)?.state === 'uninvoiced')
+                                                        .map(t => t.id);
+                                                    setSelectedCargoIds(uninvIds);
+                                                }}
+                                                className="px-2.5 py-1.5 bg-white border border-gray-300 hover:bg-gray-100 text-gray-700 rounded-lg font-bold text-[11px]"
+                                            >
+                                                Pilih Semua Belum Ada Invoice ({paymentSummary.uninvoicedCount})
+                                            </button>
+                                        )}
+
+                                        {selectedCargoIds.length > 0 && (
+                                            <>
                                                 <button
-                                                    onClick={() => handleUnassignTransaction(tx.id, tx.noSTT)}
-                                                    className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                                                    title="Lepas dari pemberangkatan ini"
+                                                    type="button"
+                                                    onClick={() => setSelectedCargoIds([])}
+                                                    className="px-2.5 py-1.5 text-gray-500 hover:text-gray-800 font-bold text-[11px]"
                                                 >
-                                                    <Trash2 size={16} />
+                                                    Batal ({selectedCargoIds.length})
                                                 </button>
-                                            </div>
-                                        </div>
-                                    ))}
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        const chosen = transactions.filter(t => selectedCargoIds.includes(t.id));
+                                                        if (chosen.length > 0) setLinkModalTransactions(chosen);
+                                                    }}
+                                                    className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-extrabold text-[11px] flex items-center gap-1.5 shadow-xs"
+                                                >
+                                                    <Link2 size={13} />
+                                                    Hubungkan / Buat Invoice ({selectedCargoIds.length} STT)
+                                                </button>
+                                            </>
+                                        )}
+                                    </div>
+                                </div>
 
-                                    {transactions.length === 0 && (
+                                <div className="space-y-2.5">
+                                    {filteredCargoTransactions.map(tx => {
+                                        const pInfo = txPaymentMap.get(tx.id);
+                                        const isSelected = selectedCargoIds.includes(tx.id);
+                                        const inv = pInfo?.linkedInvoice;
+
+                                        return (
+                                            <div
+                                                key={tx.id}
+                                                className={`border p-3.5 rounded-xl transition-all shadow-2xs group flex flex-col lg:flex-row lg:items-center justify-between gap-3 ${
+                                                    isSelected
+                                                        ? 'border-indigo-500 bg-indigo-50/40'
+                                                        : pInfo?.isPaid
+                                                        ? 'border-emerald-200 bg-emerald-50/20 hover:border-emerald-400'
+                                                        : pInfo?.isOverdue
+                                                        ? 'border-rose-200 bg-rose-50/20 hover:border-rose-400'
+                                                        : 'border-gray-200 bg-white hover:border-blue-400'
+                                                }`}
+                                            >
+                                                <div className="flex items-start gap-3">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={isSelected}
+                                                        onChange={() => toggleCargoSelection(tx.id)}
+                                                        className="mt-2.5 w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer shrink-0"
+                                                    />
+                                                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-mono font-extrabold text-xs shrink-0 border ${
+                                                        pInfo?.isPaid
+                                                            ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                                                            : pInfo?.state === 'invoiced_unpaid'
+                                                            ? 'bg-amber-100 text-amber-800 border-amber-300'
+                                                            : 'bg-blue-50 text-blue-700 border-blue-200'
+                                                    }`}>
+                                                        STT
+                                                    </div>
+                                                    <div>
+                                                        <div className="flex flex-wrap items-center gap-2">
+                                                            <h4 className="font-mono font-black text-sm text-blue-900">{tx.noSTT}</h4>
+                                                            <span className="text-[10px] bg-gray-100 text-gray-600 px-2 py-0.2 rounded font-medium">
+                                                                {new Date(tx.tanggal).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                                            </span>
+                                                            {tx.tujuan && (
+                                                                <span className="text-[10px] bg-blue-50 text-blue-700 px-2 py-0.2 rounded font-bold uppercase">
+                                                                    ➔ {tx.tujuan}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        <p className="text-xs text-gray-600 mt-1">
+                                                            <strong className="text-gray-800">{tx.pengirimName}</strong> ➔ <strong className="text-gray-800">{tx.penerimaName}</strong>
+                                                        </p>
+                                                        {tx.isiBarang && (
+                                                            <p className="text-[11px] text-gray-400 mt-0.5">Isi: {tx.isiBarang}</p>
+                                                        )}
+
+                                                        {/* Invoice & Payment Status Badges */}
+                                                        <div className="flex flex-wrap items-center gap-2 mt-2">
+                                                            {pInfo?.isPaid ? (
+                                                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                                                    <CheckCircle2 size={12} /> LUNAS
+                                                                    {pInfo.paymentMethod ? ` (${pInfo.paymentMethod})` : ''}
+                                                                </span>
+                                                            ) : pInfo?.isOverdue ? (
+                                                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-black bg-rose-100 text-rose-800 border border-rose-300">
+                                                                    <AlertCircle size={12} /> JATUH TEMPO • BELUM LUNAS
+                                                                </span>
+                                                            ) : pInfo?.state === 'invoiced_unpaid' ? (
+                                                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-black bg-amber-100 text-amber-800 border border-amber-300">
+                                                                    <Clock size={12} /> BELUM LUNAS
+                                                                </span>
+                                                            ) : (
+                                                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-black bg-gray-100 text-gray-700 border border-gray-300">
+                                                                    <AlertCircle size={12} /> BELUM ADA INVOICE
+                                                                </span>
+                                                            )}
+
+                                                            {inv ? (
+                                                                <div className="inline-flex items-center gap-1.5 bg-white border border-gray-200 px-2.5 py-0.5 rounded-lg text-[11px]">
+                                                                    <FileText size={11} className="text-blue-600" />
+                                                                    <span className="font-mono font-bold text-blue-800">
+                                                                        Inv #{inv.invoiceNumber}
+                                                                    </span>
+                                                                    {pInfo?.paidAt && pInfo.isPaid && (
+                                                                        <span className="text-[10px] text-emerald-700">
+                                                                            • {new Date(pInfo.paidAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
+                                                                        </span>
+                                                                    )}
+                                                                    <Link
+                                                                        href={`/finance/invoices/${inv.id}/print`}
+                                                                        target="_blank"
+                                                                        className="text-blue-600 hover:underline font-bold ml-1 inline-flex items-center gap-0.5"
+                                                                        title="Lihat / Cetak Invoice di Modul Keuangan"
+                                                                    >
+                                                                        <ExternalLink size={10} /> Lihat
+                                                                    </Link>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => handleUnlinkInvoice(inv.id, inv.invoiceNumber, tx.id, tx.noSTT)}
+                                                                        className="text-gray-400 hover:text-rose-600 ml-1"
+                                                                        title="Lepas tautan dari Invoice ini"
+                                                                    >
+                                                                        <Unlink size={11} />
+                                                                    </button>
+                                                                </div>
+                                                            ) : (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => setLinkModalTransactions([tx])}
+                                                                    className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-[11px] font-bold transition-colors"
+                                                                >
+                                                                    <Link2 size={11} /> Hubungkan / Buat Invoice
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <div className="flex items-center justify-between lg:justify-end gap-4 border-t lg:border-t-0 pt-2 lg:pt-0 shrink-0">
+                                                    <div className="text-left lg:text-right">
+                                                        <p className="font-mono font-black text-sm text-gray-900">
+                                                            {formatRupiah(pInfo?.effectiveAmount || tx.jumlah)}
+                                                        </p>
+                                                        <p className="text-[11px] text-gray-500 font-bold">
+                                                            {tx.koli || 0} Koli • {tx.berat || 0} {tx.beratUnit || 'kg'}
+                                                        </p>
+                                                    </div>
+                                                    <button
+                                                        onClick={() => handleUnassignTransaction(tx.id, tx.noSTT)}
+                                                        className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                                        title="Lepas STT dari pemberangkatan ini"
+                                                    >
+                                                        <Trash2 size={16} />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+
+                                    {filteredCargoTransactions.length === 0 && (
                                         <div className="text-center py-12 bg-gray-50 rounded-2xl border border-dashed border-gray-300">
                                             <Package size={36} className="mx-auto text-gray-400 mb-2" />
-                                            <p className="font-bold text-gray-700 text-sm">Belum ada transaksi kargo di-assign.</p>
-                                            <p className="text-xs text-gray-500 mt-1">Klik tombol &quot;Assign Transaksi STT&quot; di atas untuk memasukkan kargo.</p>
+                                            <p className="font-bold text-gray-700 text-sm">
+                                                {transactions.length === 0
+                                                    ? 'Belum ada transaksi kargo di-assign.'
+                                                    : 'Tidak ada STT yang cocok dengan filter status/pencarian ini.'}
+                                            </p>
+                                            {transactions.length === 0 ? (
+                                                <p className="text-xs text-gray-500 mt-1">Klik tombol &quot;Assign Transaksi STT&quot; di atas untuk memasukkan kargo.</p>
+                                            ) : (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => { setCargoPaymentFilter('all'); setCargoSearchTerm(''); }}
+                                                    className="mt-2 text-xs text-blue-600 font-bold hover:underline"
+                                                >
+                                                    Tampilkan Semua STT ({transactions.length})
+                                                </button>
+                                            )}
                                         </div>
                                     )}
                                 </div>
@@ -985,6 +1461,16 @@ export default function VoyageDetailPage({ params }: { params: Promise<{ id: str
                                                 <span>Omzet Kargo STT ({transactions.length} Resi):</span>
                                                 <span className="font-mono font-bold text-gray-900">{formatRupiah(omzetStt)}</span>
                                             </div>
+                                            <div className="flex justify-between items-center text-emerald-700 pl-3 border-l-2 border-emerald-300 text-[11px]">
+                                                <span>↳ Sudah Lunas ({paymentSummary.paidCount} STT):</span>
+                                                <span className="font-mono font-bold">{formatRupiah(paymentSummary.paidRevenue)}</span>
+                                            </div>
+                                            {paymentSummary.unpaidCount > 0 && (
+                                                <div className="flex justify-between items-center text-amber-700 pl-3 border-l-2 border-amber-300 text-[11px]">
+                                                    <span>↳ Belum Lunas ({paymentSummary.unpaidCount} STT):</span>
+                                                    <span className="font-mono font-bold">{formatRupiah(paymentSummary.unpaidRevenue)}</span>
+                                                </div>
+                                            )}
                                             {penjualanMakassar > 0 && (
                                                 <div className="flex justify-between items-center text-emerald-700">
                                                     <span>Penjualan Makassar:</span>
@@ -1288,11 +1774,26 @@ export default function VoyageDetailPage({ params }: { params: Promise<{ id: str
                     <AssignTransactionsModal
                         voyageId={voyage.id}
                         assignedTransactionIds={voyage.transactionIds}
-                        onSuccess={async () => {
+                        onSuccess={() => {
                             setShowAssignModal(false);
-                            window.location.reload();
+                            showToast('Transaksi STT berhasil ditambahkan ke pemberangkatan!');
                         }}
                         onCancel={() => setShowAssignModal(false)}
+                    />
+                )}
+
+                {/* Link / Create Finance Invoice Modal */}
+                {linkModalTransactions && linkModalTransactions.length > 0 && user && (
+                    <LinkInvoiceModal
+                        targetTransactions={linkModalTransactions}
+                        invoices={invoices}
+                        userId={user.uid}
+                        onClose={() => setLinkModalTransactions(null)}
+                        onSuccess={(msg) => {
+                            setLinkModalTransactions(null);
+                            setSelectedCargoIds([]);
+                            showToast(msg);
+                        }}
                     />
                 )}
 

@@ -46,6 +46,7 @@ export interface Invoice {
 }
 
 export interface InvoiceFormData {
+    invoiceNumber?: string;
     clientName: string;
     clientId?: string;
     clientAddress?: string;
@@ -54,6 +55,7 @@ export interface InvoiceFormData {
     issueDate: string;
     dueDate: string;
     notes?: string;
+    isTaxable?: boolean;
 }
 
 export interface InvoiceDoc {

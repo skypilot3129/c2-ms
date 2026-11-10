@@ -50,6 +50,9 @@ export const docToTransaction = (id: string, data: TransactionDoc): Transaction 
         harga: data.harga || 0,
         jumlah: data.jumlah || 0,
         noInvoice: data.noInvoice || '',
+        invoiceId: data.invoiceId,
+        invoiceNumber: data.invoiceNumber,
+        invoiceStatus: data.invoiceStatus,
         pembayaran: data.pembayaran || 'Tunai',
         pelunasan: data.pelunasan || 'Pending',
 
@@ -442,6 +445,9 @@ export const updateTransaction = async (
     if (data.tipeTransaksi !== undefined) updates.tipeTransaksi = data.tipeTransaksi;
     if (data.harga !== undefined) updates.harga = data.harga;
     if (data.noInvoice !== undefined) updates.noInvoice = data.noInvoice;
+    if (data.invoiceId !== undefined) updates.invoiceId = data.invoiceId;
+    if (data.invoiceNumber !== undefined) updates.invoiceNumber = data.invoiceNumber;
+    if (data.invoiceStatus !== undefined) updates.invoiceStatus = data.invoiceStatus;
     if (data.pembayaran !== undefined) updates.pembayaran = data.pembayaran;
     if (data.pelunasan !== undefined) updates.pelunasan = data.pelunasan;
     if (data.keterangan !== undefined) updates.keterangan = data.keterangan;

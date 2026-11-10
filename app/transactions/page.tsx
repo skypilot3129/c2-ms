@@ -5,12 +5,16 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { subscribeToTransactions, deleteTransaction, searchTransactions } from '@/lib/firestore-transactions';
+import { subscribeToInvoices } from '@/lib/firestore-invoices';
+import { buildInvoiceLookup, resolveTransactionPaymentInfo } from '@/lib/invoice-reconciliation';
 import type { Transaction, StatusTransaksi } from '@/types/transaction';
+import type { Invoice } from '@/types/invoice';
 import { formatRupiah } from '@/lib/currency';
 import StatusBadge from '@/components/StatusBadge';
 import ProtectedRoute from '@/components/ProtectedRoute';
-import { Plus, Search, Eye, Edit2, Trash2, Filter, Printer, X, Download, Package, TrendingUp, AlertCircle, CheckCircle, ArrowUpDown, Calendar, ChevronLeft, ChevronRight, Upload } from 'lucide-react';
+import { Plus, Search, Eye, Edit2, Trash2, Filter, Printer, X, Download, Package, TrendingUp, AlertCircle, CheckCircle, ArrowUpDown, Calendar, ChevronLeft, ChevronRight, Upload, FileText, Link2 } from 'lucide-react';
 import BulkInvoiceModal, { type BulkInvoiceFormData } from '@/components/BulkInvoiceModal';
+import LinkInvoiceModal from '@/components/LinkInvoiceModal';
 
 type SortOption = 'date-newest' | 'date-oldest' | 'amount-highest' | 'amount-lowest';
 
@@ -19,6 +23,7 @@ export default function TransactionsPage() {
     const router = useRouter();
     const [mounted, setMounted] = useState(false);
     const [transactions, setTransactions] = useState<Transaction[]>([]);
+    const [invoices, setInvoices] = useState<Invoice[]>([]);
     const [filteredTransactions, setFilteredTransactions] = useState<Transaction[]>([]);
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState<StatusTransaksi | 'all'>('all');
@@ -34,12 +39,14 @@ export default function TransactionsPage() {
     // Bulk invoice selection
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
     const [showBulkModal, setShowBulkModal] = useState(false);
+    const [showLinkInvoiceModal, setShowLinkInvoiceModal] = useState(false);
+    const [bannerMessage, setBannerMessage] = useState<string | null>(null);
 
     useEffect(() => {
         setMounted(true);
     }, []);
 
-    // Subscribe to transactions
+    // Subscribe to transactions & finance invoices
     useEffect(() => {
         if (!mounted || !user) return;
 
@@ -48,12 +55,33 @@ export default function TransactionsPage() {
             setLoading(false);
         }, user.uid);
 
-        return () => unsubscribe();
+        const unsubscribeInv = subscribeToInvoices(user.uid, (invData) => {
+            setInvoices(invData);
+        });
+
+        return () => {
+            unsubscribe();
+            unsubscribeInv();
+        };
     }, [mounted, user]);
+
+    const invoiceLookup = useMemo(() => buildInvoiceLookup(invoices), [invoices]);
 
     // Apply search, filters, and sort
     useEffect(() => {
         let result = searchTransactions(transactions, searchTerm);
+        if (searchTerm.trim()) {
+            const q = searchTerm.trim().toLowerCase();
+            const searchIds = new Set(result.map(t => t.id));
+            transactions.forEach(t => {
+                if (!searchIds.has(t.id)) {
+                    const info = resolveTransactionPaymentInfo(t, invoiceLookup);
+                    if ((info.displayInvoiceNumber || '').toLowerCase().includes(q)) {
+                        result.push(t);
+                    }
+                }
+            });
+        }
 
         if (statusFilter !== 'all') {
             result = result.filter(t => t.status === statusFilter);
@@ -61,10 +89,9 @@ export default function TransactionsPage() {
 
         if (paymentFilter !== 'all') {
             if (paymentFilter === 'lunas') {
-                // Check if pelunasan is NOT 'Pending' (meaning it's Cash or TF)
-                result = result.filter(t => t.pelunasan !== 'Pending');
+                result = result.filter(t => resolveTransactionPaymentInfo(t, invoiceLookup).isPaid);
             } else if (paymentFilter === 'pending') {
-                result = result.filter(t => t.pelunasan === 'Pending');
+                result = result.filter(t => !resolveTransactionPaymentInfo(t, invoiceLookup).isPaid);
             }
         }
 
@@ -87,7 +114,7 @@ export default function TransactionsPage() {
         setFilteredTransactions(result);
         // Reset to page 1 when filters change
         setCurrentPage(1);
-    }, [searchTerm, statusFilter, paymentFilter, transactions, sortOption]);
+    }, [searchTerm, statusFilter, paymentFilter, transactions, sortOption, invoiceLookup]);
 
     const handleDelete = async (id: string) => {
         try {
@@ -455,6 +482,7 @@ export default function TransactionsPage() {
                                             const isSelected = selectedIds.includes(transaction.id);
                                             const isSelectable = canSelectTransaction(transaction);
                                             const isDisabled = !isSelectable && selectedIds.length > 0;
+                                            const paymentInfo = resolveTransactionPaymentInfo(transaction, invoiceLookup);
 
                                             return (
                                                 <tr
@@ -479,6 +507,18 @@ export default function TransactionsPage() {
                                                         <span className="font-mono text-sm font-semibold text-blue-600 bg-blue-50 px-2 py-1 rounded">
                                                             {transaction.noSTT}
                                                         </span>
+                                                        {paymentInfo.linkedInvoice && (
+                                                            <div className="mt-1">
+                                                                <Link
+                                                                    href={`/finance/invoices/${paymentInfo.linkedInvoice.id}/print`}
+                                                                    target="_blank"
+                                                                    className="inline-flex items-center gap-1 text-[10px] font-mono font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 px-1.5 py-0.5 rounded"
+                                                                    title="Buka Invoice Keuangan"
+                                                                >
+                                                                    <FileText size={10} /> #{paymentInfo.linkedInvoice.invoiceNumber}
+                                                                </Link>
+                                                            </div>
+                                                        )}
                                                     </td>
                                                     <td className="px-6 py-4">
                                                         <div className="text-sm font-medium text-gray-900">{transaction.pengirimName}</div>
@@ -499,7 +539,26 @@ export default function TransactionsPage() {
                                                         {formatRupiah(transaction.jumlah)}
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-center">
-                                                        <StatusBadge status={transaction.status} />
+                                                        <div className="flex flex-col items-center gap-1">
+                                                            <StatusBadge status={transaction.status} />
+                                                            {paymentInfo.state === 'lunas' ? (
+                                                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-700">
+                                                                    LUNAS {paymentInfo.paymentMethod ? `(${paymentInfo.paymentMethod})` : ''}
+                                                                </span>
+                                                            ) : paymentInfo.isOverdue ? (
+                                                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-700">
+                                                                    JATUH TEMPO
+                                                                </span>
+                                                            ) : paymentInfo.state === 'invoiced_unpaid' ? (
+                                                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">
+                                                                    BELUM LUNAS
+                                                                </span>
+                                                            ) : (
+                                                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-600">
+                                                                    Pending
+                                                                </span>
+                                                            )}
+                                                        </div>
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-center">
                                                         <div className="flex items-center justify-center gap-2">
@@ -635,7 +694,7 @@ export default function TransactionsPage() {
                                     <p className="text-xl font-bold">{selectionTotals.koli}</p>
                                 </div>
                             </div>
-                            <div className="flex gap-3">
+                            <div className="flex flex-wrap gap-2.5">
                                 <button
                                     onClick={clearSelection}
                                     className="px-4 py-2 rounded-xl text-sm font-medium hover:bg-white/10 transition-colors"
@@ -644,21 +703,29 @@ export default function TransactionsPage() {
                                 </button>
                                 <button
                                     onClick={handleBulkDelete}
-                                    className="bg-red-600 hover:bg-red-500 text-white px-6 py-2.5 rounded-xl font-semibold transition-all flex items-center gap-2 shadow-lg shadow-red-600/30"
+                                    className="bg-red-600 hover:bg-red-500 text-white px-4 py-2.5 rounded-xl font-semibold transition-all flex items-center gap-2 shadow-lg shadow-red-600/30 text-sm"
                                 >
-                                    <Trash2 size={18} />
+                                    <Trash2 size={16} />
                                     Hapus ({selectedIds.length})
+                                </button>
+                                <button
+                                    onClick={() => setShowLinkInvoiceModal(true)}
+                                    className="bg-indigo-600 hover:bg-indigo-500 text-white px-5 py-2.5 rounded-xl font-semibold transition-all flex items-center gap-2 shadow-lg shadow-indigo-600/30 text-sm"
+                                    title="Hubungkan STT terpilih ke Invoice Keuangan yang sudah ada atau buat Invoice baru"
+                                >
+                                    <Link2 size={16} />
+                                    Hubungkan / Buat Invoice ({selectedIds.length})
                                 </button>
                                 <button
                                     onClick={handleBulkPrint}
                                     disabled={!isSelectionValidForInvoice}
-                                    className={`px-6 py-2.5 rounded-xl font-semibold transition-all flex items-center gap-2 shadow-lg ${isSelectionValidForInvoice
+                                    className={`px-5 py-2.5 rounded-xl font-semibold transition-all flex items-center gap-2 shadow-lg text-sm ${isSelectionValidForInvoice
                                         ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-600/30'
                                         : 'bg-gray-700 text-gray-400 cursor-not-allowed'
                                         }`}
-                                    title={!isSelectionValidForInvoice ? 'Pengirim dan Tanggal harus sama' : 'Buat Invoice'}
+                                    title={!isSelectionValidForInvoice ? 'Pengirim dan Tanggal harus sama' : 'Cetak Invoice'}
                                 >
-                                    <Printer size={18} />
+                                    <Printer size={16} />
                                     Cetak Invoice
                                 </button>
                             </div>
@@ -702,6 +769,29 @@ export default function TransactionsPage() {
                         onClose={() => setShowBulkModal(false)}
                         onSubmit={handleModalSubmit}
                     />
+                )}
+
+                {/* Link / Create Finance Invoice Modal */}
+                {showLinkInvoiceModal && (
+                    <LinkInvoiceModal
+                        targetTransactions={selectedTransactions}
+                        invoices={invoices}
+                        userId={user?.uid || ''}
+                        onClose={() => setShowLinkInvoiceModal(false)}
+                        onSuccess={(msg) => {
+                            setShowLinkInvoiceModal(false);
+                            setSelectedIds([]);
+                            setBannerMessage(msg);
+                            setTimeout(() => setBannerMessage(null), 5000);
+                        }}
+                    />
+                )}
+
+                {bannerMessage && (
+                    <div className="fixed top-20 right-6 z-50 bg-emerald-600 text-white px-5 py-3 rounded-xl shadow-xl font-semibold text-sm flex items-center gap-2">
+                        <CheckCircle size={18} />
+                        <span>{bannerMessage}</span>
+                    </div>
                 )}
             </div>
         </ProtectedRoute>

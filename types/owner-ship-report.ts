@@ -28,6 +28,10 @@ export interface OwnerShipSummaryRow {
     vehicleNumbers: string[];
     status: string;
     sttCount: number;
+    paidSttCount?: number;
+    unpaidSttCount?: number;
+    paidRevenue?: number;
+    unpaidRevenue?: number;
     omzetStt: number;          // Omzet otomatis muatan STT kapal dari Surabaya
     penjualanMakassar: number; // Penjualan / omzet tambahan di Makassar
     totalRevenue: number;      // Total Omzet Keseluruhan: omzetStt + penjualanMakassar

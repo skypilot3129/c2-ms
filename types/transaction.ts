@@ -89,6 +89,9 @@ export interface Transaction {
 
     // Invoice & Payment
     noInvoice: string;
+    invoiceId?: string;
+    invoiceNumber?: string;
+    invoiceStatus?: 'Unpaid' | 'Paid' | 'Cancelled';
     pembayaran: MetodePembayaran;
     pelunasan: CaraPelunasan;
 
@@ -133,6 +136,9 @@ export interface TransactionFormData {
     ppn?: number;    // Explicit tax amount
 
     noInvoice: string;
+    invoiceId?: string;
+    invoiceNumber?: string;
+    invoiceStatus?: 'Unpaid' | 'Paid' | 'Cancelled';
     pembayaran: MetodePembayaran;
     pelunasan: CaraPelunasan;
     keterangan?: string;
@@ -208,6 +214,9 @@ export interface TransactionDoc {
     ppnRate?: number;
 
     noInvoice: string;
+    invoiceId?: string;
+    invoiceNumber?: string;
+    invoiceStatus?: 'Unpaid' | 'Paid' | 'Cancelled';
     pembayaran: MetodePembayaran;
     pelunasan: CaraPelunasan;
     keterangan?: string;

@@ -6,6 +6,8 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { subscribeToVoyages } from '@/lib/firestore-voyages';
 import { subscribeToTransactions } from '@/lib/firestore-transactions';
+import { subscribeToInvoices } from '@/lib/firestore-invoices';
+import { buildInvoiceLookup, summarizeVoyagePayments } from '@/lib/invoice-reconciliation';
 import {
     subscribeToOwnerShipExpenses,
     saveOwnerShipExpense,
@@ -13,6 +15,7 @@ import {
 } from '@/lib/firestore-owner-ship-expenses';
 import type { Voyage } from '@/types/voyage';
 import type { Transaction } from '@/types/transaction';
+import type { Invoice } from '@/types/invoice';
 import type { OwnerShipExpense, OwnerShipSummaryRow } from '@/types/owner-ship-report';
 import { formatRupiah } from '@/lib/currency';
 import ProtectedRoute from '@/components/ProtectedRoute';
@@ -35,6 +38,7 @@ export default function OwnerOmzetKapalPage() {
 
     const [voyages, setVoyages] = useState<Voyage[]>([]);
     const [transactions, setTransactions] = useState<Transaction[]>([]);
+    const [invoices, setInvoices] = useState<Invoice[]>([]);
     const [manualExpenses, setManualExpenses] = useState<OwnerShipExpense[]>([]);
     const [loading, setLoading] = useState(true);
 
@@ -85,6 +89,10 @@ export default function OwnerOmzetKapalPage() {
             setTransactions(data);
         }, user.uid);
 
+        const unsubInvoices = subscribeToInvoices(user.uid, (data) => {
+            setInvoices(data);
+        });
+
         const unsubExpenses = subscribeToOwnerShipExpenses((data) => {
             setManualExpenses(data);
             setLoading(false);
@@ -93,6 +101,7 @@ export default function OwnerOmzetKapalPage() {
         return () => {
             unsubVoyages();
             unsubTransactions();
+            unsubInvoices();
             unsubExpenses();
         };
     }, [user]);
@@ -103,6 +112,9 @@ export default function OwnerOmzetKapalPage() {
         transactions.forEach(t => map.set(t.id, t));
         return map;
     }, [transactions]);
+
+    // Fast Lookup Map for Invoices (Reconciliation)
+    const invoiceLookup = useMemo(() => buildInvoiceLookup(invoices), [invoices]);
 
     // Fast Lookup Map for Manual Expenses by voyageId
     const expensesMap = useMemo(() => {
@@ -134,6 +146,8 @@ export default function OwnerOmzetKapalPage() {
                 const ppn = t.isTaxable || (t.ppn && Number(t.ppn) > 0) ? Math.round(subtotal * 0.011) : 0;
                 omzetStt += (subtotal + ppn);
             });
+
+            const paymentSummary = summarizeVoyagePayments(linkedTxList, invoiceLookup);
 
             // 2. Lookup manual expenses & revenue
             const manualCost = expensesMap.get(v.id);
@@ -167,6 +181,10 @@ export default function OwnerOmzetKapalPage() {
                 vehicleNumbers: v.vehicleNumbers || (v.vehicleNumber ? [v.vehicleNumber] : []),
                 status: v.status,
                 sttCount: linkedTxList.length,
+                paidSttCount: paymentSummary.paidCount,
+                unpaidSttCount: paymentSummary.unpaidCount,
+                paidRevenue: paymentSummary.paidRevenue,
+                unpaidRevenue: paymentSummary.unpaidRevenue,
                 omzetStt,
                 penjualanMakassar,
                 totalRevenue,
@@ -184,7 +202,7 @@ export default function OwnerOmzetKapalPage() {
                 hasManualExpense,
             };
         });
-    }, [voyages, txMap, expensesMap]);
+    }, [voyages, txMap, expensesMap, invoiceLookup]);
 
     // Filtered Rows for display
     const filteredRows = useMemo(() => {
@@ -231,6 +249,10 @@ export default function OwnerOmzetKapalPage() {
         let totalSewaMobil = 0;
         let totalOpsTambahan = 0;
         let totalExpenses = 0;
+        let totalPaidSttCount = 0;
+        let totalUnpaidSttCount = 0;
+        let totalPaidSttRevenue = 0;
+        let totalUnpaidSttRevenue = 0;
 
         filteredRows.forEach(r => {
             totalRevenue += r.totalRevenue;
@@ -244,6 +266,10 @@ export default function OwnerOmzetKapalPage() {
             totalSewaMobil += r.sewaMobil;
             totalOpsTambahan += r.opsTambahan;
             totalExpenses += r.totalExpenses;
+            totalPaidSttCount += r.paidSttCount || 0;
+            totalUnpaidSttCount += r.unpaidSttCount || 0;
+            totalPaidSttRevenue += r.paidRevenue || 0;
+            totalUnpaidSttRevenue += r.unpaidRevenue || 0;
         });
 
         const netProfit = totalRevenue - totalExpenses;
@@ -261,6 +287,10 @@ export default function OwnerOmzetKapalPage() {
             totalSewaMobil,
             totalOpsTambahan,
             totalExpenses,
+            totalPaidSttCount,
+            totalUnpaidSttCount,
+            totalPaidSttRevenue,
+            totalUnpaidSttRevenue,
             netProfit,
             avgMargin,
             shipCount: filteredRows.length,
@@ -616,6 +646,18 @@ export default function OwnerOmzetKapalPage() {
                                     <span className="text-emerald-300 font-bold">• Jual MKS: +{formatRupiah(kpiTotals.totalPenjualanMakassar)}</span>
                                 )}
                             </div>
+                            {(kpiTotals.totalPaidSttCount + kpiTotals.totalUnpaidSttCount) > 0 && (
+                                <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[10px]">
+                                    <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 font-bold">
+                                        ✓ {kpiTotals.totalPaidSttCount} STT Lunas ({formatRupiah(kpiTotals.totalPaidSttRevenue)})
+                                    </span>
+                                    {kpiTotals.totalUnpaidSttCount > 0 && (
+                                        <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-400/30 font-bold">
+                                            ⏳ {kpiTotals.totalUnpaidSttCount} Belum Lunas ({formatRupiah(kpiTotals.totalUnpaidSttRevenue)})
+                                        </span>
+                                    )}
+                                </div>
+                            )}
                         </div>
 
                         <div className="pt-2 border-t border-white/10 text-[10px] text-slate-300 flex items-center justify-between font-medium">
@@ -932,7 +974,9 @@ export default function OwnerOmzetKapalPage() {
                                             <td className="p-3">
                                                 <div className="font-extrabold text-gray-900 flex items-center gap-1.5">
                                                     <Ship size={14} className="text-blue-600 shrink-0" />
-                                                    {r.shipName}
+                                                    <Link href={`/voyages/${r.voyageId}?tab=cargo`} className="hover:text-blue-700 hover:underline">
+                                                        {r.shipName}
+                                                    </Link>
                                                 </div>
                                                 <div className="text-[10px] text-gray-500 font-mono mt-0.5">
                                                     No: {r.voyageNumber}
@@ -953,8 +997,25 @@ export default function OwnerOmzetKapalPage() {
                                                 <div className="text-[9px] text-blue-600 font-medium font-sans">
                                                     {r.sttCount} Resi STT
                                                 </div>
+                                                {r.sttCount > 0 && (
+                                                    <Link
+                                                        href={`/voyages/${r.voyageId}?tab=cargo`}
+                                                        className="inline-flex items-center gap-1 mt-0.5 text-[9px] font-sans font-bold hover:underline"
+                                                        title="Lihat detail pelunasan STT & invoice di Pemberangkatan"
+                                                    >
+                                                        {(r.unpaidSttCount || 0) === 0 ? (
+                                                            <span className="text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">
+                                                                ✓ Semua Lunas
+                                                            </span>
+                                                        ) : (
+                                                            <span className="text-amber-800 bg-amber-100 px-1.5 py-0.5 rounded">
+                                                                ✓{r.paidSttCount || 0} / ⏳{r.unpaidSttCount || 0} Blm Lunas
+                                                            </span>
+                                                        )}
+                                                    </Link>
+                                                )}
                                                 {r.penjualanMakassar > 0 && (
-                                                    <div className="text-[9px] text-emerald-700 font-medium font-sans">
+                                                    <div className="text-[9px] text-emerald-700 font-medium font-sans mt-0.5">
                                                         + Mks: {formatRupiah(r.penjualanMakassar)}
                                                     </div>
                                                 )}

@@ -7,9 +7,12 @@ import { useAuth } from '@/context/AuthContext';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { subscribeToVoyages, deleteVoyage, updateVoyage } from '@/lib/firestore-voyages';
 import { subscribeToTransactions } from '@/lib/firestore-transactions';
+import { subscribeToInvoices } from '@/lib/firestore-invoices';
 import { subscribeToOwnerShipExpenses, saveOwnerShipExpense } from '@/lib/firestore-owner-ship-expenses';
+import { buildInvoiceLookup, summarizeVoyagePayments } from '@/lib/invoice-reconciliation';
 import type { Voyage, VoyageStatus } from '@/types/voyage';
 import type { Transaction } from '@/types/transaction';
+import type { Invoice } from '@/types/invoice';
 import type { OwnerShipExpense } from '@/types/owner-ship-report';
 import { formatRupiah } from '@/lib/currency';
 import {
@@ -23,9 +26,19 @@ import {
 
 type ViewMode = 'grid' | 'kanban' | 'table';
 type SortOption = 'date-desc' | 'date-asc' | 'revenue-desc' | 'profit-desc' | 'weight-desc';
+type VoyagePaymentFilter = 'all' | 'has_unpaid' | 'all_paid';
 
 interface EnrichedVoyage extends Voyage {
     sttCount: number;
+    paidSttCount: number;
+    unpaidSttCount: number;
+    invoicedUnpaidCount: number;
+    uninvoicedCount: number;
+    paidRevenue: number;
+    unpaidRevenue: number;
+    collectionPercent: number;
+    linkedSttNumbers: string[];
+    linkedInvoiceNumbers: string[];
     totalKoli: number;
     totalWeight: number; // in kg
     omzetStt: number;
@@ -53,6 +66,7 @@ export default function VoyagesPage() {
     // Core Data States
     const [voyages, setVoyages] = useState<Voyage[]>([]);
     const [transactions, setTransactions] = useState<Transaction[]>([]);
+    const [invoices, setInvoices] = useState<Invoice[]>([]);
     const [manualExpenses, setManualExpenses] = useState<OwnerShipExpense[]>([]);
     const [loading, setLoading] = useState(true);
 
@@ -60,6 +74,7 @@ export default function VoyagesPage() {
     const [viewMode, setViewMode] = useState<ViewMode>('grid');
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState<VoyageStatus | 'all'>('all');
+    const [paymentFilter, setPaymentFilter] = useState<VoyagePaymentFilter>('all');
     const [selectedShipFilter, setSelectedShipFilter] = useState<string>('all');
     const [sortBy, setSortBy] = useState<SortOption>('date-desc');
 
@@ -103,7 +118,16 @@ export default function VoyagesPage() {
         return () => unsubscribe();
     }, [user]);
 
-    // 3. Subscribe to Owner Ship Expenses (Tiket, Ops Mks, Ops Sby, Gaji Sopir, Sewa Mobil, dll.)
+    // 3. Subscribe to Invoices (to reconcile STT payment status)
+    useEffect(() => {
+        if (!user) return;
+        const unsubscribe = subscribeToInvoices(user.uid, (data) => {
+            setInvoices(data);
+        });
+        return () => unsubscribe();
+    }, [user]);
+
+    // 4. Subscribe to Owner Ship Expenses (Tiket, Ops Mks, Ops Sby, Gaji Sopir, Sewa Mobil, dll.)
     useEffect(() => {
         if (!user) return;
         const unsubscribe = subscribeToOwnerShipExpenses((data) => {
@@ -118,6 +142,9 @@ export default function VoyagesPage() {
         transactions.forEach(t => map.set(t.id, t));
         return map;
     }, [transactions]);
+
+    // Invoice lookup map
+    const invoiceLookup = useMemo(() => buildInvoiceLookup(invoices), [invoices]);
 
     // Manual Expenses Map by voyageId
     const expensesMap = useMemo(() => {
@@ -155,6 +182,8 @@ export default function VoyagesPage() {
                 totalWeight += (Number(t.berat) || 0);
             });
 
+            const paySummary = summarizeVoyagePayments(linkedTxs, invoiceLookup);
+
             // Lookup manual costs
             const costDoc = expensesMap.get(v.id);
             const penjualanMakassar = costDoc?.penjualanMakassar || 0;
@@ -178,6 +207,15 @@ export default function VoyagesPage() {
             return {
                 ...v,
                 sttCount: linkedTxs.length,
+                paidSttCount: paySummary.paidCount,
+                unpaidSttCount: paySummary.unpaidCount,
+                invoicedUnpaidCount: paySummary.invoicedUnpaidCount,
+                uninvoicedCount: paySummary.uninvoicedCount,
+                paidRevenue: paySummary.paidRevenue,
+                unpaidRevenue: paySummary.unpaidRevenue,
+                collectionPercent: paySummary.collectionPercent,
+                linkedSttNumbers: linkedTxs.map(t => t.noSTT),
+                linkedInvoiceNumbers: paySummary.linkedInvoices.map(inv => inv.invoiceNumber),
                 totalKoli,
                 totalWeight,
                 omzetStt,
@@ -198,7 +236,7 @@ export default function VoyagesPage() {
                 hasManualExpense,
             };
         });
-    }, [voyages, txMap, expensesMap]);
+    }, [voyages, txMap, expensesMap, invoiceLookup]);
 
     // Filter & Sort Logic
     const filteredVoyages = useMemo(() => {
@@ -209,12 +247,19 @@ export default function VoyagesPage() {
             list = list.filter(v => v.status === statusFilter);
         }
 
+        // Payment Status Filter
+        if (paymentFilter === 'has_unpaid') {
+            list = list.filter(v => v.unpaidSttCount > 0);
+        } else if (paymentFilter === 'all_paid') {
+            list = list.filter(v => v.sttCount > 0 && v.unpaidSttCount === 0);
+        }
+
         // Ship Filter
         if (selectedShipFilter !== 'all') {
             list = list.filter(v => (v.shipName || '').toLowerCase() === selectedShipFilter.toLowerCase());
         }
 
-        // Search Term
+        // Search Term (matches route, voyageNo, ship, vehicle, notes, STT#, Invoice#)
         if (searchTerm.trim()) {
             const lower = searchTerm.toLowerCase();
             list = list.filter(v =>
@@ -223,7 +268,9 @@ export default function VoyagesPage() {
                 (v.shipName && v.shipName.toLowerCase().includes(lower)) ||
                 (v.vehicleNumbers && v.vehicleNumbers.some(n => n.toLowerCase().includes(lower))) ||
                 (v.vehicleNumber && v.vehicleNumber.toLowerCase().includes(lower)) ||
-                (v.notesText && v.notesText.toLowerCase().includes(lower))
+                (v.notesText && v.notesText.toLowerCase().includes(lower)) ||
+                v.linkedSttNumbers.some(stt => stt.toLowerCase().includes(lower)) ||
+                v.linkedInvoiceNumbers.some(inv => inv.toLowerCase().includes(lower))
             );
         }
 
@@ -238,11 +285,15 @@ export default function VoyagesPage() {
         });
 
         return list;
-    }, [enrichedVoyages, statusFilter, selectedShipFilter, searchTerm, sortBy]);
+    }, [enrichedVoyages, statusFilter, paymentFilter, selectedShipFilter, searchTerm, sortBy]);
 
     // Overall KPI Metrics for Hero Banner
     const kpiMetrics = useMemo(() => {
         let totalRevenue = 0;
+        let totalPaidSttRevenue = 0;
+        let totalUnpaidSttRevenue = 0;
+        let totalSttCount = 0;
+        let totalPaidSttCount = 0;
         let totalExpenses = 0;
         let totalWeightKg = 0;
         let totalKoli = 0;
@@ -252,6 +303,10 @@ export default function VoyagesPage() {
 
         filteredVoyages.forEach(v => {
             totalRevenue += v.totalRevenue;
+            totalPaidSttRevenue += v.paidRevenue;
+            totalUnpaidSttRevenue += v.unpaidRevenue;
+            totalSttCount += v.sttCount;
+            totalPaidSttCount += v.paidSttCount;
             totalExpenses += v.totalExpenses;
             totalWeightKg += v.totalWeight;
             totalKoli += v.totalKoli;
@@ -267,6 +322,10 @@ export default function VoyagesPage() {
         return {
             totalTrips: filteredVoyages.length,
             totalRevenue,
+            totalPaidSttRevenue,
+            totalUnpaidSttRevenue,
+            totalSttCount,
+            totalPaidSttCount,
             totalExpenses,
             totalNetProfit,
             avgMargin,
@@ -574,12 +633,12 @@ export default function VoyagesPage() {
                             </div>
                         </div>
 
-                        {/* Card 3: Total Omzet STT Kargo */}
+                        {/* Card 3: Total Omzet STT Kargo & Status Tagihan */}
                         <div className="bg-gradient-to-br from-slate-900 via-blue-950 to-indigo-950 text-white p-4 rounded-2xl shadow-md border border-slate-800 flex flex-col justify-between">
                             <div className="flex justify-between items-start">
                                 <div>
                                     <span className="text-[10px] font-extrabold uppercase tracking-wider text-blue-200">
-                                        Total Omzet STT
+                                        Total Omzet Kapal
                                     </span>
                                     <h3 className="text-lg sm:text-xl font-black text-white mt-0.5 truncate tracking-tight">
                                         {formatRupiah(kpiMetrics.totalRevenue)}
@@ -590,9 +649,11 @@ export default function VoyagesPage() {
                                 </div>
                             </div>
                             <div className="flex items-center justify-between pt-2.5 border-t border-white/10 text-[10.5px]">
-                                <span className="text-slate-300">Biaya Ops:</span>
-                                <span className="font-bold text-rose-300">
-                                    {formatRupiah(kpiMetrics.totalExpenses)}
+                                <span className="text-emerald-300 font-bold">
+                                    Lunas: {kpiMetrics.totalPaidSttCount}/{kpiMetrics.totalSttCount} STT
+                                </span>
+                                <span className="font-bold text-amber-300">
+                                    Piutang: {formatRupiah(kpiMetrics.totalUnpaidSttRevenue)}
                                 </span>
                             </div>
                         </div>
@@ -639,7 +700,7 @@ export default function VoyagesPage() {
                     {/* ── 3. SEARCH, STATUS TABS, & SORT BAR ── */}
                     <div className="bg-white p-4 rounded-2xl border border-gray-200/80 shadow-xs space-y-3">
                         
-                        {/* Top row: Status Tabs & Ship Filter */}
+                        {/* Top row: Status Tabs & Ship Filter & Payment Filter */}
                         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-gray-100 pb-3">
                             {/* Status Filter Tabs */}
                             <div className="flex items-center gap-1 overflow-x-auto pb-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
@@ -663,19 +724,34 @@ export default function VoyagesPage() {
                                 ))}
                             </div>
 
-                            {/* Ship Filter Dropdown */}
-                            <div className="flex items-center gap-2">
-                                <span className="text-xs text-gray-500 font-bold whitespace-nowrap">Kapal:</span>
-                                <select
-                                    value={selectedShipFilter}
-                                    onChange={(e) => setSelectedShipFilter(e.target.value)}
-                                    className="bg-gray-50 border border-gray-200 rounded-xl px-2.5 py-1.5 text-xs font-bold text-gray-800 outline-none focus:ring-2 focus:ring-blue-100"
-                                >
-                                    <option value="all">Semua Kapal</option>
-                                    {uniqueShipNames.map((name) => (
-                                        <option key={name} value={name}>{name}</option>
-                                    ))}
-                                </select>
+                            {/* Payment & Ship Filters */}
+                            <div className="flex flex-wrap items-center gap-2">
+                                <div className="flex items-center gap-1.5">
+                                    <span className="text-xs text-gray-500 font-bold whitespace-nowrap">Tagihan STT:</span>
+                                    <select
+                                        value={paymentFilter}
+                                        onChange={(e) => setPaymentFilter(e.target.value as VoyagePaymentFilter)}
+                                        className="bg-gray-50 border border-gray-200 rounded-xl px-2.5 py-1.5 text-xs font-bold text-gray-800 outline-none focus:ring-2 focus:ring-blue-100"
+                                    >
+                                        <option value="all">Semua Tagihan</option>
+                                        <option value="has_unpaid">Ada STT Belum Lunas</option>
+                                        <option value="all_paid">Semua STT Lunas</option>
+                                    </select>
+                                </div>
+
+                                <div className="flex items-center gap-1.5">
+                                    <span className="text-xs text-gray-500 font-bold whitespace-nowrap">Kapal:</span>
+                                    <select
+                                        value={selectedShipFilter}
+                                        onChange={(e) => setSelectedShipFilter(e.target.value)}
+                                        className="bg-gray-50 border border-gray-200 rounded-xl px-2.5 py-1.5 text-xs font-bold text-gray-800 outline-none focus:ring-2 focus:ring-blue-100"
+                                    >
+                                        <option value="all">Semua Kapal</option>
+                                        {uniqueShipNames.map((name) => (
+                                            <option key={name} value={name}>{name}</option>
+                                        ))}
+                                    </select>
+                                </div>
                             </div>
                         </div>
 
@@ -685,7 +761,7 @@ export default function VoyagesPage() {
                                 <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
                                 <input
                                     type="text"
-                                    placeholder="Cari rute, kapal, no. voyage, nopol truk, catatan..."
+                                    placeholder="Cari rute, kapal, no. voyage, no. STT, no. invoice..."
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
                                     className="w-full pl-9 pr-8 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-blue-200 font-medium"
@@ -725,13 +801,13 @@ export default function VoyagesPage() {
                             </div>
                             <h3 className="text-base sm:text-lg font-bold text-gray-800">Belum Ada Pemberangkatan yang Cocok</h3>
                             <p className="text-gray-500 text-xs sm:text-sm max-w-md mx-auto mt-1 mb-4">
-                                {searchTerm || statusFilter !== 'all' || selectedShipFilter !== 'all'
+                                {searchTerm || statusFilter !== 'all' || paymentFilter !== 'all' || selectedShipFilter !== 'all'
                                     ? 'Tidak ada trip yang sesuai dengan filter pencarian saat ini.'
                                     : 'Buat jadwal pemberangkatan baru untuk mulai mencatat kargo dan biaya operasional.'}
                             </p>
-                            {(searchTerm || statusFilter !== 'all' || selectedShipFilter !== 'all') ? (
+                            {(searchTerm || statusFilter !== 'all' || paymentFilter !== 'all' || selectedShipFilter !== 'all') ? (
                                 <button
-                                    onClick={() => { setSearchTerm(''); setStatusFilter('all'); setSelectedShipFilter('all'); }}
+                                    onClick={() => { setSearchTerm(''); setStatusFilter('all'); setPaymentFilter('all'); setSelectedShipFilter('all'); }}
                                     className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-xs font-bold transition-all"
                                 >
                                     Reset Semua Filter
@@ -751,8 +827,8 @@ export default function VoyagesPage() {
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
                             {filteredVoyages.map((v) => {
                                 const badge = getStatusBadge(v.status);
-                                const isSailing = v.status === 'in-progress';
                                 const hasProfit = v.netProfit >= 0;
+                                const allSttPaid = v.sttCount > 0 && v.unpaidSttCount === 0;
 
                                 return (
                                     <div 
@@ -834,6 +910,50 @@ export default function VoyagesPage() {
                                                     </span>
                                                 </div>
                                             </div>
+
+                                            {/* STT Payment Collection Status Strip */}
+                                            <Link
+                                                href={`/voyages/${v.id}?tab=cargo${v.unpaidSttCount > 0 ? '&payment=belum_lunas' : ''}`}
+                                                className={`block p-2.5 rounded-xl border transition-all text-xs ${
+                                                    v.sttCount === 0
+                                                        ? 'bg-gray-50 border-gray-200 text-gray-500'
+                                                        : allSttPaid
+                                                        ? 'bg-emerald-50/80 border-emerald-200 hover:border-emerald-400 text-emerald-900'
+                                                        : 'bg-amber-50/80 border-amber-200 hover:border-amber-400 text-amber-950'
+                                                }`}
+                                                title="Klik untuk melihat status lunas / belum lunas per STT"
+                                            >
+                                                <div className="flex items-center justify-between gap-2 font-bold mb-1">
+                                                    <span className="flex items-center gap-1 text-[11px]">
+                                                        {v.sttCount === 0 ? (
+                                                            'Belum ada muatan STT'
+                                                        ) : allSttPaid ? (
+                                                            <>
+                                                                <CheckCircle2 size={13} className="text-emerald-600" />
+                                                                Semua STT Lunas ({v.paidSttCount}/{v.sttCount})
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <Clock size={13} className="text-amber-600" />
+                                                                {v.paidSttCount}/{v.sttCount} Lunas • {v.unpaidSttCount} Belum
+                                                            </>
+                                                        )}
+                                                    </span>
+                                                    {v.unpaidSttCount > 0 && (
+                                                        <span className="font-mono text-[10px] font-black text-rose-700">
+                                                            Sisa {formatRupiah(v.unpaidRevenue)}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                {v.sttCount > 0 && (
+                                                    <div className="w-full h-1.5 bg-white/80 rounded-full overflow-hidden border border-black/5">
+                                                        <div
+                                                            className={`h-full transition-all duration-300 ${allSttPaid ? 'bg-emerald-500' : 'bg-amber-500'}`}
+                                                            style={{ width: `${v.collectionPercent}%` }}
+                                                        />
+                                                    </div>
+                                                )}
+                                            </Link>
 
                                             {/* Financial Metrics: Omzet, Biaya Ops, Net Profit */}
                                             <div className="bg-gradient-to-br from-slate-900 to-blue-950 text-white p-3.5 rounded-xl space-y-2">
@@ -986,6 +1106,11 @@ export default function VoyagesPage() {
                                                 <span className="text-[11px] text-gray-500">Omzet:</span>
                                                 <span className="font-bold text-blue-900">{formatRupiah(v.totalRevenue)}</span>
                                             </div>
+                                            {v.sttCount > 0 && (
+                                                <Link href={`/voyages/${v.id}?tab=cargo`} className={`block text-center py-1 px-2 rounded-lg text-[10px] font-extrabold border ${v.unpaidSttCount === 0 ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-amber-50 text-amber-800 border-amber-200'}`}>
+                                                    {v.unpaidSttCount === 0 ? `✅ Lunas (${v.paidSttCount}/${v.sttCount} STT)` : `⏳ ${v.paidSttCount}/${v.sttCount} Lunas • ${v.unpaidSttCount} Belum`}
+                                                </Link>
+                                            )}
 
                                             <div className="flex items-center justify-between pt-2 border-t gap-2">
                                                 <button
@@ -1055,6 +1180,11 @@ export default function VoyagesPage() {
                                                     <span className="font-bold text-rose-700">{formatRupiah(v.totalExpenses)}</span>
                                                 </div>
                                             </div>
+                                            {v.sttCount > 0 && (
+                                                <Link href={`/voyages/${v.id}?tab=cargo`} className={`block text-center py-1 px-2 rounded-lg text-[10px] font-extrabold border ${v.unpaidSttCount === 0 ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-amber-50 text-amber-800 border-amber-200'}`}>
+                                                    {v.unpaidSttCount === 0 ? `✅ Lunas (${v.paidSttCount}/${v.sttCount} STT)` : `⏳ ${v.paidSttCount}/${v.sttCount} Lunas • ${v.unpaidSttCount} Belum`}
+                                                </Link>
+                                            )}
 
                                             <div className="flex items-center justify-between pt-2 border-t gap-2">
                                                 <button
@@ -1117,6 +1247,11 @@ export default function VoyagesPage() {
                                                 <span>Laba Bersih:</span>
                                                 <span className="font-mono">{formatRupiah(v.netProfit)} ({v.profitMargin}%)</span>
                                             </div>
+                                            {v.sttCount > 0 && (
+                                                <Link href={`/voyages/${v.id}?tab=cargo`} className={`block text-center py-1 px-2 rounded-lg text-[10px] font-extrabold border ${v.unpaidSttCount === 0 ? 'bg-emerald-100/70 text-emerald-800 border-emerald-200' : 'bg-amber-50 text-amber-800 border-amber-200'}`}>
+                                                    {v.unpaidSttCount === 0 ? `✅ Lunas (${v.paidSttCount}/${v.sttCount} STT)` : `⏳ ${v.paidSttCount}/${v.sttCount} Lunas • ${v.unpaidSttCount} Belum`}
+                                                </Link>
+                                            )}
 
                                             <div className="flex items-center justify-between pt-1 text-xs">
                                                 <button
@@ -1157,6 +1292,7 @@ export default function VoyagesPage() {
                                             <th className="p-3">Rute</th>
                                             <th className="p-3 text-center w-28">Status</th>
                                             <th className="p-3 text-center w-24">STT / Koli</th>
+                                            <th className="p-3 text-center w-32">Pelunasan STT</th>
                                             <th className="p-3 text-right w-24">Tonase</th>
                                             <th className="p-3 text-right w-28 text-blue-900">Omzet STT</th>
                                             <th className="p-3 text-right w-28 text-rose-700">Biaya Ops</th>
@@ -1189,6 +1325,26 @@ export default function VoyagesPage() {
                                                     </td>
                                                     <td className="p-3 text-center font-semibold">
                                                         {v.sttCount} / {v.totalKoli}
+                                                    </td>
+                                                    <td className="p-3 text-center whitespace-nowrap">
+                                                        <Link href={`/voyages/${v.id}?tab=cargo${v.unpaidSttCount > 0 ? '&payment=belum_lunas' : ''}`}>
+                                                            {v.sttCount === 0 ? (
+                                                                <span className="text-[10px] text-gray-400">—</span>
+                                                            ) : v.unpaidSttCount === 0 ? (
+                                                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-200 hover:bg-emerald-200">
+                                                                    <CheckCircle2 size={10} /> Lunas ({v.paidSttCount}/{v.sttCount})
+                                                                </span>
+                                                            ) : (
+                                                                <div className="inline-flex flex-col items-center">
+                                                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-800 border border-amber-200 hover:bg-amber-200">
+                                                                        {v.paidSttCount}/{v.sttCount} Lunas
+                                                                    </span>
+                                                                    <span className="text-[9.5px] font-mono text-rose-700 font-bold mt-0.5">
+                                                                        Sisa {formatRupiah(v.unpaidRevenue)}
+                                                                    </span>
+                                                                </div>
+                                                            )}
+                                                        </Link>
                                                     </td>
                                                     <td className="p-3 text-right font-bold text-gray-900">
                                                         {(v.totalWeight / 1000).toFixed(2)} T
