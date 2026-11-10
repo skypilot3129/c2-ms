@@ -930,7 +930,146 @@ export default function OwnerOmzetKapalPage() {
                         </div>
                     </div>
 
-                    <div className="overflow-x-auto">
+                    {/* Mobile Card View (Khusus HP Owner) */}
+                    <div className="md:hidden divide-y divide-gray-200">
+                        {filteredRows.map((r) => {
+                            const matchingVoyage = voyages.find(v => v.id === r.voyageId);
+                            const isCopied = copiedShipId === r.voyageId;
+                            const depStr = r.departureDate && !isNaN(r.departureDate.getTime())
+                                ? r.departureDate.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })
+                                : '-';
+                            const activeCosts = [
+                                { label: 'Tiket SBY', val: r.tiket },
+                                { label: 'Tiket MKS', val: r.tiketMakassar },
+                                { label: 'Ops MKS', val: r.opsMakassar },
+                                { label: 'Ops SBY', val: r.opsSurabaya },
+                                { label: 'Gaji Sopir', val: r.gajiSopir },
+                                { label: 'Sewa Mobil', val: r.sewaMobil },
+                                { label: 'Ops Tamb', val: r.opsTambahan },
+                            ].filter(c => c.val > 0);
+
+                            return (
+                                <div key={r.voyageId} className="p-4 space-y-3 bg-white">
+                                    <div className="flex items-start justify-between gap-2">
+                                        <div className="min-w-0">
+                                            <div className="flex items-center gap-1.5 flex-wrap">
+                                                <span className="font-mono text-[10px] font-black bg-blue-50 text-blue-700 px-2 py-0.5 rounded border border-blue-200">
+                                                    {r.voyageNumber}
+                                                </span>
+                                                <span className="text-[11px] text-gray-500 font-semibold">{depStr}</span>
+                                            </div>
+                                            <h4 className="font-black text-sm text-gray-900 mt-1 flex items-center gap-1.5">
+                                                <Ship size={14} className="text-blue-600 shrink-0" />
+                                                <span className="truncate">{r.shipName}</span>
+                                            </h4>
+                                            <p className="text-[11px] text-gray-500 truncate">{r.route}</p>
+                                        </div>
+                                        <span className={`shrink-0 px-2 py-0.5 rounded-full text-[10px] font-black ${
+                                            r.profitMargin >= 30
+                                                ? 'bg-emerald-100 text-emerald-800'
+                                                : r.profitMargin >= 10
+                                                ? 'bg-amber-100 text-amber-800'
+                                                : 'bg-rose-100 text-rose-800'
+                                        }`}>
+                                            Margin {r.profitMargin}%
+                                        </span>
+                                    </div>
+
+                                    {/* 3 KPI Angka Ringkas */}
+                                    <div className="grid grid-cols-3 gap-2 bg-slate-50 p-2.5 rounded-xl border border-slate-200 text-center">
+                                        <div>
+                                            <span className="text-[9px] font-bold text-gray-500 uppercase block">Omzet</span>
+                                            <span className="font-mono font-black text-[11px] text-blue-900 block mt-0.5">
+                                                {formatRupiah(r.totalRevenue)}
+                                            </span>
+                                        </div>
+                                        <div className="border-x border-slate-200">
+                                            <span className="text-[9px] font-bold text-gray-500 uppercase block">Biaya Ops</span>
+                                            <span className="font-mono font-black text-[11px] text-rose-700 block mt-0.5">
+                                                {formatRupiah(r.totalExpenses)}
+                                            </span>
+                                        </div>
+                                        <div>
+                                            <span className="text-[9px] font-bold text-gray-500 uppercase block">Laba Bersih</span>
+                                            <span className={`font-mono font-black text-[11px] block mt-0.5 ${
+                                                r.netProfit >= 0 ? 'text-emerald-700' : 'text-rose-700'
+                                            }`}>
+                                                {formatRupiah(r.netProfit)}
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    {/* Strip Pelunasan STT Lunas vs Belum */}
+                                    <div className="flex flex-wrap items-center justify-between gap-2 text-[11px]">
+                                        <span className="font-bold text-gray-700">{r.sttCount} Resi STT</span>
+                                        {r.sttCount > 0 && (
+                                            <Link
+                                                href={`/voyages/${r.voyageId}/owner-report#sec-stt`}
+                                                className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${
+                                                    (r.unpaidSttCount || 0) === 0
+                                                        ? 'bg-emerald-100 text-emerald-800'
+                                                        : 'bg-amber-100 text-amber-800'
+                                                }`}
+                                            >
+                                                {(r.unpaidSttCount || 0) === 0
+                                                    ? `✓ Semua Lunas (${r.paidSttCount}/${r.sttCount})`
+                                                    : `✓${r.paidSttCount || 0} Lunas • ⏳${r.unpaidSttCount || 0} Belum`}
+                                            </Link>
+                                        )}
+                                    </div>
+
+                                    {/* Chips Rincian Biaya Aktif */}
+                                    {activeCosts.length > 0 && (
+                                        <div className="flex flex-wrap gap-1.5 text-[10px]">
+                                            {activeCosts.map(c => (
+                                                <span key={c.label} className="bg-gray-100 text-gray-700 px-2 py-0.5 rounded-lg font-medium">
+                                                    {c.label}: <strong className="font-mono text-gray-900">{formatRupiah(c.val)}</strong>
+                                                </span>
+                                            ))}
+                                        </div>
+                                    )}
+
+                                    {/* Mobile Action Row */}
+                                    <div className="grid grid-cols-3 gap-2 pt-1">
+                                        <Link
+                                            href={`/voyages/${r.voyageId}/owner-report`}
+                                            className="col-span-1 py-2 px-2.5 bg-slate-900 text-white rounded-xl font-bold text-[11px] flex items-center justify-center gap-1"
+                                        >
+                                            <FileText size={12} className="text-emerald-400" />
+                                            Laporan
+                                        </Link>
+                                        {matchingVoyage ? (
+                                            <button
+                                                onClick={() => handleOpenCostModal(matchingVoyage)}
+                                                className="py-2 px-2.5 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-xl font-bold text-[11px] flex items-center justify-center gap-1"
+                                            >
+                                                <Edit3 size={12} /> Biaya
+                                            </button>
+                                        ) : <div />}
+                                        <button
+                                            onClick={() => handleCopySingleShipWa(r)}
+                                            className={`py-2 px-2.5 rounded-xl font-bold text-[11px] flex items-center justify-center gap-1 ${
+                                                isCopied
+                                                    ? 'bg-emerald-600 text-white'
+                                                    : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                                            }`}
+                                        >
+                                            {isCopied ? <Check size={12} /> : <Share2 size={12} />}
+                                            {isCopied ? 'Disalin' : 'Salin WA'}
+                                        </button>
+                                    </div>
+                                </div>
+                            );
+                        })}
+
+                        {filteredRows.length === 0 && (
+                            <div className="p-8 text-center text-xs text-gray-400 italic">
+                                {loading ? 'Memuat data omzet per-kapal...' : 'Tidak ada data keberangkatan kapal yang cocok dengan filter.'}
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="hidden md:block overflow-x-auto">
                         <table className="w-full text-left text-xs border-collapse">
                             <thead>
                                 <tr className="bg-gray-100/75 border-b border-gray-200 text-gray-600 font-bold uppercase text-[9px] tracking-wider">
@@ -1061,16 +1200,25 @@ export default function OwnerOmzetKapalPage() {
                                                 </span>
                                             </td>
 
-                                            {/* Action Buttons: Salin WA & Edit Biaya */}
+                                            {/* Action Buttons: Laporan, Salin WA & Edit Biaya */}
                                             <td className="p-3 text-center">
                                                 <div className="flex items-center justify-center gap-1.5">
+                                                    <Link
+                                                        href={`/voyages/${r.voyageId}/owner-report`}
+                                                        title="Buka Detail Laporan Lengkap (Biaya + STT Lunas/Belum Lunas)"
+                                                        className="flex items-center justify-center gap-1 py-1 px-2 rounded-lg font-bold text-[10px] bg-slate-900 text-white hover:bg-slate-800 transition-all shadow-2xs whitespace-nowrap"
+                                                    >
+                                                        <FileText size={11} className="text-emerald-400" />
+                                                        Laporan
+                                                    </Link>
+
                                                     <button
                                                         onClick={() => handleCopySingleShipWa(r)}
                                                         title="Salin Laporan WhatsApp Kapal Ini"
                                                         className={`flex items-center justify-center gap-1 py-1 px-2 rounded-lg font-bold text-[10px] transition-all shadow-2xs active:scale-95 whitespace-nowrap ${isCopied ? 'bg-emerald-600 text-white' : 'bg-emerald-50 text-emerald-800 border border-emerald-300 hover:bg-emerald-100'}`}
                                                     >
                                                         {isCopied ? <Check size={11} /> : <Share2 size={11} className="text-emerald-700" />}
-                                                        {isCopied ? 'Tersalin' : 'Salin WA'}
+                                                        {isCopied ? 'Tersalin' : 'WA'}
                                                     </button>
 
                                                     {matchingVoyage && (

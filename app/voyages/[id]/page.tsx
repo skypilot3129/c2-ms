@@ -37,6 +37,7 @@ import { formatRupiah } from '@/lib/currency';
 import ExpenseForm from '@/components/ExpenseForm';
 import AssignTransactionsModal from '@/components/AssignTransactionsModal';
 import LinkInvoiceModal from '@/components/LinkInvoiceModal';
+import OwnerVoyageReportView from '@/components/OwnerVoyageReportView';
 import { EXPENSE_CATEGORY_LABELS } from '@/types/voyage';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 
@@ -503,7 +504,17 @@ export default function VoyageDetailPage({ params }: { params: Promise<{ id: str
                             </div>
 
                             {/* Header Actions */}
-                            <div className="flex items-center gap-2">
+                            <div className="flex flex-wrap items-center gap-2">
+                                <Link
+                                    href={`/voyages/${voyage.id}/owner-report`}
+                                    className="px-3 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs"
+                                    title="Buka Tampilan Laporan Owner Khusus Mobile"
+                                >
+                                    <FileText size={14} className="text-emerald-400" />
+                                    <span className="hidden sm:inline">Laporan Owner</span>
+                                    <span className="sm:hidden">Laporan</span>
+                                </Link>
+
                                 <button
                                     onClick={() => setIsCostModalOpen(true)}
                                     className="px-3 py-2 bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs"
@@ -1438,111 +1449,21 @@ export default function VoyageDetailPage({ params }: { params: Promise<{ id: str
                             </div>
                         )}
 
-                        {/* TAB 4: FINANCIAL SUMMARY REPORT */}
+                        {/* TAB 4: FINANCIAL SUMMARY REPORT (UNIFIED MOBILE OWNER REPORT) */}
                         {activeTab === 'summary' && (
-                            <div className="bg-white rounded-2xl border border-gray-200 shadow-xs overflow-hidden">
-                                <div className="p-6 sm:p-8 space-y-6">
-                                    <div className="text-center border-b pb-6 relative">
-                                        <h2 className="text-xl font-black text-gray-900">Laporan Finansial Trip Pelayaran</h2>
-                                        <p className="text-xs text-gray-500 mt-1">
-                                            {voyage.voyageNumber} • {voyage.shipName} • {voyage.route}
-                                        </p>
-                                        <button
-                                            onClick={() => window.open(`/voyages/${voyage.id}/print-report`, '_blank')}
-                                            className="sm:absolute top-0 right-0 mt-3 sm:mt-0 border border-gray-300 text-gray-700 px-3.5 py-1.5 rounded-xl text-xs font-bold hover:bg-gray-50 transition-all inline-flex items-center gap-1.5 shadow-2xs"
-                                        >
-                                            <Printer size={14} /> Cetak Laporan PDF
-                                        </button>
-                                    </div>
-
-                                    <div className="max-w-2xl mx-auto space-y-4 text-xs">
-                                        <div className="space-y-2 pb-3 border-b border-gray-200">
-                                            <div className="flex justify-between items-center text-gray-700">
-                                                <span>Omzet Kargo STT ({transactions.length} Resi):</span>
-                                                <span className="font-mono font-bold text-gray-900">{formatRupiah(omzetStt)}</span>
-                                            </div>
-                                            <div className="flex justify-between items-center text-emerald-700 pl-3 border-l-2 border-emerald-300 text-[11px]">
-                                                <span>↳ Sudah Lunas ({paymentSummary.paidCount} STT):</span>
-                                                <span className="font-mono font-bold">{formatRupiah(paymentSummary.paidRevenue)}</span>
-                                            </div>
-                                            {paymentSummary.unpaidCount > 0 && (
-                                                <div className="flex justify-between items-center text-amber-700 pl-3 border-l-2 border-amber-300 text-[11px]">
-                                                    <span>↳ Belum Lunas ({paymentSummary.unpaidCount} STT):</span>
-                                                    <span className="font-mono font-bold">{formatRupiah(paymentSummary.unpaidRevenue)}</span>
-                                                </div>
-                                            )}
-                                            {penjualanMakassar > 0 && (
-                                                <div className="flex justify-between items-center text-emerald-700">
-                                                    <span>Penjualan Makassar:</span>
-                                                    <span className="font-mono font-bold">+{formatRupiah(penjualanMakassar)}</span>
-                                                </div>
-                                            )}
-                                            <div className="flex justify-between items-center pt-1 border-t border-gray-100 font-bold text-sm">
-                                                <span className="text-blue-900">Total Omzet Kapal</span>
-                                                <span className="font-mono font-black text-blue-950 text-base">{formatRupiah(totalRevenue)}</span>
-                                            </div>
-                                        </div>
-
-                                        <div className="space-y-2 pt-2">
-                                            <p className="font-extrabold text-gray-500 uppercase tracking-wider text-[10px]">Rincian Biaya Operasional Trip</p>
-                                            
-                                            <div className="flex justify-between py-1 text-gray-600 pl-3 border-l-2 border-purple-300">
-                                                <span>Tiket Kapal Penyeberangan (SBY)</span>
-                                                <span className="font-mono font-bold text-gray-800">{formatRupiah(ownerShipExpense?.tiket || 0)}</span>
-                                            </div>
-                                            <div className="flex justify-between py-1 text-gray-600 pl-3 border-l-2 border-purple-300">
-                                                <span>Tiket Makassar</span>
-                                                <span className="font-mono font-bold text-gray-800">{formatRupiah(ownerShipExpense?.tiketMakassar || 0)}</span>
-                                            </div>
-                                            <div className="flex justify-between py-1 text-gray-600 pl-3 border-l-2 border-purple-300">
-                                                <span>Operasional Makassar (Bongkar &amp; Pelabuhan)</span>
-                                                <span className="font-mono font-bold text-gray-800">{formatRupiah(ownerShipExpense?.opsMakassar || 0)}</span>
-                                            </div>
-                                            <div className="flex justify-between py-1 text-gray-600 pl-3 border-l-2 border-purple-300">
-                                                <span>Operasional Surabaya (Solar, Tol, Muat)</span>
-                                                <span className="font-mono font-bold text-gray-800">{formatRupiah(ownerShipExpense?.opsSurabaya || 0)}</span>
-                                            </div>
-                                            <div className="flex justify-between py-1 text-gray-600 pl-3 border-l-2 border-purple-300">
-                                                <span>Gaji Sopir / Uang Jalan</span>
-                                                <span className="font-mono font-bold text-gray-800">{formatRupiah(ownerShipExpense?.gajiSopir || 0)}</span>
-                                            </div>
-                                            <div className="flex justify-between py-1 text-gray-600 pl-3 border-l-2 border-purple-300">
-                                                <span>Sewa Mobil / Armada Luar</span>
-                                                <span className="font-mono font-bold text-gray-800">{formatRupiah(ownerShipExpense?.sewaMobil || 0)}</span>
-                                            </div>
-                                            <div className="flex justify-between py-1 text-gray-600 pl-3 border-l-2 border-purple-300">
-                                                <span>Operasional Tambahan</span>
-                                                <span className="font-mono font-bold text-gray-800">{formatRupiah(ownerShipExpense?.opsTambahan || 0)}</span>
-                                            </div>
-                                            {generalExpensesTotal > 0 && (
-                                                <div className="flex justify-between py-1 text-gray-600 pl-3 border-l-2 border-blue-300">
-                                                    <span>Pengeluaran Lapangan Lainnya</span>
-                                                    <span className="font-mono font-bold text-gray-800">{formatRupiah(generalExpensesTotal)}</span>
-                                                </div>
-                                            )}
-
-                                            <div className="flex justify-between items-center py-2.5 border-t border-gray-200 mt-2">
-                                                <span className="font-bold text-gray-800">Total Pengeluaran</span>
-                                                <span className="font-mono font-black text-rose-700 text-sm">{formatRupiah(combinedExpensesTotal)}</span>
-                                            </div>
-                                        </div>
-
-                                        {/* Net Profit Banner */}
-                                        <div className={`p-4 rounded-2xl flex justify-between items-center shadow-xs ${
-                                            netProfit >= 0 ? 'bg-emerald-50 text-emerald-950 border border-emerald-200' : 'bg-rose-50 text-rose-950 border border-rose-200'
-                                        }`}>
-                                            <div>
-                                                <span className="font-extrabold text-sm block">Laba Bersih (Net Profit)</span>
-                                                <span className="text-[11px] font-medium opacity-80">
-                                                    Margin: <strong>{profitMargin}%</strong> • Biaya: <strong>Rp {costPerKg.toLocaleString('id-ID')} / kg</strong>
-                                                </span>
-                                            </div>
-                                            <span className="font-mono font-black text-xl sm:text-2xl">
-                                                {formatRupiah(netProfit)}
-                                            </span>
-                                        </div>
-                                    </div>
-                                </div>
+                            <div className="max-w-3xl mx-auto">
+                                <OwnerVoyageReportView
+                                    voyage={voyage}
+                                    transactions={transactions}
+                                    invoices={invoices}
+                                    ownerShipExpense={ownerShipExpense}
+                                    expenses={expenses}
+                                    onEditCosts={() => setIsCostModalOpen(true)}
+                                    onLinkTransactions={(txList) => setLinkModalTransactions(txList)}
+                                    onUnlinkInvoice={handleUnlinkInvoice}
+                                    onNotify={showToast}
+                                    showPrintButton={true}
+                                />
                             </div>
                         )}
                     </div>

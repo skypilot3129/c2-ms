@@ -1,14 +1,20 @@
 'use client';
 
-import { use, useEffect, useState, Suspense } from 'react';
-import { useRouter } from 'next/navigation';
+import { use, useEffect, useState, Suspense, useMemo } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { getVoyageById } from '@/lib/firestore-voyages';
 import { getTransactionById } from '@/lib/firestore-transactions';
+import { subscribeToInvoices } from '@/lib/firestore-invoices';
 import { subscribeToExpensesByVoyage } from '@/lib/firestore-expenses';
 import { subscribeToOwnerShipExpenses } from '@/lib/firestore-owner-ship-expenses';
+import {
+    buildInvoiceLookup,
+    resolveTransactionPaymentInfo,
+    summarizeVoyagePayments,
+} from '@/lib/invoice-reconciliation';
 import type { Voyage, Expense } from '@/types/voyage';
 import type { Transaction } from '@/types/transaction';
+import type { Invoice } from '@/types/invoice';
 import type { OwnerShipExpense } from '@/types/owner-ship-report';
 import { formatRupiah } from '@/lib/currency';
 import { EXPENSE_CATEGORY_LABELS } from '@/types/voyage';
@@ -16,66 +22,88 @@ import { EXPENSE_CATEGORY_LABELS } from '@/types/voyage';
 function PrintVoyageReportContent({ params }: { params: Promise<{ id: string }> }) {
     const { id } = use(params);
     const { user } = useAuth();
-    const router = useRouter();
     const [voyage, setVoyage] = useState<Voyage | null>(null);
     const [transactions, setTransactions] = useState<Transaction[]>([]);
+    const [invoices, setInvoices] = useState<Invoice[]>([]);
     const [expenses, setExpenses] = useState<Expense[]>([]);
     const [ownerShipExpense, setOwnerShipExpense] = useState<OwnerShipExpense | null>(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        const loadData = async () => {
-            if (!user) return;
+        if (!user) return;
+        let isMounted = true;
+        const cleanups: (() => void)[] = [];
 
+        const unsubInv = subscribeToInvoices(user.uid, (invData) => {
+            if (isMounted) setInvoices(invData);
+        });
+        cleanups.push(unsubInv);
+
+        const loadData = async () => {
             try {
                 const voyageData = await getVoyageById(id);
+                if (!isMounted) return;
                 if (!voyageData) {
                     alert('Pemberangkatan tidak ditemukan');
+                    setLoading(false);
                     return;
                 }
                 setVoyage(voyageData);
 
-                // Load transactions
                 const txPromises = voyageData.transactionIds.map(txId => getTransactionById(txId));
                 const txData = await Promise.all(txPromises);
-                setTransactions(txData.filter((tx): tx is Transaction => tx !== null));
+                if (isMounted) {
+                    setTransactions(txData.filter((tx): tx is Transaction => tx !== null && tx.status !== 'dibatalkan'));
+                }
 
-                // Load expenses
-                const unsubscribe = subscribeToExpensesByVoyage(voyageData.id, user.uid, (data) => {
-                    setExpenses(data);
-                    setLoading(false);
+                const unsubExp = subscribeToExpensesByVoyage(voyageData.id, user.uid, (data) => {
+                    if (isMounted) {
+                        setExpenses(data);
+                        setLoading(false);
+                    }
                 });
+                cleanups.push(unsubExp);
 
-                const unsubscribeShipExp = subscribeToOwnerShipExpenses((list) => {
-                    const match = list.find(e => e.voyageId === voyageData.id);
-                    setOwnerShipExpense(match || null);
+                const unsubShipExp = subscribeToOwnerShipExpenses((list) => {
+                    if (isMounted) {
+                        const match = list.find(e => e.voyageId === voyageData.id);
+                        setOwnerShipExpense(match || null);
+                    }
                 });
-
-                return () => {
-                    unsubscribe();
-                    unsubscribeShipExp();
-                };
+                cleanups.push(unsubShipExp);
             } catch (error) {
                 console.error('Error loading voyage report data:', error);
-                setLoading(false);
+                if (isMounted) setLoading(false);
             }
         };
 
         loadData();
+
+        return () => {
+            isMounted = false;
+            cleanups.forEach(fn => fn());
+        };
     }, [id, user]);
 
     useEffect(() => {
         if (!loading && voyage) {
-            setTimeout(() => {
+            const timer = setTimeout(() => {
                 window.print();
-            }, 1000);
+            }, 900);
+            return () => clearTimeout(timer);
         }
     }, [loading, voyage]);
+
+    const invoiceLookup = useMemo(() => buildInvoiceLookup(invoices), [invoices]);
+    const paymentSummary = useMemo(
+        () => summarizeVoyagePayments(transactions, invoiceLookup),
+        [transactions, invoiceLookup]
+    );
 
     if (loading) return <div className="p-8 text-center text-gray-500">Memuat laporan keuangan...</div>;
     if (!voyage) return null;
 
-    const omzetStt = transactions.reduce((sum, tx) => sum + tx.jumlah, 0);
+    const omzetStt = paymentSummary.totalRevenue;
     const penjualanMakassar = ownerShipExpense?.penjualanMakassar || 0;
     const totalRevenue = omzetStt + penjualanMakassar;
 
@@ -130,7 +158,7 @@ function PrintVoyageReportContent({ params }: { params: Promise<{ id: string }> 
             </div>
 
             {/* Financial Summary Box */}
-            <div className="bg-gray-50 border border-gray-200 rounded-xl p-6 mb-8">
+            <div className="bg-gray-50 border border-gray-200 rounded-xl p-6 mb-8 space-y-4">
                 <div className="grid grid-cols-3 gap-8 text-center">
                     <div>
                         <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Total Pendapatan</p>
@@ -147,11 +175,21 @@ function PrintVoyageReportContent({ params }: { params: Promise<{ id: string }> 
                         </p>
                     </div>
                 </div>
+                <div className="grid grid-cols-2 gap-4 pt-3 border-t border-gray-200 text-center text-xs">
+                    <div className="bg-emerald-50 border border-emerald-200 rounded-lg py-2 px-3">
+                        <span className="text-emerald-800 font-semibold">STT Sudah Lunas ({paymentSummary.paidCount}/{paymentSummary.totalSttCount}): </span>
+                        <span className="font-mono font-bold text-emerald-700">{formatRupiah(paymentSummary.paidRevenue)}</span>
+                    </div>
+                    <div className="bg-amber-50 border border-amber-200 rounded-lg py-2 px-3">
+                        <span className="text-amber-800 font-semibold">STT Belum Lunas ({paymentSummary.unpaidCount} Resi): </span>
+                        <span className="font-mono font-bold text-rose-700">{formatRupiah(paymentSummary.unpaidRevenue)}</span>
+                    </div>
+                </div>
             </div>
 
             {/* Income Detail (Cargo) */}
             <div className="mb-8">
-                <h3 className="text-lg font-bold border-b border-gray-300 pb-2 mb-4">Rincian Pendapatan (Kargo)</h3>
+                <h3 className="text-lg font-bold border-b border-gray-300 pb-2 mb-4">Rincian Pendapatan (Kargo &amp; Status Pelunasan STT)</h3>
                 <table className="w-full text-left border-collapse">
                     <thead>
                         <tr className="border-b border-gray-200 text-xs text-gray-500 uppercase">
@@ -159,35 +197,54 @@ function PrintVoyageReportContent({ params }: { params: Promise<{ id: string }> 
                             <th className="py-2">No STT</th>
                             <th className="py-2">Pengirim ➔ Penerima</th>
                             <th className="py-2 text-center">Koli</th>
+                            <th className="py-2">Status Pelunasan</th>
                             <th className="py-2 text-right">Jumlah</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
-                        {transactions.map((t, i) => (
-                            <tr key={t.id}>
-                                <td className="py-3 text-gray-500">{i + 1}</td>
-                                <td className="py-3 font-mono font-medium">{t.noSTT}</td>
-                                <td className="py-3 text-sm">
-                                    <span className="font-semibold">{t.pengirimName}</span>
-                                    <span className="text-gray-400 mx-1">➔</span>
-                                    <span>{t.penerimaName}</span>
-                                </td>
-                                <td className="py-3 text-center">{t.koli}</td>
-                                <td className="py-3 text-right font-medium">{formatRupiah(t.jumlah)}</td>
-                            </tr>
-                        ))}
+                        {transactions.map((t, i) => {
+                            const pInfo = resolveTransactionPaymentInfo(t, invoiceLookup);
+                            return (
+                                <tr key={t.id}>
+                                    <td className="py-3 text-gray-500">{i + 1}</td>
+                                    <td className="py-3 font-mono font-medium">{t.noSTT}</td>
+                                    <td className="py-3 text-sm">
+                                        <span className="font-semibold">{t.pengirimName}</span>
+                                        <span className="text-gray-400 mx-1">➔</span>
+                                        <span>{t.penerimaName}</span>
+                                    </td>
+                                    <td className="py-3 text-center">{t.koli}</td>
+                                    <td className="py-3 text-xs">
+                                        {pInfo.isPaid ? (
+                                            <span className="font-bold text-emerald-700">
+                                                LUNAS{pInfo.linkedInvoice ? ` (Inv #${pInfo.linkedInvoice.invoiceNumber})` : pInfo.paymentMethod ? ` (${pInfo.paymentMethod})` : ''}
+                                            </span>
+                                        ) : pInfo.linkedInvoice ? (
+                                            <span className="font-bold text-amber-700">
+                                                {pInfo.isOverdue ? 'JATUH TEMPO' : 'BELUM LUNAS'} (Inv #{pInfo.linkedInvoice.invoiceNumber})
+                                            </span>
+                                        ) : (
+                                            <span className="font-semibold text-gray-500">BELUM ADA INVOICE</span>
+                                        )}
+                                    </td>
+                                    <td className="py-3 text-right font-medium font-mono">{formatRupiah(pInfo.effectiveAmount)}</td>
+                                </tr>
+                            );
+                        })}
                         {penjualanMakassar > 0 && (
                             <tr className="bg-emerald-50/50 font-semibold text-emerald-900">
                                 <td className="py-3 text-emerald-700">{transactions.length + 1}</td>
                                 <td className="py-3 font-mono font-bold text-emerald-700">MKS-SALES</td>
                                 <td className="py-3 text-sm">Penjualan Makassar</td>
                                 <td className="py-3 text-center">-</td>
-                                <td className="py-3 text-right font-black text-emerald-700">{formatRupiah(penjualanMakassar)}</td>
+                                <td className="py-3 text-xs text-emerald-700 font-bold">OMZET TAMBAHAN</td>
+                                <td className="py-3 text-right font-black text-emerald-700 font-mono">{formatRupiah(penjualanMakassar)}</td>
                             </tr>
                         )}
                         <tr className="bg-blue-50 font-bold border-t border-blue-100">
                             <td colSpan={3} className="py-3 text-right pr-4 uppercase text-xs tracking-wider">Total Pendapatan</td>
                             <td className="py-3 text-center">{transactions.reduce((sum, t) => sum + t.koli, 0)}</td>
+                            <td className="py-3 text-xs text-gray-600">{paymentSummary.paidCount}/{paymentSummary.totalSttCount} Lunas</td>
                             <td className="py-3 text-right text-blue-700 font-mono font-black">{formatRupiah(totalRevenue)}</td>
                         </tr>
                     </tbody>

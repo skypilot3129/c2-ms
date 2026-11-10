@@ -1023,6 +1023,16 @@ export default function VoyagesPage() {
                                                 </div>
 
                                                 <div className="flex items-center gap-1.5">
+                                                    {/* Button Laporan Owner Mobile */}
+                                                    <Link
+                                                        href={`/voyages/${v.id}/owner-report`}
+                                                        className="px-2.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold flex items-center gap-1 transition-all shadow-2xs"
+                                                        title="Buka Laporan Lengkap Owner (Keseluruhan, Biaya Ops, STT Lunas/Belum)"
+                                                    >
+                                                        <FileText size={13} className="text-emerald-400" />
+                                                        <span>Laporan</span>
+                                                    </Link>
+
                                                     {/* Button Input Biaya Kapal */}
                                                     <button
                                                         onClick={(e) => handleOpenCostModal(v, e)}
@@ -1034,13 +1044,13 @@ export default function VoyagesPage() {
                                                         title="Input / Edit Biaya Operasional Kapal"
                                                     >
                                                         <DollarSign size={13} />
-                                                        <span>Biaya</span>
+                                                        <span className="hidden sm:inline">Biaya</span>
                                                     </button>
 
                                                     {/* Button Detail */}
                                                     <Link
                                                         href={`/voyages/${v.id}`}
-                                                        className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 transition-all shadow-2xs"
+                                                        className="px-2.5 sm:px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 transition-all shadow-2xs"
                                                         title="Buka Detail Voyage"
                                                     >
                                                         <Eye size={13} />
@@ -1375,6 +1385,13 @@ export default function VoyagesPage() {
                                                     </td>
                                                     <td className="p-3 text-center">
                                                         <div className="flex items-center justify-center gap-1">
+                                                            <Link
+                                                                href={`/voyages/${v.id}/owner-report`}
+                                                                className="p-1 text-slate-800 hover:bg-slate-100 rounded"
+                                                                title="Laporan Lengkap Owner"
+                                                            >
+                                                                <FileText size={14} />
+                                                            </Link>
                                                             <button
                                                                 onClick={(e) => handleOpenCostModal(v, e)}
                                                                 className="p-1 text-purple-600 hover:bg-purple-50 rounded"
