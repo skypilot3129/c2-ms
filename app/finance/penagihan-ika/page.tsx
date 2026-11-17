@@ -4,8 +4,10 @@ import { useEffect, useState, useMemo } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { subscribeToInvoices, updateInvoiceStatus, updateCollectionFeedback } from '@/lib/firestore-invoices';
 import { subscribeToTransactions } from '@/lib/firestore-transactions';
+import { subscribeToVoyages } from '@/lib/firestore-voyages';
 import type { Invoice } from '@/types/invoice';
 import type { Transaction } from '@/types/transaction';
+import type { Voyage } from '@/types/voyage';
 import { formatRupiah, terbilang } from '@/lib/currency';
 import { COMPANY_INFO } from '@/lib/company-config';
 import type { RealBankAccount } from '@/types/saldo-real';
@@ -15,21 +17,40 @@ import {
     Send, Search, Filter, CheckCircle2, Clock, Calendar,
     User, Phone, Copy, Check, ExternalLink, Printer, FileText,
     ArrowUpRight, AlertCircle, Wallet, ShieldCheck, X, Building2,
-    MessageSquare, AlertTriangle, ChevronRight, MessageCircleCode, Sparkles, RotateCcw
+    MessageSquare, AlertTriangle, ChevronRight, MessageCircleCode, Sparkles, RotateCcw,
+    Ship, Anchor, ChevronDown, ChevronUp, MapPin, Truck, Layers
 } from 'lucide-react';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import Link from 'next/link';
+
+interface VoyageInvoiceGroup {
+    groupKey: string;
+    voyage: Voyage | null;
+    shipLabel: string;
+    unpaid: Invoice[];
+    paid: Invoice[];
+    totalUnpaidAmount: number;
+    totalPaidAmount: number;
+    totalAmount: number;
+    totalCount: number;
+    collectionPercent: number;
+}
 
 export default function PenagihanIkaPage() {
     const { user, role } = useAuth();
     const [invoices, setInvoices] = useState<Invoice[]>([]);
     const [transactions, setTransactions] = useState<Transaction[]>([]);
+    const [voyages, setVoyages] = useState<Voyage[]>([]);
     const [loading, setLoading] = useState(true);
 
     // Filter & Tab states
-    const [activeTab, setActiveTab] = useState<'unpaid' | 'paid' | 'daily'>('unpaid');
+    const [activeTab, setActiveTab] = useState<'by_voyage' | 'unpaid' | 'paid' | 'daily'>('by_voyage');
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedClientFilter, setSelectedClientFilter] = useState('');
+    const [selectedShipFilter, setSelectedShipFilter] = useState('');
+    const [voyagePaymentFilter, setVoyagePaymentFilter] = useState<'all' | 'has_unpaid' | 'all_paid'>('all');
+    const [invoiceStatusInVoyage, setInvoiceStatusInVoyage] = useState<'all' | 'unpaid' | 'paid'>('all');
+    const [expandedOverrides, setExpandedOverrides] = useState<Record<string, boolean>>({});
     const [dailyReportDate, setDailyReportDate] = useState(() => new Date().toISOString().split('T')[0]);
 
     // Payment Modal State
@@ -66,9 +87,14 @@ export default function PenagihanIkaPage() {
             setTransactions(txData);
         }, user.uid);
 
+        const unsubVoyages = subscribeToVoyages(user.uid, (voyageData) => {
+            setVoyages(voyageData);
+        });
+
         return () => {
             unsubInvoices();
             unsubTx();
+            unsubVoyages();
         };
     }, [user]);
 
@@ -78,39 +104,46 @@ export default function PenagihanIkaPage() {
         const sttMapping: Record<string, string> = {};
         const clientsSet = new Set<string>();
 
-        const processed = invoices.map(inv => {
-            const linked = (inv.transactionIds || [])
-                .map(tid => txMap.get(tid))
-                .filter((t): t is Transaction => t !== undefined);
+        const processed = invoices
+            .filter(inv => inv.status !== 'Cancelled')
+            .map(inv => {
+                const idSet = new Set<string>(inv.transactionIds || []);
+                transactions.forEach(t => {
+                    if (t.invoiceId === inv.id) idSet.add(t.id);
+                });
 
-            if (linked.length > 0) {
-                sttMapping[inv.id] = linked.map(t => t.noSTT.replace(/^STT/i, '')).join(', ');
-                const primaryTx = linked[0];
-                const liveClientName = primaryTx.pengirimName || inv.clientName;
-                const liveClientAddress = primaryTx.pengirimAddress || inv.clientAddress;
-                
-                if (liveClientName) clientsSet.add(liveClientName);
+                const linked = Array.from(idSet)
+                    .map(tid => txMap.get(tid))
+                    .filter((t): t is Transaction => t !== undefined && t.status !== 'dibatalkan');
 
-                const subtotal = linked.reduce((sum, t) => sum + (Number(t.jumlah) || 0), 0);
-                const isTaxable = linked.some(t => t.isTaxable || (t.ppn && Number(t.ppn) > 0));
-                const liveTotalAmount = subtotal + (isTaxable ? Math.round(subtotal * 0.011) : 0);
+                if (linked.length > 0) {
+                    sttMapping[inv.id] = linked.map(t => t.noSTT.replace(/^STT/i, '')).join(', ');
+                    const primaryTx = linked[0];
+                    const liveClientName = primaryTx.pengirimName || inv.clientName;
+                    const liveClientAddress = primaryTx.pengirimAddress || inv.clientAddress;
 
-                // Live payment status reconciliation: if all linked STTs are marked Cash/TF in transactions
-                const allTxPaid = linked.length > 0 && linked.every(t => t.pelunasan === 'TF' || t.pelunasan === 'Cash');
-                const liveStatus = allTxPaid ? 'Paid' : inv.status;
+                    if (liveClientName) clientsSet.add(liveClientName);
 
-                return {
-                    ...inv,
-                    clientName: liveClientName,
-                    clientAddress: liveClientAddress,
-                    totalAmount: liveTotalAmount,
-                    status: liveStatus,
-                };
-            }
+                    const subtotal = linked.reduce((sum, t) => sum + (Number(t.jumlah) || 0), 0);
+                    const isTaxable = linked.some(t => t.isTaxable || (t.ppn && Number(t.ppn) > 0));
+                    const liveTotalAmount = subtotal + (isTaxable ? Math.round(subtotal * 0.011) : 0);
 
-            if (inv.clientName) clientsSet.add(inv.clientName);
-            return inv;
-        });
+                    const allTxPaid = linked.length > 0 && linked.every(t => t.pelunasan === 'TF' || t.pelunasan === 'Cash');
+                    const liveStatus = allTxPaid ? 'Paid' : inv.status;
+
+                    return {
+                        ...inv,
+                        transactionIds: Array.from(idSet),
+                        clientName: liveClientName,
+                        clientAddress: liveClientAddress,
+                        totalAmount: liveTotalAmount,
+                        status: liveStatus,
+                    };
+                }
+
+                if (inv.clientName) clientsSet.add(inv.clientName);
+                return inv;
+            });
 
         return {
             liveInvoices: processed,
@@ -118,6 +151,53 @@ export default function PenagihanIkaPage() {
             clientList: Array.from(clientsSet).sort()
         };
     }, [invoices, transactions]);
+
+    // Map each transactionId to its Voyage and each Invoice to its primary Voyage
+    const { invoiceVoyageMap, uniqueShipNames } = useMemo(() => {
+        const txVoyage = new Map<string, Voyage>();
+        const voyageMap = new Map<string, Voyage>();
+        const ships = new Set<string>();
+
+        voyages.forEach(v => {
+            voyageMap.set(v.id, v);
+            if (v.shipName && v.shipName.trim()) {
+                ships.add(v.shipName.trim());
+            }
+            (v.transactionIds || []).forEach(tid => {
+                if (tid && !txVoyage.has(tid)) {
+                    txVoyage.set(tid, v);
+                }
+            });
+        });
+
+        const invVoyage = new Map<string, Voyage | null>();
+        liveInvoices.forEach(inv => {
+            const counts = new Map<string, number>();
+            (inv.transactionIds || []).forEach(tid => {
+                const matched = txVoyage.get(tid);
+                if (matched) {
+                    counts.set(matched.id, (counts.get(matched.id) || 0) + 1);
+                }
+            });
+
+            let bestVoyageId: string | null = null;
+            let bestCount = 0;
+            counts.forEach((cnt, vId) => {
+                if (cnt > bestCount) {
+                    bestCount = cnt;
+                    bestVoyageId = vId;
+                }
+            });
+
+            invVoyage.set(inv.id, bestVoyageId ? (voyageMap.get(bestVoyageId) || null) : null);
+        });
+
+        return {
+            txToVoyageMap: txVoyage,
+            invoiceVoyageMap: invVoyage,
+            uniqueShipNames: Array.from(ships).sort(),
+        };
+    }, [voyages, liveInvoices]);
 
     // Derived lists
     const unpaidInvoices = useMemo(() => {
@@ -136,21 +216,46 @@ export default function PenagihanIkaPage() {
             });
     }, [liveInvoices]);
 
-    // Group Unpaid Invoices by Client Name
+    const filteredPaidInvoices = useMemo(() => {
+        if (!searchTerm.trim()) return paidInvoices;
+        const term = searchTerm.toLowerCase();
+        return paidInvoices.filter(inv => {
+            const v = invoiceVoyageMap.get(inv.id);
+            return (
+                inv.invoiceNumber.toLowerCase().includes(term) ||
+                inv.clientName.toLowerCase().includes(term) ||
+                (sttNumbersMap[inv.id] || '').toLowerCase().includes(term) ||
+                (v?.shipName || '').toLowerCase().includes(term) ||
+                (v?.voyageNumber || '').toLowerCase().includes(term)
+            );
+        });
+    }, [paidInvoices, searchTerm, sttNumbersMap, invoiceVoyageMap]);
+
+    // Group Unpaid Invoices by Client Name (also useful for consolidated client WA across the app)
+    const unpaidInvoicesByClientAll = useMemo(() => {
+        const map: Record<string, Invoice[]> = {};
+        unpaidInvoices.forEach(inv => {
+            const cName = inv.clientName || 'Lainnya';
+            if (!map[cName]) map[cName] = [];
+            map[cName].push(inv);
+        });
+        return map;
+    }, [unpaidInvoices]);
+
     const unpaidGroupedByClient = useMemo(() => {
         const map: Record<string, Invoice[]> = {};
         unpaidInvoices.forEach(inv => {
-            // Apply Client filter
             if (selectedClientFilter && inv.clientName.toLowerCase() !== selectedClientFilter.toLowerCase()) {
                 return;
             }
-            // Apply Search filter
             if (searchTerm.trim()) {
                 const term = searchTerm.toLowerCase();
+                const v = invoiceVoyageMap.get(inv.id);
                 const matchesInv = inv.invoiceNumber.toLowerCase().includes(term);
                 const matchesClient = inv.clientName.toLowerCase().includes(term);
                 const matchesStt = (sttNumbersMap[inv.id] || '').toLowerCase().includes(term);
-                if (!matchesInv && !matchesClient && !matchesStt) return;
+                const matchesVoyage = (v?.shipName || '').toLowerCase().includes(term) || (v?.voyageNumber || '').toLowerCase().includes(term);
+                if (!matchesInv && !matchesClient && !matchesStt && !matchesVoyage) return;
             }
 
             const cName = inv.clientName || 'Lainnya';
@@ -158,7 +263,154 @@ export default function PenagihanIkaPage() {
             map[cName].push(inv);
         });
         return map;
-    }, [unpaidInvoices, selectedClientFilter, searchTerm, sttNumbersMap]);
+    }, [unpaidInvoices, selectedClientFilter, searchTerm, sttNumbersMap, invoiceVoyageMap]);
+
+    // Group ALL Invoices (both Unpaid & Paid) by Voyage (Pemberangkatan Kapal)
+    const { allVoyageGroups, filteredVoyageGroups } = useMemo(() => {
+        const groupMap = new Map<string, { voyage: Voyage | null; invoices: Invoice[] }>();
+
+        liveInvoices.forEach(inv => {
+            const matchedVoyage = invoiceVoyageMap.get(inv.id) || null;
+            const key = matchedVoyage ? matchedVoyage.id : '__UNASSIGNED__';
+            if (!groupMap.has(key)) {
+                groupMap.set(key, { voyage: matchedVoyage, invoices: [] });
+            }
+            groupMap.get(key)!.invoices.push(inv);
+        });
+
+        const buildGroup = (groupKey: string, voyage: Voyage | null, invList: Invoice[]): VoyageInvoiceGroup => {
+            const unpaid = invList
+                .filter(i => i.status !== 'Paid')
+                .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
+            const paid = invList
+                .filter(i => i.status === 'Paid')
+                .sort((a, b) => {
+                    const timeA = a.paidAt?.getTime() || a.paymentDate?.getTime() || a.updatedAt.getTime();
+                    const timeB = b.paidAt?.getTime() || b.paymentDate?.getTime() || b.updatedAt.getTime();
+                    return timeB - timeA;
+                });
+
+            const totalUnpaidAmount = unpaid.reduce((s, i) => s + i.totalAmount, 0);
+            const totalPaidAmount = paid.reduce((s, i) => s + i.totalAmount, 0);
+            const totalAmount = totalUnpaidAmount + totalPaidAmount;
+            const collectionPercent = totalAmount > 0
+                ? Math.round((totalPaidAmount / totalAmount) * 100)
+                : invList.length > 0 && unpaid.length === 0
+                ? 100
+                : 0;
+
+            return {
+                groupKey,
+                voyage,
+                shipLabel: voyage
+                    ? `${voyage.shipName || 'Kapal Belum Diatur'}`
+                    : 'Belum Masuk Pemberangkatan Kapal',
+                unpaid,
+                paid,
+                totalUnpaidAmount,
+                totalPaidAmount,
+                totalAmount,
+                totalCount: invList.length,
+                collectionPercent,
+            };
+        };
+
+        const groups = Array.from(groupMap.entries()).map(([key, val]) => buildGroup(key, val.voyage, val.invoices));
+
+        // Sort: real voyages newest departureDate first, unassigned group last
+        groups.sort((a, b) => {
+            if (!a.voyage && b.voyage) return 1;
+            if (a.voyage && !b.voyage) return -1;
+            if (!a.voyage || !b.voyage) return 0;
+            const dA = a.voyage.departureDate instanceof Date ? a.voyage.departureDate.getTime() : new Date(a.voyage.departureDate).getTime();
+            const dB = b.voyage.departureDate instanceof Date ? b.voyage.departureDate.getTime() : new Date(b.voyage.departureDate).getTime();
+            return (dB || 0) - (dA || 0);
+        });
+
+        const term = searchTerm.trim().toLowerCase();
+
+        const filtered = groups
+            .map(g => {
+                if (selectedShipFilter) {
+                    const shipName = (g.voyage?.shipName || '').trim().toLowerCase();
+                    if (shipName !== selectedShipFilter.toLowerCase()) return null;
+                }
+
+                if (voyagePaymentFilter === 'has_unpaid' && g.unpaid.length === 0) return null;
+                if (voyagePaymentFilter === 'all_paid' && (g.unpaid.length > 0 || g.paid.length === 0)) return null;
+
+                const voyageMatchesTerm = term && g.voyage && (
+                    (g.voyage.shipName || '').toLowerCase().includes(term) ||
+                    (g.voyage.voyageNumber || '').toLowerCase().includes(term) ||
+                    (g.voyage.route || '').toLowerCase().includes(term)
+                );
+
+                const filterInvoiceList = (list: Invoice[]) => {
+                    return list.filter(inv => {
+                        if (selectedClientFilter && inv.clientName.toLowerCase() !== selectedClientFilter.toLowerCase()) {
+                            return false;
+                        }
+                        if (!term || voyageMatchesTerm) return true;
+                        return (
+                            inv.invoiceNumber.toLowerCase().includes(term) ||
+                            inv.clientName.toLowerCase().includes(term) ||
+                            (sttNumbersMap[inv.id] || '').toLowerCase().includes(term)
+                        );
+                    });
+                };
+
+                const nextUnpaid = filterInvoiceList(g.unpaid);
+                const nextPaid = filterInvoiceList(g.paid);
+
+                if (nextUnpaid.length === 0 && nextPaid.length === 0) return null;
+                if (invoiceStatusInVoyage === 'unpaid' && nextUnpaid.length === 0) return null;
+                if (invoiceStatusInVoyage === 'paid' && nextPaid.length === 0) return null;
+
+                return {
+                    ...g,
+                    unpaid: nextUnpaid,
+                    paid: nextPaid,
+                };
+            })
+            .filter((g): g is VoyageInvoiceGroup => g !== null);
+
+        return {
+            allVoyageGroups: groups,
+            filteredVoyageGroups: filtered,
+        };
+    }, [
+        liveInvoices,
+        invoiceVoyageMap,
+        selectedShipFilter,
+        voyagePaymentFilter,
+        invoiceStatusInVoyage,
+        selectedClientFilter,
+        searchTerm,
+        sttNumbersMap,
+    ]);
+
+    const isVoyageExpanded = (group: VoyageInvoiceGroup): boolean => {
+        if (expandedOverrides[group.groupKey] !== undefined) {
+            return expandedOverrides[group.groupKey];
+        }
+        if (searchTerm.trim() !== '' || selectedClientFilter !== '' || invoiceStatusInVoyage === 'paid') {
+            return true;
+        }
+        return group.unpaid.length > 0;
+    };
+
+    const toggleVoyageExpanded = (group: VoyageInvoiceGroup) => {
+        const current = isVoyageExpanded(group);
+        setExpandedOverrides(prev => ({ ...prev, [group.groupKey]: !current }));
+    };
+
+    const setAllVoyagesExpanded = (open: boolean) => {
+        const next: Record<string, boolean> = {};
+        filteredVoyageGroups.forEach(g => {
+            next[g.groupKey] = open;
+        });
+        setExpandedOverrides(next);
+    };
 
     // Daily Collection Logs for selected date
     const dailyCollections = useMemo(() => {
@@ -181,7 +433,7 @@ export default function PenagihanIkaPage() {
     // KPI Metrics
     const kpiSummary = useMemo(() => {
         const totalUnpaidAmount = unpaidInvoices.reduce((sum, i) => sum + i.totalAmount, 0);
-        
+
         const todayStr = new Date().toISOString().split('T')[0];
         const collectedToday = paidInvoices
             .filter(i => {
@@ -190,27 +442,31 @@ export default function PenagihanIkaPage() {
             })
             .reduce((sum, i) => sum + i.totalAmount, 0);
 
-        const clientsCount = Object.keys(unpaidGroupedByClient).length;
+        const voyagesWithUnpaidCount = allVoyageGroups.filter(g => g.unpaid.length > 0).length;
 
         return {
             totalUnpaidAmount,
             collectedToday,
             unpaidCount: unpaidInvoices.length,
-            clientsCount
+            paidCount: paidInvoices.length,
+            voyagesWithUnpaidCount,
+            totalVoyageGroupsCount: allVoyageGroups.length,
         };
-    }, [unpaidInvoices, paidInvoices, unpaidGroupedByClient]);
+    }, [unpaidInvoices, paidInvoices, allVoyageGroups]);
 
     // ── SINGLE INVOICE WHATSAPP MESSAGE ──
     const generateSingleWaMessage = (inv: Invoice) => {
         const stts = sttNumbersMap[inv.id] || '-';
+        const v = invoiceVoyageMap.get(inv.id);
         const pdfUrl = `${window.location.origin}/finance/invoices/${inv.id}/print`;
         const dueDateFormatted = new Date(inv.dueDate).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' });
+        const voyageLine = v ? `\n🚢 *Kapal / Voyage:* ${v.shipName || '-'} (${v.voyageNumber})` : '';
 
         return `Halo Yth. Bpk/Ibu *${inv.clientName}*,
 
 Berikut kami sampaikan rincian tagihan Invoice dari *CV. CAHAYA CARGO EXPRESS*:
 
-📄 *No. Invoice:* ${inv.invoiceNumber}
+📄 *No. Invoice:* ${inv.invoiceNumber}${voyageLine}
 📦 *Resi STT:* ${stts}
 📅 *Jatuh Tempo:* ${dueDateFormatted}
 💰 *Total Tagihan:* ${formatRupiah(inv.totalAmount)}
@@ -429,14 +685,14 @@ Mohon bantuan untuk segera diproses pelunasannya. Terima kasih banyak atas kerja
                             <Send size={24} />
                         </div>
                         <div>
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
                                 <h1 className="text-2xl font-black text-gray-900 tracking-tight">PENAGIHAN IKA</h1>
                                 <span className="bg-indigo-50 border border-indigo-200 text-indigo-700 text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full">
-                                    VERSI 2.0 (LIVE REKAPAN & FEEDBACK)
+                                    PER PEMBERANGKATAN KAPAL
                                 </span>
                             </div>
                             <p className="text-xs text-gray-500 font-medium mt-0.5">
-                                Eksekusi penagihan, forward rekapan kolektif WA per client, & pencatatan respon customer
+                                Daftar invoice Lunas &amp; Belum Lunas dikelompokkan per pemberangkatan kapal, forward WA, &amp; catat respon customer
                             </p>
                         </div>
                     </div>
@@ -461,33 +717,39 @@ Mohon bantuan untuk segera diproses pelunasannya. Terima kasih banyak atas kerja
                 </div>
 
                 {/* ── Summary KPI Cards Grid ── */}
-                <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-                    <div className="bg-gradient-to-br from-rose-600 to-red-700 p-5 rounded-3xl text-white shadow-xl shadow-rose-600/20">
-                        <span className="text-xs text-rose-100 font-bold block mb-1">Total Sisa Piutang Unpaid</span>
-                        <span className="text-2xl font-black tracking-tight">{formatRupiah(kpiSummary.totalUnpaidAmount)}</span>
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                    <div className="bg-gradient-to-br from-rose-600 to-red-700 p-4 sm:p-5 rounded-3xl text-white shadow-xl shadow-rose-600/20">
+                        <span className="text-[11px] sm:text-xs text-rose-100 font-bold block mb-1">Total Sisa Piutang Unpaid</span>
+                        <span className="text-lg sm:text-2xl font-black tracking-tight">{formatRupiah(kpiSummary.totalUnpaidAmount)}</span>
                         <span className="text-[10px] text-rose-200 block mt-1.5 font-medium">
-                            {kpiSummary.unpaidCount} invoice menunggu tagihan
+                            {kpiSummary.unpaidCount} invoice belum lunas
                         </span>
                     </div>
 
-                    <div className="bg-gradient-to-br from-emerald-600 to-teal-700 p-5 rounded-3xl text-white shadow-xl shadow-emerald-600/20">
-                        <span className="text-xs text-emerald-100 font-bold block mb-1">Hasil Ditagih Hari Ini</span>
-                        <span className="text-2xl font-black tracking-tight">{formatRupiah(kpiSummary.collectedToday)}</span>
+                    <div className="bg-gradient-to-br from-emerald-600 to-teal-700 p-4 sm:p-5 rounded-3xl text-white shadow-xl shadow-emerald-600/20">
+                        <span className="text-[11px] sm:text-xs text-emerald-100 font-bold block mb-1">Hasil Ditagih Hari Ini</span>
+                        <span className="text-lg sm:text-2xl font-black tracking-tight">{formatRupiah(kpiSummary.collectedToday)}</span>
                         <span className="text-[10px] text-emerald-200 block mt-1.5 font-medium">
                             Pelunasan berhasil hari ini
                         </span>
                     </div>
 
-                    <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-xs">
-                        <span className="text-xs text-gray-500 font-bold block mb-1">Invoice Belum Lunas</span>
-                        <span className="text-3xl font-black text-amber-600">{kpiSummary.unpaidCount}</span>
-                        <span className="text-[10px] text-gray-400 block mt-1">Siap ditagih / forward WA</span>
+                    <div className="bg-white p-4 sm:p-5 rounded-3xl border border-gray-100 shadow-xs">
+                        <span className="text-[11px] sm:text-xs text-gray-500 font-bold block mb-1">Kapal Belum Lunas</span>
+                        <span className="text-2xl sm:text-3xl font-black text-amber-600">
+                            {kpiSummary.voyagesWithUnpaidCount}
+                            <span className="text-xs font-bold text-gray-400 ml-1">/ {kpiSummary.totalVoyageGroupsCount} Trip</span>
+                        </span>
+                        <span className="text-[10px] text-gray-400 block mt-1">Pemberangkatan menunggu tagihan</span>
                     </div>
 
-                    <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-xs">
-                        <span className="text-xs text-gray-500 font-bold block mb-1">Pelanggan Aktif Unpaid</span>
-                        <span className="text-3xl font-black text-indigo-600">{kpiSummary.clientsCount}</span>
-                        <span className="text-[10px] text-gray-400 block mt-1">Perusahaan / Klien</span>
+                    <div className="bg-white p-4 sm:p-5 rounded-3xl border border-gray-100 shadow-xs">
+                        <span className="text-[11px] sm:text-xs text-gray-500 font-bold block mb-1">Rasio Invoice Lunas</span>
+                        <span className="text-2xl sm:text-3xl font-black text-emerald-600">
+                            {kpiSummary.paidCount}
+                            <span className="text-xs font-bold text-gray-400 ml-1">/ {kpiSummary.paidCount + kpiSummary.unpaidCount} Inv</span>
+                        </span>
+                        <span className="text-[10px] text-gray-400 block mt-1">Keseluruhan invoice aktif</span>
                     </div>
                 </div>
 
@@ -495,74 +757,670 @@ Mohon bantuan untuk segera diproses pelunasannya. Terima kasih banyak atas kerja
                 <div className="bg-white rounded-3xl border border-gray-100 shadow-xs overflow-hidden">
                     
                     {/* Header Tabs & Filters */}
-                    <div className="p-4 border-b border-gray-100 flex flex-col md:flex-row items-center justify-between gap-4">
-                        
-                        {/* Tabs */}
-                        <div className="flex items-center gap-1 bg-gray-100 p-1.5 rounded-2xl w-full md:w-auto">
-                            <button
-                                onClick={() => setActiveTab('unpaid')}
-                                className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 ${activeTab === 'unpaid' ? 'bg-white text-indigo-700 shadow-xs' : 'text-gray-600 hover:text-gray-900'}`}
-                            >
-                                <Clock size={15} /> Belum Lunas ({unpaidInvoices.length})
-                            </button>
-                            <button
-                                onClick={() => setActiveTab('paid')}
-                                className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 ${activeTab === 'paid' ? 'bg-white text-emerald-700 shadow-xs' : 'text-gray-600 hover:text-gray-900'}`}
-                            >
-                                <CheckCircle2 size={15} /> Riwayat Lunas ({paidInvoices.length})
-                            </button>
-                            <button
-                                onClick={() => setActiveTab('daily')}
-                                className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 ${activeTab === 'daily' ? 'bg-white text-blue-700 shadow-xs' : 'text-gray-600 hover:text-gray-900'}`}
-                            >
-                                <Printer size={15} /> Rekapan Penagihan Harian
-                            </button>
-                        </div>
+                    <div className="p-4 border-b border-gray-100 space-y-3">
+                        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+                            {/* Tabs */}
+                            <div className="flex items-center gap-1 bg-gray-100 p-1.5 rounded-2xl overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+                                <button
+                                    onClick={() => setActiveTab('by_voyage')}
+                                    className={`px-3.5 sm:px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 whitespace-nowrap ${activeTab === 'by_voyage' ? 'bg-white text-indigo-700 shadow-xs' : 'text-gray-600 hover:text-gray-900'}`}
+                                >
+                                    <Ship size={15} /> Per Pemberangkatan ({allVoyageGroups.length})
+                                </button>
+                                <button
+                                    onClick={() => setActiveTab('unpaid')}
+                                    className={`px-3.5 sm:px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 whitespace-nowrap ${activeTab === 'unpaid' ? 'bg-white text-amber-700 shadow-xs' : 'text-gray-600 hover:text-gray-900'}`}
+                                >
+                                    <Building2 size={15} /> Rekap Klien ({unpaidInvoices.length})
+                                </button>
+                                <button
+                                    onClick={() => setActiveTab('paid')}
+                                    className={`px-3.5 sm:px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 whitespace-nowrap ${activeTab === 'paid' ? 'bg-white text-emerald-700 shadow-xs' : 'text-gray-600 hover:text-gray-900'}`}
+                                >
+                                    <CheckCircle2 size={15} /> Semua Lunas ({paidInvoices.length})
+                                </button>
+                                <button
+                                    onClick={() => setActiveTab('daily')}
+                                    className={`px-3.5 sm:px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 whitespace-nowrap ${activeTab === 'daily' ? 'bg-white text-blue-700 shadow-xs' : 'text-gray-600 hover:text-gray-900'}`}
+                                >
+                                    <Printer size={15} /> Rekapan Harian
+                                </button>
+                            </div>
 
-                        {/* Search & Date Controls */}
-                        <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
-                            {activeTab === 'unpaid' && (
-                                <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 px-3 py-1.5 rounded-xl text-xs">
-                                    <Building2 size={14} className="text-indigo-600" />
-                                    <span className="font-bold text-gray-500">Filter Klien:</span>
-                                    <select
-                                        value={selectedClientFilter}
-                                        onChange={(e) => setSelectedClientFilter(e.target.value)}
-                                        className="bg-transparent border-none outline-none font-extrabold text-gray-800 cursor-pointer"
-                                    >
-                                        <option value="">Semua Pelanggan</option>
-                                        {clientList.map(c => (
-                                            <option key={c} value={c}>{c}</option>
-                                        ))}
-                                    </select>
-                                </div>
-                            )}
+                            {/* Global Search & Secondary Controls */}
+                            <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto">
+                                {(activeTab === 'by_voyage' || activeTab === 'unpaid') && (
+                                    <div className="flex items-center gap-1.5 bg-gray-50 border border-gray-200 px-3 py-1.5 rounded-xl text-xs">
+                                        <Building2 size={14} className="text-indigo-600 shrink-0" />
+                                        <select
+                                            value={selectedClientFilter}
+                                            onChange={(e) => setSelectedClientFilter(e.target.value)}
+                                            className="bg-transparent border-none outline-none font-bold text-gray-800 cursor-pointer max-w-[160px]"
+                                        >
+                                            <option value="">Semua Klien</option>
+                                            {clientList.map(c => (
+                                                <option key={c} value={c}>{c}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                )}
 
-                            {activeTab === 'daily' && (
-                                <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 px-3 py-1.5 rounded-xl text-xs">
-                                    <Calendar size={14} className="text-blue-600" />
-                                    <span className="font-bold text-gray-500">Pilih Tanggal:</span>
+                                {activeTab === 'daily' && (
+                                    <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 px-3 py-1.5 rounded-xl text-xs">
+                                        <Calendar size={14} className="text-blue-600" />
+                                        <span className="font-bold text-gray-500">Tanggal:</span>
+                                        <input
+                                            type="date"
+                                            value={dailyReportDate}
+                                            onChange={(e) => setDailyReportDate(e.target.value)}
+                                            className="bg-transparent border-none outline-none font-bold text-gray-800 cursor-pointer"
+                                        />
+                                    </div>
+                                )}
+
+                                <div className="relative flex-1 sm:w-64 min-w-[200px]">
+                                    <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
                                     <input
-                                        type="date"
-                                        value={dailyReportDate}
-                                        onChange={(e) => setDailyReportDate(e.target.value)}
-                                        className="bg-transparent border-none outline-none font-bold text-gray-800 cursor-pointer"
+                                        type="text"
+                                        placeholder={activeTab === 'by_voyage' ? 'Cari Kapal, No Voyage, No Inv, Klien, STT...' : 'Cari No Inv / Klien / STT...'}
+                                        value={searchTerm}
+                                        onChange={(e) => setSearchTerm(e.target.value)}
+                                        className="pl-9 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs w-full focus:ring-2 focus:ring-indigo-100 transition-all outline-none font-semibold"
                                     />
                                 </div>
-                            )}
-
-                            <div className="relative flex-1 sm:w-64">
-                                <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
-                                <input
-                                    type="text"
-                                    placeholder="Cari No Inv / Klien / STT..."
-                                    value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                    className="pl-9 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs w-full focus:ring-2 focus:ring-indigo-100 transition-all outline-none font-semibold"
-                                />
                             </div>
                         </div>
+
+                        {/* Sub-Toolbar Khusus Per Pemberangkatan Kapal */}
+                        {activeTab === 'by_voyage' && (
+                            <div className="flex flex-wrap items-center justify-between gap-2.5 pt-2 border-t border-gray-100 text-xs">
+                                <div className="flex flex-wrap items-center gap-2">
+                                    {/* Filter Pemberangkatan Status */}
+                                    <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl font-bold">
+                                        <button
+                                            type="button"
+                                            onClick={() => setVoyagePaymentFilter('all')}
+                                            className={`px-2.5 py-1 rounded-lg transition-all text-[11px] ${voyagePaymentFilter === 'all' ? 'bg-white text-slate-900 shadow-2xs' : 'text-gray-600'}`}
+                                        >
+                                            Semua Kapal
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setVoyagePaymentFilter('has_unpaid')}
+                                            className={`px-2.5 py-1 rounded-lg transition-all text-[11px] ${voyagePaymentFilter === 'has_unpaid' ? 'bg-amber-500 text-white shadow-2xs' : 'text-gray-600'}`}
+                                        >
+                                            ⏳ Ada Belum Lunas
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setVoyagePaymentFilter('all_paid')}
+                                            className={`px-2.5 py-1 rounded-lg transition-all text-[11px] ${voyagePaymentFilter === 'all_paid' ? 'bg-emerald-600 text-white shadow-2xs' : 'text-gray-600'}`}
+                                        >
+                                            ✅ Sudah Lunas Semua
+                                        </button>
+                                    </div>
+
+                                    {/* Filter Invoice di dalam kapal */}
+                                    <div className="flex items-center gap-1 bg-indigo-50/70 p-1 rounded-xl font-bold border border-indigo-100">
+                                        <button
+                                            type="button"
+                                            onClick={() => setInvoiceStatusInVoyage('all')}
+                                            className={`px-2.5 py-1 rounded-lg transition-all text-[11px] ${invoiceStatusInVoyage === 'all' ? 'bg-indigo-600 text-white' : 'text-indigo-800'}`}
+                                        >
+                                            Tampil: Semua
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setInvoiceStatusInVoyage('unpaid')}
+                                            className={`px-2.5 py-1 rounded-lg transition-all text-[11px] ${invoiceStatusInVoyage === 'unpaid' ? 'bg-rose-600 text-white' : 'text-indigo-800'}`}
+                                        >
+                                            Hanya Belum Lunas
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setInvoiceStatusInVoyage('paid')}
+                                            className={`px-2.5 py-1 rounded-lg transition-all text-[11px] ${invoiceStatusInVoyage === 'paid' ? 'bg-emerald-600 text-white' : 'text-indigo-800'}`}
+                                        >
+                                            Hanya Lunas
+                                        </button>
+                                    </div>
+
+                                    {uniqueShipNames.length > 0 && (
+                                        <select
+                                            value={selectedShipFilter}
+                                            onChange={(e) => setSelectedShipFilter(e.target.value)}
+                                            className="px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-xl font-bold text-gray-800 outline-none text-[11px]"
+                                        >
+                                            <option value="">Semua Nama Kapal</option>
+                                            {uniqueShipNames.map(ship => (
+                                                <option key={ship} value={ship}>{ship}</option>
+                                            ))}
+                                        </select>
+                                    )}
+                                </div>
+
+                                <div className="flex items-center gap-1.5">
+                                    <button
+                                        type="button"
+                                        onClick={() => setAllVoyagesExpanded(true)}
+                                        className="px-2.5 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-bold text-[11px]"
+                                    >
+                                        Buka Semua
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setAllVoyagesExpanded(false)}
+                                        className="px-2.5 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-bold text-[11px]"
+                                    >
+                                        Tutup Semua
+                                    </button>
+                                </div>
+                            </div>
+                        )}
                     </div>
+
+                    {/* ── TAB 0 (DEFAULT): DAFTAR INVOICE PER PEMBERANGKATAN KAPAL ── */}
+                    {activeTab === 'by_voyage' && (
+                        <div className="p-4 sm:p-6 space-y-5">
+                            {filteredVoyageGroups.length === 0 ? (
+                                <div className="text-center py-16 text-gray-400 font-medium">
+                                    <Ship className="w-14 h-14 text-indigo-300 mx-auto mb-3 opacity-60" />
+                                    Tidak ada pemberangkatan kapal atau invoice yang cocok dengan filter ini.
+                                </div>
+                            ) : (
+                                filteredVoyageGroups.map((group) => {
+                                    const v = group.voyage;
+                                    const isOpen = isVoyageExpanded(group);
+                                    const allGroupPaid = group.unpaid.length === 0 && group.paid.length > 0;
+                                    const depDateStr = v?.departureDate
+                                        ? new Date(v.departureDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })
+                                        : null;
+                                    const statusLabel = v?.status === 'completed'
+                                        ? { text: 'Tiba / Selesai', cls: 'bg-emerald-500/20 text-emerald-200 border-emerald-400/30' }
+                                        : v?.status === 'in-progress'
+                                        ? { text: 'Sedang Berlayar', cls: 'bg-amber-500/20 text-amber-200 border-amber-400/30' }
+                                        : { text: 'Persiapan Muat', cls: 'bg-blue-500/20 text-blue-200 border-blue-400/30' };
+
+                                    return (
+                                        <div
+                                            key={group.groupKey}
+                                            className={`border rounded-3xl overflow-hidden shadow-xs transition-all ${
+                                                allGroupPaid ? 'border-emerald-200' : 'border-gray-200'
+                                            }`}
+                                        >
+                                            {/* VOYAGE HEADER STRIP (Click to toggle) */}
+                                            <div
+                                                onClick={() => toggleVoyageExpanded(group)}
+                                                className={`cursor-pointer p-4 sm:p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4 transition-colors ${
+                                                    allGroupPaid
+                                                        ? 'bg-gradient-to-r from-emerald-900 via-teal-900 to-slate-900 text-white'
+                                                        : 'bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 text-white'
+                                                }`}
+                                            >
+                                                <div className="flex items-start gap-3.5 min-w-0">
+                                                    <div className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 shadow-md ${
+                                                        allGroupPaid ? 'bg-emerald-500 text-white' : 'bg-indigo-600 text-white'
+                                                    }`}>
+                                                        <Ship size={22} />
+                                                    </div>
+                                                    <div className="min-w-0">
+                                                        <div className="flex items-center gap-2 flex-wrap">
+                                                            {v ? (
+                                                                <span className="font-mono text-[10.5px] font-black bg-white/15 text-blue-200 px-2 py-0.5 rounded-md border border-white/15">
+                                                                    {v.voyageNumber}
+                                                                </span>
+                                                            ) : (
+                                                                <span className="text-[10.5px] font-black bg-amber-500/25 text-amber-200 px-2 py-0.5 rounded-md border border-amber-400/30">
+                                                                    NON-VOYAGE
+                                                                </span>
+                                                            )}
+                                                            {v && (
+                                                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${statusLabel.cls}`}>
+                                                                    {statusLabel.text}
+                                                                </span>
+                                                            )}
+                                                            {depDateStr && (
+                                                                <span className="text-[11px] text-slate-300 flex items-center gap-1">
+                                                                    <Calendar size={11} /> {depDateStr}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        <h3 className="font-black text-base sm:text-lg text-white mt-1 truncate">
+                                                            {group.shipLabel}
+                                                        </h3>
+                                                        <p className="text-[11px] text-slate-300 flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-0.5">
+                                                            {v ? (
+                                                                <>
+                                                                    <span className="inline-flex items-center gap-1">
+                                                                        <MapPin size={11} className="text-blue-300" /> {v.route}
+                                                                    </span>
+                                                                    {(v.vehicleNumbers?.length || v.vehicleNumber) && (
+                                                                        <span className="inline-flex items-center gap-1 font-mono text-orange-300">
+                                                                            <Truck size={11} /> {v.vehicleNumbers?.join(', ') || v.vehicleNumber}
+                                                                        </span>
+                                                                    )}
+                                                                </>
+                                                            ) : (
+                                                                <span>Invoice dengan resi STT yang belum dihubungkan ke jadwal keberangkatan kapal</span>
+                                                            )}
+                                                        </p>
+                                                    </div>
+                                                </div>
+
+                                                {/* Right Summary Metrics on Voyage Header */}
+                                                <div className="flex flex-wrap items-center justify-between lg:justify-end gap-3 sm:gap-4 shrink-0">
+                                                    <div className="flex items-center gap-2 sm:gap-3 text-xs">
+                                                        <div className="bg-white/10 border border-white/10 px-3 py-2 rounded-2xl text-left">
+                                                            <span className="text-[9.5px] font-bold uppercase text-amber-300 block">
+                                                                ⏳ Belum Lunas ({group.unpaid.length})
+                                                            </span>
+                                                            <span className="font-mono font-black text-sm text-white">
+                                                                {formatRupiah(group.totalUnpaidAmount)}
+                                                            </span>
+                                                        </div>
+                                                        <div className="bg-emerald-500/20 border border-emerald-400/30 px-3 py-2 rounded-2xl text-left">
+                                                            <span className="text-[9.5px] font-bold uppercase text-emerald-300 block">
+                                                                ✅ Sudah Lunas ({group.paid.length})
+                                                            </span>
+                                                            <span className="font-mono font-black text-sm text-emerald-200">
+                                                                {formatRupiah(group.totalPaidAmount)}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="hidden sm:block text-right mr-1">
+                                                            <span className="text-[10px] font-bold text-slate-300 block">
+                                                                Kolektibilitas {group.collectionPercent}%
+                                                            </span>
+                                                            <div className="w-24 h-1.5 bg-white/15 rounded-full overflow-hidden mt-1">
+                                                                <div
+                                                                    className="h-full bg-emerald-400 transition-all"
+                                                                    style={{ width: `${group.collectionPercent}%` }}
+                                                                />
+                                                            </div>
+                                                        </div>
+
+                                                        {v && (
+                                                            <Link
+                                                                href={`/voyages/${v.id}?tab=cargo`}
+                                                                onClick={(e) => e.stopPropagation()}
+                                                                className="px-3 py-2 bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-xl text-[11px] font-bold flex items-center gap-1 transition-colors"
+                                                                title="Lihat STT & Biaya di Pemberangkatan"
+                                                            >
+                                                                <ExternalLink size={12} />
+                                                                <span className="hidden sm:inline">Kapal</span>
+                                                            </Link>
+                                                        )}
+
+                                                        <span className="p-2 bg-white/10 rounded-xl text-white">
+                                                            {isOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* COLLAPSIBLE BODY: INVOICE BELUM LUNAS & SUDAH LUNAS */}
+                                            {isOpen && (
+                                                <div className="bg-white divide-y divide-gray-200">
+                                                    {/* SECTION A: BELUM LUNAS */}
+                                                    {invoiceStatusInVoyage !== 'paid' && group.unpaid.length > 0 && (
+                                                        <div className="p-4 sm:p-5 bg-amber-50/20 space-y-3">
+                                                            <div className="flex flex-wrap items-center justify-between gap-2">
+                                                                <h4 className="text-xs font-black uppercase tracking-wider text-amber-900 flex items-center gap-1.5">
+                                                                    <Clock size={14} className="text-amber-600" />
+                                                                    Invoice Belum Lunas ({group.unpaid.length})
+                                                                </h4>
+                                                                <span className="text-xs font-mono font-black text-rose-700">
+                                                                    Total Belum Lunas: {formatRupiah(group.unpaid.reduce((s, i) => s + i.totalAmount, 0))}
+                                                                </span>
+                                                            </div>
+
+                                                            {/* Desktop Table: Belum Lunas */}
+                                                            <div className="hidden md:block overflow-x-auto bg-white rounded-2xl border border-amber-200/80">
+                                                                <table className="w-full text-left text-xs">
+                                                                    <thead className="bg-amber-50/80 text-amber-950 font-bold uppercase text-[10px] tracking-wider border-b border-amber-100">
+                                                                        <tr>
+                                                                            <th className="py-3 px-4">No. Invoice</th>
+                                                                            <th className="py-3 px-4">Pelanggan / Klien</th>
+                                                                            <th className="py-3 px-4">Jatuh Tempo</th>
+                                                                            <th className="py-3 px-4">Resi STT</th>
+                                                                            <th className="py-3 px-4 text-right">Tagihan (Rp)</th>
+                                                                            <th className="py-3 px-4">Respon Customer</th>
+                                                                            <th className="py-3 px-4 text-center">Tindakan Penagihan</th>
+                                                                        </tr>
+                                                                    </thead>
+                                                                    <tbody className="divide-y divide-gray-100">
+                                                                        {group.unpaid.map(inv => {
+                                                                            const todayDate = new Date();
+                                                                            todayDate.setHours(0, 0, 0, 0);
+                                                                            const dueDateObj = new Date(inv.dueDate);
+                                                                            const isOverdue = dueDateObj.getTime() < todayDate.getTime();
+                                                                            const diffDays = Math.ceil((todayDate.getTime() - dueDateObj.getTime()) / (1000 * 3600 * 24));
+                                                                            const fb = inv.collectionFeedback;
+                                                                            const clientUnpaidAll = unpaidInvoicesByClientAll[inv.clientName] || [];
+
+                                                                            return (
+                                                                                <tr key={inv.id} className="hover:bg-amber-50/30 transition-colors">
+                                                                                    <td className="py-3.5 px-4 font-mono font-extrabold text-indigo-900">
+                                                                                        {inv.invoiceNumber}
+                                                                                    </td>
+                                                                                    <td className="py-3.5 px-4">
+                                                                                        <div className="font-bold text-gray-900 uppercase">{inv.clientName}</div>
+                                                                                        {clientUnpaidAll.length > 1 && (
+                                                                                            <button
+                                                                                                type="button"
+                                                                                                onClick={() => handleForwardClientConsolidatedWA(inv.clientName, clientUnpaidAll)}
+                                                                                                className="text-[10px] font-bold text-emerald-700 hover:underline mt-0.5 inline-flex items-center gap-1"
+                                                                                                title="Kirim rekapan seluruh invoice unpaid milik klien ini ke WA"
+                                                                                            >
+                                                                                                <Send size={10} /> WA Rekap {clientUnpaidAll.length} Inv Klien
+                                                                                            </button>
+                                                                                        )}
+                                                                                    </td>
+                                                                                    <td className="py-3.5 px-4 whitespace-nowrap">
+                                                                                        <span className={isOverdue ? 'text-red-600 font-bold' : 'text-gray-800 font-medium'}>
+                                                                                            {dueDateObj.toLocaleDateString('id-ID')}
+                                                                                        </span>
+                                                                                        {isOverdue && (
+                                                                                            <span className="block text-[9px] text-red-600 font-black uppercase">
+                                                                                                Terlambat +{diffDays} Hari
+                                                                                            </span>
+                                                                                        )}
+                                                                                    </td>
+                                                                                    <td className="py-3.5 px-4 font-mono text-[11px] text-gray-600 max-w-[160px] break-words">
+                                                                                        {sttNumbersMap[inv.id] || '-'}
+                                                                                    </td>
+                                                                                    <td className="py-3.5 px-4 text-right font-mono font-black text-gray-900 text-sm whitespace-nowrap">
+                                                                                        {formatRupiah(inv.totalAmount)}
+                                                                                    </td>
+                                                                                    <td className="py-3.5 px-4">
+                                                                                        {fb ? (
+                                                                                            <div className="space-y-1">
+                                                                                                <div className="flex items-center gap-1.5 flex-wrap">
+                                                                                                    <span className="font-extrabold text-[10px] uppercase bg-indigo-50 text-indigo-800 border border-indigo-200 px-2 py-0.5 rounded-full">
+                                                                                                        {fb.status}
+                                                                                                    </span>
+                                                                                                    {fb.promisedDate && (
+                                                                                                        <span className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">
+                                                                                                            Jt: {new Date(fb.promisedDate).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' })}
+                                                                                                        </span>
+                                                                                                    )}
+                                                                                                </div>
+                                                                                                {fb.notes && (
+                                                                                                    <p className="text-[11px] text-gray-700 italic max-w-[200px] truncate" title={fb.notes}>
+                                                                                                        &quot;{fb.notes}&quot;
+                                                                                                    </p>
+                                                                                                )}
+                                                                                            </div>
+                                                                                        ) : (
+                                                                                            <button
+                                                                                                onClick={() => handleOpenFeedbackModal(inv)}
+                                                                                                className="text-[11px] text-indigo-600 hover:text-indigo-800 font-bold underline flex items-center gap-1"
+                                                                                            >
+                                                                                                <MessageSquare size={12} /> + Catat Respon
+                                                                                            </button>
+                                                                                        )}
+                                                                                    </td>
+                                                                                    <td className="py-3.5 px-4 text-center">
+                                                                                        <div className="flex items-center justify-center gap-1.5">
+                                                                                            <button
+                                                                                                onClick={() => handleForwardSingleWA(inv)}
+                                                                                                className="p-1.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-lg border border-emerald-200"
+                                                                                                title="Forward WA Invoice"
+                                                                                            >
+                                                                                                <Send size={13} />
+                                                                                            </button>
+                                                                                            <button
+                                                                                                onClick={() => handleCopySingleWA(inv)}
+                                                                                                className="p-1.5 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg border border-gray-300"
+                                                                                                title="Salin Teks WA"
+                                                                                            >
+                                                                                                <Copy size={13} />
+                                                                                            </button>
+                                                                                            <button
+                                                                                                onClick={() => handleOpenFeedbackModal(inv)}
+                                                                                                className="p-1.5 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-lg border border-indigo-200"
+                                                                                                title="Catat Respon Customer"
+                                                                                            >
+                                                                                                <MessageSquare size={13} />
+                                                                                            </button>
+                                                                                            <Link
+                                                                                                href={`/finance/invoices/${inv.id}/print`}
+                                                                                                target="_blank"
+                                                                                                className="p-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg border border-blue-200"
+                                                                                                title="Cetak / PDF Invoice"
+                                                                                            >
+                                                                                                <ExternalLink size={13} />
+                                                                                            </Link>
+                                                                                            <button
+                                                                                                onClick={() => handleOpenPayModal(inv)}
+                                                                                                className="bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-[11px] px-3 py-1.5 rounded-lg shadow-xs transition-all flex items-center gap-1 active:scale-95 cursor-pointer"
+                                                                                            >
+                                                                                                <CheckCircle2 size={13} /> Lunas
+                                                                                            </button>
+                                                                                        </div>
+                                                                                    </td>
+                                                                                </tr>
+                                                                            );
+                                                                        })}
+                                                                    </tbody>
+                                                                </table>
+                                                            </div>
+
+                                                            {/* Mobile Cards: Belum Lunas */}
+                                                            <div className="md:hidden space-y-2.5">
+                                                                {group.unpaid.map(inv => {
+                                                                    const todayDate = new Date();
+                                                                    todayDate.setHours(0, 0, 0, 0);
+                                                                    const dueDateObj = new Date(inv.dueDate);
+                                                                    const isOverdue = dueDateObj.getTime() < todayDate.getTime();
+                                                                    const diffDays = Math.ceil((todayDate.getTime() - dueDateObj.getTime()) / (1000 * 3600 * 24));
+                                                                    const fb = inv.collectionFeedback;
+
+                                                                    return (
+                                                                        <div key={inv.id} className="bg-white p-3.5 rounded-2xl border border-amber-200 space-y-2">
+                                                                            <div className="flex items-start justify-between gap-2">
+                                                                                <div>
+                                                                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                                                                        <span className="font-mono font-black text-indigo-900 text-sm">
+                                                                                            {inv.invoiceNumber}
+                                                                                        </span>
+                                                                                        {isOverdue ? (
+                                                                                            <span className="text-[9px] font-black bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded uppercase">
+                                                                                                Telat +{diffDays}h
+                                                                                            </span>
+                                                                                        ) : (
+                                                                                            <span className="text-[9px] font-black bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded uppercase">
+                                                                                                Belum Lunas
+                                                                                            </span>
+                                                                                        )}
+                                                                                    </div>
+                                                                                    <div className="font-bold text-gray-900 text-xs uppercase mt-0.5">
+                                                                                        {inv.clientName}
+                                                                                    </div>
+                                                                                </div>
+                                                                                <div className="text-right shrink-0">
+                                                                                    <div className="font-mono font-black text-sm text-gray-900">
+                                                                                        {formatRupiah(inv.totalAmount)}
+                                                                                    </div>
+                                                                                    <div className="text-[10px] text-gray-500">
+                                                                                        Jt: {dueDateObj.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
+                                                                                    </div>
+                                                                                </div>
+                                                                            </div>
+
+                                                                            <div className="text-[11px] font-mono text-gray-600 bg-gray-50 px-2.5 py-1.5 rounded-lg">
+                                                                                STT: {sttNumbersMap[inv.id] || '-'}
+                                                                            </div>
+
+                                                                            {fb && (
+                                                                                <div className="text-[11px] bg-indigo-50/70 border border-indigo-100 px-2.5 py-1.5 rounded-lg text-indigo-900">
+                                                                                    <strong>{fb.status}</strong>{fb.notes ? ` — "${fb.notes}"` : ''}
+                                                                                </div>
+                                                                            )}
+
+                                                                            <div className="flex items-center justify-between gap-1.5 pt-1">
+                                                                                <div className="flex items-center gap-1">
+                                                                                    <button onClick={() => handleForwardSingleWA(inv)} className="p-2 bg-emerald-50 text-emerald-700 rounded-xl border border-emerald-200"><Send size={13} /></button>
+                                                                                    <button onClick={() => handleCopySingleWA(inv)} className="p-2 bg-gray-100 text-gray-700 rounded-xl border border-gray-200"><Copy size={13} /></button>
+                                                                                    <button onClick={() => handleOpenFeedbackModal(inv)} className="p-2 bg-indigo-50 text-indigo-700 rounded-xl border border-indigo-200"><MessageSquare size={13} /></button>
+                                                                                    <Link href={`/finance/invoices/${inv.id}/print`} target="_blank" className="p-2 bg-blue-50 text-blue-700 rounded-xl border border-blue-200"><ExternalLink size={13} /></Link>
+                                                                                </div>
+                                                                                <button
+                                                                                    onClick={() => handleOpenPayModal(inv)}
+                                                                                    className="px-3.5 py-2 bg-indigo-600 text-white rounded-xl font-extrabold text-xs flex items-center gap-1"
+                                                                                >
+                                                                                    <CheckCircle2 size={14} /> Lunas
+                                                                                </button>
+                                                                            </div>
+                                                                        </div>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        </div>
+                                                    )}
+
+                                                    {/* SECTION B: SUDAH LUNAS */}
+                                                    {invoiceStatusInVoyage !== 'unpaid' && group.paid.length > 0 && (
+                                                        <div className="p-4 sm:p-5 bg-emerald-50/20 space-y-3">
+                                                            <div className="flex flex-wrap items-center justify-between gap-2">
+                                                                <h4 className="text-xs font-black uppercase tracking-wider text-emerald-900 flex items-center gap-1.5">
+                                                                    <CheckCircle2 size={14} className="text-emerald-600" />
+                                                                    Invoice Sudah Lunas ({group.paid.length})
+                                                                </h4>
+                                                                <span className="text-xs font-mono font-black text-emerald-700">
+                                                                    Total Terbayar: {formatRupiah(group.paid.reduce((s, i) => s + i.totalAmount, 0))}
+                                                                </span>
+                                                            </div>
+
+                                                            {/* Desktop Table: Sudah Lunas */}
+                                                            <div className="hidden md:block overflow-x-auto bg-white rounded-2xl border border-emerald-200/80">
+                                                                <table className="w-full text-left text-xs">
+                                                                    <thead className="bg-emerald-50/80 text-emerald-950 font-bold uppercase text-[10px] tracking-wider border-b border-emerald-100">
+                                                                        <tr>
+                                                                            <th className="py-3 px-4">No. Invoice</th>
+                                                                            <th className="py-3 px-4">Pelanggan / Klien</th>
+                                                                            <th className="py-3 px-4">Resi STT</th>
+                                                                            <th className="py-3 px-4 text-center">Waktu Lunas</th>
+                                                                            <th className="py-3 px-4 text-center">Metode &amp; Penagih</th>
+                                                                            <th className="py-3 px-4 text-right">Nominal Lunas (Rp)</th>
+                                                                            <th className="py-3 px-4 text-center">Aksi</th>
+                                                                        </tr>
+                                                                    </thead>
+                                                                    <tbody className="divide-y divide-gray-100">
+                                                                        {group.paid.map(inv => {
+                                                                            const dateObj = inv.paidAt || inv.paymentDate || inv.updatedAt;
+                                                                            const dateStr = dateObj.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
+                                                                            const timeStr = inv.paidTime || dateObj.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WIB';
+
+                                                                            return (
+                                                                                <tr key={inv.id} className="hover:bg-emerald-50/30 transition-colors">
+                                                                                    <td className="py-3 px-4 font-mono font-extrabold text-emerald-900">
+                                                                                        {inv.invoiceNumber}
+                                                                                        <span className="ml-1.5 text-[9px] font-black bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded">
+                                                                                            LUNAS
+                                                                                        </span>
+                                                                                    </td>
+                                                                                    <td className="py-3 px-4 font-bold text-gray-900 uppercase">
+                                                                                        {inv.clientName}
+                                                                                    </td>
+                                                                                    <td className="py-3 px-4 font-mono text-[11px] text-gray-600 max-w-[160px] break-words">
+                                                                                        {sttNumbersMap[inv.id] || '-'}
+                                                                                    </td>
+                                                                                    <td className="py-3 px-4 text-center whitespace-nowrap">
+                                                                                        <div className="font-bold text-gray-900">{dateStr}</div>
+                                                                                        <div className="text-[10px] font-mono text-emerald-700">{timeStr}</div>
+                                                                                    </td>
+                                                                                    <td className="py-3 px-4 text-center">
+                                                                                        <span className="font-bold text-gray-800 block">{inv.paymentMethod || 'Lunas'}</span>
+                                                                                        <span className="text-[10px] text-gray-500">
+                                                                                            {inv.paidBy || 'Officer'}{inv.paymentRef ? ` • ${inv.paymentRef}` : ''}
+                                                                                        </span>
+                                                                                    </td>
+                                                                                    <td className="py-3 px-4 text-right font-mono font-black text-emerald-700 text-sm whitespace-nowrap">
+                                                                                        {formatRupiah(inv.totalAmount)}
+                                                                                    </td>
+                                                                                    <td className="py-3 px-4 text-center">
+                                                                                        <div className="flex items-center justify-center gap-1.5">
+                                                                                            <Link
+                                                                                                href={`/finance/invoices/${inv.id}/print`}
+                                                                                                target="_blank"
+                                                                                                className="p-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg border border-blue-200"
+                                                                                                title="Lihat / Cetak PDF Invoice"
+                                                                                            >
+                                                                                                <ExternalLink size={13} />
+                                                                                            </Link>
+                                                                                            <button
+                                                                                                onClick={() => handleRevertToUnpaid(inv)}
+                                                                                                className="px-2 py-1 text-[10px] font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-lg inline-flex items-center gap-1"
+                                                                                                title="Kembalikan ke Belum Lunas"
+                                                                                            >
+                                                                                                <RotateCcw size={11} /> Batal
+                                                                                            </button>
+                                                                                        </div>
+                                                                                    </td>
+                                                                                </tr>
+                                                                            );
+                                                                        })}
+                                                                    </tbody>
+                                                                </table>
+                                                            </div>
+
+                                                            {/* Mobile Cards: Sudah Lunas */}
+                                                            <div className="md:hidden space-y-2">
+                                                                {group.paid.map(inv => {
+                                                                    const dateObj = inv.paidAt || inv.paymentDate || inv.updatedAt;
+                                                                    return (
+                                                                        <div key={inv.id} className="bg-white p-3.5 rounded-2xl border border-emerald-200 space-y-1.5">
+                                                                            <div className="flex items-start justify-between gap-2">
+                                                                                <div>
+                                                                                    <div className="flex items-center gap-1.5">
+                                                                                        <span className="font-mono font-black text-emerald-900 text-sm">
+                                                                                            {inv.invoiceNumber}
+                                                                                        </span>
+                                                                                        <span className="text-[9px] font-black bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded uppercase">
+                                                                                            LUNAS
+                                                                                        </span>
+                                                                                    </div>
+                                                                                    <div className="font-bold text-gray-900 text-xs uppercase mt-0.5">
+                                                                                        {inv.clientName}
+                                                                                    </div>
+                                                                                </div>
+                                                                                <div className="text-right shrink-0">
+                                                                                    <div className="font-mono font-black text-sm text-emerald-700">
+                                                                                        {formatRupiah(inv.totalAmount)}
+                                                                                    </div>
+                                                                                    <div className="text-[10px] text-gray-500">
+                                                                                        {dateObj.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })} • {inv.paymentMethod || 'Lunas'}
+                                                                                    </div>
+                                                                                </div>
+                                                                            </div>
+                                                                            <div className="flex items-center justify-between pt-1 text-[11px] text-gray-600">
+                                                                                <span className="font-mono truncate max-w-[190px]">STT: {sttNumbersMap[inv.id] || '-'}</span>
+                                                                                <div className="flex items-center gap-1.5">
+                                                                                    <Link href={`/finance/invoices/${inv.id}/print`} target="_blank" className="px-2 py-1 bg-blue-50 text-blue-700 rounded-lg font-bold">
+                                                                                        PDF
+                                                                                    </Link>
+                                                                                    <button onClick={() => handleRevertToUnpaid(inv)} className="px-2 py-1 bg-amber-50 text-amber-700 rounded-lg font-bold">
+                                                                                        Batal
+                                                                                    </button>
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })
+                            )}
+                        </div>
+                    )}
 
                     {/* ── TAB 1: TAGIHAN BELUM LUNAS PER KLIEN ── */}
                     {activeTab === 'unpaid' && (
@@ -838,14 +1696,14 @@ Mohon bantuan untuk segera diproses pelunasannya. Terima kasih banyak atas kerja
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-100 text-gray-800">
-                                    {paidInvoices.length === 0 ? (
+                                    {filteredPaidInvoices.length === 0 ? (
                                         <tr>
                                             <td colSpan={8} className="py-10 text-center text-gray-400 italic">
                                                 Belum ada riwayat invoice lunas.
                                             </td>
                                         </tr>
                                     ) : (
-                                        paidInvoices.map((inv, idx) => {
+                                        filteredPaidInvoices.map((inv, idx) => {
                                             const dateObj = inv.paidAt || inv.paymentDate || inv.updatedAt;
                                             const dateStr = dateObj.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
                                             const timeStr = inv.paidTime || dateObj.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) + ' WIB';
