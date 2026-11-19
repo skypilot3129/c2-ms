@@ -3,12 +3,13 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
     X, Search, CheckCircle2, Loader2, Package, User, MapPin,
-    Plus, Check, Building2, Info, Hash, Calendar
+    Plus, Check, Building2, Info, Hash, Calendar, UserPlus
 } from 'lucide-react';
 import { addTransaction, getTransactionById, peekNextSTTNumber } from '@/lib/firestore-transactions';
+import { addClient } from '@/lib/firestore';
 import type { Client } from '@/types/client';
 import type { Branch } from '@/types/branch';
-import { getAllBranches, getActiveBranch } from '@/types/branch';
+import { getAllBranches, getActiveBranch, getBranchInfo } from '@/types/branch';
 import type { BeratUnit, TransactionFormData } from '@/types/transaction';
 import type { ManifestItem, ManifestRowColor } from '@/types/manifest';
 
@@ -53,9 +54,11 @@ export default function CreateSTTFromManifestModal({
     // Date
     const [tanggal, setTanggal] = useState<string>(() => getInitialDate(defaultTanggal));
 
-    // Pengirim searchable dropdown state
+    // Pengirim searchable dropdown & optional fields state
     const [selectedClient, setSelectedClient] = useState<Client | null>(null);
     const [clientQuery, setClientQuery] = useState<string>('');
+    const [pengirimAddress, setPengirimAddress] = useState<string>('');
+    const [pengirimPhone, setPengirimPhone] = useState<string>('');
     const [dropdownOpen, setDropdownOpen] = useState<boolean>(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -129,10 +132,21 @@ export default function CreateSTTFromManifestModal({
             .slice(0, 60);
     }, [clients, clientQuery]);
 
+    // Check if typed query matches an existing client exactly (case-insensitive)
+    const exactMatchedClient = useMemo(() => {
+        const q = clientQuery.trim().toLowerCase();
+        if (!q) return null;
+        return clients.find(c => c.name.trim().toLowerCase() === q) || null;
+    }, [clients, clientQuery]);
+
+    const isCreatingNewSender = !selectedClient && !exactMatchedClient && clientQuery.trim().length > 0;
+
     const resetEntryFields = (keepSender: boolean = false) => {
         if (!keepSender) {
             setSelectedClient(null);
             setClientQuery('');
+            setPengirimAddress('');
+            setPengirimPhone('');
         }
         setPenerimaName('');
         setPenerimaPhone('');
@@ -154,8 +168,10 @@ export default function CreateSTTFromManifestModal({
             setFormError('Sesi pengguna tidak ditemukan. Silakan login ulang.');
             return;
         }
-        if (!selectedClient) {
-            setFormError('Nama Pengirim wajib dipilih dari dropdown database pengirim.');
+        const trimmedSenderQuery = clientQuery.trim();
+        const existingClient = selectedClient || exactMatchedClient;
+        if (!existingClient && !trimmedSenderQuery) {
+            setFormError('Nama Pengirim wajib dipilih atau diketik di kolom pencarian pengirim.');
             return;
         }
         if (!penerimaName.trim()) {
@@ -181,11 +197,36 @@ export default function CreateSTTFromManifestModal({
 
         setSubmitting(true);
         try {
+            let finalClientId = existingClient?.id || '';
+            let finalClientName = existingClient?.name || trimmedSenderQuery;
+            let finalClientPhone = pengirimPhone.trim() || existingClient?.phone || '';
+            let finalClientAddress = pengirimAddress.trim() || existingClient?.address || '';
+            let finalClientCity = existingClient?.city || '';
+            let newlyCreatedSender = false;
+
+            // Auto-create new sender in clients database if not found
+            if (!existingClient) {
+                const branchCity = getBranchInfo(selectedBranch).name;
+                finalClientCity = branchCity;
+                finalClientId = await addClient(
+                    {
+                        name: trimmedSenderQuery,
+                        phone: pengirimPhone.trim(),
+                        address: pengirimAddress.trim(),
+                        city: branchCity,
+                        notes: 'Dibuat otomatis dari Manifes Cargo',
+                    },
+                    userId
+                );
+                finalClientName = trimmedSenderQuery;
+                newlyCreatedSender = true;
+            }
+
             const txFormData: TransactionFormData = {
                 branch: selectedBranch,
                 tanggal,
                 tujuan: tujuan.trim(),
-                pengirimId: selectedClient.id,
+                pengirimId: finalClientId,
                 penerimaId: '',
                 koli: Number(koli),
                 berat: parsedBerat,
@@ -207,10 +248,10 @@ export default function CreateSTTFromManifestModal({
                 txFormData,
                 userId,
                 {
-                    name: selectedClient.name,
-                    phone: selectedClient.phone || '',
-                    address: selectedClient.address || '',
-                    city: selectedClient.city || '',
+                    name: finalClientName,
+                    phone: finalClientPhone,
+                    address: finalClientAddress,
+                    city: finalClientCity,
                 },
                 {
                     name: penerimaName.trim(),
@@ -234,7 +275,7 @@ export default function CreateSTTFromManifestModal({
                 koli: Number(koli),
                 berat: parsedBerat > 0 ? parsedBerat : '',
                 isiBarang: isiBarang.trim().toUpperCase(),
-                pengirim: selectedClient.name.toUpperCase(),
+                pengirim: finalClientName.toUpperCase(),
                 penerima: penerimaName.trim().toUpperCase(),
                 alamat: manifestAlamat.toUpperCase(),
                 keterangan: keterangan.trim().toUpperCase(),
@@ -250,7 +291,9 @@ export default function CreateSTTFromManifestModal({
             });
 
             if (keepOpen) {
-                setLastCreatedBanner(`Resi ${finalNoSTT} (${selectedClient.name} ➔ ${penerimaName.trim()}) tersimpan & masuk ke manifes!`);
+                setLastCreatedBanner(
+                    `Resi ${finalNoSTT} (${finalClientName} ➔ ${penerimaName.trim()}) tersimpan & masuk ke manifes!${newlyCreatedSender ? ` Pengirim baru "${finalClientName}" juga ditambahkan ke database.` : ''}`
+                );
                 resetEntryFields(false);
                 await refreshSTTPreview(selectedBranch);
             } else {
@@ -376,79 +419,79 @@ export default function CreateSTTFromManifestModal({
                         </div>
                     </div>
 
-                    {/* Step 2: Nama Pengirim (Searchable Dropdown from Database Clients) */}
-                    <div ref={dropdownRef} className="relative">
-                        <label className="font-extrabold text-gray-800 block mb-1.5 flex items-center justify-between">
-                            <span className="flex items-center gap-1.5">
-                                <Building2 size={14} className="text-blue-600" />
-                                Nama Pengirim (Database Pengirim) <span className="text-rose-500">*</span>
-                            </span>
-                            <span className="text-[10px] font-semibold text-gray-400">
-                                {clients.length} pengirim terdaftar
-                            </span>
-                        </label>
+                    {/* Step 2: Nama Pengirim (Searchable Dropdown + Auto-Create New Sender) + Optional Alamat & No HP */}
+                    <div className="bg-blue-50/40 border border-blue-100 rounded-2xl p-3.5 space-y-3">
+                        <div ref={dropdownRef} className="relative">
+                            <label className="font-extrabold text-gray-800 block mb-1.5 flex items-center justify-between">
+                                <span className="flex items-center gap-1.5">
+                                    <Building2 size={14} className="text-blue-600" />
+                                    Nama Pengirim (Database Pengirim) <span className="text-rose-500">*</span>
+                                </span>
+                                <span className="text-[10px] font-semibold text-gray-400">
+                                    {clients.length} pengirim terdaftar
+                                </span>
+                            </label>
 
-                        {selectedClient ? (
-                            <div className="p-3 rounded-xl border-2 border-emerald-500 bg-emerald-50/60 flex items-center justify-between gap-2">
-                                <div className="min-w-0">
-                                    <div className="font-black text-sm text-emerald-950 flex items-center gap-1.5">
-                                        <Check size={15} className="text-emerald-600 shrink-0" />
-                                        <span className="truncate">{selectedClient.name}</span>
+                            {selectedClient ? (
+                                <div className="p-3 rounded-xl border-2 border-emerald-500 bg-emerald-50/60 flex items-center justify-between gap-2">
+                                    <div className="min-w-0">
+                                        <div className="font-black text-sm text-emerald-950 flex items-center gap-1.5">
+                                            <Check size={15} className="text-emerald-600 shrink-0" />
+                                            <span className="truncate">{selectedClient.name}</span>
+                                        </div>
+                                        <div className="text-[11px] text-emerald-800 truncate mt-0.5">
+                                            {[selectedClient.city, selectedClient.phone, selectedClient.address].filter(Boolean).join(' • ') || 'Terdaftar di database pengirim'}
+                                        </div>
                                     </div>
-                                    <div className="text-[11px] text-emerald-800 truncate mt-0.5">
-                                        {[selectedClient.city, selectedClient.phone, selectedClient.address].filter(Boolean).join(' • ') || 'Terdaftar di database pengirim'}
-                                    </div>
-                                </div>
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        setSelectedClient(null);
-                                        setClientQuery('');
-                                        setDropdownOpen(true);
-                                    }}
-                                    className="px-2.5 py-1 bg-white border border-emerald-300 hover:bg-emerald-100 text-emerald-800 rounded-lg font-bold text-[11px] shrink-0"
-                                >
-                                    Ganti
-                                </button>
-                            </div>
-                        ) : (
-                            <div className="relative">
-                                <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
-                                <input
-                                    type="text"
-                                    value={clientQuery}
-                                    onFocus={() => setDropdownOpen(true)}
-                                    onChange={(e) => {
-                                        setClientQuery(e.target.value);
-                                        setDropdownOpen(true);
-                                    }}
-                                    placeholder="Ketik untuk mencari nama pengirim dari database..."
-                                    className="w-full pl-9 pr-9 py-2.5 bg-white border border-gray-300 rounded-xl font-semibold text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-                                />
-                                {clientQuery && (
                                     <button
                                         type="button"
-                                        onClick={() => setClientQuery('')}
-                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700"
+                                        onClick={() => {
+                                            setSelectedClient(null);
+                                            setClientQuery('');
+                                            setPengirimAddress('');
+                                            setPengirimPhone('');
+                                            setDropdownOpen(true);
+                                        }}
+                                        className="px-2.5 py-1 bg-white border border-emerald-300 hover:bg-emerald-100 text-emerald-800 rounded-lg font-bold text-[11px] shrink-0"
                                     >
-                                        <X size={14} />
+                                        Ganti
                                     </button>
-                                )}
+                                </div>
+                            ) : (
+                                <div className="relative">
+                                    <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                                    <input
+                                        type="text"
+                                        value={clientQuery}
+                                        onFocus={() => setDropdownOpen(true)}
+                                        onChange={(e) => {
+                                            setClientQuery(e.target.value);
+                                            setDropdownOpen(true);
+                                        }}
+                                        placeholder="Cari pengirim, atau ketik nama baru jika belum terdaftar..."
+                                        className="w-full pl-9 pr-9 py-2.5 bg-white border border-gray-300 rounded-xl font-semibold text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                                    />
+                                    {clientQuery && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setClientQuery('')}
+                                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700"
+                                        >
+                                            <X size={14} />
+                                        </button>
+                                    )}
 
-                                {dropdownOpen && (
-                                    <div className="absolute left-0 right-0 mt-1.5 bg-white border border-gray-200 rounded-2xl shadow-xl max-h-56 overflow-y-auto z-30 divide-y divide-gray-100">
-                                        {filteredClients.length === 0 ? (
-                                            <div className="p-4 text-center text-gray-400 italic">
-                                                Pengirim &quot;{clientQuery}&quot; tidak ditemukan di database pengirim.
-                                            </div>
-                                        ) : (
-                                            filteredClients.map(c => (
+                                    {dropdownOpen && (
+                                        <div className="absolute left-0 right-0 mt-1.5 bg-white border border-gray-200 rounded-2xl shadow-xl max-h-56 overflow-y-auto z-30 divide-y divide-gray-100">
+                                            {filteredClients.map(c => (
                                                 <button
                                                     key={c.id}
                                                     type="button"
                                                     onClick={() => {
                                                         setSelectedClient(c);
                                                         setClientQuery(c.name);
+                                                        setPengirimAddress(c.address || '');
+                                                        setPengirimPhone(c.phone || '');
                                                         setDropdownOpen(false);
                                                     }}
                                                     className="w-full text-left px-3.5 py-2.5 hover:bg-blue-50 transition-colors flex items-center justify-between gap-2"
@@ -465,12 +508,74 @@ export default function CreateSTTFromManifestModal({
                                                         </span>
                                                     )}
                                                 </button>
-                                            ))
-                                        )}
-                                    </div>
-                                )}
+                                            ))}
+
+                                            {isCreatingNewSender && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setDropdownOpen(false)}
+                                                    className="w-full text-left px-3.5 py-2.5 bg-emerald-50/80 hover:bg-emerald-100/80 transition-colors flex items-center gap-2 text-emerald-900"
+                                                >
+                                                    <UserPlus size={15} className="text-emerald-600 shrink-0" />
+                                                    <div className="min-w-0">
+                                                        <div className="font-extrabold text-xs truncate">
+                                                            Buat pengirim baru: &quot;{clientQuery.trim()}&quot;
+                                                        </div>
+                                                        <div className="text-[10px] text-emerald-700">
+                                                            Otomatis ditambahkan ke database pengirim saat STT disimpan
+                                                        </div>
+                                                    </div>
+                                                </button>
+                                            )}
+
+                                            {filteredClients.length === 0 && !clientQuery.trim() && (
+                                                <div className="p-4 text-center text-gray-400 italic">
+                                                    Belum ada data pengirim di database. Ketik nama pengirim untuk membuat baru.
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* Visual indicator when typing a brand new sender */}
+                            {isCreatingNewSender && (
+                                <div className="mt-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] font-bold flex items-center gap-1.5">
+                                    <UserPlus size={13} className="text-emerald-600 shrink-0" />
+                                    <span>
+                                        Pengirim baru <strong>&quot;{clientQuery.trim()}&quot;</strong> akan otomatis dibuat di database pengirim saat simpan.
+                                    </span>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Optional Alamat Pengirim & No HP Pengirim */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                                <label className="font-bold text-gray-700 block mb-1">
+                                    Alamat Pengirim (Opsional)
+                                </label>
+                                <input
+                                    type="text"
+                                    value={pengirimAddress}
+                                    onChange={(e) => setPengirimAddress(e.target.value)}
+                                    placeholder="Alamat pengirim (tidak wajib)..."
+                                    className="w-full px-3.5 py-2 bg-white border border-gray-300 rounded-xl font-medium text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                                />
                             </div>
-                        )}
+                            <div>
+                                <label className="font-bold text-gray-700 block mb-1">
+                                    No. HP Pengirim (Opsional)
+                                </label>
+                                <input
+                                    type="text"
+                                    value={pengirimPhone}
+                                    onChange={(e) => setPengirimPhone(e.target.value)}
+                                    placeholder="08... (tidak wajib)"
+                                    className="w-full px-3.5 py-2 bg-white border border-gray-300 rounded-xl font-medium text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                                />
+                            </div>
+                        </div>
                     </div>
 
                     {/* Step 3: Manual Inputs — Penerima, Tujuan, Alamat */}
