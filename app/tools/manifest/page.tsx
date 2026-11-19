@@ -12,7 +12,7 @@ import {
     CheckCircle, AlertCircle, Loader2, Play, ChevronDown, ChevronUp, X, Filter,
     Sparkles, RefreshCw, Layers, FilePlus2, ExternalLink
 } from 'lucide-react';
-import { getTransactionBySTT } from '@/lib/firestore-transactions';
+import { getTransactionBySTT, updateTransaction } from '@/lib/firestore-transactions';
 import { subscribeToClients } from '@/lib/firestore';
 import { 
     createManifest, getManifests, updateManifest, deleteManifest, subscribeToManifests 
@@ -25,6 +25,62 @@ import { collection, getDocs, query, where, limit, orderBy } from 'firebase/fire
 import { db } from '@/lib/firebase';
 
 const DEFAULT_KEPADA = 'CAHAYA CARGO EXP MKS';
+
+/**
+ * Strip prefix/non-digits so manifest table displays only pure STT numbers (e.g. "STT018825" -> "18825")
+ */
+const normalizeManifestSTT = (raw: string): string => {
+    const trimmed = String(raw || '').trim();
+    if (!trimmed) return '';
+    const digits = trimmed.replace(/\D/g, '');
+    if (!digits) return '';
+    const num = parseInt(digits, 10);
+    return isNaN(num) ? digits : String(num);
+};
+
+/**
+ * Convert pure STT digits back to canonical Firestore Transaction STT format (e.g. "18825" -> "STT018825")
+ */
+const toTransactionSTTFormat = (rawDigits: string): string => {
+    const clean = normalizeManifestSTT(rawDigits);
+    if (!clean) return '';
+    return `STT${clean.padStart(6, '0')}`;
+};
+
+const isBandungManifestItem = (item: ManifestItem): boolean => {
+    if (item.branch === 'bandung') return true;
+    const alamatUp = (item.alamat || '').toUpperCase();
+    return /\bBANDUNG\b/.test(alamatUp);
+};
+
+/**
+ * Sort manifest rows:
+ * 1. Non-empty STT rows first (empty manual rows stay at the bottom)
+ * 2. Bandung STTs ALWAYS on top
+ * 3. Numeric STT ascending (smallest -> largest)
+ */
+const sortManifestItems = (list: ManifestItem[]): ManifestItem[] => {
+    return [...list].sort((a, b) => {
+        const aDigits = normalizeManifestSTT(a.noSTT);
+        const bDigits = normalizeManifestSTT(b.noSTT);
+
+        if (!aDigits && !bDigits) return 0;
+        if (!aDigits) return 1;
+        if (!bDigits) return -1;
+
+        const aBandung = isBandungManifestItem(a);
+        const bBandung = isBandungManifestItem(b);
+        if (aBandung && !bBandung) return -1;
+        if (!aBandung && bBandung) return 1;
+
+        const aNum = parseInt(aDigits, 10);
+        const bNum = parseInt(bDigits, 10);
+        if (!isNaN(aNum) && !isNaN(bNum) && aNum !== bNum) {
+            return aNum - bNum;
+        }
+        return aDigits.localeCompare(bDigits);
+    });
+};
 
 const COLOR_OPTIONS: { value: ManifestRowColor; label: string; bgClass: string; borderClass: string }[] = [
     { value: 'white', label: 'Putih (Biasa)', bgClass: 'bg-white', borderClass: 'border-gray-300' },
@@ -70,6 +126,7 @@ export default function ManifestCargoPage() {
     // Auto-Create STT Modal & Sender Database States
     const [isCreateSTTModalOpen, setIsCreateSTTModalOpen] = useState(false);
     const [clients, setClients] = useState<Client[]>([]);
+    const focusedSTTBeforeEditRef = useRef<Record<number, string>>({});
 
     // History States
     const [history, setHistory] = useState<CargoManifest[]>([]);
@@ -197,14 +254,69 @@ export default function ManifestCargoPage() {
 
     // Handle new STT auto-created from modal
     const handleSTTCreated = (result: CreatedManifestSTTResult) => {
-        setItems(prev => [...prev, result.manifestItem]);
+        const normalizedItem: ManifestItem = {
+            ...result.manifestItem,
+            noSTT: normalizeManifestSTT(result.manifestItem.noSTT),
+            branch: result.branch,
+        };
+        setItems(prev => sortManifestItems([...prev, normalizedItem]));
         setErrors([]);
-        showToast(`Resi ${result.noSTT} berhasil dibuat & ditambahkan ke manifes! Lengkapi harga di Modul Resi & Transaksi.`, 'success');
+        showToast(`Resi ${normalizedItem.noSTT} berhasil dibuat & ditambahkan ke manifes! Lengkapi harga di Modul Resi & Transaksi.`, 'success');
+    };
+
+    // Sync edited No. STT in manifest table directly to Firestore transactions & re-sort table
+    const handleSTTBlurOrCommit = async (index: number) => {
+        const currentItem = items[index];
+        if (!currentItem) return;
+
+        const prevDigits = normalizeManifestSTT(focusedSTTBeforeEditRef.current[index] || '');
+        const newDigits = normalizeManifestSTT(currentItem.noSTT);
+
+        // Normalize display to digits-only & sort (Bandung top, smallest -> largest)
+        setItems(prev => {
+            const updated = prev.map((it, idx) =>
+                idx === index ? { ...it, noSTT: newDigits } : it
+            );
+            return sortManifestItems(updated);
+        });
+
+        if (!newDigits || newDigits === prevDigits) {
+            return;
+        }
+
+        const formattedTxSTT = toTransactionSTTFormat(newDigits);
+
+        try {
+            if (currentItem.transactionId) {
+                await updateTransaction(currentItem.transactionId, {}, undefined, undefined, undefined, formattedTxSTT);
+                focusedSTTBeforeEditRef.current[index] = newDigits;
+                showToast(`No. STT diubah ke ${newDigits} — Resi (${formattedTxSTT}) & Surat Jalan otomatis diperbarui!`, 'success');
+            } else if (prevDigits) {
+                const existingTx = await getTransactionBySTT(prevDigits);
+                if (existingTx) {
+                    await updateTransaction(existingTx.id, {}, undefined, undefined, undefined, formattedTxSTT);
+                    setItems(prev => sortManifestItems(
+                        prev.map(it =>
+                            it === currentItem || (it.noSTT === newDigits && it.pengirim === currentItem.pengirim && it.penerima === currentItem.penerima)
+                                ? { ...it, transactionId: existingTx.id, branch: it.branch || existingTx.branch }
+                                : it
+                        )
+                    ));
+                    focusedSTTBeforeEditRef.current[index] = newDigits;
+                    showToast(`No. STT diubah ke ${newDigits} — Resi (${formattedTxSTT}) otomatis diperbarui!`, 'success');
+                }
+            }
+        } catch (err: any) {
+            console.error('Failed syncing edited STT to transaction:', err);
+            showToast(`Gagal sinkron No. STT ke Resi: ${err?.message || ''}`, 'error');
+        }
     };
 
     // Open 3-Ply Surat Jalan (Putih / Merah / Kuning) for a manifest row
     const handlePrintSuratJalanRow = async (item: ManifestItem) => {
+        const cleanDigits = normalizeManifestSTT(item.noSTT);
         const qs = new URLSearchParams();
+        if (cleanDigits) qs.set('noSTT', cleanDigits);
         if (kapal.trim()) qs.set('kapal', kapal.trim());
         if (nopol.trim()) qs.set('mobil', nopol.trim());
         if (sopir.trim()) qs.set('sopir', sopir.trim());
@@ -214,14 +326,20 @@ export default function ManifestCargoPage() {
         const querySuffix = qs.toString() ? `?${qs.toString()}` : '';
 
         if (item.transactionId) {
+            if (cleanDigits) {
+                try {
+                    await updateTransaction(item.transactionId, {}, undefined, undefined, undefined, toTransactionSTTFormat(cleanDigits));
+                } catch (err) {
+                    console.warn('Pre-print STT sync warning:', err);
+                }
+            }
             window.open(`/transactions/${item.transactionId}/surat-jalan${querySuffix}`, '_blank');
             return;
         }
 
-        const cleanSTT = String(item.noSTT || '').trim();
-        if (cleanSTT) {
+        if (cleanDigits) {
             try {
-                const foundTx = await getTransactionBySTT(cleanSTT);
+                const foundTx = await getTransactionBySTT(cleanDigits);
                 if (foundTx) {
                     window.open(`/transactions/${foundTx.id}/surat-jalan${querySuffix}`, '_blank');
                     return;
@@ -233,7 +351,7 @@ export default function ManifestCargoPage() {
 
         // Fallback for manual manifest row not yet in transactions collection
         sessionStorage.setItem('cce_print_surat_jalan_manual', JSON.stringify({
-            noSTT: cleanSTT || '-',
+            noSTT: cleanDigits || '-',
             tanggal: tanggal.trim() || new Date().toISOString().split('T')[0],
             pengirimName: item.pengirim || '',
             penerimaName: item.penerima || '',
@@ -268,11 +386,11 @@ export default function ManifestCargoPage() {
         try {
             const transaction = await getTransactionBySTT(cleanSTT);
             if (transaction) {
-                setItems(prev => prev.map((item, idx) => {
+                setItems(prev => sortManifestItems(prev.map((item, idx) => {
                     if (idx === index) {
                         return {
                             ...item,
-                            noSTT: transaction.noSTT,
+                            noSTT: normalizeManifestSTT(transaction.noSTT),
                             koli: transaction.koli || 0,
                             berat: transaction.berat || 0,
                             isiBarang: transaction.isiBarang || item.isiBarang || '',
@@ -280,11 +398,13 @@ export default function ManifestCargoPage() {
                             penerima: transaction.penerimaName || item.penerima || '',
                             alamat: transaction.penerimaAddress || (transaction.tujuan ? `SURABAYA - ${transaction.tujuan.toUpperCase()}` : item.alamat || ''),
                             keterangan: transaction.keterangan || item.keterangan || '',
-                            color: item.color || 'white'
+                            color: item.color || 'white',
+                            transactionId: transaction.id,
+                            branch: transaction.branch,
                         };
                     }
                     return item;
-                }));
+                })));
                 showToast(`Data STT ${cleanSTT} ditemukan!`, 'success');
             } else {
                 showToast(`STT ${cleanSTT} tidak ditemukan di sistem transaksi.`, 'error');
@@ -317,18 +437,19 @@ export default function ManifestCargoPage() {
         const newItems: ManifestItem[] = importTransactions
             .filter(tx => selectedTxIds.has(tx.id))
             .map(tx => ({
-                noSTT: tx.noSTT,
+                noSTT: normalizeManifestSTT(tx.noSTT),
                 koli: tx.koli || 0,
                 berat: tx.berat || 0,
                 isiBarang: tx.isiBarang || '',
                 pengirim: tx.pengirimName || '',
                 penerima: tx.penerimaName || '',
-                alamat: tx.penerimaAddress || (tx.tujuan ? `SURABAYA - ${tx.tujuan.toUpperCase()}` : ''),
+                alamat: tx.penerimaAddress || (tx.tujuan ? `${tx.branch === 'bandung' ? 'BANDUNG' : tx.branch === 'makassar' ? 'MAKASSAR' : 'SURABAYA'} - ${tx.tujuan.toUpperCase()}` : ''),
                 keterangan: tx.keterangan || '',
                 color: 'white',
                 transactionId: tx.id,
+                branch: tx.branch,
             }));
-        setItems(prev => [...prev.filter(item => item.noSTT.trim() !== ''), ...newItems]);
+        setItems(prev => sortManifestItems([...prev.filter(item => item.noSTT.trim() !== ''), ...newItems]));
         setIsImportModalOpen(false);
         showToast(`${newItems.length} transaksi berhasil diimport ke tabel manifes!`, 'success');
     };
@@ -368,13 +489,18 @@ export default function ManifestCargoPage() {
 
         setIsSaving(true);
         try {
+            const sortedNormalizedItems = sortManifestItems(
+                items.map(it => ({ ...it, noSTT: normalizeManifestSTT(it.noSTT) }))
+            );
+            setItems(sortedNormalizedItems);
+
             const payload = {
                 tanggal: trimmedTanggal,
                 kapal: trimmedKapal,
                 nopol: nopol.trim(),
                 sopir: sopir.trim(),
                 kepadaYth: kepadaYth.trim() || DEFAULT_KEPADA,
-                items,
+                items: sortedNormalizedItems,
                 createdBy: user?.uid || 'user',
                 createdByName: user?.displayName || user?.email || 'Admin',
             };
@@ -421,7 +547,10 @@ export default function ManifestCargoPage() {
         setNopol(m.nopol || '');
         setSopir(m.sopir || '');
         setKepadaYth(m.kepadaYth || DEFAULT_KEPADA);
-        setItems(m.items || []);
+        const normalizedLoaded = sortManifestItems(
+            (m.items || []).map(it => ({ ...it, noSTT: normalizeManifestSTT(it.noSTT) }))
+        );
+        setItems(normalizedLoaded);
         setShowHistory(false);
         setErrors([]);
         window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -433,13 +562,17 @@ export default function ManifestCargoPage() {
             showToast('Tambahkan minimal 1 item sebelum mencetak PDF.', 'error');
             return;
         }
+        const sortedForPrint = sortManifestItems(
+            items.map(it => ({ ...it, noSTT: normalizeManifestSTT(it.noSTT) }))
+        );
+        setItems(sortedForPrint);
         sessionStorage.setItem('cce_print_manifest', JSON.stringify({
             tanggal,
             kapal,
             nopol,
             sopir,
             kepadaYth,
-            items,
+            items: sortedForPrint,
             orientation: 'landscape'
         }));
         router.push('/tools/manifest/print');
@@ -922,9 +1055,19 @@ export default function ManifestCargoPage() {
                                                         <div className="space-y-0.5">
                                                             <input 
                                                                 type="text"
+                                                                inputMode="numeric"
                                                                 value={item.noSTT} 
-                                                                onChange={e => handleCellChange(index, 'noSTT', e.target.value)} 
-                                                                placeholder="No STT..."
+                                                                onFocus={() => {
+                                                                    focusedSTTBeforeEditRef.current[index] = normalizeManifestSTT(item.noSTT);
+                                                                }}
+                                                                onChange={e => handleCellChange(index, 'noSTT', e.target.value.replace(/\D/g, ''))} 
+                                                                onBlur={() => handleSTTBlurOrCommit(index)}
+                                                                onKeyDown={e => {
+                                                                    if (e.key === 'Enter') {
+                                                                        e.currentTarget.blur();
+                                                                    }
+                                                                }}
+                                                                placeholder="Angka STT..."
                                                                 className="w-full border border-gray-300 rounded px-2 py-1 text-xs font-mono font-bold focus:border-blue-500 outline-none bg-white/90"
                                                             />
                                                             {item.transactionId && (

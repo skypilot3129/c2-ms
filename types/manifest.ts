@@ -1,3 +1,5 @@
+import type { Branch } from './branch';
+
 export type ManifestRowColor = 'white' | 'purple' | 'yellow' | 'green' | 'red' | 'blue';
 
 export interface ManifestItem {
@@ -11,6 +13,7 @@ export interface ManifestItem {
     keterangan: string;
     color?: ManifestRowColor;
     transactionId?: string;
+    branch?: Branch;
 }
 
 export interface CargoManifest {

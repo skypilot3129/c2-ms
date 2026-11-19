@@ -114,6 +114,7 @@ function PrintSuratJalanContent() {
     const [printAllThree, setPrintAllThree] = useState<boolean>(true);
 
     // URL Params overrides (from SuratJalanModal or Manifest page)
+    const paramNoSTT = searchParams.get('noSTT') || '';
     const paramTanggalPC = searchParams.get('tanggalPC') || '';
     const paramMobil = searchParams.get('mobil') || '';
     const paramSopir = searchParams.get('sopir') || '';
@@ -211,8 +212,11 @@ function PrintSuratJalanContent() {
     // Merge data from Firestore Transaction (plus saved suratJalan if any) OR manual manifest row
     const savedSJ: Partial<SuratJalanData> = transaction?.suratJalan || {};
 
-    const noResiRaw = transaction?.noSTT || manualData?.noSTT || '';
-    const displayNoResi = noResiRaw.trim() || '-';
+    const noResiRaw = paramNoSTT || transaction?.noSTT || manualData?.noSTT || '';
+    const noResiCleaned = noResiRaw.trim().replace(/^STT/i, '');
+    const displayNoResi = /^\d+$/.test(noResiCleaned)
+        ? noResiCleaned.padStart(6, '0')
+        : (noResiCleaned || '-');
 
     const tanggalDisplay = formatDateDisplay(
         paramTanggalPC || savedSJ.tanggalPC || transaction?.tanggal || manualData?.tanggal
@@ -240,24 +244,20 @@ function PrintSuratJalanContent() {
     ).trim();
     const penerimaTelp = (transaction?.penerimaPhone || manualData?.penerimaPhone || '').trim();
 
-    const konsesiBaik = paramKonsesiBaik !== null ? paramKonsesiBaik === 'true' : (savedSJ.konsesiBaik ?? true);
-    const konsesiRusak = paramKonsesiRusak !== null ? paramKonsesiRusak === 'true' : (savedSJ.konsesiRusak ?? false);
+    // Do NOT auto-check option checkboxes (kondisi diterima, asuransi, service, cara pembayaran)
+    // unless explicitly requested via URL params
+    const konsesiBaik = paramKonsesiBaik === 'true';
+    const konsesiRusak = paramKonsesiRusak === 'true';
     const konsesiKeterangan = (paramKonsesiKet || savedSJ.konsesiKeterangan || transaction?.keterangan || manualData?.keterangan || '').trim();
 
-    const asuransiChecked = paramAsuransi !== null ? paramAsuransi === 'true' : savedSJ.asuransi;
+    const asuransiChecked = paramAsuransi === 'true' ? true : paramAsuransi === 'false' ? false : undefined;
 
-    const serviceVal = (paramService || savedSJ.service || 'laut').toLowerCase();
+    const serviceVal = paramService.toLowerCase();
     const serviceUdara = serviceVal === 'udara';
     const serviceDarat = serviceVal === 'darat';
     const serviceLaut = serviceVal === 'laut';
 
-    const rawPayment = (
-        paramCaraPembayaran ||
-        savedSJ.caraPembayaran ||
-        transaction?.pembayaran ||
-        manualData?.pembayaran ||
-        ''
-    ).toLowerCase();
+    const rawPayment = paramCaraPembayaran.toLowerCase();
     const bayarTunai = rawPayment === 'tunai' || rawPayment === 'cash';
     const bayarInvoice = rawPayment === 'invoice' || rawPayment === 'kredit' || rawPayment === 'bank';
     const bayarTujuan = rawPayment === 'bayar tujuan' || rawPayment === 'cod' || rawPayment === 'dp';

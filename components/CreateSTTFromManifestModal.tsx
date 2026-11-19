@@ -265,13 +265,15 @@ export default function CreateSTTFromManifestModal({
 
             const createdTx = await getTransactionById(newTxId);
             const finalNoSTT = createdTx?.noSTT || previewSTT;
+            const digitsOnly = finalNoSTT.replace(/\D/g, '');
+            const manifestSTT = digitsOnly ? String(parseInt(digitsOnly, 10)) : finalNoSTT;
 
             const manifestAlamat = alamat.trim()
                 ? `${alamat.trim()}${tujuan.trim() && !alamat.toLowerCase().includes(tujuan.trim().toLowerCase()) ? ` - ${tujuan.trim()}` : ''}`
                 : tujuan.trim();
 
             const manifestItem: ManifestItem = {
-                noSTT: finalNoSTT,
+                noSTT: manifestSTT,
                 koli: Number(koli),
                 berat: parsedBerat > 0 ? parsedBerat : '',
                 isiBarang: isiBarang.trim().toUpperCase(),
@@ -281,12 +283,13 @@ export default function CreateSTTFromManifestModal({
                 keterangan: keterangan.trim().toUpperCase(),
                 color: rowColor,
                 transactionId: newTxId,
+                branch: selectedBranch,
             };
 
             onCreated({
                 manifestItem,
                 transactionId: newTxId,
-                noSTT: finalNoSTT,
+                noSTT: manifestSTT,
                 branch: selectedBranch,
             });
 

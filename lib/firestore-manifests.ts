@@ -13,6 +13,7 @@ import {
     Timestamp,
 } from 'firebase/firestore';
 import type { CargoManifest, ManifestItem, ManifestRowColor } from '@/types/manifest';
+import type { Branch } from '@/types/branch';
 
 const COLLECTION = 'cargo_manifests';
 
@@ -27,6 +28,7 @@ interface ManifestItemDoc {
     keterangan: string;
     color: ManifestRowColor;
     transactionId?: string;
+    branch?: Branch;
 }
 
 interface CargoManifestDoc {
@@ -60,6 +62,10 @@ function cleanItem(item: any): ManifestItemDoc {
     const txId = String(item?.transactionId ?? '').trim();
     if (txId) {
         cleaned.transactionId = txId;
+    }
+    const branchVal = String(item?.branch ?? '').trim();
+    if (branchVal === 'surabaya' || branchVal === 'bandung' || branchVal === 'makassar') {
+        cleaned.branch = branchVal;
     }
     return cleaned;
 }
