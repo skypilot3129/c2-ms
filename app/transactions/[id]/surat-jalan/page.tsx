@@ -583,23 +583,74 @@ function PrintSuratJalanContent() {
                     margin-bottom: 0.75mm;
                 }
 
-                .sj-inner-table {
-                    width: 100%;
+                .sj-band2-wrap {
+                    display: flex;
+                    flex-direction: column;
+                    flex: 1;
+                    position: relative;
+                    z-index: 2;
+                    border-bottom: 1.2px solid #164486;
+                }
+
+                .sj-band2-hdr {
+                    display: grid;
+                    grid-template-columns: 39% 61%;
+                    border-bottom: 1.2px solid #164486;
+                }
+
+                .sj-band2-hdr > div:first-child {
+                    border-right: 1.2px solid #164486;
+                }
+
+                .sj-band2-body {
+                    display: grid;
+                    grid-template-columns: 39% 61%;
+                    flex: 1;
+                    align-items: stretch;
+                }
+
+                .sj-band2-left {
+                    border-right: 1.2px solid #164486;
+                    padding: 1.6mm 2mm;
+                }
+
+                .sj-band2-right {
+                    display: flex;
+                    flex-direction: column;
                     height: 100%;
-                    border-collapse: collapse;
-                    table-layout: fixed;
                 }
 
-                .sj-inner-table td {
-                    border: 1.1px solid #164486;
+                .sj-koli-top {
+                    display: grid;
+                    grid-template-columns: 18% 16% 26% 18% 22%;
+                    min-height: 22mm;
+                    border-bottom: 1.2px solid #164486;
+                }
+
+                .sj-koli-top > div {
                     padding: 0.9mm 1.2mm;
-                    vertical-align: top;
+                    text-align: center;
+                    position: relative;
                 }
 
-                .sj-inner-table tr:first-child td { border-top: none; }
-                .sj-inner-table tr:last-child td { border-bottom: none; }
-                .sj-inner-table td:first-child { border-left: none; }
-                .sj-inner-table td:last-child { border-right: none; }
+                .sj-koli-top > div:not(:last-child) {
+                    border-right: 1.2px solid #164486;
+                }
+
+                .sj-koli-bottom {
+                    display: grid;
+                    grid-template-columns: 78% 22%;
+                    flex: 1;
+                    min-height: 17mm;
+                }
+
+                .sj-koli-bottom > div {
+                    padding: 1mm 1.5mm;
+                }
+
+                .sj-koli-bottom > div:first-child {
+                    border-right: 1.2px solid #164486;
+                }
 
                 .sj-sub-hdr {
                     font-size: 6.7pt;
@@ -916,252 +967,229 @@ function PrintSuratJalanContent() {
                                     </table>
 
                                     {/* BAND 2: 4. SERVICE, ASURANSI, PEMBAYARAN | 5. KOLI - BERAT - VOLUME & HARGA */}
-                                    <table className="sj-band" style={{ flex: 1 }}>
-                                        <colgroup>
-                                            <col style={{ width: '39%' }} />
-                                            <col style={{ width: '61%' }} />
-                                        </colgroup>
-                                        <thead>
-                                            <tr>
-                                                <th className="sj-sec-th">4. SERVICE, ASURANSI, PEMBAYARAN</th>
-                                                <th className="sj-sec-th">5. KOLI - BERAT - VOLUME &amp; HARGA</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            <tr>
-                                                {/* 4. SERVICE, ASURANSI, PEMBAYARAN */}
-                                                <td style={{ padding: '1.6mm 2mm' }}>
-                                                    <div style={{ display: 'grid', gridTemplateColumns: '48% 52%', gap: '1.5mm', height: '100%' }}>
-                                                        {/* Left Sub-column: SERVICE + CARA PEMBAYARAN */}
-                                                        <div>
-                                                            <div style={{ fontSize: '7.3pt', fontWeight: 800, marginBottom: '1mm' }}>SERVICE</div>
-                                                            <div className="sj-check-item">
-                                                                <SuratJalanCheckbox checked={serviceUdara} />
-                                                                <span>UDARA</span>
-                                                            </div>
-                                                            <div className="sj-check-item">
-                                                                <SuratJalanCheckbox checked={serviceDarat} />
-                                                                <span>DARAT</span>
-                                                            </div>
-                                                            <div className="sj-check-item">
-                                                                <SuratJalanCheckbox checked={serviceLaut} />
-                                                                <span>LAUT</span>
-                                                            </div>
-                                                            <div className="sj-check-item" style={{ marginBottom: '2mm' }}>
-                                                                <SuratJalanCheckbox checked={false} />
-                                                                <span></span>
-                                                            </div>
+                                    <div className="sj-band2-wrap">
+                                        <div className="sj-band2-hdr">
+                                            <div className="sj-sec-th">4. SERVICE, ASURANSI, PEMBAYARAN</div>
+                                            <div className="sj-sec-th">5. KOLI - BERAT - VOLUME &amp; HARGA</div>
+                                        </div>
 
-                                                            <div style={{ fontSize: '7.3pt', fontWeight: 800, marginBottom: '1mm' }}>CARA PEMBAYARAN</div>
-                                                            <div className="sj-check-item">
-                                                                <SuratJalanCheckbox checked={bayarTunai} />
-                                                                <span>TUNAI</span>
-                                                            </div>
-                                                            <div className="sj-check-item">
-                                                                <SuratJalanCheckbox checked={bayarInvoice} />
-                                                                <span>INVOICE</span>
-                                                            </div>
-                                                            <div className="sj-check-item" style={{ marginBottom: 0 }}>
-                                                                <SuratJalanCheckbox checked={bayarTujuan} />
-                                                                <span>BAYAR TUJUAN</span>
-                                                            </div>
+                                        <div className="sj-band2-body">
+                                            {/* 4. SERVICE, ASURANSI, PEMBAYARAN */}
+                                            <div className="sj-band2-left">
+                                                <div style={{ display: 'grid', gridTemplateColumns: '48% 52%', gap: '1.5mm', height: '100%' }}>
+                                                    {/* Left Sub-column: SERVICE + CARA PEMBAYARAN */}
+                                                    <div>
+                                                        <div style={{ fontSize: '7.3pt', fontWeight: 800, marginBottom: '1mm' }}>SERVICE</div>
+                                                        <div className="sj-check-item">
+                                                            <SuratJalanCheckbox checked={serviceUdara} />
+                                                            <span>UDARA</span>
+                                                        </div>
+                                                        <div className="sj-check-item">
+                                                            <SuratJalanCheckbox checked={serviceDarat} />
+                                                            <span>DARAT</span>
+                                                        </div>
+                                                        <div className="sj-check-item">
+                                                            <SuratJalanCheckbox checked={serviceLaut} />
+                                                            <span>LAUT</span>
+                                                        </div>
+                                                        <div className="sj-check-item" style={{ marginBottom: '2mm' }}>
+                                                            <SuratJalanCheckbox checked={false} />
+                                                            <span></span>
                                                         </div>
 
-                                                        {/* Right Sub-column: ASURANSI + CATATAN KHUSUS */}
-                                                        <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                                            <div style={{ fontSize: '7.3pt', fontWeight: 800, marginBottom: '1mm', textAlign: 'center' }}>
-                                                                ASURANSI
-                                                            </div>
-                                                            <div style={{ paddingLeft: '2mm', marginBottom: '2.5mm' }}>
-                                                                <div className="sj-check-item">
-                                                                    <SuratJalanCheckbox checked={asuransiChecked === true} />
-                                                                    <span>YA</span>
-                                                                </div>
-                                                                <div className="sj-check-item">
-                                                                    <SuratJalanCheckbox checked={asuransiChecked === false} />
-                                                                    <span>TIDAK</span>
-                                                                </div>
-                                                            </div>
-
-                                                            <div style={{ fontSize: '7.3pt', fontWeight: 800, textAlign: 'center', marginBottom: '1mm' }}>
-                                                                CATATAN KHUSUS
-                                                            </div>
-                                                            <div
-                                                                style={{
-                                                                    flex: 1,
-                                                                    display: 'flex',
-                                                                    flexDirection: 'column',
-                                                                    justifyContent: 'space-between',
-                                                                    paddingTop: '0.5mm',
-                                                                }}
-                                                            >
-                                                                {catatanKhusus ? (
-                                                                    <div
-                                                                        style={{
-                                                                            color: '#0f172a',
-                                                                            fontWeight: 700,
-                                                                            lineHeight: 1.3,
-                                                                            wordBreak: 'break-word',
-                                                                            fontSize: adaptivePt(catatanKhusus, 8, 6.4, 34),
-                                                                            borderBottom: '1px solid #164486',
-                                                                            paddingBottom: '0.8mm',
-                                                                        }}
-                                                                    >
-                                                                        {catatanKhusus}
-                                                                    </div>
-                                                                ) : (
-                                                                    <>
-                                                                        <div style={{ borderBottom: '1px solid #164486', height: '4.5mm' }} />
-                                                                        <div style={{ borderBottom: '1px solid #164486', height: '4.5mm' }} />
-                                                                        <div style={{ borderBottom: '1px solid #164486', height: '4.5mm' }} />
-                                                                    </>
-                                                                )}
-                                                            </div>
+                                                        <div style={{ fontSize: '7.3pt', fontWeight: 800, marginBottom: '1mm' }}>CARA PEMBAYARAN</div>
+                                                        <div className="sj-check-item">
+                                                            <SuratJalanCheckbox checked={bayarTunai} />
+                                                            <span>TUNAI</span>
+                                                        </div>
+                                                        <div className="sj-check-item">
+                                                            <SuratJalanCheckbox checked={bayarInvoice} />
+                                                            <span>INVOICE</span>
+                                                        </div>
+                                                        <div className="sj-check-item" style={{ marginBottom: 0 }}>
+                                                            <SuratJalanCheckbox checked={bayarTujuan} />
+                                                            <span>BAYAR TUJUAN</span>
                                                         </div>
                                                     </div>
-                                                </td>
 
-                                                {/* 5. KOLI - BERAT - VOLUME & HARGA */}
-                                                <td style={{ padding: 0 }}>
-                                                    <table className="sj-inner-table">
-                                                        <colgroup>
-                                                            <col style={{ width: '18%' }} />
-                                                            <col style={{ width: '16%' }} />
-                                                            <col style={{ width: '26%' }} />
-                                                            <col style={{ width: '18%' }} />
-                                                            <col style={{ width: '22%' }} />
-                                                        </colgroup>
-                                                        <tbody>
-                                                            {/* Upper Row: TOTAL KOLI | BERAT | P x L x T | BERAT VOLUME | HARGA */}
-                                                            <tr style={{ height: '54%' }}>
-                                                                <td style={{ textAlign: 'center' }}>
-                                                                    <div className="sj-sub-hdr">TOTAL KOLI</div>
-                                                                    <div
-                                                                        style={{
-                                                                            color: '#0f172a',
-                                                                            fontWeight: 900,
-                                                                            marginTop: '3mm',
-                                                                            fontSize: adaptivePt(totalKoli, 13, 9.5, 4),
-                                                                        }}
-                                                                    >
-                                                                        {totalKoli > 0 ? totalKoli : ''}
-                                                                    </div>
-                                                                </td>
+                                                    {/* Right Sub-column: ASURANSI + CATATAN KHUSUS */}
+                                                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                                        <div style={{ fontSize: '7.3pt', fontWeight: 800, marginBottom: '1mm', textAlign: 'center' }}>
+                                                            ASURANSI
+                                                        </div>
+                                                        <div style={{ paddingLeft: '2mm', marginBottom: '2.5mm' }}>
+                                                            <div className="sj-check-item">
+                                                                <SuratJalanCheckbox checked={asuransiChecked === true} />
+                                                                <span>YA</span>
+                                                            </div>
+                                                            <div className="sj-check-item">
+                                                                <SuratJalanCheckbox checked={asuransiChecked === false} />
+                                                                <span>TIDAK</span>
+                                                            </div>
+                                                        </div>
 
-                                                                <td style={{ textAlign: 'center', position: 'relative' }}>
-                                                                    <div className="sj-sub-hdr">BERAT</div>
-                                                                    <div
-                                                                        style={{
-                                                                            color: '#0f172a',
-                                                                            fontWeight: 800,
-                                                                            marginTop: '2.2mm',
-                                                                            fontSize: adaptivePt(displayBerat, 10, 7.2, 8),
-                                                                            wordBreak: 'break-word',
-                                                                        }}
-                                                                    >
-                                                                        {displayBerat}
-                                                                    </div>
-                                                                    <div
-                                                                        style={{
-                                                                            position: 'absolute',
-                                                                            bottom: '0.8mm',
-                                                                            left: 0,
-                                                                            right: 0,
-                                                                            textAlign: 'center',
-                                                                            fontSize: '7pt',
-                                                                            fontWeight: 800,
-                                                                            color: '#164486',
-                                                                        }}
-                                                                    >
-                                                                        M3 / KG
-                                                                    </div>
-                                                                </td>
+                                                        <div style={{ fontSize: '7.3pt', fontWeight: 800, textAlign: 'center', marginBottom: '1mm' }}>
+                                                            CATATAN KHUSUS
+                                                        </div>
+                                                        <div
+                                                            style={{
+                                                                flex: 1,
+                                                                display: 'flex',
+                                                                flexDirection: 'column',
+                                                                justifyContent: 'space-between',
+                                                                paddingTop: '0.5mm',
+                                                            }}
+                                                        >
+                                                            {catatanKhusus ? (
+                                                                <div
+                                                                    style={{
+                                                                        color: '#0f172a',
+                                                                        fontWeight: 700,
+                                                                        lineHeight: 1.3,
+                                                                        wordBreak: 'break-word',
+                                                                        fontSize: adaptivePt(catatanKhusus, 8, 6.4, 34),
+                                                                        borderBottom: '1px solid #164486',
+                                                                        paddingBottom: '0.8mm',
+                                                                    }}
+                                                                >
+                                                                    {catatanKhusus}
+                                                                </div>
+                                                            ) : (
+                                                                <>
+                                                                    <div style={{ borderBottom: '1px solid #164486', height: '4.5mm' }} />
+                                                                    <div style={{ borderBottom: '1px solid #164486', height: '4.5mm' }} />
+                                                                    <div style={{ borderBottom: '1px solid #164486', height: '4.5mm' }} />
+                                                                </>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
 
-                                                                <td style={{ textAlign: 'center' }}>
-                                                                    <div className="sj-sub-hdr">PANJANG X LEBAR X TINGGI</div>
-                                                                    <div
-                                                                        style={{
-                                                                            color: '#0f172a',
-                                                                            fontWeight: 700,
-                                                                            marginTop: '2.8mm',
-                                                                            fontSize: adaptivePt(dimensiDisplay, 9, 7, 14),
-                                                                            wordBreak: 'break-word',
-                                                                        }}
-                                                                    >
-                                                                        {dimensiDisplay}
-                                                                    </div>
-                                                                </td>
+                                            {/* 5. KOLI - BERAT - VOLUME & HARGA */}
+                                            <div className="sj-band2-right">
+                                                {/* Upper Row: TOTAL KOLI | BERAT | P x L x T | BERAT VOLUME | HARGA */}
+                                                <div className="sj-koli-top">
+                                                    <div>
+                                                        <div className="sj-sub-hdr">TOTAL KOLI</div>
+                                                        <div
+                                                            style={{
+                                                                color: '#0f172a',
+                                                                fontWeight: 900,
+                                                                marginTop: '3mm',
+                                                                fontSize: adaptivePt(totalKoli, 13, 9.5, 4),
+                                                            }}
+                                                        >
+                                                            {totalKoli > 0 ? totalKoli : ''}
+                                                        </div>
+                                                    </div>
 
-                                                                <td style={{ textAlign: 'center' }}>
-                                                                    <div className="sj-sub-hdr">BERAT VOLUME</div>
-                                                                    <div
-                                                                        style={{
-                                                                            color: '#0f172a',
-                                                                            fontWeight: 800,
-                                                                            marginTop: '2.8mm',
-                                                                            fontSize: adaptivePt(beratVolumeDisplay, 9.5, 7, 10),
-                                                                        }}
-                                                                    >
-                                                                        {beratVolumeDisplay}
-                                                                    </div>
-                                                                </td>
+                                                    <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                                                        <div className="sj-sub-hdr">BERAT</div>
+                                                        <div
+                                                            style={{
+                                                                color: '#0f172a',
+                                                                fontWeight: 800,
+                                                                fontSize: adaptivePt(displayBerat, 10, 7.2, 8),
+                                                                wordBreak: 'break-word',
+                                                            }}
+                                                        >
+                                                            {displayBerat}
+                                                        </div>
+                                                        <div
+                                                            style={{
+                                                                fontSize: '7pt',
+                                                                fontWeight: 800,
+                                                                color: '#164486',
+                                                            }}
+                                                        >
+                                                            M3 / KG
+                                                        </div>
+                                                    </div>
 
-                                                                <td style={{ textAlign: 'center' }}>
-                                                                    <div className="sj-sub-hdr">HARGA</div>
-                                                                    <div
-                                                                        style={{
-                                                                            color: '#0f172a',
-                                                                            fontWeight: 800,
-                                                                            marginTop: '2.8mm',
-                                                                            fontSize: adaptivePt(displayHarga, 9.2, 7, 11),
-                                                                            fontFamily: 'monospace',
-                                                                        }}
-                                                                    >
-                                                                        {displayHarga}
-                                                                    </div>
-                                                                </td>
-                                                            </tr>
+                                                    <div>
+                                                        <div className="sj-sub-hdr">PANJANG X LEBAR X TINGGI</div>
+                                                        <div
+                                                            style={{
+                                                                color: '#0f172a',
+                                                                fontWeight: 700,
+                                                                marginTop: '2.8mm',
+                                                                fontSize: adaptivePt(dimensiDisplay, 9, 7, 14),
+                                                                wordBreak: 'break-word',
+                                                            }}
+                                                        >
+                                                            {dimensiDisplay}
+                                                        </div>
+                                                    </div>
 
-                                                            {/* Lower Row: KETERANGAN ISI BARANG (colSpan 4) | JUMLAH */}
-                                                            <tr style={{ height: '46%' }}>
-                                                                <td colSpan={4}>
-                                                                    <div className="sj-sub-hdr" style={{ marginBottom: '1.2mm' }}>
-                                                                        KETERANGAN ISI BARANG
-                                                                    </div>
-                                                                    <div
-                                                                        style={{
-                                                                            color: '#0f172a',
-                                                                            fontWeight: 800,
-                                                                            textAlign: 'center',
-                                                                            lineHeight: 1.25,
-                                                                            wordBreak: 'break-word',
-                                                                            fontSize: adaptivePt(isiBarangDisplay, 10.5, 7.5, 36),
-                                                                        }}
-                                                                    >
-                                                                        {isiBarangDisplay}
-                                                                    </div>
-                                                                </td>
-                                                                <td style={{ textAlign: 'center' }}>
-                                                                    <div className="sj-sub-hdr">JUMLAH</div>
-                                                                    <div
-                                                                        style={{
-                                                                            color: '#0f172a',
-                                                                            fontWeight: 900,
-                                                                            marginTop: '2.5mm',
-                                                                            fontSize: adaptivePt(displayJumlah, 9.5, 7, 12),
-                                                                            fontFamily: 'monospace',
-                                                                        }}
-                                                                    >
-                                                                        {displayJumlah}
-                                                                    </div>
-                                                                </td>
-                                                            </tr>
-                                                        </tbody>
-                                                    </table>
-                                                </td>
-                                            </tr>
-                                        </tbody>
-                                    </table>
+                                                    <div>
+                                                        <div className="sj-sub-hdr">BERAT VOLUME</div>
+                                                        <div
+                                                            style={{
+                                                                color: '#0f172a',
+                                                                fontWeight: 800,
+                                                                marginTop: '2.8mm',
+                                                                fontSize: adaptivePt(beratVolumeDisplay, 9.5, 7, 10),
+                                                            }}
+                                                        >
+                                                            {beratVolumeDisplay}
+                                                        </div>
+                                                    </div>
+
+                                                    <div>
+                                                        <div className="sj-sub-hdr">HARGA</div>
+                                                        <div
+                                                            style={{
+                                                                color: '#0f172a',
+                                                                fontWeight: 800,
+                                                                marginTop: '2.8mm',
+                                                                fontSize: adaptivePt(displayHarga, 9.2, 7, 11),
+                                                                fontFamily: 'monospace',
+                                                            }}
+                                                        >
+                                                            {displayHarga}
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                {/* Lower Row: KETERANGAN ISI BARANG (78%) | JUMLAH (22%) */}
+                                                <div className="sj-koli-bottom">
+                                                    <div>
+                                                        <div className="sj-sub-hdr" style={{ marginBottom: '1.2mm' }}>
+                                                            KETERANGAN ISI BARANG
+                                                        </div>
+                                                        <div
+                                                            style={{
+                                                                color: '#0f172a',
+                                                                fontWeight: 800,
+                                                                textAlign: 'center',
+                                                                lineHeight: 1.25,
+                                                                wordBreak: 'break-word',
+                                                                fontSize: adaptivePt(isiBarangDisplay, 10.5, 7.5, 36),
+                                                            }}
+                                                        >
+                                                            {isiBarangDisplay}
+                                                        </div>
+                                                    </div>
+
+                                                    <div style={{ textAlign: 'center' }}>
+                                                        <div className="sj-sub-hdr">JUMLAH</div>
+                                                        <div
+                                                            style={{
+                                                                color: '#0f172a',
+                                                                fontWeight: 900,
+                                                                marginTop: '2.5mm',
+                                                                fontSize: adaptivePt(displayJumlah, 9.5, 7, 12),
+                                                                fontFamily: 'monospace',
+                                                            }}
+                                                        >
+                                                            {displayJumlah}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
 
                                     {/* BAND 3: 6. PENGIRIM | 7. PENERIMA | 8. DIAMBIL OLEH */}
                                     <table className="sj-band" style={{ borderBottom: 'none' }}>
