@@ -10,6 +10,7 @@ export interface ManifestItem {
     alamat: string;
     keterangan: string;
     color?: ManifestRowColor;
+    transactionId?: string;
 }
 
 export interface CargoManifest {

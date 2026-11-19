@@ -536,7 +536,16 @@ export default function TransactionsPage() {
                                                         {transaction.berat} <span className="text-[10px] text-gray-450 font-normal">{transaction.beratUnit}</span>
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-bold text-gray-800">
-                                                        {formatRupiah(transaction.jumlah)}
+                                                        <div>{formatRupiah(transaction.jumlah)}</div>
+                                                        {transaction.harga === 0 && transaction.jumlah === 0 && transaction.status !== 'dibatalkan' && (
+                                                            <Link
+                                                                href={`/transactions/${transaction.id}/edit`}
+                                                                className="inline-block mt-0.5 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 hover:bg-amber-200 transition-colors"
+                                                                title="STT awal dari Manifes — klik untuk lengkapi harga"
+                                                            >
+                                                                Belum Input Harga
+                                                            </Link>
+                                                        )}
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-center">
                                                         <div className="flex flex-col items-center gap-1">

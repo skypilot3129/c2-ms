@@ -26,6 +26,7 @@ interface ManifestItemDoc {
     alamat: string;
     keterangan: string;
     color: ManifestRowColor;
+    transactionId?: string;
 }
 
 interface CargoManifestDoc {
@@ -45,7 +46,7 @@ interface CargoManifestDoc {
  * Sanitize single item to guarantee no `undefined` value reaches Firestore
  */
 function cleanItem(item: any): ManifestItemDoc {
-    return {
+    const cleaned: ManifestItemDoc = {
         noSTT: String(item?.noSTT ?? '').trim(),
         koli: Number(item?.koli) || 0,
         berat: typeof item?.berat === 'number' ? item.berat : String(item?.berat ?? '').trim(),
@@ -56,6 +57,11 @@ function cleanItem(item: any): ManifestItemDoc {
         keterangan: String(item?.keterangan ?? '').trim(),
         color: (item?.color as ManifestRowColor) || 'white',
     };
+    const txId = String(item?.transactionId ?? '').trim();
+    if (txId) {
+        cleaned.transactionId = txId;
+    }
+    return cleaned;
 }
 
 /**

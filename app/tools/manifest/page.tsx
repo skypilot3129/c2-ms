@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import ProtectedRoute from '@/components/ProtectedRoute';
@@ -9,14 +10,17 @@ import {
     Ship, Truck, Calendar, User, Users, FileText, ArrowLeft, 
     Plus, Trash2, Printer, Save, RotateCcw, Search, 
     CheckCircle, AlertCircle, Loader2, Play, ChevronDown, ChevronUp, X, Filter,
-    Sparkles, RefreshCw, Layers
+    Sparkles, RefreshCw, Layers, FilePlus2, ExternalLink
 } from 'lucide-react';
 import { getTransactionBySTT } from '@/lib/firestore-transactions';
+import { subscribeToClients } from '@/lib/firestore';
 import { 
     createManifest, getManifests, updateManifest, deleteManifest, subscribeToManifests 
 } from '@/lib/firestore-manifests';
+import CreateSTTFromManifestModal, { type CreatedManifestSTTResult } from '@/components/CreateSTTFromManifestModal';
 import type { CargoManifest, ManifestItem, ManifestRowColor } from '@/types/manifest';
 import type { Transaction } from '@/types/transaction';
+import type { Client } from '@/types/client';
 import { collection, getDocs, query, where, limit, orderBy } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 
@@ -63,6 +67,10 @@ export default function ManifestCargoPage() {
     const [loadingTx, setLoadingTx] = useState(false);
     const [txFilter, setTxFilter] = useState('');
 
+    // Auto-Create STT Modal & Sender Database States
+    const [isCreateSTTModalOpen, setIsCreateSTTModalOpen] = useState(false);
+    const [clients, setClients] = useState<Client[]>([]);
+
     // History States
     const [history, setHistory] = useState<CargoManifest[]>([]);
     const [loadingHistory, setLoadingHistory] = useState(false);
@@ -74,6 +82,15 @@ export default function ManifestCargoPage() {
         setToastType(type);
         setTimeout(() => setToastMessage(null), 4000);
     };
+
+    // Realtime subscription to sender (clients) database
+    useEffect(() => {
+        if (!user) return;
+        const unsubClients = subscribeToClients((loadedClients) => {
+            setClients(loadedClients);
+        }, user.uid);
+        return () => unsubClients();
+    }, [user]);
 
     // Realtime subscription to manifest history
     useEffect(() => {
@@ -178,6 +195,61 @@ export default function ManifestCargoPage() {
         setErrors([]);
     };
 
+    // Handle new STT auto-created from modal
+    const handleSTTCreated = (result: CreatedManifestSTTResult) => {
+        setItems(prev => [...prev, result.manifestItem]);
+        setErrors([]);
+        showToast(`Resi ${result.noSTT} berhasil dibuat & ditambahkan ke manifes! Lengkapi harga di Modul Resi & Transaksi.`, 'success');
+    };
+
+    // Open 3-Ply Surat Jalan (Putih / Merah / Kuning) for a manifest row
+    const handlePrintSuratJalanRow = async (item: ManifestItem) => {
+        const qs = new URLSearchParams();
+        if (kapal.trim()) qs.set('kapal', kapal.trim());
+        if (nopol.trim()) qs.set('mobil', nopol.trim());
+        if (sopir.trim()) qs.set('sopir', sopir.trim());
+        if (/^\d{4}-\d{2}-\d{2}$/.test(tanggal.trim())) {
+            qs.set('tanggalPC', tanggal.trim());
+        }
+        const querySuffix = qs.toString() ? `?${qs.toString()}` : '';
+
+        if (item.transactionId) {
+            window.open(`/transactions/${item.transactionId}/surat-jalan${querySuffix}`, '_blank');
+            return;
+        }
+
+        const cleanSTT = String(item.noSTT || '').trim();
+        if (cleanSTT) {
+            try {
+                const foundTx = await getTransactionBySTT(cleanSTT);
+                if (foundTx) {
+                    window.open(`/transactions/${foundTx.id}/surat-jalan${querySuffix}`, '_blank');
+                    return;
+                }
+            } catch (err) {
+                console.warn('Lookup STT for surat jalan fell back to manual row:', err);
+            }
+        }
+
+        // Fallback for manual manifest row not yet in transactions collection
+        sessionStorage.setItem('cce_print_surat_jalan_manual', JSON.stringify({
+            noSTT: cleanSTT || '-',
+            tanggal: tanggal.trim() || new Date().toISOString().split('T')[0],
+            pengirimName: item.pengirim || '',
+            penerimaName: item.penerima || '',
+            penerimaAddress: item.alamat || '',
+            koli: Number(item.koli) || 0,
+            berat: item.berat ?? '',
+            beratUnit: 'KG',
+            isiBarang: item.isiBarang || '',
+            keterangan: item.keterangan || '',
+            kapal: kapal.trim(),
+            mobil: nopol.trim(),
+            sopir: sopir.trim(),
+        }));
+        window.open(`/transactions/manual/surat-jalan${querySuffix}`, '_blank');
+    };
+
     // Remove row
     const handleRemoveRow = (index: number) => {
         setItems(prev => prev.filter((_, idx) => idx !== index));
@@ -253,7 +325,8 @@ export default function ManifestCargoPage() {
                 penerima: tx.penerimaName || '',
                 alamat: tx.penerimaAddress || (tx.tujuan ? `SURABAYA - ${tx.tujuan.toUpperCase()}` : ''),
                 keterangan: tx.keterangan || '',
-                color: 'white'
+                color: 'white',
+                transactionId: tx.id,
             }));
         setItems(prev => [...prev.filter(item => item.noSTT.trim() !== ''), ...newItems]);
         setIsImportModalOpen(false);
@@ -780,6 +853,13 @@ export default function ManifestCargoPage() {
                                 >
                                     <Plus size={14} /> Tambah Baris
                                 </button>
+                                <button 
+                                    onClick={() => setIsCreateSTTModalOpen(true)} 
+                                    className="bg-emerald-600 hover:bg-emerald-700 px-3.5 py-2 rounded-xl text-xs font-bold text-white flex items-center gap-1.5 transition-all shadow-sm active:scale-95"
+                                    title="Buat resi STT baru otomatis (urutan Surabaya/Bandung/Makassar) dan langsung masukkan ke manifes"
+                                >
+                                    <FilePlus2 size={14} /> Tambah STT
+                                </button>
                                 {items.length > 0 && (
                                     <button 
                                         onClick={() => {
@@ -808,7 +888,7 @@ export default function ManifestCargoPage() {
                                         <th className="py-3 px-2 border-r border-gray-300 text-left min-w-[180px]">Alamat</th>
                                         <th className="py-3 px-2 border-r border-gray-300 text-left min-w-[100px]">Ket</th>
                                         <th className="py-3 px-2 border-r border-gray-300 text-center w-28">Warna</th>
-                                        <th className="py-3 px-2 text-center w-12">Aksi</th>
+                                        <th className="py-3 px-2 text-center w-24">Aksi</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -818,7 +898,7 @@ export default function ManifestCargoPage() {
                                                 <Ship size={32} className="mx-auto text-gray-400 mb-2" />
                                                 <p className="font-semibold">Belum ada baris dalam manifes ini.</p>
                                                 <p className="text-xs text-gray-400 mt-1">
-                                                    Klik &quot;Tambah Baris&quot;, &quot;Bulk Import STT&quot;, atau &quot;Muat Contoh CCE&quot; untuk mengisi data.
+                                                    Klik &quot;Tambah STT&quot; (resi otomatis), &quot;Tambah Baris&quot;, &quot;Bulk Import STT&quot;, atau &quot;Muat Contoh CCE&quot; untuk mengisi data.
                                                 </p>
                                             </td>
                                         </tr>
@@ -839,7 +919,7 @@ export default function ManifestCargoPage() {
                                                         {index + 1}
                                                     </td>
                                                     <td className="py-1 px-1 border-r border-gray-200">
-                                                        <div className="relative flex items-center">
+                                                        <div className="space-y-0.5">
                                                             <input 
                                                                 type="text"
                                                                 value={item.noSTT} 
@@ -847,6 +927,16 @@ export default function ManifestCargoPage() {
                                                                 placeholder="No STT..."
                                                                 className="w-full border border-gray-300 rounded px-2 py-1 text-xs font-mono font-bold focus:border-blue-500 outline-none bg-white/90"
                                                             />
+                                                            {item.transactionId && (
+                                                                <Link
+                                                                    href={`/transactions/${item.transactionId}/edit`}
+                                                                    target="_blank"
+                                                                    className="inline-flex items-center gap-0.5 text-[9.5px] font-bold text-emerald-700 hover:text-emerald-900 hover:underline px-1"
+                                                                    title="Buka di Modul Resi & Transaksi untuk lengkapi harga"
+                                                                >
+                                                                    <ExternalLink size={9} /> Resi Aktif • Isi Harga
+                                                                </Link>
+                                                            )}
                                                         </div>
                                                     </td>
                                                     <td className="py-1 px-1 border-r border-gray-200">
@@ -915,14 +1005,27 @@ export default function ManifestCargoPage() {
                                                         </select>
                                                     </td>
                                                     <td className="py-1 px-1 text-center">
-                                                        <button 
-                                                            type="button"
-                                                            onClick={() => handleRemoveRow(index)} 
-                                                            className="text-gray-400 hover:text-red-600 p-1 transition-colors"
-                                                            title="Hapus baris ini"
-                                                        >
-                                                            <Trash2 size={15}/>
-                                                        </button>
+                                                        <div className="flex items-center justify-center gap-1">
+                                                            {(item.transactionId || item.noSTT.trim()) && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => handlePrintSuratJalanRow(item)}
+                                                                    className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 hover:bg-blue-600 text-blue-700 hover:text-white border border-blue-200 hover:border-blue-600 rounded-lg text-[10.5px] font-extrabold transition-all"
+                                                                    title="Cetak Surat Jalan Rangkap 3 (Putih, Merah, Kuning)"
+                                                                >
+                                                                    <Printer size={12} />
+                                                                    <span>SJ</span>
+                                                                </button>
+                                                            )}
+                                                            <button 
+                                                                type="button"
+                                                                onClick={() => handleRemoveRow(index)} 
+                                                                className="text-gray-400 hover:text-red-600 p-1 transition-colors"
+                                                                title="Hapus baris ini"
+                                                            >
+                                                                <Trash2 size={15}/>
+                                                            </button>
+                                                        </div>
                                                     </td>
                                                 </tr>
                                             );
@@ -1064,6 +1167,16 @@ export default function ManifestCargoPage() {
                             </div>
                         </div>
                     )}
+
+                    {/* Auto-Create STT Modal */}
+                    <CreateSTTFromManifestModal
+                        isOpen={isCreateSTTModalOpen}
+                        userId={user?.uid || ''}
+                        defaultTanggal={tanggal}
+                        clients={clients}
+                        onClose={() => setIsCreateSTTModalOpen(false)}
+                        onCreated={handleSTTCreated}
+                    />
 
                     {/* Floating Toast Notification */}
                     {toastMessage && (
