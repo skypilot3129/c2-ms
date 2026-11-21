@@ -108,8 +108,8 @@ function PrintSuratJalanContent() {
     const [loading, setLoading] = useState(true);
     const [notFound, setNotFound] = useState(false);
 
-    // Print Options
-    const [paperMode, setPaperMode] = useState<'a4' | 'a5'>('a4');
+    // Print Options (default: A5 Full Tanpa Margin)
+    const [paperMode, setPaperMode] = useState<'a5' | 'a4'>('a5');
     const [useColoredPlies, setUseColoredPlies] = useState<boolean>(true);
     const [printAllThree, setPrintAllThree] = useState<boolean>(true);
 
@@ -294,20 +294,24 @@ function PrintSuratJalanContent() {
     const sheetsToRender = printAllThree ? PLY_SHEETS : [PLY_SHEETS[0]];
 
     const pageSizeRule = paperMode === 'a5'
-        ? `@page { size: 210mm 148mm; margin: 3mm; }`
-        : `@page { size: A4 portrait; margin: 6mm; }`;
+        ? `@page { size: A5 landscape; margin: 0 !important; }`
+        : `@page { size: A4 portrait; margin: 0 !important; }`;
 
-    const sheetWidth = paperMode === 'a5' ? '204mm' : '198mm';
-    const sheetMinHeight = paperMode === 'a5' ? '141mm' : '156mm';
-    const sigCellHeight = paperMode === 'a5' ? '30mm' : '36mm';
+    const paperWidth = '210mm';
+    const paperHeight = '147.6mm';
+    const paperPadding = paperMode === 'a5' ? '1.8mm' : '4mm';
+    const sigCellHeight = paperMode === 'a5' ? '30mm' : '32mm';
 
     return (
         <>
             <style dangerouslySetInnerHTML={{
                 __html: `
+                ${pageSizeRule}
+
                 @media print {
-                    ${pageSizeRule}
                     html, body {
+                        width: 210mm !important;
+                        height: auto !important;
                         margin: 0 !important;
                         padding: 0 !important;
                         background: #ffffff !important;
@@ -316,50 +320,69 @@ function PrintSuratJalanContent() {
                     }
                     .no-print { display: none !important; }
                     .sj-preview-wrapper {
+                        display: block !important;
+                        min-height: 0 !important;
                         padding: 0 !important;
+                        margin: 0 !important;
                         background: transparent !important;
                         gap: 0 !important;
                     }
                     .sj-page-wrap {
+                        display: block !important;
+                        width: ${paperWidth} !important;
+                        height: ${paperHeight} !important;
                         margin: 0 !important;
                         padding: 0 !important;
-                        page-break-after: always;
-                        break-after: page;
+                        overflow: hidden !important;
+                        page-break-after: always !important;
+                        break-after: page !important;
                         box-shadow: none !important;
                     }
                     .sj-page-wrap:last-child {
-                        page-break-after: auto;
-                        break-after: auto;
+                        page-break-after: auto !important;
+                        break-after: auto !important;
                     }
-                    .sj-sheet {
+                    .sj-paper {
                         box-shadow: none !important;
-                        margin: 0 auto !important;
+                        margin: 0 !important;
                     }
                 }
 
                 * { box-sizing: border-box; }
 
+                .sj-paper {
+                    width: ${paperWidth};
+                    height: ${paperHeight};
+                    padding: ${paperPadding};
+                    position: relative;
+                    overflow: hidden;
+                    print-color-adjust: exact;
+                    -webkit-print-color-adjust: exact;
+                }
+
                 .sj-sheet {
-                    width: ${sheetWidth};
-                    min-height: ${sheetMinHeight};
+                    width: 100%;
+                    height: 100%;
                     font-family: Arial, Helvetica, sans-serif;
                     color: #164486;
                     border: 1.8px solid #164486;
                     position: relative;
                     display: flex;
                     flex-direction: column;
+                    overflow: hidden;
                     print-color-adjust: exact;
                     -webkit-print-color-adjust: exact;
                 }
 
                 .sj-kop {
                     display: grid;
-                    grid-template-columns: 28mm 1fr 50mm;
+                    grid-template-columns: 26mm 1fr 48mm;
                     align-items: center;
-                    padding: 1.6mm 2.8mm 1.3mm 2.8mm;
+                    padding: 1.2mm 2.5mm 1mm 2.5mm;
                     border-bottom: 1.8px solid #164486;
                     position: relative;
                     z-index: 2;
+                    flex-shrink: 0;
                 }
 
                 .sj-kop-logo {
@@ -369,36 +392,36 @@ function PrintSuratJalanContent() {
                 }
 
                 .sj-kop-logo img {
-                    width: 23mm;
-                    height: 19mm;
+                    width: 21mm;
+                    height: 17mm;
                     object-fit: contain;
                 }
 
                 .sj-kop-center {
                     text-align: center;
-                    line-height: 1.18;
+                    line-height: 1.15;
                 }
 
                 .sj-company-name {
-                    font-size: 16pt;
+                    font-size: 15.2pt;
                     font-weight: 900;
                     color: #d97326;
                     letter-spacing: 0.6px;
                     margin: 0;
-                    line-height: 1.06;
+                    line-height: 1.05;
                 }
 
                 .sj-addresses {
-                    margin-top: 0.6mm;
-                    font-size: 7.6pt;
+                    margin-top: 0.5mm;
+                    font-size: 7.4pt;
                     font-weight: 700;
                     color: #164486;
-                    line-height: 1.25;
+                    line-height: 1.22;
                 }
 
                 .sj-subtitle {
-                    margin-top: 1mm;
-                    font-size: 10.5pt;
+                    margin-top: 0.8mm;
+                    font-size: 10pt;
                     font-weight: 900;
                     color: #d97326;
                     letter-spacing: 1.4px;
@@ -409,8 +432,8 @@ function PrintSuratJalanContent() {
                     flex-direction: column;
                     justify-content: space-between;
                     height: 100%;
-                    padding: 0.4mm 0 0 2mm;
-                    gap: 2mm;
+                    padding: 0.3mm 0 0 2mm;
+                    gap: 1.5mm;
                 }
 
                 .sj-resi-line {
@@ -422,7 +445,7 @@ function PrintSuratJalanContent() {
                 }
 
                 .sj-resi-label {
-                    font-size: 8.5pt;
+                    font-size: 8.2pt;
                     font-weight: 800;
                     color: #164486;
                     white-space: nowrap;
@@ -430,7 +453,7 @@ function PrintSuratJalanContent() {
 
                 .sj-resi-number {
                     font-family: 'Courier New', Courier, monospace;
-                    font-size: 12.5pt;
+                    font-size: 12pt;
                     font-weight: 900;
                     color: #111827;
                     letter-spacing: 0.5px;
@@ -442,8 +465,8 @@ function PrintSuratJalanContent() {
                     justify-content: flex-start;
                     gap: 1.5mm;
                     border-bottom: 1px dotted #164486;
-                    padding-bottom: 0.4mm;
-                    font-size: 8pt;
+                    padding-bottom: 0.3mm;
+                    font-size: 7.8pt;
                     font-weight: 700;
                     color: #164486;
                 }
@@ -456,13 +479,14 @@ function PrintSuratJalanContent() {
                 .sj-tanggal-val {
                     color: #111827;
                     font-weight: 800;
-                    line-height: 1.15;
+                    line-height: 1.12;
                     word-break: break-word;
                 }
 
                 /* Main Table Structure */
                 .sj-body {
                     flex: 1;
+                    min-height: 0;
                     display: flex;
                     flex-direction: column;
                     position: relative;
@@ -473,7 +497,7 @@ function PrintSuratJalanContent() {
                     top: 48%;
                     left: 48%;
                     transform: translate(-50%, -50%) rotate(-19deg);
-                    font-size: 26pt;
+                    font-size: 25pt;
                     font-weight: 900;
                     letter-spacing: 2px;
                     white-space: nowrap;
@@ -488,6 +512,7 @@ function PrintSuratJalanContent() {
                     table-layout: fixed;
                     position: relative;
                     z-index: 2;
+                    flex-shrink: 0;
                 }
 
                 .sj-band th, .sj-band td {
@@ -512,10 +537,10 @@ function PrintSuratJalanContent() {
 
                 .sj-sec-th {
                     text-align: center;
-                    font-size: 8.6pt;
+                    font-size: 8.4pt;
                     font-weight: 800;
                     color: #164486;
-                    padding: 0.7mm 1.5mm;
+                    padding: 0.55mm 1.5mm;
                     letter-spacing: 0.4px;
                 }
 
@@ -523,9 +548,9 @@ function PrintSuratJalanContent() {
                     display: flex;
                     align-items: flex-start;
                     gap: 1.2mm;
-                    padding: 0.7mm 1.8mm;
+                    padding: 0.55mm 1.6mm;
                     border-bottom: 1px solid #164486;
-                    min-height: 5.2mm;
+                    min-height: 4.8mm;
                 }
 
                 .sj-field-row:last-child {
@@ -533,27 +558,27 @@ function PrintSuratJalanContent() {
                 }
 
                 .sj-field-label {
-                    font-size: 7.3pt;
+                    font-size: 7.1pt;
                     font-weight: 700;
                     color: #164486;
                     white-space: nowrap;
-                    min-width: 19mm;
+                    min-width: 18.5mm;
                     flex-shrink: 0;
-                    padding-top: 0.2mm;
+                    padding-top: 0.15mm;
                 }
 
                 .sj-field-colon {
-                    font-size: 7.4pt;
+                    font-size: 7.2pt;
                     font-weight: 700;
                     color: #164486;
                     flex-shrink: 0;
-                    padding-top: 0.2mm;
+                    padding-top: 0.15mm;
                 }
 
                 .sj-field-val {
                     color: #0f172a;
                     font-weight: 700;
-                    line-height: 1.2;
+                    line-height: 1.18;
                     word-break: break-word;
                     overflow-wrap: anywhere;
                     flex: 1;
@@ -563,10 +588,10 @@ function PrintSuratJalanContent() {
                     display: inline-flex;
                     align-items: center;
                     justify-content: center;
-                    width: 4.4mm;
-                    height: 3.1mm;
+                    width: 4.2mm;
+                    height: 2.9mm;
                     border: 1.1px solid #164486;
-                    font-size: 7.2pt;
+                    font-size: 7pt;
                     font-weight: 900;
                     color: #0f172a;
                     line-height: 1;
@@ -576,17 +601,18 @@ function PrintSuratJalanContent() {
                 .sj-check-item {
                     display: flex;
                     align-items: center;
-                    gap: 1.4mm;
-                    font-size: 7pt;
+                    gap: 1.3mm;
+                    font-size: 6.9pt;
                     font-weight: 700;
                     color: #164486;
-                    margin-bottom: 0.75mm;
+                    margin-bottom: 0.6mm;
                 }
 
                 .sj-band2-wrap {
                     display: flex;
                     flex-direction: column;
                     flex: 1;
+                    min-height: 0;
                     position: relative;
                     z-index: 2;
                     border-bottom: 1.2px solid #164486;
@@ -596,6 +622,7 @@ function PrintSuratJalanContent() {
                     display: grid;
                     grid-template-columns: 39% 61%;
                     border-bottom: 1.2px solid #164486;
+                    flex-shrink: 0;
                 }
 
                 .sj-band2-hdr > div:first-child {
@@ -606,29 +633,32 @@ function PrintSuratJalanContent() {
                     display: grid;
                     grid-template-columns: 39% 61%;
                     flex: 1;
+                    min-height: 0;
                     align-items: stretch;
                 }
 
                 .sj-band2-left {
                     border-right: 1.2px solid #164486;
-                    padding: 1.6mm 2mm;
+                    padding: 1.2mm 1.8mm;
                 }
 
                 .sj-band2-right {
                     display: flex;
                     flex-direction: column;
                     height: 100%;
+                    min-height: 0;
                 }
 
                 .sj-koli-top {
                     display: grid;
                     grid-template-columns: 18% 16% 26% 18% 22%;
-                    min-height: 22mm;
+                    min-height: 20mm;
                     border-bottom: 1.2px solid #164486;
+                    flex-shrink: 0;
                 }
 
                 .sj-koli-top > div {
-                    padding: 0.9mm 1.2mm;
+                    padding: 0.8mm 1.1mm;
                     text-align: center;
                     position: relative;
                 }
@@ -641,11 +671,11 @@ function PrintSuratJalanContent() {
                     display: grid;
                     grid-template-columns: 78% 22%;
                     flex: 1;
-                    min-height: 17mm;
+                    min-height: 14mm;
                 }
 
                 .sj-koli-bottom > div {
-                    padding: 1mm 1.5mm;
+                    padding: 0.9mm 1.4mm;
                 }
 
                 .sj-koli-bottom > div:first-child {
@@ -653,15 +683,15 @@ function PrintSuratJalanContent() {
                 }
 
                 .sj-sub-hdr {
-                    font-size: 6.7pt;
+                    font-size: 6.6pt;
                     font-weight: 800;
                     color: #164486;
                     text-align: center;
-                    line-height: 1.15;
+                    line-height: 1.12;
                 }
 
                 .sj-sig-cell {
-                    padding: 1.5mm 2.2mm 1.8mm 2.2mm;
+                    padding: 1.2mm 2mm 1.5mm 2mm;
                     height: ${sigCellHeight};
                     display: flex;
                     flex-direction: column;
@@ -672,13 +702,13 @@ function PrintSuratJalanContent() {
                     display: flex;
                     justify-content: space-between;
                     align-items: flex-start;
-                    font-size: 7.8pt;
+                    font-size: 7.6pt;
                     font-weight: 700;
                     color: #164486;
                 }
 
                 .sj-sig-bottom {
-                    font-size: 7.8pt;
+                    font-size: 7.6pt;
                     font-weight: 700;
                     color: #164486;
                 }
@@ -697,7 +727,7 @@ function PrintSuratJalanContent() {
                             </h1>
                         </div>
                         <p className="text-[11px] text-slate-300 mt-0.5">
-                            3 Halaman Terpisah: Putih (Depan) • Merah (Tengah) • Kuning (Belakang)
+                            3 Halaman Terpisah: Putih (Depan) • Merah (Tengah) • Kuning (Belakang) — Default: <strong>A5 Full Tanpa Margin</strong>
                         </p>
                     </div>
 
@@ -706,17 +736,17 @@ function PrintSuratJalanContent() {
                         <div className="flex items-center bg-slate-800 p-1 rounded-xl border border-slate-700 font-bold">
                             <button
                                 type="button"
+                                onClick={() => setPaperMode('a5')}
+                                className={`px-2.5 py-1 rounded-lg transition-colors ${paperMode === 'a5' ? 'bg-blue-600 text-white' : 'text-slate-300 hover:text-white'}`}
+                            >
+                                A5 Full (Tanpa Margin)
+                            </button>
+                            <button
+                                type="button"
                                 onClick={() => setPaperMode('a4')}
                                 className={`px-2.5 py-1 rounded-lg transition-colors ${paperMode === 'a4' ? 'bg-blue-600 text-white' : 'text-slate-300 hover:text-white'}`}
                             >
                                 Kertas A4
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => setPaperMode('a5')}
-                                className={`px-2.5 py-1 rounded-lg transition-colors ${paperMode === 'a5' ? 'bg-blue-600 text-white' : 'text-slate-300 hover:text-white'}`}
-                            >
-                                A5 Landscape
                             </button>
                         </div>
 
@@ -781,8 +811,9 @@ function PrintSuratJalanContent() {
                                 {ply.label}
                             </div>
 
-                            {/* OFFICIAL CAHAYA CARGO EXPRESS FORM SHEET */}
-                            <div className="sj-sheet shadow-2xl" style={{ backgroundColor: sheetBg }}>
+                            {/* OFFICIAL CAHAYA CARGO EXPRESS FULL-BLEED A5 SHEET */}
+                            <div className="sj-paper shadow-2xl" style={{ backgroundColor: sheetBg }}>
+                                <div className="sj-sheet">
                                 {/* ── KOP SURAT (LOGO KIRI | ALAMAT DI TENGAH | NO RESI & TANGGAL KANAN) ── */}
                                 <div className="sj-kop">
                                     <div className="sj-kop-logo">
@@ -1236,6 +1267,7 @@ function PrintSuratJalanContent() {
                                             </tr>
                                         </tbody>
                                     </table>
+                                </div>
                                 </div>
                             </div>
                         </div>
