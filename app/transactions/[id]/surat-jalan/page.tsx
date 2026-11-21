@@ -116,10 +116,6 @@ function PrintSuratJalanContent() {
     // URL Params overrides (from SuratJalanModal or Manifest page)
     const paramNoSTT = searchParams.get('noSTT') || '';
     const paramTanggalPC = searchParams.get('tanggalPC') || '';
-    const paramMobil = searchParams.get('mobil') || '';
-    const paramSopir = searchParams.get('sopir') || '';
-    const paramKapal = searchParams.get('kapal') || '';
-    const paramRute = searchParams.get('rute') || '';
     const paramNamaPengirim = searchParams.get('namaPengirim') || '';
     const paramAlamatPengirim = searchParams.get('alamatPengirim') || '';
     const paramNamaPenerima = searchParams.get('namaPenerima') || '';
@@ -133,7 +129,6 @@ function PrintSuratJalanContent() {
     const paramDimensi = searchParams.get('dimensi') || '';
     const paramBeratVolume = searchParams.get('beratVolume') || '';
     const paramSatuanVolume = searchParams.get('satuanVolume') || '';
-    const paramCatatanKhusus = searchParams.get('catatanKhusus') || '';
 
     useEffect(() => {
         const loadData = async () => {
@@ -261,15 +256,6 @@ function PrintSuratJalanContent() {
     const bayarTunai = rawPayment === 'tunai' || rawPayment === 'cash';
     const bayarInvoice = rawPayment === 'invoice' || rawPayment === 'kredit' || rawPayment === 'bank';
     const bayarTujuan = rawPayment === 'bayar tujuan' || rawPayment === 'cod' || rawPayment === 'dp';
-
-    const transportNotes = [
-        paramKapal || manualData?.kapal ? `Kapal: ${paramKapal || manualData?.kapal}` : '',
-        paramMobil || savedSJ.nomorMobil || manualData?.mobil ? `Truk: ${paramMobil || savedSJ.nomorMobil || manualData?.mobil}` : '',
-        paramSopir || savedSJ.namaSopir || manualData?.sopir ? `Sopir: ${paramSopir || savedSJ.namaSopir || manualData?.sopir}` : '',
-        paramRute || savedSJ.rute ? `Rute: ${paramRute || savedSJ.rute}` : '',
-    ].filter(Boolean).join(' | ');
-
-    const catatanKhusus = (paramCatatanKhusus || savedSJ.catatanKhusus || transportNotes).trim();
 
     const totalKoli = transaction ? transaction.koli : (manualData?.koli ?? 0);
     const beratRaw = transaction ? transaction.berat : (manualData?.berat ?? '');
@@ -1071,27 +1057,9 @@ function PrintSuratJalanContent() {
                                                                 paddingTop: '0.5mm',
                                                             }}
                                                         >
-                                                            {catatanKhusus ? (
-                                                                <div
-                                                                    style={{
-                                                                        color: '#0f172a',
-                                                                        fontWeight: 700,
-                                                                        lineHeight: 1.3,
-                                                                        wordBreak: 'break-word',
-                                                                        fontSize: adaptivePt(catatanKhusus, 8, 6.4, 34),
-                                                                        borderBottom: '1px solid #164486',
-                                                                        paddingBottom: '0.8mm',
-                                                                    }}
-                                                                >
-                                                                    {catatanKhusus}
-                                                                </div>
-                                                            ) : (
-                                                                <>
-                                                                    <div style={{ borderBottom: '1px solid #164486', height: '4.5mm' }} />
-                                                                    <div style={{ borderBottom: '1px solid #164486', height: '4.5mm' }} />
-                                                                    <div style={{ borderBottom: '1px solid #164486', height: '4.5mm' }} />
-                                                                </>
-                                                            )}
+                                                            <div style={{ borderBottom: '1px solid #164486', height: '4.5mm' }} />
+                                                            <div style={{ borderBottom: '1px solid #164486', height: '4.5mm' }} />
+                                                            <div style={{ borderBottom: '1px solid #164486', height: '4.5mm' }} />
                                                         </div>
                                                     </div>
                                                 </div>
