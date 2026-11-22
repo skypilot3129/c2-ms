@@ -1,13 +1,16 @@
 'use client';
 
-import { use, useEffect, useState, Suspense } from 'react';
+import { use, useEffect, useRef, useState, Suspense } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
+import { getClientById } from '@/lib/firestore';
 import { getInvoiceById } from '@/lib/firestore-invoices';
 import { getTransactionById } from '@/lib/firestore-transactions';
 import type { Invoice } from '@/types/invoice';
 import type { Transaction } from '@/types/transaction';
 import { terbilang } from '@/lib/currency';
 import { COMPANY_INFO } from '@/lib/company-config';
+import { toBlob, toJpeg, toPng } from 'html-to-image';
 
 function fmtAngka(num: number): string {
     return num.toLocaleString('id-ID');
@@ -36,20 +39,68 @@ function formatTanggal(date: Date | string): string {
     }).toUpperCase();
 }
 
-const MIN_ROWS = 10;
+const MIN_ROWS_A4 = 10;
+const MIN_ROWS_A5 = 5;
+
+function normalizeWaPhone(raw: string): string {
+    const digits = raw.replace(/\D/g, '');
+    if (!digits) return '';
+    if (digits.startsWith('0')) return `62${digits.slice(1)}`;
+    if (digits.startsWith('8')) return `62${digits}`;
+    return digits;
+}
+
+function dataUrlToFile(dataUrl: string, filename: string, mimeType: string): File {
+    const parts = dataUrl.split(',');
+    const byteString = atob(parts[1] || '');
+    const ab = new ArrayBuffer(byteString.length);
+    const ia = new Uint8Array(ab);
+    for (let i = 0; i < byteString.length; i++) {
+        ia[i] = byteString.charCodeAt(i);
+    }
+    return new File([ab], filename, { type: mimeType });
+}
 
 function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
     const { id } = use(params);
+    const router = useRouter();
     const { user } = useAuth();
+    const invoiceRef = useRef<HTMLDivElement | null>(null);
+    const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
     const [invoice, setInvoice] = useState<Invoice | null>(null);
     const [transactions, setTransactions] = useState<Transaction[]>([]);
     const [loading, setLoading] = useState(true);
-    const [keteranganPerSTT, setKeteranganPerSTT] = useState<{[key: string]: string}>({});
-    
+    const [keteranganPerSTT, setKeteranganPerSTT] = useState<{ [key: string]: string }>({});
+
+    // Print & export states
+    const [paperMode, setPaperMode] = useState<'a5-landscape' | 'a4-portrait'>('a5-landscape');
+    const [whatsappPhone, setWhatsappPhone] = useState<string>('');
+    const [exportingAction, setExportingAction] = useState<'png' | 'jpg' | 'copy' | 'wa' | null>(null);
+    const [toastMessage, setToastMessage] = useState<string | null>(null);
+
     // States for custom edit date and additional manual fee
     const [issueDate, setIssueDate] = useState<string>('');
     const [additionalFee, setAdditionalFee] = useState<number>(0);
     const [feeLabel, setFeeLabel] = useState<string>('BIAYA TAMBAHAN');
+
+    const showToast = (msg: string) => {
+        setToastMessage(msg);
+        if (toastTimerRef.current) {
+            clearTimeout(toastTimerRef.current);
+        }
+        toastTimerRef.current = setTimeout(() => {
+            setToastMessage(null);
+        }, 6000);
+    };
+
+    useEffect(() => {
+        return () => {
+            if (toastTimerRef.current) {
+                clearTimeout(toastTimerRef.current);
+            }
+        };
+    }, []);
 
     useEffect(() => {
         const loadData = async () => {
@@ -73,6 +124,24 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
                     }
                 }
 
+                // Default A5 Landscape for standard invoice, A4 Portrait for Taxable/PKP invoice
+                const taxable = Boolean(inv.isTaxable) || loaded.some(t => t.isTaxable || (t.ppn && t.ppn > 0));
+                setPaperMode(taxable ? 'a4-portrait' : 'a5-landscape');
+
+                // Auto-populate WhatsApp phone from linked transaction or client profile
+                let resolvedPhone = loaded.find(t => t.pengirimPhone?.trim())?.pengirimPhone?.trim() || '';
+                if (!resolvedPhone && inv.clientId && inv.clientId !== 'manual') {
+                    try {
+                        const clientDoc = await getClientById(inv.clientId);
+                        if (clientDoc?.phone) {
+                            resolvedPhone = clientDoc.phone.trim();
+                        }
+                    } catch (err) {
+                        console.warn('Could not load client phone:', err);
+                    }
+                }
+                setWhatsappPhone(resolvedPhone);
+
                 setInvoice(inv);
                 const dateObj = inv.issueDate instanceof Date ? inv.issueDate : new Date(inv.issueDate);
                 setIssueDate(dateObj.toISOString().substring(0, 10));
@@ -93,8 +162,10 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
         );
     }
 
-    const emptyRowsCount = Math.max(0, MIN_ROWS - transactions.length);
-    const isTaxableInvoice = transactions.some(t => t.isTaxable || (t.ppn && t.ppn > 0));
+    const isTaxableInvoice = Boolean(invoice.isTaxable) || transactions.some(t => t.isTaxable || (t.ppn && t.ppn > 0));
+    const isCompactA5 = !isTaxableInvoice && paperMode === 'a5-landscape';
+    const minRows = paperMode === 'a5-landscape' ? MIN_ROWS_A5 : MIN_ROWS_A4;
+    const emptyRowsCount = Math.max(0, minRows - transactions.length);
     const hasKgVolume = transactions.some(t => t.beratUnit === 'KG/VOLUME');
 
     // Calculate totals for tax layout dynamically to enforce 1.1% PPN rule on all invoices (including historical)
@@ -102,14 +173,181 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
     const subtotalWithFee = subtotalTagihan + additionalFee;
     const totalPPN = isTaxableInvoice ? Math.round(subtotalWithFee * 0.011) : 0;
     const totalAkhirDisplay = subtotalWithFee + totalPPN;
-    
+
     const totalKoli = transactions.reduce((acc, t) => acc + (t.koli || 0), 0);
     const totalBerat = transactions.reduce((acc, t) => acc + (t.berat || 0), 0);
+
+    const buildFilename = (ext: 'png' | 'jpg') => {
+        const safeNum = (invoice.invoiceNumber || id || 'Invoice')
+            .replace(/[^a-zA-Z0-9_-]/g, '-')
+            .replace(/-+/g, '-')
+            .replace(/^-|-$/g, '');
+        const safeClient = (invoice.clientName || 'Client')
+            .trim()
+            .replace(/[^a-zA-Z0-9_-]+/g, '_')
+            .replace(/^_+|_+$/g, '')
+            .slice(0, 32);
+        return `Invoice-${safeNum || 'CCE'}${safeClient ? `-${safeClient}` : ''}.${ext}`;
+    };
+
+    const waitForImages = async (node: HTMLElement) => {
+        const images = Array.from(node.querySelectorAll('img'));
+        await Promise.all(
+            images.map((img) => {
+                if (img.complete && img.naturalWidth > 0) return Promise.resolve();
+                return new Promise<void>((resolve) => {
+                    const done = () => resolve();
+                    img.addEventListener('load', done, { once: true });
+                    img.addEventListener('error', done, { once: true });
+                });
+            })
+        );
+    };
+
+    const buildCaptureOptions = async (isJpeg: boolean) => {
+        if (document.activeElement instanceof HTMLElement) {
+            document.activeElement.blur();
+        }
+        if (invoiceRef.current) {
+            await waitForImages(invoiceRef.current);
+        }
+        return {
+            pixelRatio: 2.5,
+            backgroundColor: '#ffffff',
+            cacheBust: true,
+            skipFonts: true,
+            ...(isJpeg ? { quality: 0.95 } : {}),
+            style: {
+                margin: '0',
+                boxShadow: 'none',
+            },
+        };
+    };
+
+    const triggerDownload = (dataUrl: string, filename: string) => {
+        const link = document.createElement('a');
+        link.href = dataUrl;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
+    const handleDownloadImage = async (format: 'png' | 'jpg') => {
+        if (!invoiceRef.current || exportingAction) return;
+        setExportingAction(format);
+        try {
+            const options = await buildCaptureOptions(format === 'jpg');
+            const dataUrl = format === 'png'
+                ? await toPng(invoiceRef.current, options)
+                : await toJpeg(invoiceRef.current, options);
+            const filename = buildFilename(format);
+            triggerDownload(dataUrl, filename);
+            showToast(`Invoice berhasil didownload (${filename})`);
+        } catch (err) {
+            console.error('Failed exporting invoice image:', err);
+            showToast(`Gagal mengekspor gambar ${format.toUpperCase()}. Coba ulangi atau gunakan Cetak.`);
+        } finally {
+            setExportingAction(null);
+        }
+    };
+
+    const handleCopyImage = async () => {
+        if (!invoiceRef.current || exportingAction) return;
+        setExportingAction('copy');
+        try {
+            const options = await buildCaptureOptions(false);
+            const blob = await toBlob(invoiceRef.current, options);
+            if (!blob) throw new Error('Blob kosong');
+            if (typeof navigator === 'undefined' || !navigator.clipboard?.write || typeof ClipboardItem === 'undefined') {
+                throw new Error('Clipboard API tidak didukung di browser ini');
+            }
+            await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+            showToast('Gambar invoice disalin ke Clipboard — tinggal Ctrl+V di WhatsApp!');
+        } catch (err) {
+            console.error('Failed copying invoice image:', err);
+            showToast('Browser memblokir salin gambar otomatis. Gunakan tombol PNG / JPG lalu lampirkan di WhatsApp.');
+        } finally {
+            setExportingAction(null);
+        }
+    };
+
+    const handleSendWhatsApp = async () => {
+        if (!invoiceRef.current || exportingAction) return;
+        setExportingAction('wa');
+        try {
+            const caption = `Halo Bapak/Ibu ${invoice.clientName},\nBerikut kami kirimkan Invoice *${invoice.invoiceNumber}* (${formatTanggal(issueDate)}) dengan total tagihan *Rp ${fmtAngka(totalAkhirDisplay)}*.\nTerima kasih — ${COMPANY_INFO.name}.`;
+
+            const jpgOptions = await buildCaptureOptions(true);
+            const jpgDataUrl = await toJpeg(invoiceRef.current, jpgOptions);
+            const jpgFilename = buildFilename('jpg');
+            const jpgFile = dataUrlToFile(jpgDataUrl, jpgFilename, 'image/jpeg');
+
+            // Mobile Web Share path (directly attaches invoice image into WhatsApp)
+            if (typeof navigator !== 'undefined' && navigator.share && navigator.canShare?.({ files: [jpgFile] })) {
+                try {
+                    await navigator.share({
+                        files: [jpgFile],
+                        title: `Invoice ${invoice.invoiceNumber}`,
+                        text: caption,
+                    });
+                    showToast('Invoice siap dikirim melalui aplikasi WhatsApp.');
+                    return;
+                } catch (shareErr) {
+                    if ((shareErr as Error)?.name === 'AbortError') {
+                        return;
+                    }
+                    console.warn('Web Share API failed, falling back to desktop flow:', shareErr);
+                }
+            }
+
+            // Desktop path: copy PNG to clipboard + download JPG backup + open wa.me
+            let copiedToClipboard = false;
+            try {
+                if (typeof navigator !== 'undefined' && navigator.clipboard?.write && typeof ClipboardItem !== 'undefined') {
+                    const pngOptions = await buildCaptureOptions(false);
+                    const pngBlob = await toBlob(invoiceRef.current, pngOptions);
+                    if (pngBlob) {
+                        await navigator.clipboard.write([new ClipboardItem({ 'image/png': pngBlob })]);
+                        copiedToClipboard = true;
+                    }
+                }
+            } catch (clipErr) {
+                console.warn('Clipboard copy during WA share failed:', clipErr);
+            }
+
+            triggerDownload(jpgDataUrl, jpgFilename);
+
+            const cleanPhone = normalizeWaPhone(whatsappPhone);
+            const waUrl = cleanPhone
+                ? `https://wa.me/${cleanPhone}?text=${encodeURIComponent(caption)}`
+                : `https://wa.me/?text=${encodeURIComponent(caption)}`;
+            window.open(waUrl, '_blank', 'noopener,noreferrer');
+
+            showToast(
+                copiedToClipboard
+                    ? 'Gambar invoice disalin ke Clipboard & diunduh (.jpg) — di WhatsApp tinggal tekan Ctrl+V lalu kirim!'
+                    : 'Invoice (.jpg) berhasil diunduh — silakan lampirkan file tersebut di chat WhatsApp.'
+            );
+        } catch (err) {
+            console.error('Failed preparing invoice for WhatsApp:', err);
+            showToast('Gagal menyiapkan gambar invoice untuk WhatsApp.');
+        } finally {
+            setExportingAction(null);
+        }
+    };
+
+    const pageSizeRule = paperMode === 'a5-landscape'
+        ? `@page { size: A5 landscape; margin: 0 !important; }`
+        : `@page { size: A4 portrait; margin: 0 !important; }`;
+    const pageClassName = paperMode === 'a5-landscape' ? 'invoice-page-a5' : 'invoice-page-a4';
 
     return (
         <>
             <style dangerouslySetInnerHTML={{
                 __html: `
+                ${pageSizeRule}
+
                 * { box-sizing: border-box; margin: 0; padding: 0; }
 
                 body {
@@ -117,14 +355,36 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
                     background: #d1d5db;
                 }
 
-                .a4-page {
+                .invoice-stage {
+                    width: 100%;
+                    overflow-x: auto;
+                    padding: 0 12px 32px 12px;
+                }
+
+                .invoice-page-a5 {
                     width: 210mm;
-                    height: 297mm;
-                    background: white;
-                    margin: 0 auto;
+                    min-height: 147.6mm;
+                    background: #ffffff;
+                    margin: 0 auto 24px auto;
+                    padding: 5.5mm 9mm 5mm 9mm;
+                    font-size: 8.5pt;
+                    color: #000000;
+                    display: flex;
+                    flex-direction: column;
+                    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+                }
+
+                .invoice-page-a4 {
+                    width: 210mm;
+                    min-height: 296.6mm;
+                    background: #ffffff;
+                    margin: 0 auto 24px auto;
                     padding: 8mm 12mm 6mm 12mm;
                     font-size: 8.5pt;
-                    color: #000;
+                    color: #000000;
+                    display: flex;
+                    flex-direction: column;
+                    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
                 }
 
                 .invoice-table {
@@ -147,25 +407,34 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
                     vertical-align: middle;
                 }
 
-                @media screen {
-                    body {
-                        padding-top: 75px;
-                    }
+                .invoice-table.compact-a5 {
+                    font-size: 8.5pt;
+                }
+                .invoice-table.compact-a5 th,
+                .invoice-table.compact-a5 td {
+                    padding: 2.5px 4px;
+                    font-size: 8.5pt;
                 }
 
                 @media print {
-                    @page {
-                        size: A4 portrait;
-                        margin: 0;
+                    html, body {
+                        width: 210mm !important;
+                        height: auto !important;
+                        margin: 0 !important;
+                        padding: 0 !important;
+                        background: #ffffff !important;
+                        print-color-adjust: exact !important;
+                        -webkit-print-color-adjust: exact !important;
                     }
-                    body {
-                        background: white;
-                        print-color-adjust: exact;
-                        -webkit-print-color-adjust: exact;
+                    .invoice-stage {
+                        overflow: visible !important;
+                        padding: 0 !important;
+                        margin: 0 !important;
                     }
-                    .a4-page {
-                        margin: 0;
-                        box-shadow: none;
+                    .invoice-page-a5,
+                    .invoice-page-a4 {
+                        margin: 0 !important;
+                        box-shadow: none !important;
                     }
                     .no-print { display: none !important; }
                 }
@@ -175,75 +444,192 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
                 }
             `}} />
 
-            {/* Control Panel (tidak tercetak) */}
-            <div className="no-print" style={{ 
-                position: 'fixed', 
-                top: 0, 
-                left: 0, 
-                right: 0, 
-                background: '#1e293b', 
-                color: 'white', 
-                padding: '12px 24px', 
-                zIndex: 9999, 
-                display: 'flex', 
-                alignItems: 'center', 
+            {/* Sticky Control Panel (tidak tercetak / tidak ikut diekspor) */}
+            <div className="no-print" style={{
+                position: 'sticky',
+                top: 0,
+                background: '#1e293b',
+                color: 'white',
+                padding: '10px 20px',
+                marginBottom: '16px',
+                zIndex: 9999,
+                display: 'flex',
+                alignItems: 'center',
                 justifyContent: 'space-between',
-                boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
+                gap: '12px',
+                flexWrap: 'wrap',
+                boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.15)',
                 fontFamily: 'system-ui, -apple-system, sans-serif',
-                fontSize: '13px'
+                fontSize: '12px'
             }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span style={{ fontWeight: 'bold', color: '#94a3b8' }}>Tanggal Cetak:</span>
-                        <input 
-                            type="date" 
-                            value={issueDate} 
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ fontWeight: 'bold', color: '#94a3b8' }}>Tanggal:</span>
+                        <input
+                            type="date"
+                            value={issueDate}
                             onChange={e => setIssueDate(e.target.value)}
-                            style={{ background: '#334155', color: 'white', border: '1px solid #475569', padding: '6px 12px', borderRadius: '6px', outline: 'none' }}
+                            style={{ background: '#334155', color: 'white', border: '1px solid #475569', padding: '5px 8px', borderRadius: '6px', outline: 'none', fontSize: '12px' }}
                         />
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span style={{ fontWeight: 'bold', color: '#94a3b8' }}>Keterangan Biaya Tambahan:</span>
-                        <input 
-                            type="text" 
-                            placeholder="Mis: Biaya Packing / Penerusan" 
-                            value={feeLabel} 
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ fontWeight: 'bold', color: '#94a3b8' }}>Biaya Tambahan:</span>
+                        <input
+                            type="text"
+                            placeholder="Mis: Biaya Packing"
+                            value={feeLabel}
                             onChange={e => setFeeLabel(e.target.value)}
-                            style={{ background: '#334155', color: 'white', border: '1px solid #475569', padding: '6px 12px', borderRadius: '6px', outline: 'none', width: '200px' }}
+                            style={{ background: '#334155', color: 'white', border: '1px solid #475569', padding: '5px 8px', borderRadius: '6px', outline: 'none', width: '150px', fontSize: '12px' }}
                         />
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span style={{ fontWeight: 'bold', color: '#94a3b8' }}>Nominal Biaya:</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                         <div style={{ position: 'relative' }}>
-                            <span style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }}>Rp</span>
-                            <input 
-                                type="number" 
-                                placeholder="0" 
-                                value={additionalFee || ''} 
+                            <span style={{ position: 'absolute', left: '8px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontSize: '11px' }}>Rp</span>
+                            <input
+                                type="number"
+                                placeholder="0"
+                                value={additionalFee || ''}
                                 onChange={e => setAdditionalFee(Math.max(0, Number(e.target.value) || 0))}
-                                style={{ background: '#334155', color: 'white', border: '1px solid #475569', padding: '6px 12px 6px 25px', borderRadius: '6px', outline: 'none', width: '120px' }}
+                                style={{ background: '#334155', color: 'white', border: '1px solid #475569', padding: '5px 8px 5px 24px', borderRadius: '6px', outline: 'none', width: '105px', fontSize: '12px' }}
                             />
                         </div>
                     </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ fontWeight: 'bold', color: '#94a3b8' }}>No. WA Tujuan:</span>
+                        <input
+                            type="text"
+                            placeholder="08xxx (opsional)"
+                            value={whatsappPhone}
+                            onChange={e => setWhatsappPhone(e.target.value)}
+                            style={{ background: '#334155', color: 'white', border: '1px solid #475569', padding: '5px 8px', borderRadius: '6px', outline: 'none', width: '140px', fontSize: '12px' }}
+                        />
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', background: '#0f172a', padding: '3px', borderRadius: '8px', border: '1px solid #334155', gap: '2px' }}>
+                        <button
+                            type="button"
+                            onClick={() => setPaperMode('a5-landscape')}
+                            style={{
+                                background: paperMode === 'a5-landscape' ? '#2563eb' : 'transparent',
+                                color: paperMode === 'a5-landscape' ? '#ffffff' : '#cbd5e1',
+                                padding: '5px 10px',
+                                borderRadius: '6px',
+                                border: 'none',
+                                cursor: 'pointer',
+                                fontWeight: 'bold',
+                                fontSize: '11.5px',
+                            }}
+                        >
+                            A5 Landscape
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setPaperMode('a4-portrait')}
+                            style={{
+                                background: paperMode === 'a4-portrait' ? '#2563eb' : 'transparent',
+                                color: paperMode === 'a4-portrait' ? '#ffffff' : '#cbd5e1',
+                                padding: '5px 10px',
+                                borderRadius: '6px',
+                                border: 'none',
+                                cursor: 'pointer',
+                                fontWeight: 'bold',
+                                fontSize: '11.5px',
+                            }}
+                        >
+                            A4 Portrait
+                        </button>
+                    </div>
                 </div>
 
-                <div style={{ display: 'flex', gap: '8px' }}>
+                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
                     <button
+                        type="button"
                         onClick={() => window.print()}
-                        style={{ background: '#2563eb', color: 'white', padding: '8px 16px', borderRadius: '6px', border: 'none', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px' }}
+                        style={{ background: '#2563eb', color: 'white', padding: '7px 12px', borderRadius: '6px', border: 'none', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' }}
                     >
                         🖨️ Cetak
                     </button>
                     <button
-                        onClick={() => window.close()}
-                        style={{ background: '#475569', color: 'white', padding: '8px 16px', borderRadius: '6px', border: 'none', cursor: 'pointer', fontWeight: 'bold' }}
+                        type="button"
+                        disabled={exportingAction !== null}
+                        onClick={() => handleDownloadImage('png')}
+                        style={{ background: '#4f46e5', color: 'white', padding: '7px 11px', borderRadius: '6px', border: 'none', cursor: exportingAction ? 'wait' : 'pointer', opacity: exportingAction ? 0.65 : 1, fontWeight: 'bold', fontSize: '12px' }}
+                    >
+                        {exportingAction === 'png' ? '⏳ PNG...' : '🖼️ PNG'}
+                    </button>
+                    <button
+                        type="button"
+                        disabled={exportingAction !== null}
+                        onClick={() => handleDownloadImage('jpg')}
+                        style={{ background: '#7c3aed', color: 'white', padding: '7px 11px', borderRadius: '6px', border: 'none', cursor: exportingAction ? 'wait' : 'pointer', opacity: exportingAction ? 0.65 : 1, fontWeight: 'bold', fontSize: '12px' }}
+                    >
+                        {exportingAction === 'jpg' ? '⏳ JPG...' : '🖼️ JPG'}
+                    </button>
+                    <button
+                        type="button"
+                        disabled={exportingAction !== null}
+                        onClick={handleCopyImage}
+                        style={{ background: '#0284c7', color: 'white', padding: '7px 11px', borderRadius: '6px', border: 'none', cursor: exportingAction ? 'wait' : 'pointer', opacity: exportingAction ? 0.65 : 1, fontWeight: 'bold', fontSize: '12px' }}
+                    >
+                        {exportingAction === 'copy' ? '⏳ Menyalin...' : '📋 Salin Gambar'}
+                    </button>
+                    <button
+                        type="button"
+                        disabled={exportingAction !== null}
+                        onClick={handleSendWhatsApp}
+                        style={{ background: '#16a34a', color: 'white', padding: '7px 13px', borderRadius: '6px', border: 'none', cursor: exportingAction ? 'wait' : 'pointer', opacity: exportingAction ? 0.65 : 1, fontWeight: 'bold', fontSize: '12px' }}
+                    >
+                        {exportingAction === 'wa' ? '⏳ Menyiapkan...' : '💬 Kirim WA'}
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => {
+                            if (window.opener) window.close();
+                            else router.push('/finance/invoices');
+                        }}
+                        style={{ background: '#475569', color: 'white', padding: '7px 12px', borderRadius: '6px', border: 'none', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' }}
                     >
                         ✕ Tutup
                     </button>
                 </div>
             </div>
 
-            <div className="a4-page">
+            {toastMessage && (
+                <div
+                    className="no-print"
+                    style={{
+                        position: 'fixed',
+                        bottom: '20px',
+                        right: '20px',
+                        maxWidth: '420px',
+                        background: '#0f172a',
+                        color: '#ffffff',
+                        padding: '12px 16px',
+                        borderRadius: '10px',
+                        border: '1px solid #334155',
+                        boxShadow: '0 10px 25px rgba(0, 0, 0, 0.25)',
+                        zIndex: 10000,
+                        fontFamily: 'system-ui, -apple-system, sans-serif',
+                        fontSize: '12.5px',
+                        lineHeight: 1.45,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: '12px',
+                    }}
+                >
+                    <span>{toastMessage}</span>
+                    <button
+                        type="button"
+                        onClick={() => setToastMessage(null)}
+                        style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px' }}
+                    >
+                        ✕
+                    </button>
+                </div>
+            )}
+
+            <div className="invoice-stage">
+            <div ref={invoiceRef} className={pageClassName}>
                 {isTaxableInvoice ? (
                     // ==========================================
                     // LAYOUT FAKTUR PAJAK (PKP)
@@ -470,46 +856,89 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
                     </>
                 ) : (
                     // ==========================================
-                    // LAYOUT INVOICE STANDAR (Non-PKP)
+                    // LAYOUT INVOICE STANDAR (Non-PKP) — A5 LANDSCAPE & A4
                     // ==========================================
                     <>
-                        {/* HEADER STANDAR */}
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '4mm' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '3mm' }}>
-                                <img src="/logo.png" alt="Logo" style={{ width: '18mm', height: '18mm', objectFit: 'contain' }} />
-                                <div>
-                                    <p style={{ fontWeight: 'bold', fontSize: '11pt', lineHeight: 1.3 }}>{COMPANY_INFO.name}</p>
-                                    <p style={{ fontSize: '8pt', lineHeight: 1.5 }}>{COMPANY_INFO.address}</p>
-                                    <p style={{ fontSize: '8pt', lineHeight: 1.5 }}>{COMPANY_INFO.city}</p>
+                        {isCompactA5 ? (
+                            /* HEADER KOMPAK 1 BAND UNTUK A5 LANDSCAPE */
+                            <div style={{
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                borderBottom: '1.5px solid #000',
+                                paddingBottom: '2mm',
+                                marginBottom: '2.5mm',
+                                gap: '4mm',
+                            }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '2.5mm' }}>
+                                    <img src="/logo.png" alt="Logo" style={{ width: '14mm', height: '14mm', objectFit: 'contain' }} />
+                                    <div>
+                                        <p style={{ fontWeight: 'bold', fontSize: '10.5pt', lineHeight: 1.2 }}>{COMPANY_INFO.name}</p>
+                                        <p style={{ fontSize: '7.5pt', lineHeight: 1.3 }}>{COMPANY_INFO.address}</p>
+                                        <p style={{ fontSize: '7.5pt', lineHeight: 1.3 }}>{COMPANY_INFO.city}</p>
+                                    </div>
                                 </div>
-                            </div>
-                            <div style={{ fontSize: '8.5pt', lineHeight: 1.8 }}>
-                                <div style={{ display: 'flex', gap: '3mm' }}>
-                                    <span style={{ minWidth: '75px' }}>Nomer</span>
-                                    <span>:</span>
-                                    <span contentEditable suppressContentEditableWarning style={{ fontWeight: 'bold', outline: 'none' }}>{invoice.invoiceNumber}</span>
-                                </div>
-                                <div style={{ display: 'flex', gap: '3mm' }}>
-                                    <span style={{ minWidth: '75px' }}>Tanggal</span>
-                                    <span>:</span>
-                                    <span contentEditable suppressContentEditableWarning style={{ fontWeight: 'bold', outline: 'none' }}>{formatTanggal(issueDate)}</span>
-                                </div>
-                            </div>
-                        </div>
 
-                        {/* JUDUL */}
-                        <div style={{ textAlign: 'center', marginBottom: '3mm' }}>
-                            <span style={{ fontSize: '13pt', fontWeight: 'bold', letterSpacing: '8px', textDecoration: 'underline' }}>
-                                I N V O I C E
-                            </span>
-                        </div>
+                                <div style={{ textAlign: 'center', flexShrink: 0 }}>
+                                    <span style={{ fontSize: '13pt', fontWeight: 'bold', letterSpacing: '6px', textDecoration: 'underline' }}>
+                                        I N V O I C E
+                                    </span>
+                                </div>
+
+                                <div style={{ fontSize: '8.5pt', lineHeight: 1.45, flexShrink: 0 }}>
+                                    <div style={{ display: 'flex', gap: '2mm' }}>
+                                        <span style={{ minWidth: '58px' }}>Nomer</span>
+                                        <span>:</span>
+                                        <span contentEditable suppressContentEditableWarning style={{ fontWeight: 'bold', outline: 'none' }}>{invoice.invoiceNumber}</span>
+                                    </div>
+                                    <div style={{ display: 'flex', gap: '2mm' }}>
+                                        <span style={{ minWidth: '58px' }}>Tanggal</span>
+                                        <span>:</span>
+                                        <span contentEditable suppressContentEditableWarning style={{ fontWeight: 'bold', outline: 'none' }}>{formatTanggal(issueDate)}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        ) : (
+                            <>
+                                {/* HEADER STANDAR A4 */}
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '4mm' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '3mm' }}>
+                                        <img src="/logo.png" alt="Logo" style={{ width: '18mm', height: '18mm', objectFit: 'contain' }} />
+                                        <div>
+                                            <p style={{ fontWeight: 'bold', fontSize: '11pt', lineHeight: 1.3 }}>{COMPANY_INFO.name}</p>
+                                            <p style={{ fontSize: '8pt', lineHeight: 1.5 }}>{COMPANY_INFO.address}</p>
+                                            <p style={{ fontSize: '8pt', lineHeight: 1.5 }}>{COMPANY_INFO.city}</p>
+                                        </div>
+                                    </div>
+                                    <div style={{ fontSize: '8.5pt', lineHeight: 1.8 }}>
+                                        <div style={{ display: 'flex', gap: '3mm' }}>
+                                            <span style={{ minWidth: '75px' }}>Nomer</span>
+                                            <span>:</span>
+                                            <span contentEditable suppressContentEditableWarning style={{ fontWeight: 'bold', outline: 'none' }}>{invoice.invoiceNumber}</span>
+                                        </div>
+                                        <div style={{ display: 'flex', gap: '3mm' }}>
+                                            <span style={{ minWidth: '75px' }}>Tanggal</span>
+                                            <span>:</span>
+                                            <span contentEditable suppressContentEditableWarning style={{ fontWeight: 'bold', outline: 'none' }}>{formatTanggal(issueDate)}</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* JUDUL */}
+                                <div style={{ textAlign: 'center', marginBottom: '3mm' }}>
+                                    <span style={{ fontSize: '13pt', fontWeight: 'bold', letterSpacing: '8px', textDecoration: 'underline' }}>
+                                        I N V O I C E
+                                    </span>
+                                </div>
+                            </>
+                        )}
 
                         {/* KEPADA YTH */}
-                        <div style={{ marginBottom: '3mm' }}>
-                            <p style={{ fontSize: '8.5pt' }}>Kepada Yth,</p>
+                        <div style={{ marginBottom: isCompactA5 ? '2.5mm' : '3mm' }}>
+                            <p style={{ fontSize: isCompactA5 ? '8pt' : '8.5pt' }}>Kepada Yth,</p>
                             <p contentEditable suppressContentEditableWarning style={{ fontWeight: 'bold', fontSize: '9.5pt', textTransform: 'uppercase', outline: 'none' }}>{invoice.clientName}</p>
                             {invoice.clientAddress && (
-                                <p contentEditable suppressContentEditableWarning style={{ fontWeight: 'bold', fontSize: '9.5pt', textTransform: 'uppercase', outline: 'none' }}>{invoice.clientAddress}</p>
+                                <p contentEditable suppressContentEditableWarning style={{ fontWeight: 'bold', fontSize: isCompactA5 ? '8.5pt' : '9.5pt', textTransform: 'uppercase', outline: 'none' }}>{invoice.clientAddress}</p>
                             )}
                             {invoice.notes && (
                                 <p style={{ fontSize: '7.5pt', fontStyle: 'italic', marginTop: '0.5mm' }}>{invoice.notes}</p>
@@ -517,7 +946,7 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
                         </div>
 
                         {/* TABEL STANDAR */}
-                        <table className="invoice-table">
+                        <table className={isCompactA5 ? 'invoice-table compact-a5' : 'invoice-table'}>
                             <thead>
                                 <tr>
                                     <th style={{ width: '5%' }}>NO</th>
@@ -572,7 +1001,7 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
 
                                 {/* Baris kosong */}
                                 {Array.from({ length: emptyRowsCount }).map((_, i) => (
-                                    <tr key={`empty-${i}`} style={{ height: '6mm' }}>
+                                    <tr key={`empty-${i}`} style={{ height: isCompactA5 ? '5.2mm' : '6mm' }}>
                                         <td></td><td></td><td></td><td></td><td></td><td></td>
                                         <td style={{ textAlign: 'right', paddingRight: 4 }}>-</td>
                                     </tr>
@@ -583,7 +1012,7 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
                                     <td colSpan={4} style={{ fontSize: '7.5pt', fontStyle: 'italic', paddingLeft: 4 }}>
                                         Terbilang : # {terbilang(totalAkhirDisplay)} #
                                     </td>
-                                    <td colSpan={2} style={{ textAlign: 'center', fontWeight: 'bold', letterSpacing: '2px', fontSize: '9pt' }}>
+                                    <td colSpan={2} style={{ textAlign: 'center', fontWeight: 'bold', letterSpacing: '2px', fontSize: isCompactA5 ? '8.5pt' : '9pt' }}>
                                         T O T A L
                                     </td>
                                     <td style={{ textAlign: 'right', fontWeight: 'bold', paddingRight: 4 }}>
@@ -594,30 +1023,40 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
                         </table>
 
                         {/* FOOTER STANDAR */}
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginTop: '4mm' }}>
-                            <div style={{ fontSize: '8.5pt', lineHeight: 1.8 }}>
-                                <p contentEditable suppressContentEditableWarning style={{ fontWeight: 'bold', textDecoration: 'underline', marginBottom: '1mm', fontSize: '10.5pt', outline: 'none' }}>TRANSFER :</p>
+                        <div style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: isCompactA5 ? 'flex-end' : 'flex-start',
+                            marginTop: isCompactA5 ? 'auto' : '4mm',
+                            paddingTop: isCompactA5 ? '3mm' : '0',
+                        }}>
+                            <div style={{ fontSize: '8.5pt', lineHeight: isCompactA5 ? 1.45 : 1.8 }}>
+                                <p contentEditable suppressContentEditableWarning style={{ fontWeight: 'bold', textDecoration: 'underline', marginBottom: '0.8mm', fontSize: isCompactA5 ? '9.5pt' : '10.5pt', outline: 'none' }}>TRANSFER :</p>
                                 {COMPANY_INFO.bankAccounts.map((acc, i) => (
-                                    <p 
+                                    <p
                                         key={i}
                                         contentEditable
                                         suppressContentEditableWarning
-                                        style={{ outline: 'none', fontSize: '10.5pt', fontWeight: 'bold' }}
+                                        style={{ outline: 'none', fontSize: isCompactA5 ? '9pt' : '10.5pt', fontWeight: 'bold' }}
                                     >
                                         {acc.bank} {acc.accountNumber}  an {acc.accountName}
                                     </p>
                                 ))}
                             </div>
-                            <div style={{ textAlign: 'center', minWidth: '45mm', paddingTop: '4mm' }}>
+                            <div style={{ textAlign: 'center', minWidth: isCompactA5 ? '38mm' : '45mm', paddingTop: isCompactA5 ? '0' : '4mm' }}>
                                 <img
                                     src="/ttd.png"
                                     alt="Tanda Tangan & Stempel"
-                                    style={{ width: '45mm', height: 'auto', objectFit: 'contain', display: 'block', margin: '0 auto' }}
+                                    style={isCompactA5
+                                        ? { width: '38mm', maxHeight: '24mm', height: 'auto', objectFit: 'contain', display: 'block', margin: '0 auto' }
+                                        : { width: '45mm', height: 'auto', objectFit: 'contain', display: 'block', margin: '0 auto' }
+                                    }
                                 />
                             </div>
                         </div>
                     </>
                 )}
+            </div>
             </div>
         </>
     );

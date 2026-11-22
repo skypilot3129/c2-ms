@@ -13,7 +13,7 @@ import type { Transaction } from '@/types/transaction';
 import type { Invoice } from '@/types/invoice';
 import type { Voyage } from '@/types/voyage';
 import { formatRupiah } from '@/lib/currency';
-import { ArrowLeft, CheckCircle2, ChevronRight, FileText, Search, Ship, Users } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, ChevronRight, FileText, Printer, Search, Ship, Users } from 'lucide-react';
 import Link from 'next/link';
 
 const ALL_CLIENT_PLACEHOLDER: Client = {
@@ -161,7 +161,7 @@ export default function NewInvoicePage() {
         }
     };
 
-    const handleSubmit = async () => {
+    const handleSubmit = async (openPrintAfter: boolean = true) => {
         if (!user || !selectedClient || selectedTransactionIds.length === 0) return;
         setLoading(true);
 
@@ -173,7 +173,7 @@ export default function NewInvoicePage() {
                 ? (selectedTransactionsList[0]?.pengirimAddress || '')
                 : (selectedClient.address || '');
 
-            await createInvoice({
+            const newInvoiceId = await createInvoice({
                 clientId: finalClientId,
                 clientName: resolvedClientName,
                 clientAddress: finalClientAddress,
@@ -186,7 +186,11 @@ export default function NewInvoicePage() {
                 notes: notes,
             }, user.uid);
 
-            router.push('/finance/invoices');
+            if (openPrintAfter && newInvoiceId) {
+                router.push(`/finance/invoices/${newInvoiceId}/print`);
+            } else {
+                router.push('/finance/invoices');
+            }
         } catch (error) {
             console.error(error);
             alert('Gagal membuat invoice');
@@ -470,20 +474,29 @@ export default function NewInvoicePage() {
                             </div>
                         </div>
 
-                        <div className="flex justify-end gap-3">
+                        <div className="flex flex-wrap justify-end gap-3">
                             <button
                                 onClick={() => setStep(2)}
-                                className="px-6 py-2.5 text-gray-600 font-medium hover:bg-gray-100 rounded-xl"
+                                disabled={loading}
+                                className="px-6 py-2.5 text-gray-600 font-medium hover:bg-gray-100 rounded-xl disabled:opacity-50"
                             >
                                 Kembali
                             </button>
                             <button
-                                onClick={handleSubmit}
+                                onClick={() => handleSubmit(false)}
                                 disabled={loading}
-                                className="px-8 py-2.5 bg-green-600 text-white font-medium rounded-xl hover:bg-green-700 disabled:opacity-50 flex items-center gap-2"
+                                className="px-6 py-2.5 bg-gray-100 text-gray-800 font-medium rounded-xl hover:bg-gray-200 disabled:opacity-50 flex items-center gap-2"
                             >
-                                {loading ? 'Memproses...' : 'Buat Invoice'}
+                                {loading ? 'Memproses...' : 'Simpan ke Daftar'}
                                 {!loading && <CheckCircle2 size={18} />}
+                            </button>
+                            <button
+                                onClick={() => handleSubmit(true)}
+                                disabled={loading}
+                                className="px-8 py-2.5 bg-green-600 text-white font-medium rounded-xl hover:bg-green-700 disabled:opacity-50 flex items-center gap-2 shadow-sm"
+                            >
+                                {loading ? 'Memproses...' : 'Buat & Cetak / WA'}
+                                {!loading && <Printer size={18} />}
                             </button>
                         </div>
                     </div>
