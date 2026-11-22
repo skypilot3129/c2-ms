@@ -102,94 +102,94 @@ function getStdInvoiceLayout(isCompactA5: boolean, itemRowCount: number): StdLay
         };
     }
 
-    if (itemRowCount >= 10) {
+    if (itemRowCount >= 12) {
         return {
-            pagePad: '3.5mm 8mm 3.5mm 8mm',
+            pagePad: '3.5mm 8.5mm 3.5mm 8.5mm',
             headerMb: '1mm',
-            logoSize: '11.5mm',
-            companyPt: '9.5pt',
-            addrPt: '6.8pt',
-            addrLh: 1.22,
-            metaPt: '7.4pt',
-            metaLh: 1.3,
-            metaLabelW: '54px',
-            titlePt: '10pt',
+            logoSize: '12.5mm',
+            companyPt: '9.8pt',
+            addrPt: '7pt',
+            addrLh: 1.25,
+            metaPt: '7.6pt',
+            metaLh: 1.35,
+            metaLabelW: '58px',
+            titlePt: '10.5pt',
             titleSpacing: '5px',
-            titleMb: '1mm',
+            titleMb: '1.2mm',
             kepadaMb: '1.5mm',
-            kepadaPt: '7.4pt',
-            clientPt: '8pt',
-            tableFontPt: '7.4pt',
-            tableCellPad: '1.5px 3px',
-            terbilangPt: '6.8pt',
-            totalLabelPt: '7.8pt',
+            kepadaPt: '7.6pt',
+            clientPt: '8.2pt',
+            tableFontPt: '7.8pt',
+            tableCellPad: '1.5px 3.5px',
+            terbilangPt: '7pt',
+            totalLabelPt: '8pt',
             footerMt: '2mm',
-            bankTitlePt: '8.2pt',
-            bankPt: '7.8pt',
-            bankLh: 1.28,
-            ttdWidth: '28mm',
-            ttdMaxHeight: '17mm',
+            bankTitlePt: '8.5pt',
+            bankPt: '8.2pt',
+            bankLh: 1.3,
+            ttdWidth: '30mm',
+            ttdMaxHeight: '18mm',
             ttdPt: '0.5mm',
         };
     }
 
-    if (itemRowCount >= 6) {
+    if (itemRowCount >= 9) {
         return {
-            pagePad: '4mm 8.5mm 4mm 8.5mm',
+            pagePad: '4.5mm 9mm 4.5mm 9mm',
             headerMb: '1.5mm',
-            logoSize: '13mm',
-            companyPt: '10pt',
-            addrPt: '7.2pt',
+            logoSize: '14.5mm',
+            companyPt: '10.5pt',
+            addrPt: '7.5pt',
             addrLh: 1.3,
-            metaPt: '7.8pt',
-            metaLh: 1.4,
-            metaLabelW: '58px',
-            titlePt: '11pt',
+            metaPt: '8.2pt',
+            metaLh: 1.45,
+            metaLabelW: '62px',
+            titlePt: '11.5pt',
             titleSpacing: '6px',
             titleMb: '1.5mm',
             kepadaMb: '1.8mm',
-            kepadaPt: '7.8pt',
-            clientPt: '8.5pt',
-            tableFontPt: '8pt',
-            tableCellPad: '2px 3.5px',
+            kepadaPt: '8pt',
+            clientPt: '8.8pt',
+            tableFontPt: '8.5pt',
+            tableCellPad: '2px 4px',
             terbilangPt: '7.2pt',
-            totalLabelPt: '8.2pt',
+            totalLabelPt: '8.5pt',
             footerMt: '2.5mm',
-            bankTitlePt: '8.8pt',
-            bankPt: '8.5pt',
-            bankLh: 1.38,
-            ttdWidth: '33mm',
-            ttdMaxHeight: '20mm',
+            bankTitlePt: '9pt',
+            bankPt: '9pt',
+            bankLh: 1.4,
+            ttdWidth: '35mm',
+            ttdMaxHeight: '21mm',
             ttdPt: '1mm',
         };
     }
 
     return {
-        pagePad: '5mm 9mm 5mm 9mm',
-        headerMb: '2mm',
-        logoSize: '15mm',
-        companyPt: '10.5pt',
-        addrPt: '7.8pt',
-        addrLh: 1.35,
-        metaPt: '8.2pt',
-        metaLh: 1.5,
-        metaLabelW: '62px',
-        titlePt: '12pt',
-        titleSpacing: '7px',
-        titleMb: '2mm',
-        kepadaMb: '2.2mm',
-        kepadaPt: '8pt',
-        clientPt: '9pt',
-        tableFontPt: '8.8pt',
+        pagePad: '6mm 10mm 5.5mm 10mm',
+        headerMb: '2.5mm',
+        logoSize: '17mm',
+        companyPt: '11pt',
+        addrPt: '8.2pt',
+        addrLh: 1.4,
+        metaPt: '8.8pt',
+        metaLh: 1.65,
+        metaLabelW: '68px',
+        titlePt: '13pt',
+        titleSpacing: '8px',
+        titleMb: '2.5mm',
+        kepadaMb: '2.5mm',
+        kepadaPt: '8.5pt',
+        clientPt: '9.5pt',
+        tableFontPt: '9.5pt',
         tableCellPad: '3px 4px',
-        terbilangPt: '7.5pt',
-        totalLabelPt: '8.8pt',
+        terbilangPt: '7.8pt',
+        totalLabelPt: '9pt',
         footerMt: '3.5mm',
-        bankTitlePt: '9.5pt',
-        bankPt: '9.2pt',
-        bankLh: 1.5,
-        ttdWidth: '38mm',
-        ttdMaxHeight: '24mm',
+        bankTitlePt: '10pt',
+        bankPt: '10pt',
+        bankLh: 1.55,
+        ttdWidth: '42mm',
+        ttdMaxHeight: '26mm',
         ttdPt: '1.5mm',
     };
 }
@@ -318,8 +318,10 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
     const isCompactA5 = !isTaxableInvoice && paperMode === 'a5-landscape';
     const itemRowCount = transactions.length + (additionalFee > 0 ? 1 : 0);
     const stdLayout = getStdInvoiceLayout(isCompactA5, itemRowCount);
+    const hasExtraKepada = Boolean(invoice.clientAddress) || Boolean(invoice.notes);
+    const a5MinRows = hasExtraKepada ? 7 : 8;
     const emptyRowsCount = isCompactA5
-        ? (transactions.length === 0 ? 1 : 0)
+        ? Math.max(0, a5MinRows - itemRowCount)
         : Math.max(0, MIN_ROWS_A4 - transactions.length);
     const hasKgVolume = transactions.some(t => t.beratUnit === 'KG/VOLUME');
 
@@ -518,14 +520,21 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
 
                 .invoice-page-a5 {
                     width: 210mm;
-                    height: auto;
-                    min-height: 0;
+                    min-height: 147.6mm;
                     background: #ffffff;
                     margin: 0 auto 24px auto;
-                    padding: ${isCompactA5 ? stdLayout.pagePad : '5mm 9mm'};
+                    padding: ${isCompactA5 ? stdLayout.pagePad : '6mm 10mm 5.5mm 10mm'};
                     font-size: 8.5pt;
                     color: #000000;
+                    display: flex;
+                    flex-direction: column;
                     box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+                }
+
+                .invoice-table-area-a5 {
+                    flex: 1 0 auto;
+                    display: flex;
+                    flex-direction: column;
                 }
 
                 .invoice-page-a4 {
@@ -562,6 +571,8 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
                 }
 
                 .invoice-table.compact-a5 {
+                    flex: 1 0 auto;
+                    height: 100%;
                     font-size: ${stdLayout.tableFontPt};
                 }
                 .invoice-table.compact-a5 th,
@@ -1014,7 +1025,7 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
                     // ==========================================
                     <>
                         {/* HEADER STANDAR (Desain tetap seperti A4, ukuran fleksibel) */}
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: stdLayout.headerMb }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: stdLayout.headerMb, flexShrink: 0 }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: isCompactA5 ? '2.5mm' : '3mm' }}>
                                 <img src="/logo.png" alt="Logo" style={{ width: stdLayout.logoSize, height: stdLayout.logoSize, objectFit: 'contain' }} />
                                 <div>
@@ -1038,14 +1049,14 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
                         </div>
 
                         {/* JUDUL */}
-                        <div style={{ textAlign: 'center', marginBottom: stdLayout.titleMb }}>
+                        <div style={{ textAlign: 'center', marginBottom: stdLayout.titleMb, flexShrink: 0 }}>
                             <span style={{ fontSize: stdLayout.titlePt, fontWeight: 'bold', letterSpacing: stdLayout.titleSpacing, textDecoration: 'underline' }}>
                                 I N V O I C E
                             </span>
                         </div>
 
                         {/* KEPADA YTH */}
-                        <div style={{ marginBottom: stdLayout.kepadaMb }}>
+                        <div style={{ marginBottom: stdLayout.kepadaMb, flexShrink: 0 }}>
                             <p style={{ fontSize: stdLayout.kepadaPt }}>Kepada Yth,</p>
                             <p contentEditable suppressContentEditableWarning style={{ fontWeight: 'bold', fontSize: stdLayout.clientPt, textTransform: 'uppercase', outline: 'none' }}>{invoice.clientName}</p>
                             {invoice.clientAddress && (
@@ -1056,10 +1067,11 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
                             )}
                         </div>
 
-                        {/* TABEL STANDAR */}
+                        {/* TABEL STANDAR (di mode A5 otomatis terisi baris kosong hingga pas 1 halaman penuh) */}
+                        <div className={isCompactA5 ? 'invoice-table-area-a5' : undefined}>
                         <table className={isCompactA5 ? 'invoice-table compact-a5' : 'invoice-table'}>
                             <thead>
-                                <tr>
+                                <tr style={isCompactA5 ? { height: itemRowCount >= 12 ? '6mm' : '7mm' } : undefined}>
                                     <th style={{ width: '5%' }}>NO</th>
                                     <th style={{ width: '45%' }}>KETERANGAN</th>
                                     <th style={{ width: '9%' }}>NO STT</th>
@@ -1071,7 +1083,7 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
                             </thead>
                             <tbody>
                                 {transactions.map((t, idx) => (
-                                    <tr key={t.id}>
+                                    <tr key={t.id} style={isCompactA5 && itemRowCount <= 8 ? { height: '6.4mm' } : undefined}>
                                         <td style={{ textAlign: 'center' }}>{idx + 1}.</td>
                                         <td style={{ paddingLeft: 4 }}>
                                             <div
@@ -1099,7 +1111,7 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
 
                                 {/* Additional Manual Fee Row */}
                                 {additionalFee > 0 && (
-                                    <tr>
+                                    <tr style={isCompactA5 && itemRowCount <= 8 ? { height: '6.4mm' } : undefined}>
                                         <td style={{ textAlign: 'center' }}>{transactions.length + 1}.</td>
                                         <td colSpan={5} style={{ paddingLeft: 4, textTransform: 'uppercase', fontWeight: 'bold' }}>
                                             <span contentEditable suppressContentEditableWarning style={{ outline: 'none' }}>
@@ -1110,16 +1122,16 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
                                     </tr>
                                 )}
 
-                                {/* Baris kosong (hanya untuk A4 atau saat belum ada baris) */}
+                                {/* Baris kosong agar tabel pas penuh ke bawah di A5 dan A4 */}
                                 {Array.from({ length: emptyRowsCount }).map((_, i) => (
-                                    <tr key={`empty-${i}`} style={{ height: isCompactA5 ? '5mm' : '6mm' }}>
+                                    <tr key={`empty-${i}`} style={{ height: isCompactA5 ? 'auto' : '6mm', minHeight: isCompactA5 ? '5.5mm' : undefined }}>
                                         <td></td><td></td><td></td><td></td><td></td><td></td>
                                         <td style={{ textAlign: 'right', paddingRight: 4 }}>-</td>
                                     </tr>
                                 ))}
 
                                 {/* Terbilang + TOTAL */}
-                                <tr>
+                                <tr style={isCompactA5 ? { height: '7.2mm' } : undefined}>
                                     <td colSpan={4} style={{ fontSize: stdLayout.terbilangPt, fontStyle: 'italic', paddingLeft: 4 }}>
                                         Terbilang : # {terbilang(totalAkhirDisplay)} #
                                     </td>
@@ -1132,9 +1144,10 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
                                 </tr>
                             </tbody>
                         </table>
+                        </div>
 
-                        {/* FOOTER STANDAR (menempel rapat di bawah tabel tanpa blank space) */}
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginTop: stdLayout.footerMt }}>
+                        {/* FOOTER STANDAR */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginTop: stdLayout.footerMt, flexShrink: 0 }}>
                             <div style={{ fontSize: stdLayout.addrPt, lineHeight: stdLayout.bankLh }}>
                                 <p contentEditable suppressContentEditableWarning style={{ fontWeight: 'bold', textDecoration: 'underline', marginBottom: '0.8mm', fontSize: stdLayout.bankTitlePt, outline: 'none' }}>TRANSFER :</p>
                                 {COMPANY_INFO.bankAccounts.map((acc, i) => (
