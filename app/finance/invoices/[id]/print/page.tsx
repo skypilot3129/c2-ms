@@ -40,7 +40,159 @@ function formatTanggal(date: Date | string): string {
 }
 
 const MIN_ROWS_A4 = 10;
-const MIN_ROWS_A5 = 5;
+
+interface StdLayoutConfig {
+    pagePad: string;
+    headerMb: string;
+    logoSize: string;
+    companyPt: string;
+    addrPt: string;
+    addrLh: number;
+    metaPt: string;
+    metaLh: number;
+    metaLabelW: string;
+    titlePt: string;
+    titleSpacing: string;
+    titleMb: string;
+    kepadaMb: string;
+    kepadaPt: string;
+    clientPt: string;
+    tableFontPt: string;
+    tableCellPad: string;
+    terbilangPt: string;
+    totalLabelPt: string;
+    footerMt: string;
+    bankTitlePt: string;
+    bankPt: string;
+    bankLh: number;
+    ttdWidth: string;
+    ttdMaxHeight: string;
+    ttdPt: string;
+}
+
+function getStdInvoiceLayout(isCompactA5: boolean, itemRowCount: number): StdLayoutConfig {
+    if (!isCompactA5) {
+        return {
+            pagePad: '8mm 12mm 6mm 12mm',
+            headerMb: '4mm',
+            logoSize: '18mm',
+            companyPt: '11pt',
+            addrPt: '8pt',
+            addrLh: 1.5,
+            metaPt: '8.5pt',
+            metaLh: 1.8,
+            metaLabelW: '75px',
+            titlePt: '13pt',
+            titleSpacing: '8px',
+            titleMb: '3mm',
+            kepadaMb: '3mm',
+            kepadaPt: '8.5pt',
+            clientPt: '9.5pt',
+            tableFontPt: '9.5pt',
+            tableCellPad: '3px 4px',
+            terbilangPt: '7.5pt',
+            totalLabelPt: '9pt',
+            footerMt: '4mm',
+            bankTitlePt: '10.5pt',
+            bankPt: '10.5pt',
+            bankLh: 1.8,
+            ttdWidth: '45mm',
+            ttdMaxHeight: 'none',
+            ttdPt: '4mm',
+        };
+    }
+
+    if (itemRowCount >= 10) {
+        return {
+            pagePad: '3.5mm 8mm 3.5mm 8mm',
+            headerMb: '1mm',
+            logoSize: '11.5mm',
+            companyPt: '9.5pt',
+            addrPt: '6.8pt',
+            addrLh: 1.22,
+            metaPt: '7.4pt',
+            metaLh: 1.3,
+            metaLabelW: '54px',
+            titlePt: '10pt',
+            titleSpacing: '5px',
+            titleMb: '1mm',
+            kepadaMb: '1.5mm',
+            kepadaPt: '7.4pt',
+            clientPt: '8pt',
+            tableFontPt: '7.4pt',
+            tableCellPad: '1.5px 3px',
+            terbilangPt: '6.8pt',
+            totalLabelPt: '7.8pt',
+            footerMt: '2mm',
+            bankTitlePt: '8.2pt',
+            bankPt: '7.8pt',
+            bankLh: 1.28,
+            ttdWidth: '28mm',
+            ttdMaxHeight: '17mm',
+            ttdPt: '0.5mm',
+        };
+    }
+
+    if (itemRowCount >= 6) {
+        return {
+            pagePad: '4mm 8.5mm 4mm 8.5mm',
+            headerMb: '1.5mm',
+            logoSize: '13mm',
+            companyPt: '10pt',
+            addrPt: '7.2pt',
+            addrLh: 1.3,
+            metaPt: '7.8pt',
+            metaLh: 1.4,
+            metaLabelW: '58px',
+            titlePt: '11pt',
+            titleSpacing: '6px',
+            titleMb: '1.5mm',
+            kepadaMb: '1.8mm',
+            kepadaPt: '7.8pt',
+            clientPt: '8.5pt',
+            tableFontPt: '8pt',
+            tableCellPad: '2px 3.5px',
+            terbilangPt: '7.2pt',
+            totalLabelPt: '8.2pt',
+            footerMt: '2.5mm',
+            bankTitlePt: '8.8pt',
+            bankPt: '8.5pt',
+            bankLh: 1.38,
+            ttdWidth: '33mm',
+            ttdMaxHeight: '20mm',
+            ttdPt: '1mm',
+        };
+    }
+
+    return {
+        pagePad: '5mm 9mm 5mm 9mm',
+        headerMb: '2mm',
+        logoSize: '15mm',
+        companyPt: '10.5pt',
+        addrPt: '7.8pt',
+        addrLh: 1.35,
+        metaPt: '8.2pt',
+        metaLh: 1.5,
+        metaLabelW: '62px',
+        titlePt: '12pt',
+        titleSpacing: '7px',
+        titleMb: '2mm',
+        kepadaMb: '2.2mm',
+        kepadaPt: '8pt',
+        clientPt: '9pt',
+        tableFontPt: '8.8pt',
+        tableCellPad: '3px 4px',
+        terbilangPt: '7.5pt',
+        totalLabelPt: '8.8pt',
+        footerMt: '3.5mm',
+        bankTitlePt: '9.5pt',
+        bankPt: '9.2pt',
+        bankLh: 1.5,
+        ttdWidth: '38mm',
+        ttdMaxHeight: '24mm',
+        ttdPt: '1.5mm',
+    };
+}
 
 function normalizeWaPhone(raw: string): string {
     const digits = raw.replace(/\D/g, '');
@@ -164,8 +316,11 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
 
     const isTaxableInvoice = Boolean(invoice.isTaxable) || transactions.some(t => t.isTaxable || (t.ppn && t.ppn > 0));
     const isCompactA5 = !isTaxableInvoice && paperMode === 'a5-landscape';
-    const minRows = paperMode === 'a5-landscape' ? MIN_ROWS_A5 : MIN_ROWS_A4;
-    const emptyRowsCount = Math.max(0, minRows - transactions.length);
+    const itemRowCount = transactions.length + (additionalFee > 0 ? 1 : 0);
+    const stdLayout = getStdInvoiceLayout(isCompactA5, itemRowCount);
+    const emptyRowsCount = isCompactA5
+        ? (transactions.length === 0 ? 1 : 0)
+        : Math.max(0, MIN_ROWS_A4 - transactions.length);
     const hasKgVolume = transactions.some(t => t.beratUnit === 'KG/VOLUME');
 
     // Calculate totals for tax layout dynamically to enforce 1.1% PPN rule on all invoices (including historical)
@@ -363,14 +518,13 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
 
                 .invoice-page-a5 {
                     width: 210mm;
-                    min-height: 147.6mm;
+                    height: auto;
+                    min-height: 0;
                     background: #ffffff;
                     margin: 0 auto 24px auto;
-                    padding: 5.5mm 9mm 5mm 9mm;
+                    padding: ${isCompactA5 ? stdLayout.pagePad : '5mm 9mm'};
                     font-size: 8.5pt;
                     color: #000000;
-                    display: flex;
-                    flex-direction: column;
                     box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
                 }
 
@@ -408,12 +562,12 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
                 }
 
                 .invoice-table.compact-a5 {
-                    font-size: 8.5pt;
+                    font-size: ${stdLayout.tableFontPt};
                 }
                 .invoice-table.compact-a5 th,
                 .invoice-table.compact-a5 td {
-                    padding: 2.5px 4px;
-                    font-size: 8.5pt;
+                    padding: ${stdLayout.tableCellPad};
+                    font-size: ${stdLayout.tableFontPt};
                 }
 
                 @media print {
@@ -856,92 +1010,49 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
                     </>
                 ) : (
                     // ==========================================
-                    // LAYOUT INVOICE STANDAR (Non-PKP) — A5 LANDSCAPE & A4
+                    // LAYOUT INVOICE STANDAR (Non-PKP) — A4 & A5 FLEXIBLE
                     // ==========================================
                     <>
-                        {isCompactA5 ? (
-                            /* HEADER KOMPAK 1 BAND UNTUK A5 LANDSCAPE */
-                            <div style={{
-                                display: 'flex',
-                                justifyContent: 'space-between',
-                                alignItems: 'center',
-                                borderBottom: '1.5px solid #000',
-                                paddingBottom: '2mm',
-                                marginBottom: '2.5mm',
-                                gap: '4mm',
-                            }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '2.5mm' }}>
-                                    <img src="/logo.png" alt="Logo" style={{ width: '14mm', height: '14mm', objectFit: 'contain' }} />
-                                    <div>
-                                        <p style={{ fontWeight: 'bold', fontSize: '10.5pt', lineHeight: 1.2 }}>{COMPANY_INFO.name}</p>
-                                        <p style={{ fontSize: '7.5pt', lineHeight: 1.3 }}>{COMPANY_INFO.address}</p>
-                                        <p style={{ fontSize: '7.5pt', lineHeight: 1.3 }}>{COMPANY_INFO.city}</p>
-                                    </div>
-                                </div>
-
-                                <div style={{ textAlign: 'center', flexShrink: 0 }}>
-                                    <span style={{ fontSize: '13pt', fontWeight: 'bold', letterSpacing: '6px', textDecoration: 'underline' }}>
-                                        I N V O I C E
-                                    </span>
-                                </div>
-
-                                <div style={{ fontSize: '8.5pt', lineHeight: 1.45, flexShrink: 0 }}>
-                                    <div style={{ display: 'flex', gap: '2mm' }}>
-                                        <span style={{ minWidth: '58px' }}>Nomer</span>
-                                        <span>:</span>
-                                        <span contentEditable suppressContentEditableWarning style={{ fontWeight: 'bold', outline: 'none' }}>{invoice.invoiceNumber}</span>
-                                    </div>
-                                    <div style={{ display: 'flex', gap: '2mm' }}>
-                                        <span style={{ minWidth: '58px' }}>Tanggal</span>
-                                        <span>:</span>
-                                        <span contentEditable suppressContentEditableWarning style={{ fontWeight: 'bold', outline: 'none' }}>{formatTanggal(issueDate)}</span>
-                                    </div>
+                        {/* HEADER STANDAR (Desain tetap seperti A4, ukuran fleksibel) */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: stdLayout.headerMb }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: isCompactA5 ? '2.5mm' : '3mm' }}>
+                                <img src="/logo.png" alt="Logo" style={{ width: stdLayout.logoSize, height: stdLayout.logoSize, objectFit: 'contain' }} />
+                                <div>
+                                    <p style={{ fontWeight: 'bold', fontSize: stdLayout.companyPt, lineHeight: 1.3 }}>{COMPANY_INFO.name}</p>
+                                    <p style={{ fontSize: stdLayout.addrPt, lineHeight: stdLayout.addrLh }}>{COMPANY_INFO.address}</p>
+                                    <p style={{ fontSize: stdLayout.addrPt, lineHeight: stdLayout.addrLh }}>{COMPANY_INFO.city}</p>
                                 </div>
                             </div>
-                        ) : (
-                            <>
-                                {/* HEADER STANDAR A4 */}
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '4mm' }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '3mm' }}>
-                                        <img src="/logo.png" alt="Logo" style={{ width: '18mm', height: '18mm', objectFit: 'contain' }} />
-                                        <div>
-                                            <p style={{ fontWeight: 'bold', fontSize: '11pt', lineHeight: 1.3 }}>{COMPANY_INFO.name}</p>
-                                            <p style={{ fontSize: '8pt', lineHeight: 1.5 }}>{COMPANY_INFO.address}</p>
-                                            <p style={{ fontSize: '8pt', lineHeight: 1.5 }}>{COMPANY_INFO.city}</p>
-                                        </div>
-                                    </div>
-                                    <div style={{ fontSize: '8.5pt', lineHeight: 1.8 }}>
-                                        <div style={{ display: 'flex', gap: '3mm' }}>
-                                            <span style={{ minWidth: '75px' }}>Nomer</span>
-                                            <span>:</span>
-                                            <span contentEditable suppressContentEditableWarning style={{ fontWeight: 'bold', outline: 'none' }}>{invoice.invoiceNumber}</span>
-                                        </div>
-                                        <div style={{ display: 'flex', gap: '3mm' }}>
-                                            <span style={{ minWidth: '75px' }}>Tanggal</span>
-                                            <span>:</span>
-                                            <span contentEditable suppressContentEditableWarning style={{ fontWeight: 'bold', outline: 'none' }}>{formatTanggal(issueDate)}</span>
-                                        </div>
-                                    </div>
+                            <div style={{ fontSize: stdLayout.metaPt, lineHeight: stdLayout.metaLh }}>
+                                <div style={{ display: 'flex', gap: isCompactA5 ? '2.5mm' : '3mm' }}>
+                                    <span style={{ minWidth: stdLayout.metaLabelW }}>Nomer</span>
+                                    <span>:</span>
+                                    <span contentEditable suppressContentEditableWarning style={{ fontWeight: 'bold', outline: 'none' }}>{invoice.invoiceNumber}</span>
                                 </div>
+                                <div style={{ display: 'flex', gap: isCompactA5 ? '2.5mm' : '3mm' }}>
+                                    <span style={{ minWidth: stdLayout.metaLabelW }}>Tanggal</span>
+                                    <span>:</span>
+                                    <span contentEditable suppressContentEditableWarning style={{ fontWeight: 'bold', outline: 'none' }}>{formatTanggal(issueDate)}</span>
+                                </div>
+                            </div>
+                        </div>
 
-                                {/* JUDUL */}
-                                <div style={{ textAlign: 'center', marginBottom: '3mm' }}>
-                                    <span style={{ fontSize: '13pt', fontWeight: 'bold', letterSpacing: '8px', textDecoration: 'underline' }}>
-                                        I N V O I C E
-                                    </span>
-                                </div>
-                            </>
-                        )}
+                        {/* JUDUL */}
+                        <div style={{ textAlign: 'center', marginBottom: stdLayout.titleMb }}>
+                            <span style={{ fontSize: stdLayout.titlePt, fontWeight: 'bold', letterSpacing: stdLayout.titleSpacing, textDecoration: 'underline' }}>
+                                I N V O I C E
+                            </span>
+                        </div>
 
                         {/* KEPADA YTH */}
-                        <div style={{ marginBottom: isCompactA5 ? '2.5mm' : '3mm' }}>
-                            <p style={{ fontSize: isCompactA5 ? '8pt' : '8.5pt' }}>Kepada Yth,</p>
-                            <p contentEditable suppressContentEditableWarning style={{ fontWeight: 'bold', fontSize: '9.5pt', textTransform: 'uppercase', outline: 'none' }}>{invoice.clientName}</p>
+                        <div style={{ marginBottom: stdLayout.kepadaMb }}>
+                            <p style={{ fontSize: stdLayout.kepadaPt }}>Kepada Yth,</p>
+                            <p contentEditable suppressContentEditableWarning style={{ fontWeight: 'bold', fontSize: stdLayout.clientPt, textTransform: 'uppercase', outline: 'none' }}>{invoice.clientName}</p>
                             {invoice.clientAddress && (
-                                <p contentEditable suppressContentEditableWarning style={{ fontWeight: 'bold', fontSize: isCompactA5 ? '8.5pt' : '9.5pt', textTransform: 'uppercase', outline: 'none' }}>{invoice.clientAddress}</p>
+                                <p contentEditable suppressContentEditableWarning style={{ fontWeight: 'bold', fontSize: stdLayout.clientPt, textTransform: 'uppercase', outline: 'none' }}>{invoice.clientAddress}</p>
                             )}
                             {invoice.notes && (
-                                <p style={{ fontSize: '7.5pt', fontStyle: 'italic', marginTop: '0.5mm' }}>{invoice.notes}</p>
+                                <p style={{ fontSize: stdLayout.terbilangPt, fontStyle: 'italic', marginTop: '0.5mm' }}>{invoice.notes}</p>
                             )}
                         </div>
 
@@ -999,9 +1110,9 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
                                     </tr>
                                 )}
 
-                                {/* Baris kosong */}
+                                {/* Baris kosong (hanya untuk A4 atau saat belum ada baris) */}
                                 {Array.from({ length: emptyRowsCount }).map((_, i) => (
-                                    <tr key={`empty-${i}`} style={{ height: isCompactA5 ? '5.2mm' : '6mm' }}>
+                                    <tr key={`empty-${i}`} style={{ height: isCompactA5 ? '5mm' : '6mm' }}>
                                         <td></td><td></td><td></td><td></td><td></td><td></td>
                                         <td style={{ textAlign: 'right', paddingRight: 4 }}>-</td>
                                     </tr>
@@ -1009,10 +1120,10 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
 
                                 {/* Terbilang + TOTAL */}
                                 <tr>
-                                    <td colSpan={4} style={{ fontSize: '7.5pt', fontStyle: 'italic', paddingLeft: 4 }}>
+                                    <td colSpan={4} style={{ fontSize: stdLayout.terbilangPt, fontStyle: 'italic', paddingLeft: 4 }}>
                                         Terbilang : # {terbilang(totalAkhirDisplay)} #
                                     </td>
-                                    <td colSpan={2} style={{ textAlign: 'center', fontWeight: 'bold', letterSpacing: '2px', fontSize: isCompactA5 ? '8.5pt' : '9pt' }}>
+                                    <td colSpan={2} style={{ textAlign: 'center', fontWeight: 'bold', letterSpacing: '2px', fontSize: stdLayout.totalLabelPt }}>
                                         T O T A L
                                     </td>
                                     <td style={{ textAlign: 'right', fontWeight: 'bold', paddingRight: 4 }}>
@@ -1022,35 +1133,33 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
                             </tbody>
                         </table>
 
-                        {/* FOOTER STANDAR */}
-                        <div style={{
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: isCompactA5 ? 'flex-end' : 'flex-start',
-                            marginTop: isCompactA5 ? 'auto' : '4mm',
-                            paddingTop: isCompactA5 ? '3mm' : '0',
-                        }}>
-                            <div style={{ fontSize: '8.5pt', lineHeight: isCompactA5 ? 1.45 : 1.8 }}>
-                                <p contentEditable suppressContentEditableWarning style={{ fontWeight: 'bold', textDecoration: 'underline', marginBottom: '0.8mm', fontSize: isCompactA5 ? '9.5pt' : '10.5pt', outline: 'none' }}>TRANSFER :</p>
+                        {/* FOOTER STANDAR (menempel rapat di bawah tabel tanpa blank space) */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginTop: stdLayout.footerMt }}>
+                            <div style={{ fontSize: stdLayout.addrPt, lineHeight: stdLayout.bankLh }}>
+                                <p contentEditable suppressContentEditableWarning style={{ fontWeight: 'bold', textDecoration: 'underline', marginBottom: '0.8mm', fontSize: stdLayout.bankTitlePt, outline: 'none' }}>TRANSFER :</p>
                                 {COMPANY_INFO.bankAccounts.map((acc, i) => (
                                     <p
                                         key={i}
                                         contentEditable
                                         suppressContentEditableWarning
-                                        style={{ outline: 'none', fontSize: isCompactA5 ? '9pt' : '10.5pt', fontWeight: 'bold' }}
+                                        style={{ outline: 'none', fontSize: stdLayout.bankPt, fontWeight: 'bold' }}
                                     >
                                         {acc.bank} {acc.accountNumber}  an {acc.accountName}
                                     </p>
                                 ))}
                             </div>
-                            <div style={{ textAlign: 'center', minWidth: isCompactA5 ? '38mm' : '45mm', paddingTop: isCompactA5 ? '0' : '4mm' }}>
+                            <div style={{ textAlign: 'center', minWidth: stdLayout.ttdWidth, paddingTop: stdLayout.ttdPt }}>
                                 <img
                                     src="/ttd.png"
                                     alt="Tanda Tangan & Stempel"
-                                    style={isCompactA5
-                                        ? { width: '38mm', maxHeight: '24mm', height: 'auto', objectFit: 'contain', display: 'block', margin: '0 auto' }
-                                        : { width: '45mm', height: 'auto', objectFit: 'contain', display: 'block', margin: '0 auto' }
-                                    }
+                                    style={{
+                                        width: stdLayout.ttdWidth,
+                                        maxHeight: stdLayout.ttdMaxHeight,
+                                        height: 'auto',
+                                        objectFit: 'contain',
+                                        display: 'block',
+                                        margin: '0 auto',
+                                    }}
                                 />
                             </div>
                         </div>
