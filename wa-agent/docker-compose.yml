@@ -1,0 +1,23 @@
+services:
+  openwa:
+    image: ghcr.io/rmyndharis/openwa:latest
+    container_name: cce-openwa
+    restart: unless-stopped
+    ports:
+      - "2785:2785"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      - NODE_ENV=production
+      - PORT=2785
+      - API_PORT=2785
+      - ENGINE_TYPE=${ENGINE_TYPE:-baileys}
+      - BAILEYS_AUTH_DIR=/app/data/baileys
+      - AUTO_START_SESSIONS=${AUTO_START_SESSIONS:-true}
+      - TZ=Asia/Jakarta
+    volumes:
+      - openwa-data:/app/data
+
+volumes:
+  openwa-data:
+
