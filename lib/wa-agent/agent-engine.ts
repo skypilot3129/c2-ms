@@ -7,23 +7,30 @@ import { ROLE_LABELS } from '@/types/roles';
 import {
     normalizeWaPhone,
     type PendingAction,
+    type ReplyMediaItem,
     type WaAgentHistoryItem,
     type WaAgentRole,
     type WaAgentUser,
 } from '@/types/wa-agent';
 import {
     dispatchAgentToolCall,
+    executeAssignSttsToVoyage,
+    executeBatchUpdateSttPricing,
     executeCreateInvoice,
     executeCreateStt,
+    executeCreateVoyage,
+    executeSaveVoyageExpenses,
     getToolDeclarationsForRole,
 } from './cce-tools';
+import { renderInvoicePngById } from './invoice-image';
 import { getWaAgentConfig } from './openwa-client';
 
 const SESSION_TTL_MS = 30 * 60 * 1000; // 30 minutes
 const MAX_HISTORY_ITEMS = 10;
 
-const CONFIRM_REGEX = /^(ya|iya|yes|y|ok|oke|okay|setuju|lanjut|kirim|simpan|gas|betul)$/i;
-const CANCEL_REGEX = /^(batal|tidak|no|n|cancel|gak|nggak|jangan|stop)$/i;
+const CONFIRM_REGEX =
+    /^(ya|iya|yes|y|ok|oke|okay|setuju|lanjut|kirim|simpan|gas|betul|proses|sudah\s+benar|benar\s+semua|sudah\s+benar[\s,]+proses|oke\s+benar|ya\s+proses|lanjut\s+proses|oke\s+lanjut\s+proses)[.!]*$/i;
+const CANCEL_REGEX = /^(batal|tidak|no|n|cancel|gak|nggak|jangan|stop)[.!]*$/i;
 
 export interface AgentProcessInput {
     phone: string;
@@ -40,22 +47,67 @@ export interface AgentProcessInput {
 
 export interface AgentProcessOutput {
     replyText: string;
+    replyMedia?: ReplyMediaItem[];
     toolsUsed: string[];
     pendingAction: PendingAction | null;
     status: 'ok' | 'blocked' | 'disabled' | 'error';
     ignored?: boolean;
 }
 
+function stripUndefinedDeep<T>(value: T): T {
+    if (value === null || value === undefined || typeof value !== 'object') {
+        return value;
+    }
+    if (value instanceof Date || value instanceof admin.firestore.Timestamp) {
+        return value;
+    }
+    if (Array.isArray(value)) {
+        return value.filter((item) => item !== undefined).map((item) => stripUndefinedDeep(item)) as unknown as T;
+    }
+    const proto = Object.getPrototypeOf(value);
+    if (proto !== Object.prototype && proto !== null) {
+        return value;
+    }
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+        if (v !== undefined) {
+            out[k] = stripUndefinedDeep(v);
+        }
+    }
+    return out as T;
+}
+
 function fmtRupiah(num: number): string {
     return `Rp ${Math.round(num || 0).toLocaleString('id-ID')}`;
 }
 
-function buildSystemInstruction(userName: string, userRole: WaAgentRole): string {
-    const todayIso = new Date().toISOString().slice(0, 10);
+function buildSystemInstruction(
+    userName: string,
+    userRole: WaAgentRole,
+    activePendingAction?: PendingAction | null
+): string {
+    const todayIso = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date());
     const roleLabel = ROLE_LABELS[userRole] || userRole;
     const bankLines = COMPANY_INFO.bankAccounts
         .map((b) => `${b.bank} ${b.accountNumber} a/n ${b.accountName}`)
         .join(', ');
+
+    const shouldIncludeJsonContext =
+        activePendingAction &&
+        (activePendingAction.type === 'batch_update_stt_pricing' ||
+            activePendingAction.type === 'create_voyage' ||
+            activePendingAction.type === 'save_voyage_expenses' ||
+            activePendingAction.type === 'assign_stts_to_voyage');
+
+    const pendingContextBlock = activePendingAction
+        ? `\n\nDRAFT KONFIRMASI YANG SEDANG MENUNGGU SAAT INI (type: ${activePendingAction.type}):\n${activePendingAction.summaryText}${
+              shouldIncludeJsonContext
+                  ? `\nDATA JSON DRAFT AKTIF (gunakan saat user meminta revisi sebagian agar item lain tidak hilang):\n${JSON.stringify(
+                        activePendingAction.payload
+                    )}`
+                  : ''
+          }`
+        : '';
 
     return `Anda adalah *Asisten Operasional AI* resmi untuk ekspedisi *${COMPANY_INFO.name} (CCE)*.
 Anda berbicara langsung dengan staf internal melalui WhatsApp.
@@ -63,7 +115,7 @@ Anda berbicara langsung dengan staf internal melalui WhatsApp.
 PROFIL LAWAN BICARA SAAT INI:
 - Nama: ${userName}
 - Jabatan / Role: ${roleLabel} (${userRole})
-- Tanggal Hari Ini: ${todayIso}
+- Tanggal Hari Ini (WIB): ${todayIso}
 
 PENGETAHUAN WAJIB TENTANG SISTEM CCE:
 1. Cabang & Counter STT:
@@ -88,9 +140,20 @@ ATURAN KERJA & KEAMANAN KETAT:
 - Jika user mengirim **voice note** atau **foto nota/resi/catatan muatan**, ekstrak datanya secara cermat:
   - Jika user hanya bertanya, jawab langsung memakai data tool.
   - Jika user ingin **membuat STT baru**, pastikan minimal \`pengirimName\`, \`penerimaName\`, dan \`tujuan\` sudah diketahui (jika kurang, tanya singkat ke user). Jika sudah cukup, panggil \`propose_create_stt\` agar sistem menyimpan draft dan meminta konfirmasi **YA / BATAL**.
-  - Jika user ingin **membuat Invoice**, cek STT belum tertagih atau panggil \`propose_create_invoice\` agar sistem menghitung nominal asli dari Firestore dan meminta konfirmasi **YA / BATAL**.
-- Jangan pernah menyatakan bahwa STT atau Invoice sudah tersimpan sebelum user membalas **YA** dan sistem benar-benar mengeksekusinya.
-- Jika tool menolak karena batasan role (\`${userRole}\`), jelaskan dengan sopan bahwa fitur tersebut hanya untuk Owner/Admin.`;
+  - Jika user ingin **membuat Invoice**, cek STT belum tertagih atau panggil \`propose_create_invoice\` agar sistem menghitung nominal asli dari Firestore dan meminta konfirmasi **YA / BATAL**. Saat user mengonfirmasi **YA**, sistem otomatis melampirkan gambar PNG invoice langsung ke WhatsApp.
+  - Jika user meminta **gambar / foto invoice** yang sudah ada (misal *"kirim gambar invoice 13828"* atau *"minta gambar invoice terbaru DHS"*), panggil \`get_invoice_image\` agar gambar PNG invoice dikirim langsung ke chat WhatsApp.
+  - Jika user meminta **cek STT pending (mis. dari Manifes Cargo) untuk diisi harga dari riwayat dan diubah status ke dikirim**:
+    1. Panggil \`list_pending_stt_with_price_history\` dengan rentang tanggal yang diminta (konversi tanggal relatif seperti "tanggal 24 - 26" ke tahun/bulan sekarang berdasarkan Tanggal Hari Ini).
+    2. Jika ditemukan STT pending yang memiliki usulan harga dari riwayat, langsung panggil \`propose_batch_update_stt_pricing\` untuk menyimpan draft konfirmasi.
+    3. Tampilkan daftar bernomor yang rapi: No. STT, tanggal, pengirim, penerima/tujuan, koli/berat, harga usulan & sumber riwayatnya, total, serta status tujuan (mis. \`dikirim\`). Jika ada STT yang belum punya riwayat harga atau beratnya masih 0, tampilkan terpisah dengan jelas agar user bisa memberi harga/revisi.
+    4. Minta user membalas **YA / Sudah benar** untuk memproses semua item di draft, atau kirim **revisi** (misal ganti harga STT tertentu, ubah jadi borongan, isi berat, atau hapus STT tertentu dari daftar), atau **BATAL**.
+    5. Jika user membalas dengan **revisi** saat ada draft aktif, perbarui daftar dari DATA JSON DRAFT AKTIF dan panggil ulang \`propose_batch_update_stt_pricing\` dengan seluruh item terbaru agar draft ter-update dan minta konfirmasi lagi.
+  - Jika user ingin bekerja dengan **Modul Pemberangkatan (Voyages)**:
+    1. **Buat Pemberangkatan Baru**: gunakan \`propose_create_voyage\`. Input tujuan/rute, nama kapal, **unit berangkat secara manual** (bebas berupa nama sopir atau nopol tanpa harus memilih dari daftar armada), tanggal berangkat, tanggal tiba (opsional), dan status (\`planned\` / \`in-progress\` / \`completed\`). Jika data inti seperti tujuan belum jelas, tanya singkat; jika sudah cukup, langsung ajukan draft untuk dikonfirmasi **YA / revisi / BATAL**.
+    2. **Input Biaya Pemberangkatan**: gunakan \`propose_save_voyage_expenses\` (mendukung biaya kapal seperti tiket Surabaya/Makassar, ops Surabaya/Makassar, gaji sopir, sewa mobil, ops tambahan, maupun pengeluaran berkategori lain). Jika user tidak menyebut nomor VOY, sistem otomatis menargetkan pemberangkatan terbaru.
+    3. **Masukkan STT Pending yang Belum Ikut Kapal Mana Pun**: pertama panggil \`list_unassigned_stts\` (default \`statusFilter="pending"\`; jika kosong tapi \`unassignedDikirimCount > 0\`, beri tahu user bahwa ada STT berstatus \`dikirim\` yang juga belum masuk kapal). Setelah user memilih STT atau minta masukkan semuanya, panggil \`propose_assign_stts_to_voyage\` dan minta konfirmasi **YA / revisi / BATAL**.
+- Jangan pernah menyatakan bahwa STT, Invoice, Pemberangkatan, atau perubahan data sudah tersimpan sebelum user membalas **YA / Sudah benar** dan sistem benar-benar mengeksekusinya.
+- Jika tool menolak karena batasan role (\`${userRole}\`), jelaskan dengan sopan bahwa fitur tersebut hanya untuk Owner/Admin.${pendingContextBlock}`;
 }
 
 async function resolveAuthorizedUser(phone: string): Promise<WaAgentUser | null> {
@@ -151,7 +214,7 @@ async function writeAuditLog(entry: {
 async function executePendingAction(
     pending: PendingAction,
     actorName: string
-): Promise<{ replyText: string; toolName: string }> {
+): Promise<{ replyText: string; toolName: string; replyMedia?: ReplyMediaItem[] }> {
     if (pending.type === 'create_stt') {
         const res = await executeCreateStt(pending.payload, actorName);
         return {
@@ -167,15 +230,113 @@ async function executePendingAction(
         };
     }
 
+    if (pending.type === 'batch_update_stt_pricing') {
+        const res = await executeBatchUpdateSttPricing(pending.payload, actorName);
+        const itemLines = res.updatedItems
+            .slice(0, 20)
+            .map(
+                (it, idx) =>
+                    `${idx + 1}. *${it.noSTT}* (${it.pengirimName}): *${fmtRupiah(it.jumlah)}* → Status *${it.newStatus}*`
+            );
+        if (res.updatedItems.length > 20) {
+            itemLines.push(`... dan ${res.updatedItems.length - 20} STT lainnya`);
+        }
+        if (res.skippedItems.length > 0) {
+            itemLines.push('');
+            itemLines.push('⚠️ *Dilewati:*');
+            for (const sk of res.skippedItems) {
+                itemLines.push(`• ${sk.noSTT}: ${sk.reason}`);
+            }
+        }
+        return {
+            toolName: 'execute_batch_update_stt_pricing',
+            replyText: [
+                `✅ *${res.updatedCount} STT Berhasil Diisi Harga & Diupdate!*`,
+                ...itemLines,
+                ``,
+                `• Total Nilai: *${fmtRupiah(res.totalNominal)}*`,
+                `Semua data sudah otomatis sinkron ke Modul Resi & Transaksi CCE.`,
+            ].join('\n'),
+        };
+    }
+
+    if (pending.type === 'create_voyage') {
+        const res = await executeCreateVoyage(pending.payload, actorName);
+        return {
+            toolName: 'execute_create_voyage',
+            replyText: [
+                `✅ *Pemberangkatan Baru Berhasil Dibuat!*`,
+                `• No. Voyage: *${res.voyageNumber}*`,
+                `• Rute: ${res.route}`,
+                `• Kapal: ${res.shipName || '-'}`,
+                `• Unit Berangkat: ${res.vehicleNumbers.length > 0 ? res.vehicleNumbers.join(', ') : '-'}`,
+                `• Tgl Berangkat: ${res.departureDate}${res.arrivalDate ? ` | Tgl Tiba: ${res.arrivalDate}` : ''}`,
+                `• Detail Web: ${res.detailUrl}`,
+                ``,
+                `Langkah berikutnya, Anda bisa langsung ketik:`,
+                `• *"Input biaya ${res.voyageNumber}: ..."* untuk catat biaya kapal`,
+                `• *"Cek STT pending yang belum ikut kapal"* untuk memasukkan muatan ke ${res.voyageNumber}`,
+            ].join('\n'),
+        };
+    }
+
+    if (pending.type === 'save_voyage_expenses') {
+        const res = await executeSaveVoyageExpenses(pending.payload, actorName);
+        return {
+            toolName: 'execute_save_voyage_expenses',
+            replyText: [
+                `✅ *Biaya Pemberangkatan ${res.voyageNumber} Tersimpan!*`,
+                `• Kapal: ${res.shipName}`,
+                ...(res.totalShipCosts > 0 ? [`• Total Biaya Kapal: *${fmtRupiah(res.totalShipCosts)}*`] : []),
+                ...(res.generalExpensesAddedCount > 0
+                    ? [`• Pengeluaran Tambahan: ${res.generalExpensesAddedCount} item (*${fmtRupiah(res.totalGeneralExpenses)}*)`]
+                    : []),
+                `• Detail Web: ${res.detailUrl}`,
+                ``,
+                `Jika mau lanjut masukkan STT ke ${res.voyageNumber}, ketik *"Cek STT pending yang belum ikut kapal"*.`,
+            ].join('\n'),
+        };
+    }
+
+    if (pending.type === 'assign_stts_to_voyage') {
+        const res = await executeAssignSttsToVoyage(pending.payload, actorName);
+        return {
+            toolName: 'execute_assign_stts_to_voyage',
+            replyText: [
+                `✅ *${res.addedCount} STT Berhasil Dimasukkan ke ${res.voyageNumber}!*`,
+                `• Kapal: ${res.shipName}`,
+                `• Muatan Ditambahkan: ${res.addedKoli} koli | ${res.addedWeight.toLocaleString('id-ID')} kg/vol`,
+                `• Nilai Muatan Ditambahkan: *${fmtRupiah(res.addedOmzet)}*`,
+                `• Total STT di ${res.voyageNumber} saat ini: *${res.totalSttInVoyage} resi*`,
+                `• Detail Web: ${res.detailUrl}`,
+            ].join('\n'),
+        };
+    }
+
     const inv = await executeCreateInvoice(pending.payload, actorName);
+    let replyMedia: ReplyMediaItem[] | undefined;
+    try {
+        const rendered = await renderInvoicePngById(inv.id);
+        replyMedia = [
+            {
+                base64: rendered.base64,
+                mimeType: rendered.mimeType,
+                filename: rendered.filename,
+            },
+        ];
+    } catch (imgErr) {
+        console.error('[WA Agent] Failed rendering invoice PNG after creation:', imgErr);
+    }
+
     return {
         toolName: 'execute_create_invoice',
+        replyMedia,
         replyText: [
             `✅ *Invoice Berhasil Diterbitkan!*`,
             `• No. Invoice: *${inv.invoiceNumber}*`,
             `• Client: ${inv.clientName} (${inv.sttCount} resi)`,
             `• Total Tagihan: *${fmtRupiah(inv.totalAmount)}*`,
-            `• Cetak A5 / Kirim WA (PNG/JPG): ${inv.printUrl}`,
+            `• Link Cetak: ${inv.printUrl}`,
             ``,
             `Semua STT terkait otomatis tertaut dan tidak akan tertagih ganda.`,
         ].join('\n'),
@@ -279,7 +440,7 @@ export async function processAgentMessage(input: AgentProcessInput): Promise<Age
         await sessionRef.set({
             phone: cleanPhone,
             history: updatedHistory,
-            pendingAction: nextPending,
+            pendingAction: nextPending ? stripUndefinedDeep(nextPending) : null,
             updatedAt: admin.firestore.Timestamp.now(),
         });
     };
@@ -288,7 +449,7 @@ export async function processAgentMessage(input: AgentProcessInput): Promise<Age
     if (pendingAction && !hasMedia && userText) {
         if (CONFIRM_REGEX.test(userText)) {
             try {
-                const { replyText, toolName } = await executePendingAction(pendingAction, resolvedName);
+                const { replyText, toolName, replyMedia } = await executePendingAction(pendingAction, resolvedName);
                 await appendAndSaveSession(userText, replyText, null);
                 await writeAuditLog({
                     messageId: input.messageId,
@@ -301,7 +462,13 @@ export async function processAgentMessage(input: AgentProcessInput): Promise<Age
                     toolsUsed: [toolName],
                     status: 'ok',
                 });
-                return { replyText, toolsUsed: [toolName], pendingAction: null, status: 'ok' };
+                return {
+                    replyText,
+                    ...(replyMedia && replyMedia.length > 0 ? { replyMedia } : {}),
+                    toolsUsed: [toolName],
+                    pendingAction: null,
+                    status: 'ok',
+                };
             } catch (err: any) {
                 const errReply = `❌ Gagal menyimpan data: ${err?.message || 'Terjadi kesalahan saat menulis ke database.'}`;
                 await appendAndSaveSession(userText, errReply, null);
@@ -348,7 +515,7 @@ export async function processAgentMessage(input: AgentProcessInput): Promise<Age
 
     const ai = new GoogleGenAI({ apiKey });
     const toolDeclarations = getToolDeclarationsForRole(resolvedRole);
-    const systemInstruction = buildSystemInstruction(resolvedName, resolvedRole);
+    const systemInstruction = buildSystemInstruction(resolvedName, resolvedRole, pendingAction);
 
     const contents: Content[] = history.map((item) => ({
         role: item.role,
@@ -383,6 +550,7 @@ export async function processAgentMessage(input: AgentProcessInput): Promise<Age
     contents.push({ role: 'user', parts: currentParts });
 
     const toolsUsed: string[] = [];
+    const collectedMedia: ReplyMediaItem[] = [];
     let nextPendingAction: PendingAction | null = pendingAction;
     let finalReplyText = '';
 
@@ -419,6 +587,9 @@ export async function processAgentMessage(input: AgentProcessInput): Promise<Age
                 if (outcome.pendingAction) {
                     nextPendingAction = outcome.pendingAction;
                 }
+                if (outcome.replyMedia && outcome.replyMedia.length > 0) {
+                    collectedMedia.push(...outcome.replyMedia);
+                }
 
                 fnResponseParts.push({
                     functionResponse: {
@@ -453,6 +624,7 @@ export async function processAgentMessage(input: AgentProcessInput): Promise<Age
 
         return {
             replyText: finalReplyText,
+            ...(collectedMedia.length > 0 ? { replyMedia: collectedMedia } : {}),
             toolsUsed,
             pendingAction: nextPendingAction,
             status: 'ok',

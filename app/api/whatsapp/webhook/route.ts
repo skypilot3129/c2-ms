@@ -7,6 +7,7 @@ import {
     getOpenWaCredentials,
     getWaAgentConfig,
     resolveOpenWaContactPhone,
+    sendOpenWaImage,
     sendOpenWaText,
 } from '@/lib/wa-agent/openwa-client';
 import { normalizeWaPhone } from '@/types/wa-agent';
@@ -169,6 +170,52 @@ export async function POST(request: Request) {
 
         if (result.ignored) {
             return NextResponse.json({ ok: true, ignored: true, status: result.status });
+        }
+
+        if (result.replyMedia && result.replyMedia.length > 0) {
+            const firstMedia = result.replyMedia[0];
+            const replyText = result.replyText || '';
+            const captionFits = replyText.length > 0 && replyText.length <= 1000;
+            const caption = firstMedia.caption || (captionFits ? replyText : undefined);
+
+            let imgRes = await sendOpenWaImage(
+                fromChatId,
+                firstMedia.base64,
+                firstMedia.mimeType,
+                caption,
+                incomingSessionId,
+                config,
+                firstMedia.filename
+            );
+            if (!imgRes.ok && !isGroup && fromChatId.endsWith('@lid') && senderPhone) {
+                imgRes = await sendOpenWaImage(
+                    senderPhone,
+                    firstMedia.base64,
+                    firstMedia.mimeType,
+                    caption,
+                    incomingSessionId,
+                    config,
+                    firstMedia.filename
+                );
+            }
+
+            if (imgRes.ok) {
+                if (replyText && !captionFits) {
+                    let textRes = await sendOpenWaText(fromChatId, replyText, incomingSessionId, config);
+                    if (!textRes.ok && !isGroup && fromChatId.endsWith('@lid') && senderPhone) {
+                        textRes = await sendOpenWaText(senderPhone, replyText, incomingSessionId, config);
+                    }
+                }
+                return NextResponse.json({
+                    ok: true,
+                    status: result.status,
+                    replied: true,
+                    mediaSent: true,
+                    toolsUsed: result.toolsUsed,
+                });
+            }
+
+            console.error('[WA Agent Webhook] Failed sending OpenWA image, falling back to text:', imgRes.error);
         }
 
         if (result.replyText) {

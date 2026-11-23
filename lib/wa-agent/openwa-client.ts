@@ -226,7 +226,8 @@ export async function sendOpenWaImage(
     mimetype: string,
     caption?: string,
     sessionIdOverride?: string,
-    configOverride?: WaAgentConfig
+    configOverride?: WaAgentConfig,
+    filename?: string
 ): Promise<{ ok: boolean; error?: string }> {
     const cfg = configOverride || (await getWaAgentConfig());
     const { baseUrl, sessionId, apiKey } = getOpenWaCredentials(cfg);
@@ -256,10 +257,9 @@ export async function sendOpenWaImage(
             headers,
             body: JSON.stringify({
                 chatId: targetChatId,
-                image: {
-                    data: cleanBase64,
-                    mimetype: mimetype || 'image/jpeg',
-                },
+                base64: cleanBase64,
+                mimetype: mimetype || 'image/png',
+                ...(filename ? { filename } : {}),
                 ...(caption ? { caption } : {}),
             }),
         });

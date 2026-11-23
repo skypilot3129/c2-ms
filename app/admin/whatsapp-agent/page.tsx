@@ -68,6 +68,8 @@ interface SimMessage {
 }
 
 const QUICK_PROMPTS = [
+    'Buat pemberangkatan baru Surabaya - Makassar kapal KM Dharma Kencana VII, unit sopir Budi & L 9988 AB, berangkat hari ini, status berlayar',
+    'Cek STT pending terbaru, usulkan harga dari riwayat, dan ubah status ke dikirim',
     'Cek piutang belum lunas',
     'Ringkasan omzet kapal terbaru',
     'Cek STT belum dibuat invoice',
@@ -339,6 +341,11 @@ export default function WhatsAppAgentAdminPage() {
                 throw new Error(data.error || 'Request gagal');
             }
             setSimPending(data.pendingAction || null);
+            const firstMedia = Array.isArray(data.replyMedia) ? data.replyMedia[0] : undefined;
+            const mediaPreview =
+                firstMedia?.base64 && firstMedia?.mimeType
+                    ? `data:${firstMedia.mimeType};base64,${firstMedia.base64}`
+                    : undefined;
             setSimMessages((prev) => [
                 ...prev,
                 {
@@ -346,6 +353,7 @@ export default function WhatsAppAgentAdminPage() {
                     sender: 'bot',
                     text: data.replyText || 'Tidak ada respons.',
                     toolsUsed: data.toolsUsed || [],
+                    imagePreview: mediaPreview,
                 },
             ]);
         } catch (err: any) {
@@ -720,11 +728,18 @@ export default function WhatsAppAgentAdminPage() {
                                                 }`}
                                             >
                                                 {msg.imagePreview && (
-                                                    <img
-                                                        src={msg.imagePreview}
-                                                        alt="Lampiran"
-                                                        className="max-h-40 rounded-lg mb-2 object-contain"
-                                                    />
+                                                    <a
+                                                        href={msg.imagePreview}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        title="Klik untuk perbesar gambar"
+                                                    >
+                                                        <img
+                                                            src={msg.imagePreview}
+                                                            alt="Lampiran"
+                                                            className="max-h-72 rounded-lg mb-2 object-contain border border-slate-200 bg-white"
+                                                        />
+                                                    </a>
                                                 )}
                                                 <p>{msg.text}</p>
                                                 {msg.toolsUsed && msg.toolsUsed.length > 0 && (
@@ -756,7 +771,19 @@ export default function WhatsAppAgentAdminPage() {
                                     <div className="px-4 py-2 bg-amber-50 border-t border-amber-200 flex items-center justify-between gap-2 text-xs">
                                         <span className="font-bold text-amber-900 flex items-center gap-1.5">
                                             <CheckCircle2 size={14} className="text-amber-600" />
-                                            Menunggu konfirmasi draft ({simPending.type === 'create_stt' ? 'Buat STT' : 'Buat Invoice'})
+                                            Menunggu konfirmasi draft (
+                                            {simPending.type === 'create_stt'
+                                                ? 'Buat STT'
+                                                : simPending.type === 'batch_update_stt_pricing'
+                                                  ? 'Update Harga & Status STT'
+                                                  : simPending.type === 'create_voyage'
+                                                    ? 'Buat Pemberangkatan'
+                                                    : simPending.type === 'save_voyage_expenses'
+                                                      ? 'Biaya Pemberangkatan'
+                                                      : simPending.type === 'assign_stts_to_voyage'
+                                                        ? 'Masukkan STT ke Kapal'
+                                                        : 'Buat Invoice'}
+                                            )
                                         </span>
                                         <div className="flex gap-2">
                                             <button

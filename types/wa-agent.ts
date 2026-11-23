@@ -1,6 +1,7 @@
 import type { Branch } from './branch';
 import type { UserRole } from './roles';
-import type { BeratUnit, CaraPelunasan, MetodePembayaran, TipeTransaksi } from './transaction';
+import type { BeratUnit, CaraPelunasan, MetodePembayaran, StatusTransaksi, TipeTransaksi } from './transaction';
+import type { ExpenseCategory, VoyageStatus } from './voyage';
 
 export type WaAgentRole = UserRole;
 
@@ -67,17 +68,133 @@ export interface CreateInvoiceDraftPayload {
     notes?: string;
 }
 
+export interface ReplyMediaItem {
+    base64: string;
+    mimeType: string;
+    filename?: string;
+    caption?: string;
+}
+
+export interface BatchUpdateSttPricingItem {
+    transactionId: string;
+    noSTT: string;
+    pengirimName: string;
+    penerimaName: string;
+    tujuan: string;
+    koli: number;
+    berat: number;
+    beratUnit: BeratUnit;
+    tipeTransaksi: TipeTransaksi;
+    harga: number; // Tarif satuan untuk regular; 0 untuk borongan
+    jumlah: number; // Total Rupiah (base amount sebelum PPN)
+    isTaxable?: boolean;
+    newStatus: StatusTransaksi;
+    priceSource?: string;
+}
+
+export interface BatchUpdateSttPricingDraftPayload {
+    items: BatchUpdateSttPricingItem[];
+    targetStatus: StatusTransaksi;
+}
+
+export interface VoyageShipCostsInput {
+    tiket?: number;
+    tiketMakassar?: number;
+    opsSurabaya?: number;
+    opsMakassar?: number;
+    gajiSopir?: number;
+    sewaMobil?: number;
+    opsTambahan?: number;
+    penjualanMakassar?: number;
+    notes?: string;
+}
+
+export interface VoyageGeneralExpenseInput {
+    category: ExpenseCategory;
+    amount: number;
+    description: string;
+    date?: string; // YYYY-MM-DD
+}
+
+export interface CreateVoyageDraftPayload {
+    route: string;
+    shipName: string;
+    vehicleNumbers: string[]; // Bebas: nama sopir atau nopol manual
+    departureDate: string; // YYYY-MM-DD
+    arrivalDate?: string; // YYYY-MM-DD
+    status: VoyageStatus;
+    notes?: string;
+    shipCosts?: VoyageShipCostsInput;
+    generalExpenses?: VoyageGeneralExpenseInput[];
+    transactionIds?: string[];
+    noSTTs?: string[];
+}
+
+export interface SaveVoyageExpensesDraftPayload {
+    voyageId: string;
+    voyageNumber: string;
+    shipName: string;
+    route: string;
+    departureDate: string; // YYYY-MM-DD
+    shipCosts?: VoyageShipCostsInput;
+    generalExpenses?: VoyageGeneralExpenseInput[];
+}
+
+export interface AssignSttsToVoyageDraftPayload {
+    voyageId: string;
+    voyageNumber: string;
+    shipName: string;
+    route: string;
+    departureDate: string;
+    items: Array<{
+        transactionId: string;
+        noSTT: string;
+        pengirimName: string;
+        penerimaName: string;
+        tujuan: string;
+        koli: number;
+        berat: number;
+        beratUnit: string;
+        jumlah: number;
+        status: string;
+    }>;
+}
+
 export type PendingAction =
     | {
-          type: 'create_stt';
+        type: 'create_stt';
+        summaryText: string;
+        payload: CreateSttDraftPayload;
+        createdAt: number;
+    }
+    | {
+        type: 'create_invoice';
+        summaryText: string;
+        payload: CreateInvoiceDraftPayload;
+        createdAt: number;
+    }
+    | {
+          type: 'batch_update_stt_pricing';
           summaryText: string;
-          payload: CreateSttDraftPayload;
+          payload: BatchUpdateSttPricingDraftPayload;
           createdAt: number;
       }
     | {
-          type: 'create_invoice';
+          type: 'create_voyage';
           summaryText: string;
-          payload: CreateInvoiceDraftPayload;
+          payload: CreateVoyageDraftPayload;
+          createdAt: number;
+      }
+    | {
+          type: 'save_voyage_expenses';
+          summaryText: string;
+          payload: SaveVoyageExpensesDraftPayload;
+          createdAt: number;
+      }
+    | {
+          type: 'assign_stts_to_voyage';
+          summaryText: string;
+          payload: AssignSttsToVoyageDraftPayload;
           createdAt: number;
       };
 
