@@ -81,6 +81,99 @@ export function extractPhoneFromChatId(chatId: string): string {
     return normalizeWaPhone(withoutDomain);
 }
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Resolve a session name (e.g. "cce-admin") to its OpenWA UUID if needed.
+ * Returns the original string if already a UUID or lookup fails.
+ */
+async function resolveOpenWaSessionId(
+    sessionIdOrName: string,
+    baseUrl: string,
+    apiKey: string
+): Promise<string> {
+    const trimmed = sessionIdOrName.trim();
+    if (!trimmed || UUID_REGEX.test(trimmed)) {
+        return trimmed;
+    }
+
+    const headers: Record<string, string> = {};
+    if (apiKey) {
+        headers['X-API-Key'] = apiKey;
+    }
+
+    try {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 5000);
+        const res = await fetch(`${baseUrl}/api/sessions`, { headers, signal: controller.signal }).finally(() =>
+            clearTimeout(timer)
+        );
+        if (!res.ok) return trimmed;
+
+        const body: any = await res.json().catch(() => null);
+        const list: any[] = Array.isArray(body)
+            ? body
+            : Array.isArray(body?.data)
+              ? body.data
+              : Array.isArray(body?.sessions)
+                ? body.sessions
+                : [];
+
+        const matched = list.find(
+            (s) => s && (s.name === trimmed || s.id === trimmed)
+        );
+        if (matched?.id && typeof matched.id === 'string') {
+            return matched.id;
+        }
+    } catch {
+        // Fallback to original session name/id
+    }
+
+    return trimmed;
+}
+
+/**
+ * Resolve an OpenWA contact JID (such as an @lid privacy ID) to a normalized phone number.
+ */
+export async function resolveOpenWaContactPhone(
+    contactId: string,
+    sessionIdOverride?: string,
+    configOverride?: WaAgentConfig
+): Promise<string | null> {
+    const trimmedContact = String(contactId || '').trim();
+    if (!trimmedContact) return null;
+
+    const cfg = configOverride || (await getWaAgentConfig());
+    const { baseUrl, sessionId, apiKey } = getOpenWaCredentials(cfg);
+    const targetSession = await resolveOpenWaSessionId(
+        sessionIdOverride?.trim() || sessionId,
+        baseUrl,
+        apiKey
+    );
+    if (!targetSession) return null;
+
+    const headers: Record<string, string> = {};
+    if (apiKey) {
+        headers['X-API-Key'] = apiKey;
+    }
+
+    try {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 5000);
+        const res = await fetch(
+            `${baseUrl}/api/sessions/${encodeURIComponent(targetSession)}/contacts/${encodeURIComponent(trimmedContact)}/phone`,
+            { headers, signal: controller.signal }
+        ).finally(() => clearTimeout(timer));
+
+        if (!res.ok) return null;
+        const data: any = await res.json().catch(() => null);
+        const phone = data?.phone ? normalizeWaPhone(String(data.phone)) : '';
+        return phone || null;
+    } catch {
+        return null;
+    }
+}
+
 export async function sendOpenWaText(
     chatId: string,
     text: string,
@@ -89,7 +182,11 @@ export async function sendOpenWaText(
 ): Promise<{ ok: boolean; error?: string }> {
     const cfg = configOverride || (await getWaAgentConfig());
     const { baseUrl, sessionId, apiKey } = getOpenWaCredentials(cfg);
-    const targetSession = sessionIdOverride?.trim() || sessionId;
+    const targetSession = await resolveOpenWaSessionId(
+        sessionIdOverride?.trim() || sessionId,
+        baseUrl,
+        apiKey
+    );
     const targetChatId = phoneToChatId(chatId);
 
     if (!targetChatId) {
@@ -133,7 +230,11 @@ export async function sendOpenWaImage(
 ): Promise<{ ok: boolean; error?: string }> {
     const cfg = configOverride || (await getWaAgentConfig());
     const { baseUrl, sessionId, apiKey } = getOpenWaCredentials(cfg);
-    const targetSession = sessionIdOverride?.trim() || sessionId;
+    const targetSession = await resolveOpenWaSessionId(
+        sessionIdOverride?.trim() || sessionId,
+        baseUrl,
+        apiKey
+    );
     const targetChatId = phoneToChatId(chatId);
 
     if (!targetChatId) {

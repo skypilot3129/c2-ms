@@ -6,8 +6,10 @@ import {
     extractPhoneFromChatId,
     getOpenWaCredentials,
     getWaAgentConfig,
+    resolveOpenWaContactPhone,
     sendOpenWaText,
 } from '@/lib/wa-agent/openwa-client';
+import { normalizeWaPhone } from '@/types/wa-agent';
 
 function safeTimingEquals(a: string, b: string): boolean {
     const bufA = Buffer.from(a);
@@ -33,6 +35,7 @@ function verifyWebhookSecret(request: Request, rawBody: string, expectedSecret: 
     }
 
     const sigHeader =
+        request.headers.get('x-openwa-signature') ||
         request.headers.get('x-hub-signature-256') ||
         request.headers.get('x-webhook-signature') ||
         '';
@@ -88,7 +91,7 @@ export async function POST(request: Request) {
             return NextResponse.json({ ok: true, ignored: true, reason: 'empty_payload' });
         }
 
-        if (payload.fromMe === true || body.fromMe === true) {
+        if (payload.fromMe === true || body.fromMe === true || payload.direction === 'outgoing') {
             return NextResponse.json({ ok: true, ignored: true, reason: 'fromMe' });
         }
 
@@ -97,8 +100,9 @@ export async function POST(request: Request) {
             return NextResponse.json({ ok: true, ignored: true, reason: 'ignored_chat_type' });
         }
 
+        const incomingSessionId = String(body.sessionId || body.session || defaultSessionId || '').trim();
         const isGroup = fromChatId.endsWith('@g.us');
-        let senderPhone = extractPhoneFromChatId(fromChatId);
+        let senderPhone = '';
         let textBody = String(payload.body || payload.text || payload.caption || payload.content || '').trim();
 
         if (isGroup) {
@@ -110,12 +114,28 @@ export async function POST(request: Request) {
                 return NextResponse.json({ ok: true, ignored: true, reason: 'missing_group_prefix' });
             }
             textBody = textBody.slice(prefix.length).trim();
-            const participantId = String(payload.author || payload.participant || payload.key?.participant || '');
-            senderPhone = extractPhoneFromChatId(participantId);
+            const participantId = String(payload.author || payload.participant || payload.key?.participant || '').trim();
+            if (participantId.endsWith('@lid')) {
+                senderPhone = (await resolveOpenWaContactPhone(participantId, incomingSessionId, config)) || '';
+            }
+            if (!senderPhone) {
+                senderPhone = extractPhoneFromChatId(participantId);
+            }
+        } else {
+            const explicitPhone = payload.senderPhone || payload.fromPhone || payload.phone || '';
+            if (explicitPhone) {
+                senderPhone = normalizeWaPhone(String(explicitPhone));
+            }
+            if (!senderPhone && fromChatId.endsWith('@lid')) {
+                senderPhone = (await resolveOpenWaContactPhone(fromChatId, incomingSessionId, config)) || '';
+            }
+            if (!senderPhone) {
+                senderPhone = extractPhoneFromChatId(fromChatId);
+            }
         }
 
-        const messageId = String(payload.id || payload.messageId || payload.key?.id || '').trim() || undefined;
-        const incomingSessionId = String(body.sessionId || body.session || defaultSessionId || '').trim();
+        const messageId =
+            String(payload.id || payload.waMessageId || payload.messageId || payload.key?.id || '').trim() || undefined;
 
         // Optional multimodal attachment (image / voice note)
         let media: { base64: string; mimeType: string } | undefined;
@@ -152,7 +172,10 @@ export async function POST(request: Request) {
         }
 
         if (result.replyText) {
-            const sendRes = await sendOpenWaText(fromChatId, result.replyText, incomingSessionId, config);
+            let sendRes = await sendOpenWaText(fromChatId, result.replyText, incomingSessionId, config);
+            if (!sendRes.ok && !isGroup && fromChatId.endsWith('@lid') && senderPhone) {
+                sendRes = await sendOpenWaText(senderPhone, result.replyText, incomingSessionId, config);
+            }
             if (!sendRes.ok) {
                 console.error('[WA Agent Webhook] Failed sending OpenWA reply:', sendRes.error);
             }

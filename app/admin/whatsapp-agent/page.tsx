@@ -75,6 +75,12 @@ const QUICK_PROMPTS = [
     'Buatkan invoice untuk DHS dari STT yang belum ditagih',
 ];
 
+const GEMINI_MODEL_OPTIONS = [
+    { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash (Stabil & Efisien)' },
+    { value: 'gemini-3.5-flash', label: 'Gemini 3.5 Flash' },
+    { value: 'gemini-3.8-flash', label: 'Gemini 3.8 Flash' },
+] as const;
+
 export default function WhatsAppAgentAdminPage() {
     const { user, role, employee } = useAuth();
     const isOwner = role === 'owner' || (!employee && Boolean(user));
@@ -521,6 +527,24 @@ export default function WhatsAppAgentAdminPage() {
                                         </div>
                                     </div>
 
+                                    <div className="text-xs">
+                                        <label className="font-bold text-slate-600 block mb-1">Model AI (Gemini)</label>
+                                        <select
+                                            value={config.modelName}
+                                            onChange={(e) => setConfig({ ...config, modelName: e.target.value })}
+                                            className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-800"
+                                        >
+                                            {!GEMINI_MODEL_OPTIONS.some((m) => m.value === config.modelName) && config.modelName && (
+                                                <option value={config.modelName}>{config.modelName}</option>
+                                            )}
+                                            {GEMINI_MODEL_OPTIONS.map((m) => (
+                                                <option key={m.value} value={m.value}>
+                                                    {m.label}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+
                                     <div className="flex items-center justify-between gap-3 pt-1">
                                         <label className="flex items-center gap-2 text-xs font-semibold text-slate-700 cursor-pointer">
                                             <input
@@ -648,7 +672,7 @@ export default function WhatsAppAgentAdminPage() {
                                         <div>
                                             <h2 className="font-extrabold text-sm">Simulator Karyawan AI WhatsApp</h2>
                                             <p className="text-[11px] text-emerald-100">
-                                                Terhubung langsung ke Firestore CCE &amp; Gemini 2.5
+                                                Terhubung langsung ke Firestore CCE &amp; {config.modelName}
                                             </p>
                                         </div>
                                     </div>

@@ -15,6 +15,7 @@ services:
       - BAILEYS_AUTH_DIR=/app/data/baileys
       - AUTO_START_SESSIONS=${AUTO_START_SESSIONS:-true}
       - TZ=Asia/Jakarta
+      - SSRF_ALLOWED_HOSTS=${SSRF_ALLOWED_HOSTS:-host.docker.internal}
     volumes:
       - openwa-data:/app/data
 
