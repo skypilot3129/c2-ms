@@ -10,7 +10,7 @@ import type { Invoice } from '@/types/invoice';
 import type { Transaction } from '@/types/transaction';
 import { terbilang } from '@/lib/currency';
 import { COMPANY_INFO } from '@/lib/company-config';
-import { toBlob, toJpeg, toPng } from 'html-to-image';
+import { toCanvas } from 'html-to-image';
 
 function fmtAngka(num: number): string {
     return num.toLocaleString('id-ID');
@@ -213,6 +213,12 @@ function dataUrlToFile(dataUrl: string, filename: string, mimeType: string): Fil
     return new File([ab], filename, { type: mimeType });
 }
 
+function canvasToPngBlob(canvas: HTMLCanvasElement): Promise<Blob | null> {
+    return new Promise((resolve) => {
+        canvas.toBlob((blob) => resolve(blob), 'image/png', 1);
+    });
+}
+
 function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
     const { id } = use(params);
     const router = useRouter();
@@ -350,35 +356,83 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
     const waitForImages = async (node: HTMLElement) => {
         const images = Array.from(node.querySelectorAll('img'));
         await Promise.all(
-            images.map((img) => {
-                if (img.complete && img.naturalWidth > 0) return Promise.resolve();
-                return new Promise<void>((resolve) => {
-                    const done = () => resolve();
-                    img.addEventListener('load', done, { once: true });
-                    img.addEventListener('error', done, { once: true });
-                });
+            images.map(async (img) => {
+                if (!img.complete || img.naturalWidth === 0) {
+                    await new Promise<void>((resolve) => {
+                        const done = () => resolve();
+                        img.addEventListener('load', done, { once: true });
+                        img.addEventListener('error', done, { once: true });
+                    });
+                }
+                if (typeof img.decode === 'function') {
+                    try {
+                        await img.decode();
+                    } catch {
+                        // Ignore decode failure for broken/empty images
+                    }
+                }
             })
         );
     };
 
-    const buildCaptureOptions = async (isJpeg: boolean) => {
+    const renderInvoiceCanvas = async (node: HTMLElement): Promise<HTMLCanvasElement> => {
         if (document.activeElement instanceof HTMLElement) {
             document.activeElement.blur();
         }
-        if (invoiceRef.current) {
-            await waitForImages(invoiceRef.current);
-        }
-        return {
+        await waitForImages(node);
+
+        const canvas = await toCanvas(node, {
             pixelRatio: 2.5,
             backgroundColor: '#ffffff',
-            cacheBust: true,
+            cacheBust: false,
             skipFonts: true,
-            ...(isJpeg ? { quality: 0.95 } : {}),
             style: {
                 margin: '0',
                 boxShadow: 'none',
             },
-        };
+        });
+
+        // Composite every loaded <img> directly onto canvas so large assets like /logo.png never vanish
+        const ctx = canvas.getContext('2d');
+        const rootRect = node.getBoundingClientRect();
+        if (ctx && rootRect.width > 0 && rootRect.height > 0) {
+            const scaleX = canvas.width / rootRect.width;
+            const scaleY = canvas.height / rootRect.height;
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = 'high';
+
+            for (const img of Array.from(node.querySelectorAll('img'))) {
+                if (!img.complete || img.naturalWidth === 0 || img.naturalHeight === 0) continue;
+                const r = img.getBoundingClientRect();
+                if (r.width <= 0 || r.height <= 0) continue;
+
+                const boxX = (r.left - rootRect.left) * scaleX;
+                const boxY = (r.top - rootRect.top) * scaleY;
+                const boxW = r.width * scaleX;
+                const boxH = r.height * scaleY;
+
+                const naturalRatio = img.naturalWidth / img.naturalHeight;
+                const boxRatio = boxW / boxH;
+                let drawW = boxW;
+                let drawH = boxH;
+                let drawX = boxX;
+                let drawY = boxY;
+
+                if (naturalRatio > boxRatio) {
+                    drawH = boxW / naturalRatio;
+                    drawY = boxY + (boxH - drawH) / 2;
+                } else {
+                    drawW = boxH * naturalRatio;
+                    drawX = boxX + (boxW - drawW) / 2;
+                }
+
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(boxX, boxY, boxW, boxH);
+                ctx.drawImage(img, drawX, drawY, drawW, drawH);
+            }
+        }
+
+        return canvas;
     };
 
     const triggerDownload = (dataUrl: string, filename: string) => {
@@ -394,10 +448,10 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
         if (!invoiceRef.current || exportingAction) return;
         setExportingAction(format);
         try {
-            const options = await buildCaptureOptions(format === 'jpg');
+            const canvas = await renderInvoiceCanvas(invoiceRef.current);
             const dataUrl = format === 'png'
-                ? await toPng(invoiceRef.current, options)
-                : await toJpeg(invoiceRef.current, options);
+                ? canvas.toDataURL('image/png')
+                : canvas.toDataURL('image/jpeg', 0.95);
             const filename = buildFilename(format);
             triggerDownload(dataUrl, filename);
             showToast(`Invoice berhasil didownload (${filename})`);
@@ -413,8 +467,8 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
         if (!invoiceRef.current || exportingAction) return;
         setExportingAction('copy');
         try {
-            const options = await buildCaptureOptions(false);
-            const blob = await toBlob(invoiceRef.current, options);
+            const canvas = await renderInvoiceCanvas(invoiceRef.current);
+            const blob = await canvasToPngBlob(canvas);
             if (!blob) throw new Error('Blob kosong');
             if (typeof navigator === 'undefined' || !navigator.clipboard?.write || typeof ClipboardItem === 'undefined') {
                 throw new Error('Clipboard API tidak didukung di browser ini');
@@ -435,8 +489,8 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
         try {
             const caption = `Halo Bapak/Ibu ${invoice.clientName},\nBerikut kami kirimkan Invoice *${invoice.invoiceNumber}* (${formatTanggal(issueDate)}) dengan total tagihan *Rp ${fmtAngka(totalAkhirDisplay)}*.\nTerima kasih — ${COMPANY_INFO.name}.`;
 
-            const jpgOptions = await buildCaptureOptions(true);
-            const jpgDataUrl = await toJpeg(invoiceRef.current, jpgOptions);
+            const canvas = await renderInvoiceCanvas(invoiceRef.current);
+            const jpgDataUrl = canvas.toDataURL('image/jpeg', 0.95);
             const jpgFilename = buildFilename('jpg');
             const jpgFile = dataUrlToFile(jpgDataUrl, jpgFilename, 'image/jpeg');
 
@@ -462,8 +516,7 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
             let copiedToClipboard = false;
             try {
                 if (typeof navigator !== 'undefined' && navigator.clipboard?.write && typeof ClipboardItem !== 'undefined') {
-                    const pngOptions = await buildCaptureOptions(false);
-                    const pngBlob = await toBlob(invoiceRef.current, pngOptions);
+                    const pngBlob = await canvasToPngBlob(canvas);
                     if (pngBlob) {
                         await navigator.clipboard.write([new ClipboardItem({ 'image/png': pngBlob })]);
                         copiedToClipboard = true;
@@ -803,7 +856,7 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
                         {/* HEADER FAKTUR */}
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', borderBottom: '2px solid #000', paddingBottom: '6px', marginBottom: '5mm' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '4mm' }}>
-                                <img src="/logo.png" alt="Logo" style={{ width: '22mm', height: '22mm', objectFit: 'contain' }} />
+                                <img src="/logo.png" alt="Logo" loading="eager" style={{ width: '22mm', height: '22mm', objectFit: 'contain' }} />
                                 <div style={{ color: '#000', fontFamily: 'Arial, sans-serif' }}>
                                     <p style={{ fontWeight: 'bold', fontSize: '13pt', marginBottom: '1.5mm', letterSpacing: '0.5px' }}>CV. CAHAYA CARGO EXPRESS</p>
                                     <p style={{ fontSize: '9pt', fontWeight: 'bold', lineHeight: 1.4 }}>Jl. KEMUDI NO. 4 - SURABAYA</p>
@@ -1027,7 +1080,7 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
                         {/* HEADER STANDAR (Desain tetap seperti A4, ukuran fleksibel) */}
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: stdLayout.headerMb, flexShrink: 0 }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: isCompactA5 ? '2.5mm' : '3mm' }}>
-                                <img src="/logo.png" alt="Logo" style={{ width: stdLayout.logoSize, height: stdLayout.logoSize, objectFit: 'contain' }} />
+                                <img src="/logo.png" alt="Logo" loading="eager" style={{ width: stdLayout.logoSize, height: stdLayout.logoSize, objectFit: 'contain' }} />
                                 <div>
                                     <p style={{ fontWeight: 'bold', fontSize: stdLayout.companyPt, lineHeight: 1.3 }}>{COMPANY_INFO.name}</p>
                                     <p style={{ fontSize: stdLayout.addrPt, lineHeight: stdLayout.addrLh }}>{COMPANY_INFO.address}</p>
@@ -1165,6 +1218,7 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
                                 <img
                                     src="/ttd.png"
                                     alt="Tanda Tangan & Stempel"
+                                    loading="eager"
                                     style={{
                                         width: stdLayout.ttdWidth,
                                         maxHeight: stdLayout.ttdMaxHeight,
