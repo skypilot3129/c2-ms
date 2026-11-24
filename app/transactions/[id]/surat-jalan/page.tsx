@@ -108,10 +108,62 @@ function PrintSuratJalanContent() {
     const [loading, setLoading] = useState(true);
     const [notFound, setNotFound] = useState(false);
 
-    // Print Options (default: A5 Full Tanpa Margin)
+    // Print Options (default: A5 Landscape Full)
     const [paperMode, setPaperMode] = useState<'a5' | 'a4'>('a5');
     const [useColoredPlies, setUseColoredPlies] = useState<boolean>(true);
     const [printAllThree, setPrintAllThree] = useState<boolean>(true);
+
+    // Printer calibration state (persisted to localStorage)
+    const [marginMm, setMarginMm] = useState<number>(4);
+    const [offsetX, setOffsetX] = useState<number>(0);
+    const [offsetY, setOffsetY] = useState<number>(0);
+    const [showCalibration, setShowCalibration] = useState<boolean>(false);
+    const [calibrationLoaded, setCalibrationLoaded] = useState<boolean>(false);
+
+    useEffect(() => {
+        try {
+            const raw = localStorage.getItem('cce_sj_print_calibration');
+            if (raw) {
+                const parsed = JSON.parse(raw);
+                if (typeof parsed.marginMm === 'number' && !isNaN(parsed.marginMm)) {
+                    setMarginMm(Math.min(10, Math.max(0, parsed.marginMm)));
+                }
+                if (typeof parsed.offsetX === 'number' && !isNaN(parsed.offsetX)) {
+                    setOffsetX(Math.min(15, Math.max(-15, parsed.offsetX)));
+                }
+                if (typeof parsed.offsetY === 'number' && !isNaN(parsed.offsetY)) {
+                    setOffsetY(Math.min(15, Math.max(-15, parsed.offsetY)));
+                }
+            }
+        } catch {
+            // ignore storage errors
+        } finally {
+            setCalibrationLoaded(true);
+        }
+    }, []);
+
+    useEffect(() => {
+        if (!calibrationLoaded) return;
+        try {
+            localStorage.setItem(
+                'cce_sj_print_calibration',
+                JSON.stringify({ marginMm, offsetX, offsetY })
+            );
+        } catch {
+            // ignore storage errors
+        }
+    }, [marginMm, offsetX, offsetY, calibrationLoaded]);
+
+    const handleResetCalibration = () => {
+        setMarginMm(4);
+        setOffsetX(0);
+        setOffsetY(0);
+        try {
+            localStorage.removeItem('cce_sj_print_calibration');
+        } catch {
+            // ignore
+        }
+    };
 
     // URL Params overrides (from SuratJalanModal or Manifest page)
     const paramNoSTT = searchParams.get('noSTT') || '';
@@ -280,13 +332,25 @@ function PrintSuratJalanContent() {
     const sheetsToRender = printAllThree ? PLY_SHEETS : [PLY_SHEETS[0]];
 
     const pageSizeRule = paperMode === 'a5'
-        ? `@page { size: A5 landscape; margin: 0 !important; }`
-        : `@page { size: A4 portrait; margin: 0 !important; }`;
+        ? `@page { size: A5 landscape; margin: 0; }`
+        : `@page { size: A4 portrait; margin: 0; }`;
+
+    const padTop = Math.max(1, Number((marginMm + offsetY).toFixed(1)));
+    const padBottom = Math.max(1, Number((marginMm - offsetY).toFixed(1)));
+    const padLeft = Math.max(1, Number((marginMm + 1 + offsetX).toFixed(1)));
+    const padRight = Math.max(1, Number((marginMm - offsetX).toFixed(1)));
 
     const paperWidth = '210mm';
-    const paperHeight = '147.6mm';
-    const paperPadding = paperMode === 'a5' ? '1.8mm' : '4mm';
-    const sigCellHeight = paperMode === 'a5' ? '30mm' : '32mm';
+    const paperHeight = '148mm';
+    const paperPadding = paperMode === 'a5'
+        ? `${padTop}mm ${padRight}mm ${padBottom}mm ${padLeft}mm`
+        : '5mm 5mm 5mm 6mm';
+    const sigCellHeight = paperMode === 'a5' ? '31mm' : '32mm';
+
+    const printWrapWidth = paperMode === 'a5' ? '100%' : '210mm';
+    const printWrapHeight = paperMode === 'a5' ? '99.5vh' : '148mm';
+    const printPaperWidth = paperMode === 'a5' ? '100%' : '210mm';
+    const printPaperHeight = paperMode === 'a5' ? '100%' : '148mm';
 
     return (
         <>
@@ -296,7 +360,7 @@ function PrintSuratJalanContent() {
 
                 @media print {
                     html, body {
-                        width: 210mm !important;
+                        width: 100% !important;
                         height: auto !important;
                         margin: 0 !important;
                         padding: 0 !important;
@@ -315,8 +379,8 @@ function PrintSuratJalanContent() {
                     }
                     .sj-page-wrap {
                         display: block !important;
-                        width: ${paperWidth} !important;
-                        height: ${paperHeight} !important;
+                        width: ${printWrapWidth} !important;
+                        height: ${printWrapHeight} !important;
                         margin: 0 !important;
                         padding: 0 !important;
                         overflow: hidden !important;
@@ -329,6 +393,8 @@ function PrintSuratJalanContent() {
                         break-after: auto !important;
                     }
                     .sj-paper {
+                        width: ${printPaperWidth} !important;
+                        height: ${printPaperHeight} !important;
                         box-shadow: none !important;
                         margin: 0 !important;
                     }
@@ -351,7 +417,7 @@ function PrintSuratJalanContent() {
                     height: 100%;
                     font-family: Arial, Helvetica, sans-serif;
                     color: #164486;
-                    border: 1.8px solid #164486;
+                    border: 2px solid #164486;
                     position: relative;
                     display: flex;
                     flex-direction: column;
@@ -534,7 +600,7 @@ function PrintSuratJalanContent() {
                     display: flex;
                     align-items: flex-start;
                     gap: 1.2mm;
-                    padding: 0.55mm 1.6mm;
+                    padding: 0.6mm 1.8mm;
                     border-bottom: 1px solid #164486;
                     min-height: 4.8mm;
                 }
@@ -625,7 +691,7 @@ function PrintSuratJalanContent() {
 
                 .sj-band2-left {
                     border-right: 1.2px solid #164486;
-                    padding: 1.2mm 1.8mm;
+                    padding: 1.4mm 2mm;
                 }
 
                 .sj-band2-right {
@@ -677,7 +743,7 @@ function PrintSuratJalanContent() {
                 }
 
                 .sj-sig-cell {
-                    padding: 1.2mm 2mm 1.5mm 2mm;
+                    padding: 1.4mm 2.2mm 1.6mm 2.2mm;
                     height: ${sigCellHeight};
                     display: flex;
                     flex-direction: column;
@@ -713,7 +779,7 @@ function PrintSuratJalanContent() {
                             </h1>
                         </div>
                         <p className="text-[11px] text-slate-300 mt-0.5">
-                            3 Halaman Terpisah: Putih (Depan) • Merah (Tengah) • Kuning (Belakang) — Default: <strong>A5 Full Tanpa Margin</strong>
+                            3 Halaman Terpisah: Putih • Merah • Kuning — Setting Print: <strong>Kertas A5, Landscape, Margin: Tidak Ada (None), Skala: 100%</strong>
                         </p>
                     </div>
 
@@ -725,7 +791,7 @@ function PrintSuratJalanContent() {
                                 onClick={() => setPaperMode('a5')}
                                 className={`px-2.5 py-1 rounded-lg transition-colors ${paperMode === 'a5' ? 'bg-blue-600 text-white' : 'text-slate-300 hover:text-white'}`}
                             >
-                                A5 Full (Tanpa Margin)
+                                A5 Landscape Full
                             </button>
                             <button
                                 type="button"
@@ -735,6 +801,21 @@ function PrintSuratJalanContent() {
                                 Kertas A4
                             </button>
                         </div>
+
+                        {paperMode === 'a5' && (
+                            <button
+                                type="button"
+                                onClick={() => setShowCalibration(prev => !prev)}
+                                className={`px-3 py-1.5 rounded-xl font-bold border transition-colors ${
+                                    showCalibration
+                                        ? 'bg-sky-500/20 text-sky-200 border-sky-400/40'
+                                        : 'bg-slate-800 text-slate-300 border-slate-700 hover:text-white'
+                                }`}
+                                title="Sesuaikan margin aman dan geser posisi cetak agar tidak terpotong di printer Anda"
+                            >
+                                ⚙️ Kalibrasi Printer
+                            </button>
+                        )}
 
                         {/* Color Background Toggle */}
                         <button
@@ -783,6 +864,69 @@ function PrintSuratJalanContent() {
                         </button>
                     </div>
                 </div>
+
+                {/* Compact Printer Calibration Panel */}
+                {paperMode === 'a5' && showCalibration && (
+                    <div className="max-w-5xl mx-auto mt-2.5 pt-2.5 border-t border-slate-700/80 flex flex-wrap items-center justify-between gap-3 text-xs">
+                        <div className="flex flex-wrap items-center gap-4">
+                            <label className="flex items-center gap-2 font-semibold text-slate-200">
+                                <span>Margin Tepian (mm):</span>
+                                <input
+                                    type="number"
+                                    min={0}
+                                    max={10}
+                                    step={0.5}
+                                    value={marginMm}
+                                    onChange={(e) => {
+                                        const val = parseFloat(e.target.value);
+                                        setMarginMm(isNaN(val) ? 4 : Math.min(10, Math.max(0, val)));
+                                    }}
+                                    className="w-16 bg-slate-800 border border-slate-600 rounded-lg px-2 py-1 text-white font-mono font-bold text-center"
+                                />
+                            </label>
+                            <label className="flex items-center gap-2 font-semibold text-slate-200" title="Nilai positif (+) geser ke kanan, negatif (-) geser ke kiri">
+                                <span>Geser Kanan/Kiri (mm):</span>
+                                <input
+                                    type="number"
+                                    min={-15}
+                                    max={15}
+                                    step={1}
+                                    value={offsetX}
+                                    onChange={(e) => {
+                                        const val = parseFloat(e.target.value);
+                                        setOffsetX(isNaN(val) ? 0 : Math.min(15, Math.max(-15, val)));
+                                    }}
+                                    className="w-16 bg-slate-800 border border-slate-600 rounded-lg px-2 py-1 text-white font-mono font-bold text-center"
+                                />
+                            </label>
+                            <label className="flex items-center gap-2 font-semibold text-slate-200" title="Nilai positif (+) geser ke bawah, negatif (-) geser ke atas">
+                                <span>Geser Bawah/Atas (mm):</span>
+                                <input
+                                    type="number"
+                                    min={-15}
+                                    max={15}
+                                    step={1}
+                                    value={offsetY}
+                                    onChange={(e) => {
+                                        const val = parseFloat(e.target.value);
+                                        setOffsetY(isNaN(val) ? 0 : Math.min(15, Math.max(-15, val)));
+                                    }}
+                                    className="w-16 bg-slate-800 border border-slate-600 rounded-lg px-2 py-1 text-white font-mono font-bold text-center"
+                                />
+                            </label>
+                        </div>
+                        <div className="flex items-center gap-2 text-[11px] text-slate-400">
+                            <span>+ kanan/bawah, - kiri/atas</span>
+                            <button
+                                type="button"
+                                onClick={handleResetCalibration}
+                                className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-600 font-bold"
+                            >
+                                Reset
+                            </button>
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* Preview & Print Pages Container */}
