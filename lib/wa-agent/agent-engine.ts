@@ -26,7 +26,7 @@ import { renderInvoicePngById } from './invoice-image';
 import { getWaAgentConfig } from './openwa-client';
 
 const SESSION_TTL_MS = 30 * 60 * 1000; // 30 minutes
-const MAX_HISTORY_ITEMS = 10;
+const MAX_HISTORY_ITEMS = 12;
 
 const CONFIRM_REGEX =
     /^(ya|iya|yes|y|ok|oke|okay|setuju|lanjut|kirim|simpan|gas|betul|proses|sudah\s+benar|benar\s+semua|sudah\s+benar[\s,]+proses|oke\s+benar|ya\s+proses|lanjut\s+proses|oke\s+lanjut\s+proses)[.!]*$/i;
@@ -48,6 +48,7 @@ export interface AgentProcessInput {
 export interface AgentProcessOutput {
     replyText: string;
     replyMedia?: ReplyMediaItem[];
+    suppressReplyText?: boolean;
     toolsUsed: string[];
     pendingAction: PendingAction | null;
     status: 'ok' | 'blocked' | 'disabled' | 'error';
@@ -134,26 +135,23 @@ PENGETAHUAN WAJIB TENTANG SISTEM CCE:
    - Standar (Non-PKP): ${bankLines}
    - Faktur Pajak (PKP): BCA 187 1414 187 a/n CAHAYA CARGO EXPRESS CV
 
-ATURAN KERJA & KEAMANAN KETAT:
-- Selalu gunakan Bahasa Indonesia yang singkat, sopan, rapi (cocok dibaca di layar WhatsApp), dan langsung ke inti.
-- **DILARANG mengarang angka, status resi, nama client, atau nominal tagihan.** Selalu panggil tool untuk mengecek database Firestore terlebih dahulu.
-- Jika user mengirim **voice note** atau **foto nota/resi/catatan muatan**, ekstrak datanya secara cermat:
-  - Jika user hanya bertanya, jawab langsung memakai data tool.
-  - Jika user ingin **membuat STT baru**, pastikan minimal \`pengirimName\`, \`penerimaName\`, dan \`tujuan\` sudah diketahui (jika kurang, tanya singkat ke user). Jika sudah cukup, panggil \`propose_create_stt\` agar sistem menyimpan draft dan meminta konfirmasi **YA / BATAL**.
-  - Jika user ingin **membuat Invoice**, cek STT belum tertagih atau panggil \`propose_create_invoice\` agar sistem menghitung nominal asli dari Firestore dan meminta konfirmasi **YA / BATAL**. Saat user mengonfirmasi **YA**, sistem otomatis melampirkan gambar PNG invoice langsung ke WhatsApp.
-  - Jika user meminta **gambar / foto invoice** yang sudah ada (misal *"kirim gambar invoice 13828"* atau *"minta gambar invoice terbaru DHS"*), panggil \`get_invoice_image\` agar gambar PNG invoice dikirim langsung ke chat WhatsApp.
-  - Jika user meminta **cek STT pending (mis. dari Manifes Cargo) untuk diisi harga dari riwayat dan diubah status ke dikirim**:
-    1. Panggil \`list_pending_stt_with_price_history\` dengan rentang tanggal yang diminta (konversi tanggal relatif seperti "tanggal 24 - 26" ke tahun/bulan sekarang berdasarkan Tanggal Hari Ini).
-    2. Jika ditemukan STT pending yang memiliki usulan harga dari riwayat, langsung panggil \`propose_batch_update_stt_pricing\` untuk menyimpan draft konfirmasi.
-    3. Tampilkan daftar bernomor yang rapi: No. STT, tanggal, pengirim, penerima/tujuan, koli/berat, harga usulan & sumber riwayatnya, total, serta status tujuan (mis. \`dikirim\`). Jika ada STT yang belum punya riwayat harga atau beratnya masih 0, tampilkan terpisah dengan jelas agar user bisa memberi harga/revisi.
-    4. Minta user membalas **YA / Sudah benar** untuk memproses semua item di draft, atau kirim **revisi** (misal ganti harga STT tertentu, ubah jadi borongan, isi berat, atau hapus STT tertentu dari daftar), atau **BATAL**.
-    5. Jika user membalas dengan **revisi** saat ada draft aktif, perbarui daftar dari DATA JSON DRAFT AKTIF dan panggil ulang \`propose_batch_update_stt_pricing\` dengan seluruh item terbaru agar draft ter-update dan minta konfirmasi lagi.
-  - Jika user ingin bekerja dengan **Modul Pemberangkatan (Voyages)**:
-    1. **Buat Pemberangkatan Baru**: gunakan \`propose_create_voyage\`. Input tujuan/rute, nama kapal, **unit berangkat secara manual** (bebas berupa nama sopir atau nopol tanpa harus memilih dari daftar armada), tanggal berangkat, tanggal tiba (opsional), dan status (\`planned\` / \`in-progress\` / \`completed\`). Jika data inti seperti tujuan belum jelas, tanya singkat; jika sudah cukup, langsung ajukan draft untuk dikonfirmasi **YA / revisi / BATAL**.
-    2. **Input Biaya Pemberangkatan**: gunakan \`propose_save_voyage_expenses\` (mendukung biaya kapal seperti tiket Surabaya/Makassar, ops Surabaya/Makassar, gaji sopir, sewa mobil, ops tambahan, maupun pengeluaran berkategori lain). Jika user tidak menyebut nomor VOY, sistem otomatis menargetkan pemberangkatan terbaru.
-    3. **Masukkan STT Pending yang Belum Ikut Kapal Mana Pun**: pertama panggil \`list_unassigned_stts\` (default \`statusFilter="pending"\`; jika kosong tapi \`unassignedDikirimCount > 0\`, beri tahu user bahwa ada STT berstatus \`dikirim\` yang juga belum masuk kapal). Setelah user memilih STT atau minta masukkan semuanya, panggil \`propose_assign_stts_to_voyage\` dan minta konfirmasi **YA / revisi / BATAL**.
-- Jangan pernah menyatakan bahwa STT, Invoice, Pemberangkatan, atau perubahan data sudah tersimpan sebelum user membalas **YA / Sudah benar** dan sistem benar-benar mengeksekusinya.
-- Jika tool menolak karena batasan role (\`${userRole}\`), jelaskan dengan sopan bahwa fitur tersebut hanya untuk Owner/Admin.${pendingContextBlock}`;
+ATURAN GAYA BICARA & EKSEKUSI KETAT:
+- **SINGKAT, PADAT, JELAS, TO THE POINT.** DILARANG bertele-tele, DILARANG pembuka basa-basi (*"Halo"*, *"Baik, saya akan..."*, *"Berikut adalah informasi..."*) maupun penutup berbasa-basi (*"Ada lagi yang bisa saya bantu?"*). Langsung tampilkan hasil, poin data, angka, atau status aksi.
+- **DILARANG mengarang angka, status resi, nama client, atau nominal tagihan.** Selalu panggil tool Firestore terlebih dahulu.
+- **EKSEKUSI LANGSUNG (TANPA KONFIRMASI) UNTUK STT & INVOICE:**
+  - Buat / edit / hapus STT (\`create_stt\`, \`update_stt\`, \`batch_update_stt_pricing\`, \`delete_stt\`): **langsung eksekusi** tanpa meminta konfirmasi YA/BATAL (kecuali data wajib seperti nama pengirim/penerima/tujuan pada STT baru benar-benar belum ada, tanya singkat 1 baris).
+  - Buat / revisi / hapus Invoice (\`create_invoice\`, \`update_invoice\`, \`delete_invoice\`): **langsung eksekusi** tanpa konfirmasi YA/BATAL. Saat membuat/merevisi invoice, gambar PNG format A5/PKP otomatis ikut terkirim ke WhatsApp — cukup laporkan ringkas No. Invoice, Client, Total, dan jumlah resi.
+  - Minta gambar invoice lama: panggil \`get_invoice_image\` langsung (set \`noText: true\` jika user minta kirim gambar saja tanpa teks).
+  - Minta kirim SEMUA gambar invoice di suatu pemberangkatan / tanggal keberangkatan kapal (mis. "kirimkan semua gambar invoice pemberangkatan kapal tgl 24"): langsung panggil \`get_voyage_invoice_images\` (isi \`departureDate\` format \`YYYY-MM-DD\` berdasarkan Tanggal Hari Ini jika disebut tanggal, atau \`voyageNumber\`/\`shipName\`, dan \`silentText: true\`) agar semua gambar invoice langsung dikirim tanpa teks apa pun.
+- **ALUR CEK STT PENDING MINGGU INI / TANPA HARGA:**
+  1. Jika user tanya cek STT pending minggu ini (atau rentang tanggal) yang belum ada harga dan minta data customer + harga riwayatnya: panggil \`list_pending_stt_with_price_history\` (\`onlyUnpriced: true\`, \`period: "this_week"\` atau \`startDate\`/\`endDate\`). JANGAN ubah dulu — tampilkan daftar padat bernomor: **No. STT | Customer → Tujuan | Koli / Berat | Riwayat Harga** (tulis \`-\` jika belum ada riwayat), lalu tutup 1 baris: *"Kirim harga yang mau dipakai, langsung saya update & ubah status ke dikirim."*
+  2. Saat user membalas memberi harga yang ingin dipakai (per No. STT maupun per customer) dan minta ubah status ke \`dikirim\`: langsung panggil \`batch_update_stt_pricing\` (\`targetStatus: "dikirim"\`) tanpa konfirmasi lagi, lalu tampilkan ringkasan padat hasil update.
+- **MODUL PEMBERANGKATAN (VOYAGES):**
+  1. Buat pemberangkatan (\`propose_create_voyage\`): unit berangkat manual bebas nama sopir/nopol tanpa pilih armada.
+  2. Input biaya (\`propose_save_voyage_expenses\`): targetkan VOY yang disebut atau terbaru.
+  3. Cek & masukkan STT pending yang belum ikut kapal mana pun: panggil \`list_unassigned_stts\` lalu \`propose_assign_stts_to_voyage\`.
+- Jika user mengirim **voice note** atau **foto nota**, ekstrak data secara cermat lalu langsung jalankan sesuai aturan di atas.
+- Jika tool menolak karena batasan role (\`${userRole}\`), jawab singkat bahwa fitur hanya untuk Owner/Admin.${pendingContextBlock}`;
 }
 
 async function resolveAuthorizedUser(phone: string): Promise<WaAgentUser | null> {
@@ -386,22 +384,21 @@ export async function processAgentMessage(input: AgentProcessInput): Promise<Age
     if (!resolvedRole) {
         const waUser = await resolveAuthorizedUser(cleanPhone);
         if (!waUser) {
-            const blockedReply =
-                'Maaf, nomor WhatsApp Anda belum terdaftar di AI Agent internal Cahaya Cargo Express. Hubungi Admin/Owner untuk mendaftarkan nomor Anda.';
             await writeAuditLog({
                 messageId: input.messageId,
                 phone: cleanPhone || input.phone,
                 source: input.source,
                 incomingText: incomingPreview,
-                replyText: blockedReply,
+                replyText: '(Diabaikan — nomor tidak terdaftar)',
                 toolsUsed: [],
                 status: 'blocked',
             });
             return {
-                replyText: blockedReply,
+                replyText: '',
                 toolsUsed: [],
                 pendingAction: null,
                 status: 'blocked',
+                ignored: true,
             };
         }
         resolvedRole = waUser.role;
@@ -551,6 +548,7 @@ export async function processAgentMessage(input: AgentProcessInput): Promise<Age
 
     const toolsUsed: string[] = [];
     const collectedMedia: ReplyMediaItem[] = [];
+    let suppressReplyText = false;
     let nextPendingAction: PendingAction | null = pendingAction;
     let finalReplyText = '';
 
@@ -583,12 +581,15 @@ export async function processAgentMessage(input: AgentProcessInput): Promise<Age
                 const fnArgs = (call.args || {}) as Record<string, any>;
                 toolsUsed.push(fnName);
 
-                const outcome = await dispatchAgentToolCall(fnName, fnArgs, resolvedRole);
+                const outcome = await dispatchAgentToolCall(fnName, fnArgs, resolvedRole, resolvedName);
                 if (outcome.pendingAction) {
                     nextPendingAction = outcome.pendingAction;
                 }
                 if (outcome.replyMedia && outcome.replyMedia.length > 0) {
                     collectedMedia.push(...outcome.replyMedia);
+                }
+                if (outcome.suppressReplyText === true) {
+                    suppressReplyText = true;
                 }
 
                 fnResponseParts.push({
@@ -600,16 +601,26 @@ export async function processAgentMessage(input: AgentProcessInput): Promise<Age
                 });
             }
 
+            if (suppressReplyText && collectedMedia.length > 0) {
+                finalReplyText = '';
+                break;
+            }
+
             contents.push({ role: 'user', parts: fnResponseParts });
         }
 
-        if (!finalReplyText) {
+        const isSilentMedia = suppressReplyText && collectedMedia.length > 0;
+        if (!finalReplyText && !isSilentMedia) {
             finalReplyText = nextPendingAction
                 ? `Mohon konfirmasi draft berikut:\n${nextPendingAction.summaryText}\n\nBalas *YA* untuk simpan atau *BATAL* untuk membatalkan.`
                 : 'Maaf, permintaan membutuhkan terlalu banyak langkah. Bisa diulangi lebih spesifik?';
         }
 
-        await appendAndSaveSession(incomingPreview, finalReplyText, nextPendingAction);
+        const persistedReplyText = isSilentMedia
+            ? `[Mengirim ${collectedMedia.length} gambar invoice tanpa teks]`
+            : finalReplyText;
+
+        await appendAndSaveSession(incomingPreview, persistedReplyText, nextPendingAction);
         await writeAuditLog({
             messageId: input.messageId,
             phone: cleanPhone,
@@ -617,14 +628,15 @@ export async function processAgentMessage(input: AgentProcessInput): Promise<Age
             userRole: resolvedRole,
             source: input.source,
             incomingText: incomingPreview,
-            replyText: finalReplyText,
+            replyText: persistedReplyText,
             toolsUsed,
             status: 'ok',
         });
 
         return {
-            replyText: finalReplyText,
+            replyText: isSilentMedia ? '' : finalReplyText,
             ...(collectedMedia.length > 0 ? { replyMedia: collectedMedia } : {}),
+            ...(isSilentMedia ? { suppressReplyText: true } : {}),
             toolsUsed,
             pendingAction: nextPendingAction,
             status: 'ok',

@@ -34,7 +34,39 @@ interface InvoiceTxRow {
     pengirimAddress: string;
 }
 
+interface OgFontSpec {
+    name: string;
+    data: ArrayBuffer;
+    weight: 400 | 700;
+    style: 'normal' | 'italic';
+}
+
 const imageDataUriCache = new Map<string, string>();
+let cachedArialFonts: OgFontSpec[] | null = null;
+
+function loadArialFonts(): OgFontSpec[] {
+    if (cachedArialFonts) return cachedArialFonts;
+    const candidates: Array<{ file: string; weight: 400 | 700; style: 'normal' | 'italic' }> = [
+        { file: 'C:\\Windows\\Fonts\\arial.ttf', weight: 400, style: 'normal' },
+        { file: 'C:\\Windows\\Fonts\\arialbd.ttf', weight: 700, style: 'normal' },
+        { file: 'C:\\Windows\\Fonts\\ariali.ttf', weight: 400, style: 'italic' },
+        { file: 'C:\\Windows\\Fonts\\arialbi.ttf', weight: 700, style: 'italic' },
+    ];
+    const loaded: OgFontSpec[] = [];
+    for (const c of candidates) {
+        try {
+            if (fs.existsSync(c.file)) {
+                const buf = fs.readFileSync(c.file);
+                const ab = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
+                loaded.push({ name: 'Arial', data: ab, weight: c.weight, style: c.style });
+            }
+        } catch {
+            // Skip missing font safely
+        }
+    }
+    cachedArialFonts = loaded;
+    return loaded;
+}
 
 function loadPublicImageDataUri(relPath: string): string | null {
     if (imageDataUriCache.has(relPath)) {
@@ -92,6 +124,122 @@ function buildFilename(invoiceNumber: string, clientName: string): string {
         .replace(/^_+|_+$/g, '')
         .slice(0, 32);
     return `Invoice-${safeNum || 'CCE'}${safeClient ? `-${safeClient}` : ''}.png`;
+}
+
+interface A5ScaledLayout {
+    pad: string;
+    headerMb: number;
+    logoW: number;
+    logoH: number;
+    companyFs: number;
+    addrFs: number;
+    metaFs: number;
+    metaLabelW: number;
+    titleFs: number;
+    titleMb: number;
+    kepadaMb: number;
+    kepadaFs: number;
+    clientFs: number;
+    tableFs: number;
+    cellPadV: number;
+    cellPadH: number;
+    rowMinH: number;
+    terbilangFs: number;
+    totalLabelFs: number;
+    footerMt: number;
+    bankTitleFs: number;
+    bankFs: number;
+    ttdW: number;
+    ttdH: number;
+    ttdPt: number;
+}
+
+function getA5ScaledLayout(itemCount: number): A5ScaledLayout {
+    if (itemCount >= 12) {
+        return {
+            pad: '21px 50px 21px 50px',
+            headerMb: 6,
+            logoW: 74,
+            logoH: 64,
+            companyFs: 20,
+            addrFs: 14.5,
+            metaFs: 15.5,
+            metaLabelW: 78,
+            titleFs: 22,
+            titleMb: 7,
+            kepadaMb: 9,
+            kepadaFs: 15.5,
+            clientFs: 17,
+            tableFs: 16,
+            cellPadV: 3,
+            cellPadH: 7,
+            rowMinH: 27,
+            terbilangFs: 14,
+            totalLabelFs: 16.5,
+            footerMt: 12,
+            bankTitleFs: 17.5,
+            bankFs: 17,
+            ttdW: 118,
+            ttdH: 105,
+            ttdPt: 3,
+        };
+    }
+    if (itemCount >= 9) {
+        return {
+            pad: '26px 53px 26px 53px',
+            headerMb: 9,
+            logoW: 86,
+            logoH: 74,
+            companyFs: 22,
+            addrFs: 15.5,
+            metaFs: 17,
+            metaLabelW: 84,
+            titleFs: 24,
+            titleMb: 9,
+            kepadaMb: 11,
+            kepadaFs: 16.5,
+            clientFs: 18,
+            tableFs: 17.5,
+            cellPadV: 4,
+            cellPadH: 8,
+            rowMinH: 31,
+            terbilangFs: 15,
+            totalLabelFs: 17.5,
+            footerMt: 15,
+            bankTitleFs: 18.5,
+            bankFs: 18.5,
+            ttdW: 140,
+            ttdH: 125,
+            ttdPt: 5,
+        };
+    }
+    return {
+        pad: '35px 59px 32px 59px',
+        headerMb: 14,
+        logoW: 100,
+        logoH: 86,
+        companyFs: 23,
+        addrFs: 17,
+        metaFs: 18,
+        metaLabelW: 92,
+        titleFs: 27,
+        titleMb: 14,
+        kepadaMb: 14,
+        kepadaFs: 18,
+        clientFs: 20,
+        tableFs: 19.5,
+        cellPadV: 5,
+        cellPadH: 8,
+        rowMinH: 36,
+        terbilangFs: 16,
+        totalLabelFs: 19,
+        footerMt: 20,
+        bankTitleFs: 21,
+        bankFs: 21,
+        ttdW: 172,
+        ttdH: 154,
+        ttdPt: 8,
+    };
 }
 
 export async function renderInvoicePngById(invoiceId: string): Promise<RenderedInvoiceImage> {
@@ -159,13 +307,15 @@ export async function renderInvoicePngById(invoiceId: string): Promise<RenderedI
 
     const logoUri = loadPublicImageDataUri('logo.png');
     const ttdUri = loadPublicImageDataUri('ttd.png');
+    const fonts = loadArialFonts();
+    const fontFamily = fonts.length > 0 ? 'Arial, sans-serif' : 'sans-serif';
 
     if (isTaxableInvoice) {
-        const minRows = 8;
+        const minRows = 10;
         const emptyCount = Math.max(0, minRows - txs.length);
         const totalRows = 2 + txs.length + 2 + emptyCount + 1;
         const width = 1100;
-        const height = Math.max(1460, 560 + totalRows * 42);
+        const height = Math.max(1554, 560 + totalRows * 42);
 
         const desc1 = notes
             ? notes.toUpperCase()
@@ -184,7 +334,7 @@ export async function renderInvoicePngById(invoiceId: string): Promise<RenderedI
                         backgroundColor: '#ffffff',
                         color: '#000000',
                         padding: '38px 46px',
-                        fontFamily: 'sans-serif',
+                        fontFamily,
                     }}
                 >
                     {/* Header PKP */}
@@ -193,8 +343,8 @@ export async function renderInvoicePngById(invoiceId: string): Promise<RenderedI
                             display: 'flex',
                             justifyContent: 'space-between',
                             alignItems: 'flex-end',
-                            borderBottom: '3px solid #000000',
-                            paddingBottom: 14,
+                            borderBottom: '2.5px solid #000000',
+                            paddingBottom: 12,
                             marginBottom: 22,
                         }}
                     >
@@ -275,38 +425,35 @@ export async function renderInvoicePngById(invoiceId: string): Promise<RenderedI
                             fontSize: 16,
                         }}
                     >
-                        {/* Header Row */}
                         <div
                             style={{
                                 display: 'flex',
-                                backgroundColor: '#f8fafc',
+                                backgroundColor: '#ffffff',
                                 fontWeight: 700,
                                 borderBottom: '2px solid #000000',
                             }}
                         >
-                            <div style={{ display: 'flex', width: '6%', justifyContent: 'center', padding: '8px 4px', borderRight: '1.5px solid #000000' }}>NO</div>
-                            <div style={{ display: 'flex', width: '50%', justifyContent: 'center', padding: '8px 6px', borderRight: '1.5px solid #000000' }}>KETERANGAN</div>
+                            <div style={{ display: 'flex', width: '5%', justifyContent: 'center', padding: '8px 4px', borderRight: '1.5px solid #000000' }}>NO</div>
+                            <div style={{ display: 'flex', width: '53%', justifyContent: 'center', padding: '8px 6px', borderRight: '1.5px solid #000000' }}>KETERANGAN</div>
                             <div style={{ display: 'flex', width: '8%', justifyContent: 'center', padding: '8px 4px', borderRight: '1.5px solid #000000' }}>KOLI</div>
-                            <div style={{ display: 'flex', width: '12%', justifyContent: 'center', padding: '8px 4px', borderRight: '1.5px solid #000000' }}>{hasKgVolume ? 'KG VOL' : 'KG/M3'}</div>
+                            <div style={{ display: 'flex', width: '12%', justifyContent: 'center', padding: '8px 4px', borderRight: '1.5px solid #000000' }}>{hasKgVolume ? 'KG VOLUME' : 'KG/M3'}</div>
                             <div style={{ display: 'flex', width: '10%', justifyContent: 'center', padding: '8px 4px', borderRight: '1.5px solid #000000' }}>HARGA</div>
-                            <div style={{ display: 'flex', width: '14%', justifyContent: 'center', padding: '8px 6px', borderRight: '2px solid #000000' }}>JUMLAH</div>
+                            <div style={{ display: 'flex', width: '12%', justifyContent: 'center', padding: '8px 6px', borderRight: '2px solid #000000' }}>JUMLAH</div>
                         </div>
 
-                        {/* Deskripsi */}
                         <div style={{ display: 'flex', borderBottom: '1px solid #000000', minHeight: 36 }}>
-                            <div style={{ display: 'flex', width: '6%', borderRight: '1px solid #000000' }} />
-                            <div style={{ display: 'flex', width: '50%', padding: '6px 8px', fontWeight: 700, borderRight: '1px solid #000000' }}>{desc1}</div>
+                            <div style={{ display: 'flex', width: '5%', borderRight: '1px solid #000000' }} />
+                            <div style={{ display: 'flex', width: '53%', padding: '6px 8px', fontWeight: 700, borderRight: '1px solid #000000' }}>{desc1}</div>
                             <div style={{ display: 'flex', width: '8%', borderRight: '1px solid #000000' }} />
                             <div style={{ display: 'flex', width: '12%', borderRight: '1px solid #000000' }} />
                             <div style={{ display: 'flex', width: '10%', borderRight: '1px solid #000000' }} />
-                            <div style={{ display: 'flex', width: '14%', justifyContent: 'flex-end', padding: '6px 8px', fontWeight: 700, borderRight: '2px solid #000000' }}>-</div>
+                            <div style={{ display: 'flex', width: '12%', justifyContent: 'flex-end', padding: '6px 8px', fontWeight: 700, borderRight: '2px solid #000000' }}>-</div>
                         </div>
 
-                        {/* Data Rows */}
                         {txs.map((t, idx) => (
                             <div key={t.id} style={{ display: 'flex', borderBottom: '1px solid #000000', minHeight: 38 }}>
-                                <div style={{ display: 'flex', width: '6%', justifyContent: 'center', alignItems: 'center', borderRight: '1px solid #000000' }}>{idx + 1}.</div>
-                                <div style={{ display: 'flex', width: '50%', alignItems: 'center', padding: '6px 8px', borderRight: '1px solid #000000' }}>
+                                <div style={{ display: 'flex', width: '5%', justifyContent: 'center', alignItems: 'center', borderRight: '1px solid #000000' }}>{idx + 1}.</div>
+                                <div style={{ display: 'flex', width: '53%', alignItems: 'center', padding: '6px 8px', borderRight: '1px solid #000000' }}>
                                     {`${t.penerimaName.toUpperCase()} - ${t.tujuan.toUpperCase()}`}
                                 </div>
                                 <div style={{ display: 'flex', width: '8%', justifyContent: 'center', alignItems: 'center', borderRight: '1px solid #000000' }}>
@@ -318,15 +465,14 @@ export async function renderInvoicePngById(invoiceId: string): Promise<RenderedI
                                 <div style={{ display: 'flex', width: '10%', justifyContent: 'flex-end', alignItems: 'center', paddingRight: 8, borderRight: '1px solid #000000' }}>
                                     {t.tipeTransaksi === 'regular' && t.harga > 0 ? fmtAngka(t.harga) : ''}
                                 </div>
-                                <div style={{ display: 'flex', width: '14%', justifyContent: 'flex-end', alignItems: 'center', paddingRight: 8, fontWeight: 700, borderRight: '2px solid #000000' }}>
+                                <div style={{ display: 'flex', width: '12%', justifyContent: 'flex-end', alignItems: 'center', paddingRight: 8, fontWeight: 700, borderRight: '2px solid #000000' }}>
                                     {t.jumlah > 0 ? fmtAngka(t.jumlah) : ''}
                                 </div>
                             </div>
                         ))}
 
-                        {/* TOTAL TAGIHAN Row */}
                         <div style={{ display: 'flex', borderBottom: '1px solid #000000', minHeight: 38, fontWeight: 700 }}>
-                            <div style={{ display: 'flex', width: '56%', justifyContent: 'center', alignItems: 'center', borderRight: '1px solid #000000' }}>TOTAL TAGIHAN</div>
+                            <div style={{ display: 'flex', width: '58%', justifyContent: 'center', alignItems: 'center', borderRight: '1px solid #000000' }}>TOTAL TAGIHAN</div>
                             <div style={{ display: 'flex', width: '8%', justifyContent: 'center', alignItems: 'center', borderRight: '1px solid #000000' }}>
                                 {totalKoli > 0 ? fmtAngka(totalKoli) : ''}
                             </div>
@@ -334,41 +480,38 @@ export async function renderInvoicePngById(invoiceId: string): Promise<RenderedI
                                 {totalBerat > 0 ? fmtAngka(totalBerat) : ''}
                             </div>
                             <div style={{ display: 'flex', width: '10%', borderRight: '1px solid #000000' }} />
-                            <div style={{ display: 'flex', width: '14%', justifyContent: 'flex-end', alignItems: 'center', paddingRight: 8, borderRight: '2px solid #000000' }}>
+                            <div style={{ display: 'flex', width: '12%', justifyContent: 'flex-end', alignItems: 'center', paddingRight: 8, borderRight: '2px solid #000000' }}>
                                 {fmtAngka(subtotal)}
                             </div>
                         </div>
 
-                        {/* PPN Row */}
                         <div style={{ display: 'flex', borderBottom: '1px solid #000000', minHeight: 38 }}>
-                            <div style={{ display: 'flex', width: '6%', justifyContent: 'center', alignItems: 'center', borderRight: '1px solid #000000' }}>{txs.length + 1}.</div>
-                            <div style={{ display: 'flex', width: '80%', alignItems: 'center', paddingLeft: 8, borderRight: '1px solid #000000' }}>PPN 1.1%</div>
-                            <div style={{ display: 'flex', width: '14%', justifyContent: 'flex-end', alignItems: 'center', paddingRight: 8, borderRight: '2px solid #000000' }}>
+                            <div style={{ display: 'flex', width: '5%', justifyContent: 'center', alignItems: 'center', borderRight: '1px solid #000000' }}>{txs.length + 1}.</div>
+                            <div style={{ display: 'flex', width: '83%', alignItems: 'center', paddingLeft: 8, borderRight: '1px solid #000000' }}>PPN 1.1%</div>
+                            <div style={{ display: 'flex', width: '12%', justifyContent: 'flex-end', alignItems: 'center', paddingRight: 8, borderRight: '2px solid #000000' }}>
                                 {fmtAngka(totalPPN)}
                             </div>
                         </div>
 
-                        {/* Empty Rows */}
                         {Array.from({ length: emptyCount }).map((_, idx) => (
                             <div key={`ep-${idx}`} style={{ display: 'flex', borderBottom: '1px solid #000000', height: 34 }}>
-                                <div style={{ display: 'flex', width: '6%', borderRight: '1px solid #000000' }} />
-                                <div style={{ display: 'flex', width: '50%', borderRight: '1px solid #000000' }} />
+                                <div style={{ display: 'flex', width: '5%', borderRight: '1px solid #000000' }} />
+                                <div style={{ display: 'flex', width: '53%', borderRight: '1px solid #000000' }} />
                                 <div style={{ display: 'flex', width: '8%', borderRight: '1px solid #000000' }} />
                                 <div style={{ display: 'flex', width: '12%', borderRight: '1px solid #000000' }} />
                                 <div style={{ display: 'flex', width: '10%', borderRight: '1px solid #000000' }} />
-                                <div style={{ display: 'flex', width: '14%', borderRight: '2px solid #000000' }} />
+                                <div style={{ display: 'flex', width: '12%', borderRight: '2px solid #000000' }} />
                             </div>
                         ))}
 
-                        {/* Terbilang + TOTAL */}
                         <div style={{ display: 'flex', borderBottom: '2px solid #000000', minHeight: 44 }}>
-                            <div style={{ display: 'flex', width: '76%', alignItems: 'center', padding: '6px 8px', fontSize: 14, fontStyle: 'italic' }}>
+                            <div style={{ display: 'flex', width: '78%', alignItems: 'center', padding: '6px 8px', fontSize: 14, fontStyle: 'italic' }}>
                                 {`Terbilang : # ${terbilang(totalAkhir)} #`}
                             </div>
                             <div style={{ display: 'flex', width: '10%', justifyContent: 'center', alignItems: 'center', fontWeight: 700, fontSize: 17, borderRight: '2px solid #000000' }}>
                                 TOTAL
                             </div>
-                            <div style={{ display: 'flex', width: '14%', justifyContent: 'flex-end', alignItems: 'center', paddingRight: 8, fontWeight: 700, fontSize: 19, borderRight: '2px solid #000000' }}>
+                            <div style={{ display: 'flex', width: '12%', justifyContent: 'flex-end', alignItems: 'center', paddingRight: 8, fontWeight: 700, fontSize: 19, borderRight: '2px solid #000000' }}>
                                 {fmtAngka(totalAkhir)}
                             </div>
                         </div>
@@ -399,7 +542,7 @@ export async function renderInvoicePngById(invoiceId: string): Promise<RenderedI
                     </div>
                 </div>
             ),
-            { width, height }
+            { width, height, ...(fonts.length > 0 ? { fonts } : {}) }
         );
 
         const buf = Buffer.from(await img.arrayBuffer());
@@ -415,13 +558,14 @@ export async function renderInvoicePngById(invoiceId: string): Promise<RenderedI
     }
 
     // ====================================================
-    // LAYOUT STANDAR (NON-PKP, A5 LANDSCAPE PROPORSIONAL)
+    // LAYOUT INVOICE STANDAR — IDENTIK A5 LANDSCAPE (210mm x 147.6mm)
     // ====================================================
-    const minRowsStd = 6;
-    const emptyCountStd = Math.max(0, minRowsStd - txs.length);
-    const totalRowsStd = txs.length + emptyCountStd;
+    const lay = getA5ScaledLayout(txs.length);
+    const hasExtraKepada = Boolean(clientAddress) || Boolean(notes);
+    const a5MinRows = hasExtraKepada ? 7 : 8;
+    const emptyCountStd = Math.max(0, a5MinRows - txs.length);
     const width = 1240;
-    const height = Math.max(874, 510 + totalRowsStd * 42);
+    const height = txs.length > 14 ? 872 + (txs.length - 14) * 32 : 872;
 
     const img = new ImageResponse(
         (
@@ -433,38 +577,38 @@ export async function renderInvoicePngById(invoiceId: string): Promise<RenderedI
                     height: '100%',
                     backgroundColor: '#ffffff',
                     color: '#000000',
-                    padding: '32px 46px',
-                    fontFamily: 'sans-serif',
+                    padding: lay.pad,
+                    fontFamily,
                 }}
             >
-                {/* Header */}
+                {/* Header Standar */}
                 <div
                     style={{
                         display: 'flex',
                         justifyContent: 'space-between',
                         alignItems: 'flex-start',
-                        marginBottom: 14,
+                        marginBottom: lay.headerMb,
                     }}
                 >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                        {logoUri && <img src={logoUri} width={88} height={76} alt="Logo" />}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 15 }}>
+                        {logoUri && <img src={logoUri} width={lay.logoW} height={lay.logoH} alt="Logo" />}
                         <div style={{ display: 'flex', flexDirection: 'column' }}>
-                            <div style={{ display: 'flex', fontSize: 21, fontWeight: 700, lineHeight: 1.3 }}>
+                            <div style={{ display: 'flex', fontSize: lay.companyFs, fontWeight: 700, lineHeight: 1.28 }}>
                                 {COMPANY_INFO.name}
                             </div>
-                            <div style={{ display: 'flex', fontSize: 15, lineHeight: 1.4 }}>{COMPANY_INFO.address}</div>
-                            <div style={{ display: 'flex', fontSize: 15, lineHeight: 1.4 }}>{COMPANY_INFO.city}</div>
+                            <div style={{ display: 'flex', fontSize: lay.addrFs, lineHeight: 1.38 }}>{COMPANY_INFO.address}</div>
+                            <div style={{ display: 'flex', fontSize: lay.addrFs, lineHeight: 1.38 }}>{COMPANY_INFO.city}</div>
                         </div>
                     </div>
 
-                    <div style={{ display: 'flex', flexDirection: 'column', fontSize: 16, lineHeight: 1.65 }}>
-                        <div style={{ display: 'flex', gap: 10 }}>
-                            <div style={{ display: 'flex', width: 92 }}>Nomer</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', fontSize: lay.metaFs, lineHeight: 1.55 }}>
+                        <div style={{ display: 'flex', gap: 14 }}>
+                            <div style={{ display: 'flex', width: lay.metaLabelW }}>Nomer</div>
                             <div style={{ display: 'flex' }}>:</div>
                             <div style={{ display: 'flex', fontWeight: 700 }}>{invoiceNumber}</div>
                         </div>
-                        <div style={{ display: 'flex', gap: 10 }}>
-                            <div style={{ display: 'flex', width: 92 }}>Tanggal</div>
+                        <div style={{ display: 'flex', gap: 14 }}>
+                            <div style={{ display: 'flex', width: lay.metaLabelW }}>Tanggal</div>
                             <div style={{ display: 'flex' }}>:</div>
                             <div style={{ display: 'flex', fontWeight: 700 }}>{issueDateStr}</div>
                         </div>
@@ -472,13 +616,13 @@ export async function renderInvoicePngById(invoiceId: string): Promise<RenderedI
                 </div>
 
                 {/* Judul */}
-                <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 14 }}>
+                <div style={{ display: 'flex', justifyContent: 'center', marginBottom: lay.titleMb }}>
                     <div
                         style={{
                             display: 'flex',
-                            fontSize: 25,
+                            fontSize: lay.titleFs,
                             fontWeight: 700,
-                            letterSpacing: 7,
+                            letterSpacing: 10,
                             textDecoration: 'underline',
                         }}
                     >
@@ -487,95 +631,100 @@ export async function renderInvoicePngById(invoiceId: string): Promise<RenderedI
                 </div>
 
                 {/* Kepada Yth */}
-                <div style={{ display: 'flex', flexDirection: 'column', marginBottom: 14 }}>
-                    <div style={{ display: 'flex', fontSize: 15 }}>Kepada Yth,</div>
-                    <div style={{ display: 'flex', fontSize: 18, fontWeight: 700 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', marginBottom: lay.kepadaMb }}>
+                    <div style={{ display: 'flex', fontSize: lay.kepadaFs, lineHeight: 1.35 }}>Kepada Yth,</div>
+                    <div style={{ display: 'flex', fontSize: lay.clientFs, fontWeight: 700, lineHeight: 1.35 }}>
                         {clientName.toUpperCase()}
                     </div>
                     {clientAddress ? (
-                        <div style={{ display: 'flex', fontSize: 16, fontWeight: 700 }}>
+                        <div style={{ display: 'flex', fontSize: lay.clientFs, fontWeight: 700, lineHeight: 1.35 }}>
                             {clientAddress.toUpperCase()}
                         </div>
                     ) : null}
                     {notes ? (
-                        <div style={{ display: 'flex', fontSize: 14, fontStyle: 'italic', marginTop: 2 }}>{notes}</div>
+                        <div style={{ display: 'flex', fontSize: lay.terbilangFs, fontStyle: 'italic', marginTop: 2 }}>{notes}</div>
                     ) : null}
                 </div>
 
-                {/* Tabel 7 Kolom */}
+                {/* Area Tabel A5 (flex: 1 memenuhi sisa ruang hingga footer persis seperti versi cetak A5) */}
                 <div
                     style={{
                         display: 'flex',
                         flexDirection: 'column',
+                        flex: 1,
                         borderTop: '1.5px solid #000000',
                         borderLeft: '1.5px solid #000000',
-                        fontSize: 16,
+                        fontSize: lay.tableFs,
                     }}
                 >
+                    {/* Header Tabel: background putih murni, persentase kolom persis print/page.tsx */}
                     <div
                         style={{
                             display: 'flex',
-                            backgroundColor: '#f8fafc',
+                            backgroundColor: '#ffffff',
                             fontWeight: 700,
                             borderBottom: '1.5px solid #000000',
+                            minHeight: lay.rowMinH + 2,
                         }}
                     >
-                        <div style={{ display: 'flex', width: '5%', justifyContent: 'center', padding: '7px 4px', borderRight: '1.5px solid #000000' }}>NO</div>
-                        <div style={{ display: 'flex', width: '43%', justifyContent: 'center', padding: '7px 6px', borderRight: '1.5px solid #000000' }}>KETERANGAN</div>
-                        <div style={{ display: 'flex', width: '10%', justifyContent: 'center', padding: '7px 4px', borderRight: '1.5px solid #000000' }}>NO STT</div>
-                        <div style={{ display: 'flex', width: '7%', justifyContent: 'center', padding: '7px 4px', borderRight: '1.5px solid #000000' }}>KOLI</div>
-                        <div style={{ display: 'flex', width: '11%', justifyContent: 'center', padding: '7px 4px', borderRight: '1.5px solid #000000' }}>{hasKgVolume ? 'KG VOL' : 'KG/M3'}</div>
-                        <div style={{ display: 'flex', width: '10%', justifyContent: 'center', padding: '7px 4px', borderRight: '1.5px solid #000000' }}>HARGA</div>
-                        <div style={{ display: 'flex', width: '14%', justifyContent: 'center', padding: '7px 6px', borderRight: '1.5px solid #000000' }}>JUMLAH</div>
+                        <div style={{ display: 'flex', width: '5%', justifyContent: 'center', alignItems: 'center', padding: `${lay.cellPadV}px 4px`, borderRight: '1.5px solid #000000' }}>NO</div>
+                        <div style={{ display: 'flex', width: '45%', justifyContent: 'center', alignItems: 'center', padding: `${lay.cellPadV}px ${lay.cellPadH}px`, borderRight: '1.5px solid #000000' }}>KETERANGAN</div>
+                        <div style={{ display: 'flex', width: '9%', justifyContent: 'center', alignItems: 'center', padding: `${lay.cellPadV}px 4px`, borderRight: '1.5px solid #000000' }}>NO STT</div>
+                        <div style={{ display: 'flex', width: '6%', justifyContent: 'center', alignItems: 'center', padding: `${lay.cellPadV}px 4px`, borderRight: '1.5px solid #000000' }}>KOLI</div>
+                        <div style={{ display: 'flex', width: '11%', justifyContent: 'center', alignItems: 'center', padding: `${lay.cellPadV}px 4px`, borderRight: '1.5px solid #000000' }}>{hasKgVolume ? 'KG VOLUME' : 'KG/M3'}</div>
+                        <div style={{ display: 'flex', width: '10%', justifyContent: 'center', alignItems: 'center', padding: `${lay.cellPadV}px 4px`, borderRight: '1.5px solid #000000' }}>HARGA</div>
+                        <div style={{ display: 'flex', width: '14%', justifyContent: 'center', alignItems: 'center', padding: `${lay.cellPadV}px ${lay.cellPadH}px`, borderRight: '1.5px solid #000000' }}>JUMLAH</div>
                     </div>
 
+                    {/* Baris Data STT */}
                     {txs.map((t, idx) => (
-                        <div key={t.id} style={{ display: 'flex', borderBottom: '1.5px solid #000000', minHeight: 38 }}>
+                        <div key={t.id} style={{ display: 'flex', borderBottom: '1.5px solid #000000', minHeight: lay.rowMinH }}>
                             <div style={{ display: 'flex', width: '5%', justifyContent: 'center', alignItems: 'center', borderRight: '1.5px solid #000000' }}>{idx + 1}.</div>
-                            <div style={{ display: 'flex', width: '43%', alignItems: 'center', padding: '5px 8px', borderRight: '1.5px solid #000000' }}>
+                            <div style={{ display: 'flex', width: '45%', alignItems: 'center', padding: `${lay.cellPadV}px ${lay.cellPadH}px`, borderRight: '1.5px solid #000000' }}>
                                 {`${t.penerimaName.toUpperCase()} - ${t.tujuan.toUpperCase()}`}
                             </div>
-                            <div style={{ display: 'flex', width: '10%', justifyContent: 'center', alignItems: 'center', borderRight: '1.5px solid #000000' }}>
+                            <div style={{ display: 'flex', width: '9%', justifyContent: 'center', alignItems: 'center', borderRight: '1.5px solid #000000' }}>
                                 {t.noSTT.replace(/^STT/i, '')}
                             </div>
-                            <div style={{ display: 'flex', width: '7%', justifyContent: 'center', alignItems: 'center', borderRight: '1.5px solid #000000' }}>
+                            <div style={{ display: 'flex', width: '6%', justifyContent: 'center', alignItems: 'center', borderRight: '1.5px solid #000000' }}>
                                 {t.koli}
                             </div>
-                            <div style={{ display: 'flex', width: '11%', justifyContent: 'flex-end', alignItems: 'center', paddingRight: 8, borderRight: '1.5px solid #000000' }}>
+                            <div style={{ display: 'flex', width: '11%', justifyContent: 'flex-end', alignItems: 'center', padding: `${lay.cellPadV}px ${lay.cellPadH}px`, borderRight: '1.5px solid #000000' }}>
                                 {t.berat}
                             </div>
-                            <div style={{ display: 'flex', width: '10%', justifyContent: 'flex-end', alignItems: 'center', paddingRight: 8, borderRight: '1.5px solid #000000' }}>
+                            <div style={{ display: 'flex', width: '10%', justifyContent: 'flex-end', alignItems: 'center', padding: `${lay.cellPadV}px ${lay.cellPadH}px`, borderRight: '1.5px solid #000000' }}>
                                 {t.tipeTransaksi === 'regular' ? fmtAngka(t.harga) : '-'}
                             </div>
-                            <div style={{ display: 'flex', width: '14%', justifyContent: 'flex-end', alignItems: 'center', paddingRight: 8, borderRight: '1.5px solid #000000' }}>
+                            <div style={{ display: 'flex', width: '14%', justifyContent: 'flex-end', alignItems: 'center', padding: `${lay.cellPadV}px ${lay.cellPadH}px`, borderRight: '1.5px solid #000000' }}>
                                 {fmtAngka(t.jumlah)}
                             </div>
                         </div>
                     ))}
 
+                    {/* Baris Kosong Penyeimbang (flex: 1 memenuhi tinggi kertas A5) */}
                     {Array.from({ length: emptyCountStd }).map((_, idx) => (
-                        <div key={`es-${idx}`} style={{ display: 'flex', borderBottom: '1.5px solid #000000', height: 34 }}>
+                        <div key={`es-${idx}`} style={{ display: 'flex', flex: 1, minHeight: 26, borderBottom: '1.5px solid #000000' }}>
                             <div style={{ display: 'flex', width: '5%', borderRight: '1.5px solid #000000' }} />
-                            <div style={{ display: 'flex', width: '43%', borderRight: '1.5px solid #000000' }} />
-                            <div style={{ display: 'flex', width: '10%', borderRight: '1.5px solid #000000' }} />
-                            <div style={{ display: 'flex', width: '7%', borderRight: '1.5px solid #000000' }} />
+                            <div style={{ display: 'flex', width: '45%', borderRight: '1.5px solid #000000' }} />
+                            <div style={{ display: 'flex', width: '9%', borderRight: '1.5px solid #000000' }} />
+                            <div style={{ display: 'flex', width: '6%', borderRight: '1.5px solid #000000' }} />
                             <div style={{ display: 'flex', width: '11%', borderRight: '1.5px solid #000000' }} />
                             <div style={{ display: 'flex', width: '10%', borderRight: '1.5px solid #000000' }} />
-                            <div style={{ display: 'flex', width: '14%', justifyContent: 'flex-end', alignItems: 'center', paddingRight: 8, borderRight: '1.5px solid #000000' }}>
+                            <div style={{ display: 'flex', width: '14%', justifyContent: 'flex-end', alignItems: 'center', paddingRight: lay.cellPadH, borderRight: '1.5px solid #000000' }}>
                                 -
                             </div>
                         </div>
                     ))}
 
-                    {/* Terbilang + TOTAL */}
-                    <div style={{ display: 'flex', borderBottom: '1.5px solid #000000', minHeight: 44 }}>
-                        <div style={{ display: 'flex', width: '65%', alignItems: 'center', padding: '6px 8px', fontSize: 14, fontStyle: 'italic', borderRight: '1.5px solid #000000' }}>
+                    {/* Baris Terbilang + TOTAL */}
+                    <div style={{ display: 'flex', borderBottom: '1.5px solid #000000', minHeight: 40 }}>
+                        <div style={{ display: 'flex', width: '65%', alignItems: 'center', padding: `6px ${lay.cellPadH}px`, fontSize: lay.terbilangFs, fontStyle: 'italic', borderRight: '1.5px solid #000000' }}>
                             {`Terbilang : # ${terbilang(totalAkhir)} #`}
                         </div>
-                        <div style={{ display: 'flex', width: '21%', justifyContent: 'center', alignItems: 'center', fontWeight: 700, fontSize: 16, letterSpacing: 2, borderRight: '1.5px solid #000000' }}>
+                        <div style={{ display: 'flex', width: '21%', justifyContent: 'center', alignItems: 'center', fontWeight: 700, fontSize: lay.totalLabelFs, letterSpacing: 3, borderRight: '1.5px solid #000000' }}>
                             T O T A L
                         </div>
-                        <div style={{ display: 'flex', width: '14%', justifyContent: 'flex-end', alignItems: 'center', paddingRight: 8, fontWeight: 700, fontSize: 18, borderRight: '1.5px solid #000000' }}>
+                        <div style={{ display: 'flex', width: '14%', justifyContent: 'flex-end', alignItems: 'center', paddingRight: lay.cellPadH, fontWeight: 700, fontSize: lay.tableFs + 1, borderRight: '1.5px solid #000000' }}>
                             {fmtAngka(totalAkhir)}
                         </div>
                     </div>
@@ -587,25 +736,27 @@ export async function renderInvoicePngById(invoiceId: string): Promise<RenderedI
                         display: 'flex',
                         justifyContent: 'space-between',
                         alignItems: 'flex-start',
-                        marginTop: 22,
+                        marginTop: lay.footerMt,
                     }}
                 >
-                    <div style={{ display: 'flex', flexDirection: 'column', fontSize: 18, fontWeight: 700, lineHeight: 1.55 }}>
-                        <div style={{ display: 'flex', textDecoration: 'underline', marginBottom: 4 }}>TRANSFER :</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.48 }}>
+                        <div style={{ display: 'flex', fontWeight: 700, textDecoration: 'underline', marginBottom: 4, fontSize: lay.bankTitleFs }}>
+                            TRANSFER :
+                        </div>
                         {COMPANY_INFO.bankAccounts.map((acc, i) => (
-                            <div key={i} style={{ display: 'flex' }}>
+                            <div key={i} style={{ display: 'flex', fontWeight: 700, fontSize: lay.bankFs }}>
                                 {`${acc.bank} ${acc.accountNumber}  an ${acc.accountName}`}
                             </div>
                         ))}
                     </div>
 
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 180 }}>
-                        {ttdUri ? <img src={ttdUri} width={152} height={136} alt="TTD" /> : null}
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: lay.ttdPt, minWidth: lay.ttdW }}>
+                        {ttdUri ? <img src={ttdUri} width={lay.ttdW} height={lay.ttdH} alt="TTD" /> : null}
                     </div>
                 </div>
             </div>
         ),
-        { width, height }
+        { width, height, ...(fonts.length > 0 ? { fonts } : {}) }
     );
 
     const buf = Buffer.from(await img.arrayBuffer());

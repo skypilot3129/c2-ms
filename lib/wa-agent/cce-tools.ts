@@ -89,6 +89,36 @@ function toWibDateIso(value: any): string {
     return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(toDateSafe(value));
 }
 
+function resolveWibPeriodRange(period?: string): { startIso?: string; endIso?: string } {
+    const p = (period || '').trim().toLowerCase();
+    if (!p) return {};
+
+    const todayStr = toWibDateIso(new Date());
+    const [y, m, d] = todayStr.split('-').map(Number);
+    const utcMid = new Date(Date.UTC(y, m - 1, d));
+
+    if (p === 'today' || p === 'hari_ini') {
+        return { startIso: todayStr, endIso: todayStr };
+    }
+    if (p === 'last_7_days' || p === '7_hari') {
+        const start = new Date(utcMid.getTime() - 6 * 86400000);
+        return { startIso: start.toISOString().slice(0, 10), endIso: todayStr };
+    }
+    if (p === 'this_week' || p === 'minggu_ini') {
+        const dow = utcMid.getUTCDay(); // 0=Sun..6=Sat
+        const offsetFromMonday = dow === 0 ? 6 : dow - 1;
+        const mon = new Date(utcMid.getTime() - offsetFromMonday * 86400000);
+        const sun = new Date(mon.getTime() + 6 * 86400000);
+        return { startIso: mon.toISOString().slice(0, 10), endIso: sun.toISOString().slice(0, 10) };
+    }
+    if (p === 'this_month' || p === 'bulan_ini') {
+        const firstDay = new Date(Date.UTC(y, m - 1, 1));
+        const lastDay = new Date(Date.UTC(y, m, 0));
+        return { startIso: firstDay.toISOString().slice(0, 10), endIso: lastDay.toISOString().slice(0, 10) };
+    }
+    return {};
+}
+
 function normalizeDestination(raw?: string): string {
     return String(raw || '')
         .trim()
@@ -592,17 +622,19 @@ interface PriceHistoryCandidate {
 export async function toolListPendingSttWithPriceHistory(args: {
     startDate?: string;
     endDate?: string;
+    period?: string;
     onlyUnpriced?: boolean;
     clientName?: string;
     branch?: string;
     limit?: number;
 }) {
+    const periodRange = resolveWibPeriodRange(args.period);
     const startIso = /^\d{4}-\d{2}-\d{2}$/.test(String(args.startDate || '').trim())
         ? String(args.startDate).trim()
-        : undefined;
+        : periodRange.startIso;
     const endIso = /^\d{4}-\d{2}-\d{2}$/.test(String(args.endDate || '').trim())
         ? String(args.endDate).trim()
-        : undefined;
+        : periodRange.endIso;
     const onlyUnpriced = args.onlyUnpriced !== false;
     const clientQuery = (args.clientName || '').trim().toLowerCase();
     const branchFilter = args.branch ? normalizeBranch(args.branch) : undefined;
@@ -1664,11 +1696,656 @@ export async function executeBatchUpdateSttPricing(
     };
 }
 
+// ==========================================
+// 2C. DIRECT EXECUTION TOOLS (STT & INVOICE TANPA KONFIRMASI)
+// ==========================================
+
+async function toolCreateSttDirect(args: Record<string, any>, actorName: string) {
+    const built = buildCreateSttProposal(args);
+    if (!built.pendingAction || built.pendingAction.type !== 'create_stt') {
+        return { result: built.result };
+    }
+    const created = await executeCreateStt(built.pendingAction.payload, actorName);
+    return {
+        result: {
+            ok: true,
+            executed: true,
+            transactionId: created.id,
+            noSTT: created.noSTT,
+            pengirimName: created.pengirimName,
+            createdNewClient: created.createdNewClient,
+            jumlah: created.jumlah,
+            summary: built.pendingAction.summaryText,
+        },
+    };
+}
+
+async function toolUpdateSttDirect(args: Record<string, any>, actorName: string) {
+    const reqId = String(args.transactionId || '').trim();
+    const reqNo = String(args.noSTT || '').trim();
+    if (!reqId && !reqNo) {
+        return { result: { ok: false, error: 'Sebutkan nomor STT atau transactionId.' } };
+    }
+
+    const snap = await adminDb.collection('transactions').get();
+    const reqUpper = reqNo.toUpperCase();
+    const reqDigits = reqUpper.replace(/\D/g, '');
+
+    const match = snap.docs.find((doc) => {
+        if (reqId && doc.id === reqId) return true;
+        const sttUpper = String(doc.data()?.noSTT || '').trim().toUpperCase();
+        if (reqUpper && sttUpper === reqUpper) return true;
+        const sttDigits = sttUpper.replace(/\D/g, '');
+        return Boolean(reqDigits && sttDigits === reqDigits);
+    });
+
+    if (!match) {
+        return { result: { ok: false, error: `STT "${reqNo || reqId}" tidak ditemukan.` } };
+    }
+
+    const current = match.data() || {};
+    const updates: Record<string, unknown> = {
+        updatedAt: admin.firestore.Timestamp.now(),
+    };
+
+    const nextKoli = args.koli !== undefined ? Math.max(1, Math.round(Number(args.koli) || 1)) : Number(current.koli) || 1;
+    const nextBerat = args.berat !== undefined ? Math.max(0, Number(args.berat) || 0) : Number(current.berat) || 0;
+    const nextBeratUnit = args.beratUnit ? normalizeBeratUnit(args.beratUnit) : normalizeBeratUnit(current.beratUnit);
+    const nextTipe = args.tipeTransaksi ? normalizeTipeTransaksi(args.tipeTransaksi) : normalizeTipeTransaksi(current.tipeTransaksi);
+    const nextHarga = args.harga !== undefined ? Math.max(0, Math.round(Number(args.harga) || 0)) : Number(current.harga) || 0;
+
+    if (args.koli !== undefined) updates.koli = nextKoli;
+    if (args.berat !== undefined) updates.berat = nextBerat;
+    if (args.beratUnit !== undefined) updates.beratUnit = nextBeratUnit;
+    if (args.tipeTransaksi !== undefined) updates.tipeTransaksi = nextTipe;
+    if (args.harga !== undefined) updates.harga = nextTipe === 'borongan' ? 0 : nextHarga;
+
+    let nextJumlah = Number(current.jumlah) || 0;
+    if (args.jumlah !== undefined) {
+        nextJumlah = Math.max(0, Math.round(Number(args.jumlah) || 0));
+        if (nextTipe === 'borongan') updates.harga = 0;
+    } else if (nextTipe === 'borongan' && args.harga !== undefined) {
+        nextJumlah = nextHarga;
+        updates.harga = 0;
+    } else if (
+        nextTipe === 'regular' &&
+        (args.harga !== undefined || args.berat !== undefined || args.koli !== undefined || args.tipeTransaksi !== undefined)
+    ) {
+        nextJumlah = Math.round((nextBerat > 0 ? nextBerat : nextKoli) * nextHarga);
+    }
+    updates.jumlah = nextJumlah;
+
+    const nextIsTaxable = args.isTaxable !== undefined ? Boolean(args.isTaxable) : Boolean(current.isTaxable);
+    const ppnRate = nextIsTaxable ? Number(current.ppnRate) || 0.011 : 0;
+    updates.isTaxable = nextIsTaxable;
+    updates.ppnRate = ppnRate;
+    updates.ppn = nextIsTaxable ? Math.round(nextJumlah * ppnRate) : 0;
+
+    if (args.tujuan !== undefined) updates.tujuan = String(args.tujuan).trim();
+    if (args.pengirimName !== undefined) updates.pengirimName = String(args.pengirimName).trim();
+    if (args.penerimaName !== undefined) updates.penerimaName = String(args.penerimaName).trim();
+    if (args.isiBarang !== undefined) updates.isiBarang = String(args.isiBarang).trim();
+    if (args.keterangan !== undefined) updates.keterangan = String(args.keterangan).trim();
+    if (args.pembayaran !== undefined) updates.pembayaran = normalizePembayaran(args.pembayaran);
+    if (args.pelunasan !== undefined) {
+        updates.pelunasan = normalizePelunasan(args.pelunasan, (updates.pembayaran as MetodePembayaran) || current.pembayaran);
+    }
+    if (args.tanggal && /^\d{4}-\d{2}-\d{2}$/.test(String(args.tanggal).trim())) {
+        updates.tanggal = admin.firestore.Timestamp.fromDate(new Date(`${String(args.tanggal).trim()}T08:00:00+07:00`));
+    }
+    if (args.noSTTNew && String(args.noSTTNew).trim()) {
+        updates.noSTT = String(args.noSTTNew).trim().toUpperCase();
+    }
+
+    let nextStatus = String(current.status || 'pending');
+    if (args.status !== undefined) {
+        const stRaw = String(args.status).trim().toLowerCase();
+        if (['pending', 'diproses', 'dikirim', 'selesai', 'dibatalkan'].includes(stRaw)) {
+            nextStatus = stRaw;
+            if (stRaw !== current.status) {
+                const hist = Array.isArray(current.statusHistory) ? current.statusHistory : [];
+                updates.status = stRaw;
+                updates.statusHistory = [
+                    ...hist,
+                    {
+                        status: stRaw,
+                        timestamp: admin.firestore.Timestamp.now(),
+                        catatan: `Diubah via WA AI Agent oleh ${actorName}`,
+                    },
+                ];
+            }
+        }
+    }
+
+    await match.ref.update(updates);
+
+    // Sinkronkan invoice jika STT ini sudah tertaut
+    if (typeof current.invoiceId === 'string' && current.invoiceId) {
+        try {
+            const invRef = adminDb.collection('invoices').doc(current.invoiceId);
+            const invSnap = await invRef.get();
+            if (invSnap.exists) {
+                const invData = invSnap.data() || {};
+                const txIds: string[] = Array.isArray(invData.transactionIds) ? invData.transactionIds.filter(Boolean) : [];
+                if (txIds.length > 0) {
+                    const txRefs = txIds.map((tid) => adminDb.collection('transactions').doc(tid));
+                    const txSnaps = await adminDb.getAll(...txRefs);
+                    const sub = txSnaps.reduce((s, sn) => s + (sn.exists ? Number(sn.data()?.jumlah) || 0 : 0), 0);
+                    const invTax = Boolean(invData.isTaxable);
+                    await invRef.update({
+                        totalAmount: sub + (invTax ? Math.round(sub * 0.011) : 0),
+                        updatedAt: admin.firestore.Timestamp.now(),
+                    });
+                }
+            }
+        } catch (err) {
+            console.warn('[WA Agent] Failed syncing linked invoice in update_stt:', err);
+        }
+    }
+
+    return {
+        result: {
+            ok: true,
+            executed: true,
+            transactionId: match.id,
+            noSTT: String(updates.noSTT || current.noSTT),
+            pengirimName: String(updates.pengirimName || current.pengirimName || ''),
+            tujuan: String(updates.tujuan || current.tujuan || ''),
+            koli: nextKoli,
+            berat: nextBerat,
+            beratUnit: nextBeratUnit,
+            tipeTransaksi: nextTipe,
+            harga: updates.harga !== undefined ? Number(updates.harga) : nextHarga,
+            jumlah: nextJumlah,
+            status: nextStatus,
+        },
+    };
+}
+
+async function toolBatchUpdateSttPricingDirect(args: Record<string, any>, actorName: string) {
+    const rawItems = Array.isArray(args.items) ? args.items : [];
+    const defaultTargetStatus = normalizeTargetStatus(args.targetStatus);
+
+    // Expand item yang dikirim berbasis customerName jika tidak menyebut noSTT/transactionId
+    const expandedItems: any[] = [];
+    let cachedSnapDocs: Array<{ id: string; data: Record<string, any> }> | null = null;
+
+    for (const raw of rawItems) {
+        if (!raw || typeof raw !== 'object') continue;
+        if (raw.noSTT || raw.transactionId) {
+            expandedItems.push(raw);
+            continue;
+        }
+        const custQ = String(raw.customerName || raw.pengirimName || '').trim().toLowerCase();
+        if (!custQ) continue;
+
+        if (!cachedSnapDocs) {
+            const snap = await adminDb.collection('transactions').get();
+            cachedSnapDocs = snap.docs.map((d) => ({ id: d.id, data: d.data() || {} }));
+        }
+        const matches = cachedSnapDocs.filter(({ data }) => {
+            if (String(data.status || 'pending') !== 'pending') return false;
+            return String(data.pengirimName || '').toLowerCase().includes(custQ);
+        });
+        for (const m of matches) {
+            expandedItems.push({
+                ...raw,
+                transactionId: m.id,
+                noSTT: String(m.data.noSTT || m.id),
+            });
+        }
+    }
+
+    const built = await buildBatchUpdateSttPricingProposal({
+        ...args,
+        items: expandedItems,
+        targetStatus: defaultTargetStatus,
+    });
+
+    if (!built.pendingAction || built.pendingAction.type !== 'batch_update_stt_pricing') {
+        return { result: built.result };
+    }
+
+    const res = await executeBatchUpdateSttPricing(built.pendingAction.payload, actorName);
+    return {
+        result: {
+            ok: true,
+            executed: true,
+            updatedCount: res.updatedCount,
+            totalNominal: res.totalNominal,
+            updatedItems: res.updatedItems,
+            skippedItems: res.skippedItems,
+            skippedNeedsPrice: (built.result as any).skippedNeedsPrice || [],
+            notFound: (built.result as any).notFound || [],
+        },
+    };
+}
+
+async function toolDeleteSttDirect(args: Record<string, any>, actorName: string) {
+    void actorName;
+    const reqIds = Array.isArray(args.transactionIds) ? args.transactionIds.map((s: any) => String(s || '').trim()).filter(Boolean) : [];
+    if (args.transactionId) reqIds.push(String(args.transactionId).trim());
+    const reqStts = Array.isArray(args.noSTTs) ? args.noSTTs.map((s: any) => String(s || '').trim()).filter(Boolean) : [];
+    if (args.noSTT) reqStts.push(String(args.noSTT).trim());
+
+    if (reqIds.length === 0 && reqStts.length === 0) {
+        return { result: { ok: false, error: 'Sebutkan nomor STT atau transactionId yang akan dihapus.' } };
+    }
+
+    const txSnap = await adminDb.collection('transactions').get();
+    const toDelete: Array<{ id: string; noSTT: string; invoiceId?: string }> = [];
+    const seen = new Set<string>();
+
+    for (const doc of txSnap.docs) {
+        const d = doc.data() || {};
+        const sttUpper = String(d.noSTT || '').trim().toUpperCase();
+        const sttDigits = sttUpper.replace(/\D/g, '');
+
+        const hitById = reqIds.includes(doc.id);
+        const hitByStt = reqStts.some((req) => {
+            const u = req.toUpperCase();
+            const dig = u.replace(/\D/g, '');
+            return u === sttUpper || (dig !== '' && dig === sttDigits);
+        });
+
+        if ((hitById || hitByStt) && !seen.has(doc.id)) {
+            seen.add(doc.id);
+            toDelete.push({
+                id: doc.id,
+                noSTT: String(d.noSTT || doc.id),
+                invoiceId: typeof d.invoiceId === 'string' && d.invoiceId ? d.invoiceId : undefined,
+            });
+        }
+    }
+
+    if (toDelete.length === 0) {
+        return { result: { ok: false, error: 'STT yang ingin dihapus tidak ditemukan.' } };
+    }
+
+    const deletedIds = new Set(toDelete.map((t) => t.id));
+    const affectedInvoices = new Set(toDelete.map((t) => t.invoiceId).filter((v): v is string => Boolean(v)));
+
+    // Hapus dokumen transaksi
+    await Promise.all(toDelete.map((t) => adminDb.collection('transactions').doc(t.id).delete()));
+
+    // Bersihkan dari voyages yang menautkan transaksi ini
+    const voyagesSnap = await adminDb.collection('voyages').get();
+    for (const vDoc of voyagesSnap.docs) {
+        const txIds: string[] = Array.isArray(vDoc.data()?.transactionIds) ? vDoc.data()!.transactionIds : [];
+        if (txIds.some((tid) => deletedIds.has(tid))) {
+            await vDoc.ref.update({
+                transactionIds: txIds.filter((tid) => !deletedIds.has(tid)),
+                updatedAt: admin.firestore.Timestamp.now(),
+            });
+        }
+    }
+
+    // Bersihkan & hitung ulang invoice yang menautkan transaksi ini
+    for (const invId of affectedInvoices) {
+        try {
+            const invRef = adminDb.collection('invoices').doc(invId);
+            const invSnap = await invRef.get();
+            if (!invSnap.exists) continue;
+            const invData = invSnap.data() || {};
+            const remainingIds: string[] = (Array.isArray(invData.transactionIds) ? invData.transactionIds : []).filter(
+                (tid: string) => tid && !deletedIds.has(tid)
+            );
+            let sub = 0;
+            if (remainingIds.length > 0) {
+                const refs = remainingIds.map((tid) => adminDb.collection('transactions').doc(tid));
+                const snaps = await adminDb.getAll(...refs);
+                sub = snaps.reduce((s, sn) => s + (sn.exists ? Number(sn.data()?.jumlah) || 0 : 0), 0);
+            }
+            const invTax = Boolean(invData.isTaxable);
+            await invRef.update({
+                transactionIds: remainingIds,
+                totalAmount: sub + (invTax ? Math.round(sub * 0.011) : 0),
+                updatedAt: admin.firestore.Timestamp.now(),
+            });
+        } catch (err) {
+            console.warn('[WA Agent] Failed updating invoice after delete_stt:', invId, err);
+        }
+    }
+
+    return {
+        result: {
+            ok: true,
+            executed: true,
+            deletedCount: toDelete.length,
+            deletedSTTs: toDelete.map((t) => t.noSTT),
+        },
+    };
+}
+
+async function findInvoiceDocByArgs(args: Record<string, any>) {
+    const reqId = String(args.invoiceId || '').trim();
+    const reqNum = String(args.invoiceNumber || '').trim();
+    const reqClient = String(args.clientName || '').trim().toLowerCase();
+
+    if (reqId) {
+        const snap = await adminDb.collection('invoices').doc(reqId).get();
+        if (snap.exists) return { id: snap.id, ref: snap.ref, data: snap.data() || {} };
+        return null;
+    }
+
+    const snap = await adminDb.collection('invoices').get();
+    const docs = snap.docs.map((doc) => ({ id: doc.id, ref: doc.ref, data: doc.data() || {} }));
+
+    if (reqNum) {
+        const reqUpper = reqNum.toUpperCase();
+        const reqDigits = reqUpper.replace(/\D/g, '');
+        const hit = docs.find(({ data }) => {
+            const invNo = String(data.invoiceNumber || '').trim().toUpperCase();
+            if (invNo === reqUpper) return true;
+            const invDigits = invNo.replace(/\D/g, '');
+            return Boolean(reqDigits && invDigits === reqDigits);
+        });
+        if (hit) return hit;
+    }
+
+    if (reqClient) {
+        const matches = docs
+            .filter(({ data }) => String(data.clientName || '').toLowerCase().includes(reqClient))
+            .sort((a, b) => {
+                const ta = toDateSafe(a.data.createdAt || a.data.issueDate).getTime();
+                const tb = toDateSafe(b.data.createdAt || b.data.issueDate).getTime();
+                return tb - ta;
+            });
+        if (matches.length > 0) return matches[0];
+    }
+
+    return null;
+}
+
+async function toolCreateInvoiceDirect(
+    args: Record<string, any>,
+    actorName: string
+): Promise<{ result: Record<string, unknown>; replyMedia?: ReplyMediaItem[] }> {
+    const built = await buildCreateInvoiceProposal(args);
+    if (!built.pendingAction || built.pendingAction.type !== 'create_invoice') {
+        return { result: built.result };
+    }
+
+    const inv = await executeCreateInvoice(built.pendingAction.payload, actorName);
+    let replyMedia: ReplyMediaItem[] | undefined;
+    try {
+        const rendered = await renderInvoicePngById(inv.id);
+        replyMedia = [
+            {
+                base64: rendered.base64,
+                mimeType: rendered.mimeType,
+                filename: rendered.filename,
+            },
+        ];
+    } catch (err) {
+        console.error('[WA Agent] Failed rendering PNG in create_invoice:', err);
+    }
+
+    return {
+        result: {
+            ok: true,
+            executed: true,
+            invoiceId: inv.id,
+            invoiceNumber: inv.invoiceNumber,
+            clientName: inv.clientName,
+            sttCount: inv.sttCount,
+            totalAmount: inv.totalAmount,
+            printUrl: inv.printUrl,
+            imageAttached: Boolean(replyMedia?.length),
+        },
+        replyMedia,
+    };
+}
+
+async function toolUpdateInvoiceDirect(
+    args: Record<string, any>,
+    actorName: string
+): Promise<{ result: Record<string, unknown>; replyMedia?: ReplyMediaItem[] }> {
+    const found = await findInvoiceDocByArgs(args);
+    if (!found) {
+        return {
+            result: {
+                ok: false,
+                error: 'Invoice tidak ditemukan. Sebutkan nomor invoice atau nama client.',
+            },
+        };
+    }
+
+    const invData = found.data;
+    const allTxSnap = await adminDb.collection('transactions').get();
+    const txById = new Map(allTxSnap.docs.map((d) => [d.id, { id: d.id, ref: d.ref, data: d.data() || {} }]));
+    const txBySttUpper = new Map<string, { id: string; ref: admin.firestore.DocumentReference; data: Record<string, any> }>();
+    const txBySttDigits = new Map<string, { id: string; ref: admin.firestore.DocumentReference; data: Record<string, any> }>();
+
+    for (const d of txById.values()) {
+        const upper = String(d.data.noSTT || '').trim().toUpperCase();
+        if (upper) txBySttUpper.set(upper, d);
+        const dig = upper.replace(/\D/g, '');
+        if (dig) txBySttDigits.set(dig, d);
+    }
+
+    const matchSttList = (list: unknown): string[] => {
+        if (!Array.isArray(list)) return [];
+        const out: string[] = [];
+        for (const raw of list) {
+            const s = String(raw || '').trim();
+            if (!s) continue;
+            const upper = s.toUpperCase();
+            const dig = upper.replace(/\D/g, '');
+            const hit = txById.get(s) || txBySttUpper.get(upper) || (dig ? txBySttDigits.get(dig) : undefined);
+            if (hit) out.push(hit.id);
+        }
+        return out;
+    };
+
+    const currentIds = new Set<string>(Array.isArray(invData.transactionIds) ? invData.transactionIds.filter(Boolean) : []);
+    const addIds = matchSttList(args.addNoSTTs);
+    const removeIds = new Set(matchSttList(args.removeNoSTTs));
+
+    for (const rId of removeIds) currentIds.delete(rId);
+    for (const aId of addIds) currentIds.add(aId);
+
+    const finalTxIds = Array.from(currentIds);
+    const nextInvoiceNumber = args.invoiceNumberNew
+        ? String(args.invoiceNumberNew).trim()
+        : String(invData.invoiceNumber || '');
+    const nextIsTaxable = args.isTaxable !== undefined ? Boolean(args.isTaxable) : Boolean(invData.isTaxable);
+    const nextStatusRaw = args.status ? String(args.status).trim().toLowerCase() : '';
+    const nextStatus: 'Paid' | 'Unpaid' | 'Cancelled' =
+        nextStatusRaw === 'paid' || nextStatusRaw === 'lunas'
+            ? 'Paid'
+            : nextStatusRaw === 'cancelled' || nextStatusRaw === 'batal'
+              ? 'Cancelled'
+              : nextStatusRaw === 'unpaid' || nextStatusRaw === 'belum lunas'
+                ? 'Unpaid'
+                : (invData.status as 'Paid' | 'Unpaid' | 'Cancelled') || 'Unpaid';
+
+    const subtotal = finalTxIds.reduce((sum, tid) => {
+        const entry = txById.get(tid);
+        return sum + (entry ? Number(entry.data.jumlah) || 0 : 0);
+    }, 0);
+    const computedTotal = subtotal + (nextIsTaxable ? Math.round(subtotal * 0.011) : 0);
+    const nextTotalAmount =
+        args.totalAmountOverride !== undefined && Number(args.totalAmountOverride) >= 0
+            ? Math.round(Number(args.totalAmountOverride))
+            : finalTxIds.length > 0
+              ? computedTotal
+              : Number(invData.totalAmount) || 0;
+
+    const now = admin.firestore.Timestamp.now();
+    const invUpdates: Record<string, unknown> = {
+        invoiceNumber: nextInvoiceNumber,
+        transactionIds: finalTxIds,
+        isTaxable: nextIsTaxable,
+        totalAmount: nextTotalAmount,
+        status: nextStatus,
+        updatedAt: now,
+    };
+
+    if (args.clientName !== undefined) invUpdates.clientName = String(args.clientName).trim();
+    if (args.clientAddress !== undefined) invUpdates.clientAddress = String(args.clientAddress).trim();
+    if (args.notes !== undefined) invUpdates.notes = String(args.notes).trim();
+    if (args.issueDate && /^\d{4}-\d{2}-\d{2}$/.test(String(args.issueDate).trim())) {
+        invUpdates.issueDate = admin.firestore.Timestamp.fromDate(new Date(`${String(args.issueDate).trim()}T08:00:00+07:00`));
+    }
+    if (args.dueDate && /^\d{4}-\d{2}-\d{2}$/.test(String(args.dueDate).trim())) {
+        invUpdates.dueDate = admin.firestore.Timestamp.fromDate(new Date(`${String(args.dueDate).trim()}T08:00:00+07:00`));
+    }
+
+    if (nextStatus === 'Paid') {
+        invUpdates.paidAt = invData.paidAt || now;
+        invUpdates.paidBy = actorName;
+        if (args.paymentMethod) invUpdates.paymentMethod = String(args.paymentMethod).trim();
+    } else if (args.status !== undefined && nextStatus === 'Unpaid') {
+        invUpdates.paidAt = admin.firestore.FieldValue.delete();
+        invUpdates.paidTime = admin.firestore.FieldValue.delete();
+        invUpdates.paidBy = admin.firestore.FieldValue.delete();
+        invUpdates.paymentDate = admin.firestore.FieldValue.delete();
+        invUpdates.paymentMethod = admin.firestore.FieldValue.delete();
+    }
+
+    await found.ref.update(invUpdates);
+
+    // Lepas STT yang dihapus dari invoice
+    for (const rId of removeIds) {
+        const entry = txById.get(rId);
+        if (!entry) continue;
+        await entry.ref.update({
+            invoiceId: admin.firestore.FieldValue.delete(),
+            invoiceNumber: admin.firestore.FieldValue.delete(),
+            invoiceStatus: admin.firestore.FieldValue.delete(),
+            ...(invData.status === 'Paid' ? { pelunasan: 'Pending' } : {}),
+            updatedAt: now,
+        });
+    }
+
+    // Sinkronkan STT yang tertaut
+    const paidMethodStr = String(args.paymentMethod || invData.paymentMethod || '').toLowerCase();
+    const paidCode = paidMethodStr.includes('tf') || paidMethodStr.includes('transfer') ? 'TF' : 'Cash';
+
+    for (const tid of finalTxIds) {
+        const entry = txById.get(tid);
+        if (!entry) continue;
+        if (nextStatus === 'Cancelled') {
+            await entry.ref.update({
+                invoiceId: admin.firestore.FieldValue.delete(),
+                invoiceNumber: admin.firestore.FieldValue.delete(),
+                invoiceStatus: admin.firestore.FieldValue.delete(),
+                updatedAt: now,
+            });
+        } else {
+            await entry.ref.update({
+                invoiceId: found.id,
+                invoiceNumber: nextInvoiceNumber,
+                invoiceStatus: nextStatus,
+                ...(args.status !== undefined
+                    ? { pelunasan: nextStatus === 'Paid' ? paidCode : 'Pending' }
+                    : {}),
+                updatedAt: now,
+            });
+        }
+    }
+
+    let replyMedia: ReplyMediaItem[] | undefined;
+    if (nextStatus !== 'Cancelled') {
+        try {
+            const rendered = await renderInvoicePngById(found.id);
+            replyMedia = [
+                {
+                    base64: rendered.base64,
+                    mimeType: rendered.mimeType,
+                    filename: rendered.filename,
+                },
+            ];
+        } catch (err) {
+            console.error('[WA Agent] Failed rendering PNG in update_invoice:', err);
+        }
+    }
+
+    const appUrl = (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000').replace(/\/+$/, '');
+    return {
+        result: {
+            ok: true,
+            executed: true,
+            invoiceId: found.id,
+            invoiceNumber: nextInvoiceNumber,
+            clientName: String(invUpdates.clientName || invData.clientName || ''),
+            status: nextStatus,
+            sttCount: finalTxIds.length,
+            totalAmount: nextTotalAmount,
+            printUrl: `${appUrl}/finance/invoices/${found.id}/print`,
+            imageAttached: Boolean(replyMedia?.length),
+        },
+        replyMedia,
+    };
+}
+
+async function toolDeleteInvoiceDirect(args: Record<string, any>, actorName: string) {
+    void actorName;
+    const found = await findInvoiceDocByArgs(args);
+    if (!found) {
+        return {
+            result: {
+                ok: false,
+                error: 'Invoice tidak ditemukan. Sebutkan nomor invoice atau ID invoice.',
+            },
+        };
+    }
+
+    const linkedQuerySnap = await adminDb
+        .collection('transactions')
+        .where('invoiceId', '==', found.id)
+        .get();
+
+    const invoiceData = found.data;
+    const invoiceNumber = String(invoiceData.invoiceNumber || found.id);
+    const clientName = String(invoiceData.clientName || '');
+
+    await adminDb.runTransaction(async (tx) => {
+        const invSnap = await tx.get(found.ref);
+        if (!invSnap.exists) return;
+        const d = invSnap.data() || {};
+        const declaredIds: string[] = Array.isArray(d.transactionIds) ? d.transactionIds : [];
+        const idSet = new Set<string>([...declaredIds.filter(Boolean), ...linkedQuerySnap.docs.map((doc) => doc.id)]);
+
+        const txRefs = Array.from(idSet).map((tid) => adminDb.collection('transactions').doc(tid));
+        const txSnaps = await Promise.all(txRefs.map((ref) => tx.get(ref)));
+        const now = admin.firestore.Timestamp.now();
+
+        for (const tSnap of txSnaps) {
+            if (!tSnap.exists) continue;
+            const txUpdates: Record<string, unknown> = {
+                invoiceId: admin.firestore.FieldValue.delete(),
+                invoiceNumber: admin.firestore.FieldValue.delete(),
+                invoiceStatus: admin.firestore.FieldValue.delete(),
+                updatedAt: now,
+            };
+            if (d.status === 'Paid') {
+                txUpdates.pelunasan = 'Pending';
+            }
+            tx.update(tSnap.ref, txUpdates);
+        }
+
+        tx.delete(found.ref);
+    });
+
+    return {
+        result: {
+            ok: true,
+            executed: true,
+            deletedInvoiceId: found.id,
+            invoiceNumber,
+            clientName,
+        },
+    };
+}
+
 export async function toolGetInvoiceImage(args: {
     invoiceNumber?: string;
     invoiceId?: string;
     clientName?: string;
-}): Promise<{ result: Record<string, unknown>; replyMedia?: ReplyMediaItem[] }> {
+    noText?: boolean;
+}): Promise<{ result: Record<string, unknown>; replyMedia?: ReplyMediaItem[]; suppressReplyText?: boolean }> {
     const reqId = String(args.invoiceId || '').trim();
     const reqNum = String(args.invoiceNumber || '').trim();
     const reqClient = String(args.clientName || '').trim().toLowerCase();
@@ -1737,6 +2414,210 @@ export async function toolGetInvoiceImage(args: {
                 filename: rendered.filename,
             },
         ],
+        ...(args.noText ? { suppressReplyText: true } : {}),
+    };
+}
+
+export async function toolGetVoyageInvoiceImages(args: {
+    voyageId?: string;
+    voyageNumber?: string;
+    shipName?: string;
+    departureDate?: string;
+    startDate?: string;
+    endDate?: string;
+    silentText?: boolean;
+}): Promise<{
+    result: Record<string, unknown>;
+    replyMedia?: ReplyMediaItem[];
+    suppressReplyText?: boolean;
+}> {
+    const reqVoyageId = String(args.voyageId || '').trim();
+    const reqVoyageNo = String(args.voyageNumber || '').trim().toLowerCase();
+    const reqVoyageDigits = reqVoyageNo.replace(/\D/g, '');
+    const reqShip = String(args.shipName || '').trim().toLowerCase();
+    const reqDepDate = String(args.departureDate || '').trim();
+    const reqStartDate = String(args.startDate || '').trim();
+    const reqEndDate = String(args.endDate || '').trim();
+
+    const voyagesSnap = await adminDb.collection('voyages').get();
+    const allVoyages = voyagesSnap.docs
+        .map((doc) => {
+            const data = doc.data() || {};
+            return {
+                id: doc.id,
+                data,
+                depDate: toDateSafe(data.departureDate),
+                depIso: toWibDateIso(data.departureDate),
+            };
+        })
+        .filter((v) => String(v.data.status || '').toLowerCase() !== 'cancelled');
+
+    const hasFilter = Boolean(reqVoyageId || reqVoyageNo || reqShip || reqDepDate || reqStartDate || reqEndDate);
+
+    let matchedVoyages = allVoyages.filter((v) => {
+        if (reqVoyageId) return v.id === reqVoyageId;
+        if (reqVoyageNo) {
+            const vNo = String(v.data.voyageNumber || '').trim().toLowerCase();
+            const vDigits = vNo.replace(/\D/g, '');
+            const matchesNo = vNo.includes(reqVoyageNo) || Boolean(reqVoyageDigits && vDigits === reqVoyageDigits);
+            if (!matchesNo) return false;
+        }
+        if (reqShip) {
+            const ship = String(v.data.shipName || '').toLowerCase();
+            const route = String(v.data.route || '').toLowerCase();
+            if (!ship.includes(reqShip) && !route.includes(reqShip)) return false;
+        }
+        if (reqDepDate && v.depIso !== reqDepDate) return false;
+        if (reqStartDate && v.depIso < reqStartDate) return false;
+        if (reqEndDate && v.depIso > reqEndDate) return false;
+        return true;
+    });
+
+    if (!hasFilter && matchedVoyages.length > 0) {
+        matchedVoyages = [...matchedVoyages]
+            .sort((a, b) => b.depDate.getTime() - a.depDate.getTime())
+            .slice(0, 1);
+    }
+
+    if (matchedVoyages.length === 0) {
+        return {
+            result: {
+                ok: false,
+                error: 'Tidak ditemukan pemberangkatan kapal sesuai filter tersebut.',
+            },
+        };
+    }
+
+    const voyageLabels = matchedVoyages.map((v) => {
+        const vNo = String(v.data.voyageNumber || v.id);
+        const ship = String(v.data.shipName || '').trim();
+        return ship ? `${vNo} (${ship} - ${v.depIso})` : `${vNo} (${v.depIso})`;
+    });
+
+    const voyageTxIdSet = new Set<string>();
+    for (const v of matchedVoyages) {
+        const txIds: unknown[] = Array.isArray(v.data.transactionIds) ? v.data.transactionIds : [];
+        for (const tid of txIds) {
+            if (typeof tid === 'string' && tid.trim()) {
+                voyageTxIdSet.add(tid.trim());
+            }
+        }
+    }
+
+    if (voyageTxIdSet.size === 0) {
+        return {
+            result: {
+                ok: false,
+                error: 'Pemberangkatan tersebut belum memiliki STT / invoice.',
+            },
+        };
+    }
+
+    const candidateInvoiceIds = new Set<string>();
+    const voyageTxIds = Array.from(voyageTxIdSet);
+    for (let i = 0; i < voyageTxIds.length; i += 100) {
+        const chunk = voyageTxIds.slice(i, i + 100);
+        const refs = chunk.map((tid) => adminDb.collection('transactions').doc(tid));
+        const txSnaps = await adminDb.getAll(...refs);
+        for (const txSnap of txSnaps) {
+            if (!txSnap.exists) continue;
+            const td = txSnap.data() || {};
+            if (String(td.status || '').toLowerCase() === 'dibatalkan') continue;
+            if (typeof td.invoiceId === 'string' && td.invoiceId.trim()) {
+                candidateInvoiceIds.add(td.invoiceId.trim());
+            }
+        }
+    }
+
+    const invoicesSnap = await adminDb.collection('invoices').get();
+    const invoiceDocById = new Map<string, Record<string, any>>();
+    for (const doc of invoicesSnap.docs) {
+        const data = doc.data() || {};
+        invoiceDocById.set(doc.id, data);
+        if (String(data.status || '') === 'Cancelled') continue;
+        const invTxIds: unknown[] = Array.isArray(data.transactionIds) ? data.transactionIds : [];
+        if (invTxIds.some((tid) => typeof tid === 'string' && voyageTxIdSet.has(tid.trim()))) {
+            candidateInvoiceIds.add(doc.id);
+        }
+    }
+
+    const matchedInvoices = Array.from(candidateInvoiceIds)
+        .map((invId) => ({ id: invId, data: invoiceDocById.get(invId) }))
+        .filter((item): item is { id: string; data: Record<string, any> } => {
+            if (!item.data) return false;
+            return String(item.data.status || '') !== 'Cancelled';
+        })
+        .sort((a, b) => {
+            const noA = String(a.data.invoiceNumber || '');
+            const noB = String(b.data.invoiceNumber || '');
+            const numA = parseInt(noA.replace(/\D/g, ''), 10);
+            const numB = parseInt(noB.replace(/\D/g, ''), 10);
+            if (!isNaN(numA) && !isNaN(numB) && numA !== numB) {
+                return numA - numB;
+            }
+            return noA.localeCompare(noB);
+        });
+
+    if (matchedInvoices.length === 0) {
+        return {
+            result: {
+                ok: false,
+                error: `Belum ada invoice yang dibuat untuk pemberangkatan ${voyageLabels.join(', ')}.`,
+            },
+        };
+    }
+
+    const media: ReplyMediaItem[] = [];
+    const invoiceNumbers: string[] = [];
+    let failedCount = 0;
+
+    for (let i = 0; i < matchedInvoices.length; i += 4) {
+        const chunk = matchedInvoices.slice(i, i + 4);
+        const settled = await Promise.all(
+            chunk.map(async (inv) => {
+                try {
+                    return await renderInvoicePngById(inv.id);
+                } catch (err) {
+                    console.error(`[WA Agent] Failed rendering invoice ${inv.id}:`, err);
+                    return null;
+                }
+            })
+        );
+        for (const rendered of settled) {
+            if (!rendered) {
+                failedCount += 1;
+                continue;
+            }
+            media.push({
+                base64: rendered.base64,
+                mimeType: rendered.mimeType,
+                filename: rendered.filename,
+            });
+            invoiceNumbers.push(rendered.invoiceNumber);
+        }
+    }
+
+    if (media.length === 0) {
+        return {
+            result: {
+                ok: false,
+                error: 'Gagal merender gambar invoice.',
+            },
+        };
+    }
+
+    const silentText = args.silentText !== false;
+    return {
+        result: {
+            ok: true,
+            voyages: voyageLabels,
+            invoiceCount: media.length,
+            invoiceNumbers,
+            failedCount,
+            silentText,
+        },
+        replyMedia: media,
+        suppressReplyText: silentText,
     };
 }
 
@@ -2472,9 +3353,9 @@ const ALL_TOOL_DECLARATIONS: FunctionDeclaration[] = [
         },
     },
     {
-        name: 'propose_create_stt',
+        name: 'create_stt',
         description:
-            'Siapkan DRAFT pembuatan STT/transaksi baru untuk dikonfirmasi user (YA/BATAL). JANGAN memanggil ini sebelum pengirimName, penerimaName, dan tujuan jelas.',
+            'Buat & simpan STT/transaksi baru LANGSUNG ke Firestore (TANPA konfirmasi). JANGAN memanggil ini sebelum pengirimName, penerimaName, dan tujuan jelas.',
         parameters: {
             type: Type.OBJECT,
             properties: {
@@ -2502,9 +3383,55 @@ const ALL_TOOL_DECLARATIONS: FunctionDeclaration[] = [
         },
     },
     {
-        name: 'propose_create_invoice',
+        name: 'update_stt',
         description:
-            'Siapkan DRAFT pembuatan Invoice dari STT Pending yang belum tertagih untuk dikonfirmasi user (YA/BATAL).',
+            'Edit data 1 STT secara LANGSUNG (TANPA konfirmasi): harga, jumlah, tipeTransaksi, koli, berat, beratUnit, tujuan, pengirimName, penerimaName, isiBarang, keterangan, pembayaran, pelunasan, status, tanggal, atau nomor STT.',
+        parameters: {
+            type: Type.OBJECT,
+            properties: {
+                noSTT: { type: Type.STRING, description: 'Nomor STT yang akan diedit.' },
+                transactionId: { type: Type.STRING, description: 'Opsional: ID Firestore transaksi.' },
+                harga: { type: Type.NUMBER, description: 'Tarif satuan baru (regular).' },
+                jumlah: { type: Type.NUMBER, description: 'Total Rupiah baru (wajib untuk borongan / override).' },
+                tipeTransaksi: { type: Type.STRING, description: '"regular" atau "borongan".' },
+                koli: { type: Type.NUMBER, description: 'Jumlah koli baru.' },
+                berat: { type: Type.NUMBER, description: 'Berat/volume baru.' },
+                beratUnit: { type: Type.STRING, description: '"KG", "M3", atau "KG/VOLUME".' },
+                tujuan: { type: Type.STRING, description: 'Kota tujuan baru.' },
+                pengirimName: { type: Type.STRING, description: 'Nama pengirim baru.' },
+                penerimaName: { type: Type.STRING, description: 'Nama penerima baru.' },
+                isiBarang: { type: Type.STRING, description: 'Isi barang baru.' },
+                keterangan: { type: Type.STRING, description: 'Keterangan baru.' },
+                pembayaran: { type: Type.STRING, description: '"Tunai", "Kredit", atau "DP".' },
+                pelunasan: { type: Type.STRING, description: '"Cash", "TF", atau "Pending".' },
+                isTaxable: { type: Type.BOOLEAN, description: 'true jika PKP.' },
+                status: { type: Type.STRING, description: '"pending", "diproses", "dikirim", "selesai", atau "dibatalkan".' },
+                tanggal: { type: Type.STRING, description: 'Tanggal format YYYY-MM-DD.' },
+                noSTTNew: { type: Type.STRING, description: 'Nomor STT baru jika mengganti nomor STT.' },
+            },
+        },
+    },
+    {
+        name: 'delete_stt',
+        description:
+            'Hapus satu atau beberapa STT secara LANGSUNG dari Firestore (TANPA konfirmasi).',
+        parameters: {
+            type: Type.OBJECT,
+            properties: {
+                noSTT: { type: Type.STRING, description: 'Satu nomor STT yang akan dihapus.' },
+                noSTTs: {
+                    type: Type.ARRAY,
+                    items: { type: Type.STRING },
+                    description: 'Daftar nomor STT yang akan dihapus.',
+                },
+                transactionId: { type: Type.STRING, description: 'Opsional: ID Firestore transaksi.' },
+            },
+        },
+    },
+    {
+        name: 'create_invoice',
+        description:
+            'Buat & terbitkan Invoice LANGSUNG dari STT Pending yang belum tertagih (TANPA konfirmasi), lalu otomatis kirim gambar PNG invoice.',
         parameters: {
             type: Type.OBJECT,
             properties: {
@@ -2521,12 +3448,59 @@ const ALL_TOOL_DECLARATIONS: FunctionDeclaration[] = [
         },
     },
     {
-        name: 'list_pending_stt_with_price_history',
+        name: 'update_invoice',
         description:
-            'Cari daftar STT berstatus pending (terutama yang belum diisi harga dari manifes cargo) dalam rentang tanggal tertentu beserta rekomendasi harga dari riwayat transaksi pengirim yang sama.',
+            'Revisi/edit Invoice yang sudah ada secara LANGSUNG (TANPA konfirmasi): ubah nomor invoice, tanggal, jatuh tempo, catatan, status Paid/Unpaid/Cancelled, PKP, tambah/hapus STT, lalu otomatis kirim gambar PNG invoice terbaru.',
         parameters: {
             type: Type.OBJECT,
             properties: {
+                invoiceNumber: { type: Type.STRING, description: 'Nomor invoice yang akan direvisi.' },
+                invoiceId: { type: Type.STRING, description: 'Opsional: ID Firestore invoice.' },
+                clientName: { type: Type.STRING, description: 'Opsional: cari invoice terbaru client atau ganti nama client.' },
+                invoiceNumberNew: { type: Type.STRING, description: 'Nomor invoice baru jika ingin diganti.' },
+                issueDate: { type: Type.STRING, description: 'Tanggal terbit baru YYYY-MM-DD.' },
+                dueDate: { type: Type.STRING, description: 'Jatuh tempo baru YYYY-MM-DD.' },
+                notes: { type: Type.STRING, description: 'Catatan invoice baru.' },
+                isTaxable: { type: Type.BOOLEAN, description: 'true untuk PKP (PPN 1.1%).' },
+                status: { type: Type.STRING, description: '"Paid", "Unpaid", atau "Cancelled".' },
+                paymentMethod: { type: Type.STRING, description: 'Metode bayar bila Paid (mis. "Transfer BCA", "Cash").' },
+                addNoSTTs: {
+                    type: Type.ARRAY,
+                    items: { type: Type.STRING },
+                    description: 'Nomor STT yang ingin ditambahkan ke invoice ini.',
+                },
+                removeNoSTTs: {
+                    type: Type.ARRAY,
+                    items: { type: Type.STRING },
+                    description: 'Nomor STT yang ingin dilepas dari invoice ini.',
+                },
+                totalAmountOverride: { type: Type.NUMBER, description: 'Opsional: override total tagihan.' },
+            },
+        },
+    },
+    {
+        name: 'delete_invoice',
+        description:
+            'Hapus Invoice secara LANGSUNG (TANPA konfirmasi) dan otomatis lepas tautannya dari semua STT terkait.',
+        parameters: {
+            type: Type.OBJECT,
+            properties: {
+                invoiceNumber: { type: Type.STRING, description: 'Nomor invoice yang akan dihapus.' },
+                invoiceId: { type: Type.STRING, description: 'Opsional: ID Firestore invoice.' },
+            },
+        },
+    },
+    {
+        name: 'list_pending_stt_with_price_history',
+        description:
+            'Cari daftar STT berstatus pending (terutama yang belum diisi harga) dalam periode/tanggal tertentu beserta data customer dan riwayat harga transaksi pengirim sebelumnya.',
+        parameters: {
+            type: Type.OBJECT,
+            properties: {
+                period: {
+                    type: Type.STRING,
+                    description: 'Shortcut periode WIB: "this_week" (minggu ini), "today" (hari ini), "last_7_days", atau "this_month".',
+                },
                 startDate: { type: Type.STRING, description: 'Opsional: tanggal mulai format YYYY-MM-DD.' },
                 endDate: { type: Type.STRING, description: 'Opsional: tanggal akhir format YYYY-MM-DD.' },
                 onlyUnpriced: {
@@ -2540,9 +3514,9 @@ const ALL_TOOL_DECLARATIONS: FunctionDeclaration[] = [
         },
     },
     {
-        name: 'propose_batch_update_stt_pricing',
+        name: 'batch_update_stt_pricing',
         description:
-            'Siapkan DRAFT update harga & ubah status pengiriman (misal ke "dikirim") untuk satu atau banyak STT sekaligus agar dikonfirmasi user (YA / revisi / BATAL). Bisa dipanggil ulang saat user merevisi harga.',
+            'Update harga & ubah status pengiriman (default "dikirim") untuk satu atau banyak STT sekaligus secara LANGSUNG (TANPA konfirmasi). Bisa pakai noSTT atau customerName.',
         parameters: {
             type: Type.OBJECT,
             properties: {
@@ -2552,12 +3526,13 @@ const ALL_TOOL_DECLARATIONS: FunctionDeclaration[] = [
                 },
                 items: {
                     type: Type.ARRAY,
-                    description: 'Daftar STT yang akan diisi harganya dan diubah statusnya.',
+                    description: 'Daftar STT atau customer yang akan diisi harganya dan diubah statusnya.',
                     items: {
                         type: Type.OBJECT,
                         properties: {
                             transactionId: { type: Type.STRING, description: 'ID dokumen Firestore transaksi (jika tersedia).' },
                             noSTT: { type: Type.STRING, description: 'Nomor STT (contoh: "STT019787" atau "19787").' },
+                            customerName: { type: Type.STRING, description: 'Opsional jika user menyebut harga per customer tanpa noSTT (terapkan ke semua STT pending milik customer tsb).' },
                             tipeTransaksi: { type: Type.STRING, description: '"regular" (harga x berat) atau "borongan" (jumlah total).' },
                             harga: { type: Type.NUMBER, description: 'Tarif satuan dalam Rupiah untuk tipe "regular".' },
                             jumlah: { type: Type.NUMBER, description: 'Total Rupiah (wajib untuk "borongan", atau opsional override untuk "regular").' },
@@ -2565,9 +3540,8 @@ const ALL_TOOL_DECLARATIONS: FunctionDeclaration[] = [
                             beratUnit: { type: Type.STRING, description: 'Opsional: "KG", "M3", atau "KG/VOLUME".' },
                             isTaxable: { type: Type.BOOLEAN, description: 'Opsional: true jika kena PPN 1.1%.' },
                             newStatus: { type: Type.STRING, description: 'Opsional: status khusus untuk STT ini.' },
-                            priceSource: { type: Type.STRING, description: 'Opsional: keterangan asal riwayat harga (mis. "Riwayat STT019500").' },
+                            priceSource: { type: Type.STRING, description: 'Opsional: keterangan asal harga.' },
                         },
-                        required: ['noSTT'],
                     },
                 },
             },
@@ -2584,6 +3558,33 @@ const ALL_TOOL_DECLARATIONS: FunctionDeclaration[] = [
                 invoiceNumber: { type: Type.STRING, description: 'Nomor invoice, contoh: "13828" atau "INV012366".' },
                 invoiceId: { type: Type.STRING, description: 'Opsional: ID dokumen Firestore invoice.' },
                 clientName: { type: Type.STRING, description: 'Opsional: nama client untuk mengambil invoice terbarunya.' },
+                noText: {
+                    type: Type.BOOLEAN,
+                    description: 'Set true jika user meminta kirim gambar saja tanpa teks tambahan.',
+                },
+            },
+        },
+    },
+    {
+        name: 'get_voyage_invoice_images',
+        description:
+            'Ambil dan kirim SEMUA gambar PNG invoice yang sudah dibuat pada suatu pemberangkatan kapal (voyage) / tanggal keberangkatan, secara default tanpa teks atau caption apa pun.',
+        parameters: {
+            type: Type.OBJECT,
+            properties: {
+                voyageId: { type: Type.STRING, description: 'Opsional: ID dokumen Firestore voyage.' },
+                voyageNumber: { type: Type.STRING, description: 'Opsional: nomor voyage, mis. "VOY045" atau "45".' },
+                shipName: { type: Type.STRING, description: 'Opsional: nama kapal atau rute tujuan.' },
+                departureDate: {
+                    type: Type.STRING,
+                    description: 'Tanggal keberangkatan format YYYY-MM-DD (WIB). Contoh jika user bilang "tgl 24" bulan ini, isi "YYYY-MM-24".',
+                },
+                startDate: { type: Type.STRING, description: 'Opsional: rentang awal keberangkatan YYYY-MM-DD.' },
+                endDate: { type: Type.STRING, description: 'Opsional: rentang akhir keberangkatan YYYY-MM-DD.' },
+                silentText: {
+                    type: Type.BOOLEAN,
+                    description: 'Default true — kirim gambar invoice saja tanpa teks/caption apa pun.',
+                },
             },
         },
     },
@@ -2731,7 +3732,8 @@ const ALLOWED_TOOLS_BY_ROLE: Record<WaAgentRole, string[]> = {
         'list_unassigned_stts',
         'get_unpaid_invoices_summary',
         'get_voyage_summary',
-        'propose_create_stt',
+        'create_stt',
+        'update_stt',
         'propose_create_voyage',
         'propose_assign_stts_to_voyage',
     ],
@@ -2747,8 +3749,14 @@ export function getToolDeclarationsForRole(role: WaAgentRole): FunctionDeclarati
 export async function dispatchAgentToolCall(
     name: string,
     args: Record<string, any>,
-    role: WaAgentRole
-): Promise<{ result: Record<string, unknown>; pendingAction?: PendingAction; replyMedia?: ReplyMediaItem[] }> {
+    role: WaAgentRole,
+    actorName: string = 'Admin WA'
+): Promise<{
+    result: Record<string, unknown>;
+    pendingAction?: PendingAction;
+    replyMedia?: ReplyMediaItem[];
+    suppressReplyText?: boolean;
+}> {
     const allowed = new Set(ALLOWED_TOOLS_BY_ROLE[role] || []);
     if (!allowed.has(name)) {
         return {
@@ -2771,6 +3779,7 @@ export async function dispatchAgentToolCall(
         case 'list_pending_stt_with_price_history':
             return {
                 result: await toolListPendingSttWithPriceHistory({
+                    period: args.period ? String(args.period) : undefined,
                     startDate: args.startDate ? String(args.startDate) : undefined,
                     endDate: args.endDate ? String(args.endDate) : undefined,
                     onlyUnpriced: typeof args.onlyUnpriced === 'boolean' ? args.onlyUnpriced : true,
@@ -2801,17 +3810,36 @@ export async function dispatchAgentToolCall(
             return {
                 result: await toolGetVoyageSummary(args.searchQuery ? String(args.searchQuery) : undefined),
             };
-        case 'propose_create_stt':
-            return buildCreateSttProposal(args);
-        case 'propose_create_invoice':
-            return await buildCreateInvoiceProposal(args);
-        case 'propose_batch_update_stt_pricing':
-            return await buildBatchUpdateSttPricingProposal(args);
+        case 'create_stt':
+            return await toolCreateSttDirect(args, actorName);
+        case 'update_stt':
+            return await toolUpdateSttDirect(args, actorName);
+        case 'delete_stt':
+            return await toolDeleteSttDirect(args, actorName);
+        case 'batch_update_stt_pricing':
+            return await toolBatchUpdateSttPricingDirect(args, actorName);
+        case 'create_invoice':
+            return await toolCreateInvoiceDirect(args, actorName);
+        case 'update_invoice':
+            return await toolUpdateInvoiceDirect(args, actorName);
+        case 'delete_invoice':
+            return await toolDeleteInvoiceDirect(args, actorName);
         case 'get_invoice_image':
             return await toolGetInvoiceImage({
                 invoiceNumber: args.invoiceNumber ? String(args.invoiceNumber) : undefined,
                 invoiceId: args.invoiceId ? String(args.invoiceId) : undefined,
                 clientName: args.clientName ? String(args.clientName) : undefined,
+                noText: typeof args.noText === 'boolean' ? args.noText : undefined,
+            });
+        case 'get_voyage_invoice_images':
+            return await toolGetVoyageInvoiceImages({
+                voyageId: args.voyageId ? String(args.voyageId) : undefined,
+                voyageNumber: args.voyageNumber ? String(args.voyageNumber) : undefined,
+                shipName: args.shipName ? String(args.shipName) : undefined,
+                departureDate: args.departureDate ? String(args.departureDate) : undefined,
+                startDate: args.startDate ? String(args.startDate) : undefined,
+                endDate: args.endDate ? String(args.endDate) : undefined,
+                silentText: typeof args.silentText === 'boolean' ? args.silentText : true,
             });
         case 'propose_create_voyage':
             return await buildCreateVoyageProposal(args);

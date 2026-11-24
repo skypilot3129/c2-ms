@@ -12,14 +12,14 @@ import {
     CheckCircle, AlertCircle, Loader2, Play, ChevronDown, ChevronUp, X, Filter,
     Sparkles, RefreshCw, Layers, FilePlus2, ExternalLink
 } from 'lucide-react';
-import { getTransactionBySTT, updateTransaction } from '@/lib/firestore-transactions';
+import { getTransactionById, getTransactionBySTT, updateTransaction } from '@/lib/firestore-transactions';
 import { subscribeToClients } from '@/lib/firestore';
 import { 
     createManifest, getManifests, updateManifest, deleteManifest, subscribeToManifests 
 } from '@/lib/firestore-manifests';
 import CreateSTTFromManifestModal, { type CreatedManifestSTTResult } from '@/components/CreateSTTFromManifestModal';
 import type { CargoManifest, ManifestItem, ManifestRowColor } from '@/types/manifest';
-import type { Transaction } from '@/types/transaction';
+import type { BeratUnit, Transaction } from '@/types/transaction';
 import type { Client } from '@/types/client';
 import { collection, getDocs, query, where, limit, orderBy } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -45,6 +45,58 @@ const toTransactionSTTFormat = (rawDigits: string): string => {
     const clean = normalizeManifestSTT(rawDigits);
     if (!clean) return '';
     return `STT${clean.padStart(6, '0')}`;
+};
+
+const parseManifestBerat = (raw: string | number): { berat: number; detectedUnit?: BeratUnit } => {
+    const str = String(raw ?? '').trim();
+    if (!str) return { berat: 0 };
+
+    const upper = str.toUpperCase();
+    let detectedUnit: BeratUnit | undefined;
+    if (/\b(KV|VOL|VOLUME)\b/.test(upper)) {
+        detectedUnit = 'KG/VOLUME';
+    } else if (/\b(M3|KUBIK)\b/.test(upper)) {
+        detectedUnit = 'M3';
+    }
+
+    let numericPart = str.replace(/[^\d.,]/g, '');
+    if (!numericPart) return { berat: 0, detectedUnit };
+
+    if (numericPart.includes('.') && numericPart.includes(',')) {
+        // Format Indonesia: "5.192,99" -> 5192.99
+        numericPart = numericPart.replace(/\./g, '').replace(',', '.');
+    } else if (numericPart.includes(',')) {
+        numericPart = numericPart.replace(',', '.');
+    } else if (/^\d{1,3}(\.\d{3})+$/.test(numericPart)) {
+        // Ribuan dengan titik tanpa desimal: "5.192" -> 5192
+        numericPart = numericPart.replace(/\./g, '');
+    }
+
+    const parsed = parseFloat(numericPart);
+    return {
+        berat: Number.isFinite(parsed) && parsed >= 0 ? parsed : 0,
+        detectedUnit,
+    };
+};
+
+const parseManifestAlamat = (raw: string): { tujuan: string; penerimaAddress: string } => {
+    const trimmed = String(raw || '').trim();
+    if (!trimmed) return { tujuan: '', penerimaAddress: '' };
+    if (trimmed.includes('-')) {
+        const parts = trimmed
+            .split('-')
+            .map((p) => p.trim())
+            .filter(Boolean);
+        const lastPart = parts[parts.length - 1] || trimmed;
+        return {
+            tujuan: lastPart,
+            penerimaAddress: trimmed,
+        };
+    }
+    return {
+        tujuan: trimmed,
+        penerimaAddress: trimmed,
+    };
 };
 
 const isBandungManifestItem = (item: ManifestItem): boolean => {
@@ -127,6 +179,8 @@ export default function ManifestCargoPage() {
     const [isCreateSTTModalOpen, setIsCreateSTTModalOpen] = useState(false);
     const [clients, setClients] = useState<Client[]>([]);
     const focusedSTTBeforeEditRef = useRef<Record<number, string>>({});
+    const focusedCellBeforeEditRef = useRef<Record<string, string>>({});
+    const syncDebounceTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
     // History States
     const [history, setHistory] = useState<CargoManifest[]>([]);
@@ -161,6 +215,13 @@ export default function ManifestCargoPage() {
             if (typeof unsubscribe === 'function') {
                 unsubscribe();
             }
+        };
+    }, []);
+
+    useEffect(() => {
+        const timers = syncDebounceTimersRef.current;
+        return () => {
+            Object.values(timers).forEach((t) => clearTimeout(t));
         };
     }, []);
 
@@ -376,6 +437,125 @@ export default function ManifestCargoPage() {
     // Update row cell values
     const handleCellChange = (index: number, field: keyof ManifestItem, value: any) => {
         setItems(prev => prev.map((item, idx) => (idx === index ? { ...item, [field]: value } : item)));
+    };
+
+    const syncManifestFieldToSTT = async (
+        index: number,
+        field: 'koli' | 'berat' | 'alamat',
+        itemSnapshot?: ManifestItem
+    ) => {
+        const currentItem = itemSnapshot || items[index];
+        if (!currentItem) return;
+
+        const cleanDigits = normalizeManifestSTT(currentItem.noSTT);
+        if (!currentItem.transactionId && !cleanDigits) return;
+
+        try {
+            let tx: Transaction | null = null;
+            if (currentItem.transactionId) {
+                tx = await getTransactionById(currentItem.transactionId);
+            }
+            if (!tx && cleanDigits) {
+                tx = await getTransactionBySTT(cleanDigits);
+            }
+            if (!tx) return;
+
+            if (!currentItem.transactionId) {
+                setItems((prev) =>
+                    prev.map((it, idx) =>
+                        idx === index ? { ...it, transactionId: tx!.id, branch: it.branch || tx!.branch } : it
+                    )
+                );
+            }
+
+            if (field === 'koli') {
+                const nextKoli = Math.max(0, Math.round(Number(currentItem.koli) || 0));
+                if (nextKoli === tx.koli) return;
+                await updateTransaction(tx.id, { koli: nextKoli });
+                focusedCellBeforeEditRef.current[`${index}-koli`] = String(currentItem.koli ?? '');
+                showToast(`STT ${cleanDigits || tx.noSTT} otomatis diperbarui (Koli: ${nextKoli})!`, 'success');
+                return;
+            }
+
+            if (field === 'berat') {
+                const { berat: parsedBerat, detectedUnit } = parseManifestBerat(currentItem.berat);
+                if (parsedBerat === tx.berat && (!detectedUnit || detectedUnit === tx.beratUnit)) return;
+                const nextJumlah =
+                    tx.tipeTransaksi === 'regular' && tx.harga > 0
+                        ? Math.round(tx.harga * parsedBerat)
+                        : undefined;
+                await updateTransaction(
+                    tx.id,
+                    {
+                        berat: parsedBerat,
+                        ...(detectedUnit ? { beratUnit: detectedUnit } : {}),
+                    },
+                    undefined,
+                    undefined,
+                    nextJumlah
+                );
+                focusedCellBeforeEditRef.current[`${index}-berat`] = String(currentItem.berat ?? '');
+                showToast(
+                    `STT ${cleanDigits || tx.noSTT} otomatis diperbarui (Berat: ${parsedBerat} ${detectedUnit || tx.beratUnit})!`,
+                    'success'
+                );
+                return;
+            }
+
+            if (field === 'alamat') {
+                const { tujuan, penerimaAddress } = parseManifestAlamat(currentItem.alamat);
+                if (!tujuan) return;
+                if (tujuan === tx.tujuan && penerimaAddress === (tx.penerimaAddress || '')) return;
+                await updateTransaction(
+                    tx.id,
+                    { tujuan },
+                    undefined,
+                    {
+                        name: tx.penerimaName || currentItem.penerima || '',
+                        phone: tx.penerimaPhone,
+                        address: penerimaAddress,
+                        city: tx.penerimaCity,
+                    }
+                );
+                focusedCellBeforeEditRef.current[`${index}-alamat`] = String(currentItem.alamat ?? '');
+                showToast(`STT ${cleanDigits || tx.noSTT} otomatis diperbarui (Tujuan: ${tujuan})!`, 'success');
+            }
+        } catch (err: any) {
+            console.error(`Failed syncing manifest ${field} to STT:`, err);
+            showToast(`Gagal sinkron ${field} ke Resi STT: ${err?.message || ''}`, 'error');
+        }
+    };
+
+    const scheduleManifestCellSync = (
+        index: number,
+        field: 'koli' | 'berat' | 'alamat',
+        nextValue: any
+    ) => {
+        const key = `${index}-${field}`;
+        if (syncDebounceTimersRef.current[key]) {
+            clearTimeout(syncDebounceTimersRef.current[key]);
+        }
+        const currentItem = items[index];
+        if (!currentItem) return;
+        const snapshot: ManifestItem = { ...currentItem, [field]: nextValue };
+        syncDebounceTimersRef.current[key] = setTimeout(() => {
+            delete syncDebounceTimersRef.current[key];
+            void syncManifestFieldToSTT(index, field, snapshot);
+        }, 700);
+    };
+
+    const commitManifestCellSync = (index: number, field: 'koli' | 'berat' | 'alamat') => {
+        const key = `${index}-${field}`;
+        if (syncDebounceTimersRef.current[key]) {
+            clearTimeout(syncDebounceTimersRef.current[key]);
+            delete syncDebounceTimersRef.current[key];
+        }
+        const currentItem = items[index];
+        if (!currentItem) return;
+        const prevRaw = focusedCellBeforeEditRef.current[key];
+        const currRaw = String(currentItem[field] ?? '');
+        if (prevRaw !== undefined && prevRaw === currRaw) return;
+        void syncManifestFieldToSTT(index, field, currentItem);
     };
 
     // Lookup STT from transactions collection
@@ -1086,14 +1266,36 @@ export default function ManifestCargoPage() {
                                                         <input 
                                                             type="number" 
                                                             value={item.koli || ''} 
-                                                            onChange={e => handleCellChange(index, 'koli', Number(e.target.value) || 0)} 
+                                                            onFocus={() => {
+                                                                focusedCellBeforeEditRef.current[`${index}-koli`] = String(item.koli ?? '');
+                                                            }}
+                                                            onChange={e => {
+                                                                const val = Number(e.target.value) || 0;
+                                                                handleCellChange(index, 'koli', val);
+                                                                scheduleManifestCellSync(index, 'koli', val);
+                                                            }}
+                                                            onBlur={() => commitManifestCellSync(index, 'koli')}
+                                                            onKeyDown={e => {
+                                                                if (e.key === 'Enter') e.currentTarget.blur();
+                                                            }}
                                                             className="w-full border border-gray-300 rounded px-2 py-1 text-xs text-center font-bold focus:border-blue-500 outline-none bg-white/90"
                                                         />
                                                     </td>
                                                     <td className="py-1 px-1 border-r border-gray-200">
                                                         <input 
                                                             value={item.berat} 
-                                                            onChange={e => handleCellChange(index, 'berat', e.target.value)} 
+                                                            onFocus={() => {
+                                                                focusedCellBeforeEditRef.current[`${index}-berat`] = String(item.berat ?? '');
+                                                            }}
+                                                            onChange={e => {
+                                                                const val = e.target.value;
+                                                                handleCellChange(index, 'berat', val);
+                                                                scheduleManifestCellSync(index, 'berat', val);
+                                                            }}
+                                                            onBlur={() => commitManifestCellSync(index, 'berat')}
+                                                            onKeyDown={e => {
+                                                                if (e.key === 'Enter') e.currentTarget.blur();
+                                                            }}
                                                             placeholder="0"
                                                             className="w-full border border-gray-300 rounded px-2 py-1 text-xs text-center font-bold focus:border-blue-500 outline-none bg-white/90"
                                                         />
@@ -1122,7 +1324,18 @@ export default function ManifestCargoPage() {
                                                     <td className="py-1 px-1 border-r border-gray-200">
                                                         <input 
                                                             value={item.alamat} 
-                                                            onChange={e => handleCellChange(index, 'alamat', e.target.value)} 
+                                                            onFocus={() => {
+                                                                focusedCellBeforeEditRef.current[`${index}-alamat`] = String(item.alamat ?? '');
+                                                            }}
+                                                            onChange={e => {
+                                                                const val = e.target.value;
+                                                                handleCellChange(index, 'alamat', val);
+                                                                scheduleManifestCellSync(index, 'alamat', val);
+                                                            }}
+                                                            onBlur={() => commitManifestCellSync(index, 'alamat')}
+                                                            onKeyDown={e => {
+                                                                if (e.key === 'Enter') e.currentTarget.blur();
+                                                            }}
                                                             className="w-full border border-gray-300 rounded px-2 py-1 text-xs uppercase focus:border-blue-500 outline-none bg-white/90"
                                                         />
                                                     </td>

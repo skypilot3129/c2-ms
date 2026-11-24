@@ -173,34 +173,56 @@ export async function POST(request: Request) {
         }
 
         if (result.replyMedia && result.replyMedia.length > 0) {
-            const firstMedia = result.replyMedia[0];
-            const replyText = result.replyText || '';
-            const captionFits = replyText.length > 0 && replyText.length <= 1000;
-            const caption = firstMedia.caption || (captionFits ? replyText : undefined);
+            const suppressText = Boolean(result.suppressReplyText);
+            const replyText = suppressText ? '' : result.replyText || '';
+            const captionFits = !suppressText && replyText.length > 0 && replyText.length <= 1000;
 
-            let imgRes = await sendOpenWaImage(
-                fromChatId,
-                firstMedia.base64,
-                firstMedia.mimeType,
-                caption,
-                incomingSessionId,
-                config,
-                firstMedia.filename
-            );
-            if (!imgRes.ok && !isGroup && fromChatId.endsWith('@lid') && senderPhone) {
-                imgRes = await sendOpenWaImage(
-                    senderPhone,
-                    firstMedia.base64,
-                    firstMedia.mimeType,
+            let sentCount = 0;
+            let lastError: string | undefined;
+
+            for (let i = 0; i < result.replyMedia.length; i++) {
+                const mediaItem = result.replyMedia[i];
+                const caption = suppressText
+                    ? undefined
+                    : i === 0
+                      ? mediaItem.caption || (captionFits ? replyText : undefined)
+                      : mediaItem.caption;
+
+                let imgRes = await sendOpenWaImage(
+                    fromChatId,
+                    mediaItem.base64,
+                    mediaItem.mimeType,
                     caption,
                     incomingSessionId,
                     config,
-                    firstMedia.filename
+                    mediaItem.filename
                 );
+                if (!imgRes.ok && !isGroup && fromChatId.endsWith('@lid') && senderPhone) {
+                    imgRes = await sendOpenWaImage(
+                        senderPhone,
+                        mediaItem.base64,
+                        mediaItem.mimeType,
+                        caption,
+                        incomingSessionId,
+                        config,
+                        mediaItem.filename
+                    );
+                }
+
+                if (imgRes.ok) {
+                    sentCount += 1;
+                } else {
+                    lastError = imgRes.error;
+                    console.error(`[WA Agent Webhook] Failed sending OpenWA image #${i + 1}:`, imgRes.error);
+                }
+
+                if (i < result.replyMedia.length - 1) {
+                    await new Promise((r) => setTimeout(r, 350));
+                }
             }
 
-            if (imgRes.ok) {
-                if (replyText && !captionFits) {
+            if (sentCount > 0) {
+                if (!suppressText && replyText && !captionFits) {
                     let textRes = await sendOpenWaText(fromChatId, replyText, incomingSessionId, config);
                     if (!textRes.ok && !isGroup && fromChatId.endsWith('@lid') && senderPhone) {
                         textRes = await sendOpenWaText(senderPhone, replyText, incomingSessionId, config);
@@ -211,14 +233,28 @@ export async function POST(request: Request) {
                     status: result.status,
                     replied: true,
                     mediaSent: true,
+                    mediaCount: sentCount,
+                    suppressReplyText: suppressText,
                     toolsUsed: result.toolsUsed,
                 });
             }
 
-            console.error('[WA Agent Webhook] Failed sending OpenWA image, falling back to text:', imgRes.error);
+            if (suppressText) {
+                return NextResponse.json({
+                    ok: true,
+                    status: result.status,
+                    replied: false,
+                    mediaSent: false,
+                    suppressReplyText: true,
+                    sendError: lastError,
+                    toolsUsed: result.toolsUsed,
+                });
+            }
+
+            console.error('[WA Agent Webhook] Failed sending all OpenWA images, falling back to text:', lastError);
         }
 
-        if (result.replyText) {
+        if (!result.suppressReplyText && result.replyText) {
             let sendRes = await sendOpenWaText(fromChatId, result.replyText, incomingSessionId, config);
             if (!sendRes.ok && !isGroup && fromChatId.endsWith('@lid') && senderPhone) {
                 sendRes = await sendOpenWaText(senderPhone, result.replyText, incomingSessionId, config);

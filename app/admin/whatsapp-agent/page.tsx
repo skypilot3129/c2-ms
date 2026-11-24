@@ -65,11 +65,13 @@ interface SimMessage {
     text: string;
     toolsUsed?: string[];
     imagePreview?: string;
+    imagePreviews?: string[];
 }
 
 const QUICK_PROMPTS = [
+    'Cek STT pending minggu ini yang belum ada harga, kasih data customer dan harga riwayatnya',
+    'Kirimkan semua gambar invoice yang sudah dibuat di pemberangkatan kapal hari ini',
     'Buat pemberangkatan baru Surabaya - Makassar kapal KM Dharma Kencana VII, unit sopir Budi & L 9988 AB, berangkat hari ini, status berlayar',
-    'Cek STT pending terbaru, usulkan harga dari riwayat, dan ubah status ke dikirim',
     'Cek piutang belum lunas',
     'Ringkasan omzet kapal terbaru',
     'Cek STT belum dibuat invoice',
@@ -341,19 +343,19 @@ export default function WhatsAppAgentAdminPage() {
                 throw new Error(data.error || 'Request gagal');
             }
             setSimPending(data.pendingAction || null);
-            const firstMedia = Array.isArray(data.replyMedia) ? data.replyMedia[0] : undefined;
-            const mediaPreview =
-                firstMedia?.base64 && firstMedia?.mimeType
-                    ? `data:${firstMedia.mimeType};base64,${firstMedia.base64}`
-                    : undefined;
+            const mediaList = Array.isArray(data.replyMedia) ? data.replyMedia : [];
+            const imagePreviews = mediaList
+                .filter((m: any) => m?.base64 && m?.mimeType)
+                .map((m: any) => `data:${m.mimeType};base64,${m.base64}`);
             setSimMessages((prev) => [
                 ...prev,
                 {
                     id: `b_${Date.now()}`,
                     sender: 'bot',
-                    text: data.replyText || 'Tidak ada respons.',
+                    text: data.replyText || (imagePreviews.length > 0 ? '' : 'Tidak ada respons.'),
                     toolsUsed: data.toolsUsed || [],
-                    imagePreview: mediaPreview,
+                    imagePreview: imagePreviews[0],
+                    imagePreviews: imagePreviews.length > 0 ? imagePreviews : undefined,
                 },
             ]);
         } catch (err: any) {
@@ -727,21 +729,35 @@ export default function WhatsAppAgentAdminPage() {
                                                         : 'bg-white text-slate-800 rounded-tl-xs'
                                                 }`}
                                             >
-                                                {msg.imagePreview && (
-                                                    <a
-                                                        href={msg.imagePreview}
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                        title="Klik untuk perbesar gambar"
-                                                    >
-                                                        <img
-                                                            src={msg.imagePreview}
-                                                            alt="Lampiran"
-                                                            className="max-h-72 rounded-lg mb-2 object-contain border border-slate-200 bg-white"
-                                                        />
-                                                    </a>
-                                                )}
-                                                <p>{msg.text}</p>
+                                                {(() => {
+                                                    const imgs =
+                                                        msg.imagePreviews && msg.imagePreviews.length > 0
+                                                            ? msg.imagePreviews
+                                                            : msg.imagePreview
+                                                              ? [msg.imagePreview]
+                                                              : [];
+                                                    if (imgs.length === 0) return null;
+                                                    return (
+                                                        <div className="flex flex-col gap-2 mb-2">
+                                                            {imgs.map((src, idx) => (
+                                                                <a
+                                                                    key={idx}
+                                                                    href={src}
+                                                                    target="_blank"
+                                                                    rel="noopener noreferrer"
+                                                                    title="Klik untuk perbesar gambar"
+                                                                >
+                                                                    <img
+                                                                        src={src}
+                                                                        alt={`Lampiran ${idx + 1}`}
+                                                                        className="max-h-72 rounded-lg object-contain border border-slate-200 bg-white"
+                                                                    />
+                                                                </a>
+                                                            ))}
+                                                        </div>
+                                                    );
+                                                })()}
+                                                {msg.text && <p>{msg.text}</p>}
                                                 {msg.toolsUsed && msg.toolsUsed.length > 0 && (
                                                     <div className="mt-1.5 pt-1.5 border-t border-slate-100 flex flex-wrap gap-1">
                                                         {msg.toolsUsed.map((tool, idx) => (
