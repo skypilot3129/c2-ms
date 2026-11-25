@@ -13,6 +13,7 @@ import {
     deleteField,
 } from 'firebase/firestore';
 import { db } from './firebase';
+import { resolveInvoiceClientIdentity } from './invoice-reconciliation';
 import type { Invoice, InvoiceFormData, InvoiceDoc } from '@/types/invoice';
 
 const COLLECTION_NAME = 'invoices';
@@ -583,9 +584,9 @@ export const syncInvoiceWithTransactions = async (invoiceId: string): Promise<In
             return docToInvoice(invoiceSnap.id, invData);
         }
 
-        const primaryTx = loadedTx[0];
-        const liveClientName = primaryTx.pengirimName || invData.clientName;
-        const liveClientAddress = primaryTx.pengirimAddress || invData.clientAddress;
+        const resolvedIdentity = resolveInvoiceClientIdentity(invData, loadedTx);
+        const liveClientName = resolvedIdentity.clientName;
+        const liveClientAddress = resolvedIdentity.clientAddress;
 
         const { isTaxable, totalAmount: liveTotalAmount } = computeInvoiceTotalsFromTxData(loadedTx);
 

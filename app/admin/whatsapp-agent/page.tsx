@@ -27,6 +27,8 @@ import {
     type WaAgentLog,
     type WaAgentRole,
     type WaAgentUser,
+    type WaThinkingLevel,
+    type WaTokenUsage,
 } from '@/types/wa-agent';
 import {
     Activity,
@@ -64,11 +66,14 @@ interface SimMessage {
     sender: 'user' | 'bot';
     text: string;
     toolsUsed?: string[];
+    tokenUsage?: WaTokenUsage;
     imagePreview?: string;
     imagePreviews?: string[];
 }
 
 const QUICK_PROMPTS = [
+    'Cek detail omzet, rincian biaya, dan catatan keterangan pemberangkatan kapal terbaru',
+    'Rangkum per hari penagihan Ika minggu ini dapat berapa uang dari invoice yang lunas',
     'Cek STT pending minggu ini yang belum ada harga, kasih data customer dan harga riwayatnya',
     'Kirimkan semua gambar invoice yang sudah dibuat di pemberangkatan kapal hari ini',
     'Buat pemberangkatan baru Surabaya - Makassar kapal KM Dharma Kencana VII, unit sopir Budi & L 9988 AB, berangkat hari ini, status berlayar',
@@ -80,10 +85,21 @@ const QUICK_PROMPTS = [
 ];
 
 const GEMINI_MODEL_OPTIONS = [
-    { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash (Stabil & Efisien)' },
-    { value: 'gemini-3.5-flash', label: 'Gemini 3.5 Flash' },
+    { value: 'gemini-4-hydrogen', label: 'Gemini 4 Hydrogen ⭐ (Cepat, Hemat & Rekomendasi WA)' },
+    { value: 'gemini-4-neon', label: 'Gemini 4 Neon 🔥 (Frontier Agentic & OCR Paling Tajam)' },
+    { value: 'gemini-4-argon', label: 'Gemini 4 Argon (Reasoning Mendalam & Efisien)' },
+    { value: 'gemini-4-carbon', label: 'Gemini 4 Carbon (Flagship Reasoning Tertinggi)' },
     { value: 'gemini-3.8-flash', label: 'Gemini 3.8 Flash' },
+    { value: 'gemini-3.5-flash', label: 'Gemini 3.5 Flash' },
+    { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash (Paling Ekonomis)' },
 ] as const;
+
+const THINKING_LEVEL_OPTIONS: { value: WaThinkingLevel; label: string }[] = [
+    { value: 'low', label: 'Low — Kilat & Hemat Token (Rekomendasi WA)' },
+    { value: 'minimal', label: 'Minimal — Instan Tanpa Mikir Panjang' },
+    { value: 'medium', label: 'Medium — Seimbang (Akurasi & Kecepatan)' },
+    { value: 'high', label: 'High — Analisis Ekstra Mendalam' },
+];
 
 export default function WhatsAppAgentAdminPage() {
     const { user, role, employee } = useAuth();
@@ -156,6 +172,9 @@ export default function WhatsAppAgentAdminPage() {
                     allowGroups: Boolean(d.allowGroups),
                     groupPrefix: d.groupPrefix || '/cce',
                     modelName: d.modelName || DEFAULT_WA_AGENT_CONFIG.modelName,
+                    thinkingLevel: (['minimal', 'low', 'medium', 'high'].includes(d.thinkingLevel)
+                        ? d.thinkingLevel
+                        : 'low') as WaThinkingLevel,
                 });
             }
         });
@@ -193,6 +212,7 @@ export default function WhatsAppAgentAdminPage() {
                     incomingText: String(data.incomingText || ''),
                     replyText: String(data.replyText || ''),
                     toolsUsed: Array.isArray(data.toolsUsed) ? data.toolsUsed : [],
+                    tokenUsage: data.tokenUsage || undefined,
                     status: data.status || 'ok',
                     errorMessage: data.errorMessage,
                     createdAt: data.createdAt?.toDate?.() || new Date(),
@@ -219,7 +239,8 @@ export default function WhatsAppAgentAdminPage() {
                     openwaSessionId: nextConfig.openwaSessionId.trim() || 'cce-admin',
                     allowGroups: nextConfig.allowGroups,
                     groupPrefix: nextConfig.groupPrefix.trim() || '/cce',
-                    modelName: nextConfig.modelName.trim() || 'gemini-2.5-flash',
+                    modelName: nextConfig.modelName.trim() || 'gemini-4-hydrogen',
+                    thinkingLevel: nextConfig.thinkingLevel || 'low',
                     updatedAt: Timestamp.now(),
                 },
                 { merge: true }
@@ -354,6 +375,7 @@ export default function WhatsAppAgentAdminPage() {
                     sender: 'bot',
                     text: data.replyText || (imagePreviews.length > 0 ? '' : 'Tidak ada respons.'),
                     toolsUsed: data.toolsUsed || [],
+                    tokenUsage: data.tokenUsage || undefined,
                     imagePreview: imagePreviews[0],
                     imagePreviews: imagePreviews.length > 0 ? imagePreviews : undefined,
                 },
@@ -553,6 +575,26 @@ export default function WhatsAppAgentAdminPage() {
                                                 </option>
                                             ))}
                                         </select>
+                                    </div>
+
+                                    <div className="text-xs">
+                                        <label className="font-bold text-slate-600 block mb-1">Level Berpikir AI (Thinking)</label>
+                                        <select
+                                            value={config.thinkingLevel || 'low'}
+                                            onChange={(e) =>
+                                                setConfig({ ...config, thinkingLevel: e.target.value as WaThinkingLevel })
+                                            }
+                                            className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-800"
+                                        >
+                                            {THINKING_LEVEL_OPTIONS.map((opt) => (
+                                                <option key={opt.value} value={opt.value}>
+                                                    {opt.label}
+                                                </option>
+                                            ))}
+                                        </select>
+                                        <p className="text-[10px] text-slate-500 mt-1">
+                                            Gemini 4 otomatis memakai <em>Implicit Caching</em> (hemat token hingga 95% di bagian berulang).
+                                        </p>
                                     </div>
 
                                     <div className="flex items-center justify-between gap-3 pt-1">
@@ -758,9 +800,9 @@ export default function WhatsAppAgentAdminPage() {
                                                     );
                                                 })()}
                                                 {msg.text && <p>{msg.text}</p>}
-                                                {msg.toolsUsed && msg.toolsUsed.length > 0 && (
-                                                    <div className="mt-1.5 pt-1.5 border-t border-slate-100 flex flex-wrap gap-1">
-                                                        {msg.toolsUsed.map((tool, idx) => (
+                                                {((msg.toolsUsed && msg.toolsUsed.length > 0) || msg.tokenUsage) && (
+                                                    <div className="mt-1.5 pt-1.5 border-t border-slate-100 flex flex-wrap items-center gap-1">
+                                                        {msg.toolsUsed?.map((tool, idx) => (
                                                             <span
                                                                 key={`${tool}-${idx}`}
                                                                 className="text-[10px] font-mono bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded"
@@ -768,6 +810,17 @@ export default function WhatsAppAgentAdminPage() {
                                                                 {tool}
                                                             </span>
                                                         ))}
+                                                        {msg.tokenUsage && (
+                                                            <span
+                                                                className="text-[10px] font-mono bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded ml-auto"
+                                                                title={`Prompt: ${msg.tokenUsage.promptTokens} | Output: ${msg.tokenUsage.outputTokens} | Thinking: ${msg.tokenUsage.thoughtTokens} | Cache: ${msg.tokenUsage.cachedTokens}`}
+                                                            >
+                                                                ⚡ {msg.tokenUsage.totalTokens.toLocaleString('id-ID')} tok
+                                                                {msg.tokenUsage.cachedTokens > 0
+                                                                    ? ` (cache ${msg.tokenUsage.cachedTokens.toLocaleString('id-ID')})`
+                                                                    : ''}
+                                                            </span>
+                                                        )}
                                                     </div>
                                                 )}
                                             </div>
@@ -936,6 +989,17 @@ export default function WhatsAppAgentAdminPage() {
                                                         >
                                                             {log.status}
                                                         </span>
+                                                        {log.tokenUsage && (
+                                                            <div
+                                                                className="mt-1 font-mono text-[10px] text-slate-500 whitespace-nowrap"
+                                                                title={`Model: ${log.tokenUsage.modelName || '-'} | Prompt: ${log.tokenUsage.promptTokens} | Out: ${log.tokenUsage.outputTokens} | Think: ${log.tokenUsage.thoughtTokens} | Cache: ${log.tokenUsage.cachedTokens}`}
+                                                            >
+                                                                {log.tokenUsage.totalTokens.toLocaleString('id-ID')} tok
+                                                                {log.tokenUsage.cachedTokens > 0
+                                                                    ? ` · ⚡${log.tokenUsage.cachedTokens.toLocaleString('id-ID')}`
+                                                                    : ''}
+                                                            </div>
+                                                        )}
                                                     </td>
                                                     <td className="px-4 py-3 max-w-[280px] truncate text-slate-600" title={log.replyText}>
                                                         {log.replyText}

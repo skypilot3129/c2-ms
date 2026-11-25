@@ -7,6 +7,7 @@ import {
     getOpenWaCredentials,
     getWaAgentConfig,
     resolveOpenWaContactPhone,
+    sendOpenWaDocument,
     sendOpenWaImage,
     sendOpenWaText,
 } from '@/lib/wa-agent/openwa-client';
@@ -56,6 +57,8 @@ function verifyWebhookSecret(request: Request, rawBody: string, expectedSecret: 
 
     return false;
 }
+
+export const maxDuration = 120;
 
 export async function GET() {
     return NextResponse.json({
@@ -188,32 +191,40 @@ export async function POST(request: Request) {
                       ? mediaItem.caption || (captionFits ? replyText : undefined)
                       : mediaItem.caption;
 
-                let imgRes = await sendOpenWaImage(
-                    fromChatId,
-                    mediaItem.base64,
-                    mediaItem.mimeType,
-                    caption,
-                    incomingSessionId,
-                    config,
-                    mediaItem.filename
-                );
+                const isDocument =
+                    mediaItem.mimeType === 'application/pdf' || !mediaItem.mimeType.startsWith('image/');
+
+                const sendOne = (target: string) =>
+                    isDocument
+                        ? sendOpenWaDocument(
+                              target,
+                              mediaItem.base64,
+                              mediaItem.mimeType,
+                              mediaItem.filename || 'Laporan-CCE.pdf',
+                              caption,
+                              incomingSessionId,
+                              config
+                          )
+                        : sendOpenWaImage(
+                              target,
+                              mediaItem.base64,
+                              mediaItem.mimeType,
+                              caption,
+                              incomingSessionId,
+                              config,
+                              mediaItem.filename
+                          );
+
+                let imgRes = await sendOne(fromChatId);
                 if (!imgRes.ok && !isGroup && fromChatId.endsWith('@lid') && senderPhone) {
-                    imgRes = await sendOpenWaImage(
-                        senderPhone,
-                        mediaItem.base64,
-                        mediaItem.mimeType,
-                        caption,
-                        incomingSessionId,
-                        config,
-                        mediaItem.filename
-                    );
+                    imgRes = await sendOne(senderPhone);
                 }
 
                 if (imgRes.ok) {
                     sentCount += 1;
                 } else {
                     lastError = imgRes.error;
-                    console.error(`[WA Agent Webhook] Failed sending OpenWA image #${i + 1}:`, imgRes.error);
+                    console.error(`[WA Agent Webhook] Failed sending OpenWA media #${i + 1}:`, imgRes.error);
                 }
 
                 if (i < result.replyMedia.length - 1) {

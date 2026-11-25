@@ -5,6 +5,7 @@ import { ImageResponse } from 'next/og';
 import { adminDb } from '@/lib/firebase-admin';
 import { COMPANY_INFO } from '@/lib/company-config';
 import { terbilang } from '@/lib/currency';
+import { formatInvoiceRowKeterangan, resolveInvoiceClientIdentity } from '@/lib/invoice-reconciliation';
 
 export interface RenderedInvoiceImage {
     base64: string;
@@ -32,6 +33,7 @@ interface InvoiceTxRow {
     ppn: number;
     pengirimName: string;
     pengirimAddress: string;
+    penerimaAddress: string;
 }
 
 interface OgFontSpec {
@@ -274,6 +276,7 @@ export async function renderInvoicePngById(invoiceId: string): Promise<RenderedI
                 ppn: Number(d.ppn) || 0,
                 pengirimName: String(d.pengirimName || ''),
                 pengirimAddress: String(d.pengirimAddress || ''),
+                penerimaAddress: String(d.penerimaAddress || ''),
             });
         }
     }
@@ -285,10 +288,16 @@ export async function renderInvoicePngById(invoiceId: string): Promise<RenderedI
     });
 
     const invoiceNumber = String(inv.invoiceNumber || invoiceId);
-    const clientName =
-        (txs.length > 0 && txs[0].pengirimName) || String(inv.clientName || 'Client Umum');
-    const clientAddress =
-        (txs.length > 0 && txs[0].pengirimAddress) || String(inv.clientAddress || '');
+    const resolvedIdentity = resolveInvoiceClientIdentity(
+        {
+            clientName: String(inv.clientName || ''),
+            clientAddress: String(inv.clientAddress || ''),
+        },
+        txs
+    );
+    const clientName = resolvedIdentity.clientName;
+    const clientAddress = resolvedIdentity.clientAddress;
+    const hasMultipleSenders = resolvedIdentity.hasMultipleSenders;
     const notes = String(inv.notes || '').trim();
     const issueDateStr = fmtTanggalUpper(inv.issueDate || inv.createdAt);
 
@@ -454,7 +463,7 @@ export async function renderInvoicePngById(invoiceId: string): Promise<RenderedI
                             <div key={t.id} style={{ display: 'flex', borderBottom: '1px solid #000000', minHeight: 38 }}>
                                 <div style={{ display: 'flex', width: '5%', justifyContent: 'center', alignItems: 'center', borderRight: '1px solid #000000' }}>{idx + 1}.</div>
                                 <div style={{ display: 'flex', width: '53%', alignItems: 'center', padding: '6px 8px', borderRight: '1px solid #000000' }}>
-                                    {`${t.penerimaName.toUpperCase()} - ${t.tujuan.toUpperCase()}`}
+                                    {formatInvoiceRowKeterangan(t, hasMultipleSenders)}
                                 </div>
                                 <div style={{ display: 'flex', width: '8%', justifyContent: 'center', alignItems: 'center', borderRight: '1px solid #000000' }}>
                                     {t.koli > 0 ? fmtAngka(t.koli) : ''}
@@ -681,7 +690,7 @@ export async function renderInvoicePngById(invoiceId: string): Promise<RenderedI
                         <div key={t.id} style={{ display: 'flex', borderBottom: '1.5px solid #000000', minHeight: lay.rowMinH }}>
                             <div style={{ display: 'flex', width: '5%', justifyContent: 'center', alignItems: 'center', borderRight: '1.5px solid #000000' }}>{idx + 1}.</div>
                             <div style={{ display: 'flex', width: '45%', alignItems: 'center', padding: `${lay.cellPadV}px ${lay.cellPadH}px`, borderRight: '1.5px solid #000000' }}>
-                                {`${t.penerimaName.toUpperCase()} - ${t.tujuan.toUpperCase()}`}
+                                {formatInvoiceRowKeterangan(t, hasMultipleSenders)}
                             </div>
                             <div style={{ display: 'flex', width: '9%', justifyContent: 'center', alignItems: 'center', borderRight: '1.5px solid #000000' }}>
                                 {t.noSTT.replace(/^STT/i, '')}

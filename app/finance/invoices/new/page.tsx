@@ -144,12 +144,25 @@ export default function NewInvoicePage() {
         return selectedTransactionsList.reduce((sum, t) => sum + getTransactionEffectiveAmount(t), 0);
     }, [selectedTransactionsList]);
 
+    const hasMultipleSenders = useMemo(() => {
+        const senders = new Set(
+            selectedTransactionsList.map(t => (t.pengirimName || '').trim().toLowerCase()).filter(Boolean)
+        );
+        return senders.size > 1;
+    }, [selectedTransactionsList]);
+
     const resolvedClientName = useMemo(() => {
         if (!selectedClient) return '';
         if (selectedClient.id !== '__ALL__') return selectedClient.name;
         if (customClientName.trim()) return customClientName.trim();
-        return selectedTransactionsList[0]?.pengirimName || 'Client Umum';
-    }, [selectedClient, customClientName, selectedTransactionsList]);
+        const receivers = new Set(
+            selectedTransactionsList.map(t => (t.penerimaName || '').trim().toLowerCase()).filter(Boolean)
+        );
+        if (hasMultipleSenders && receivers.size === 1) {
+            return selectedTransactionsList[0]?.penerimaName || 'Client Umum';
+        }
+        return selectedTransactionsList[0]?.pengirimName || selectedTransactionsList[0]?.penerimaName || 'Client Umum';
+    }, [selectedClient, customClientName, selectedTransactionsList, hasMultipleSenders]);
 
     const handleToggleSelectAllAvailable = () => {
         const availableIds = selectableClientTransactions.map(t => t.id);
@@ -166,11 +179,17 @@ export default function NewInvoicePage() {
         setLoading(true);
 
         try {
+            const firstTx = selectedTransactionsList[0];
+            const billedToReceiver =
+                hasMultipleSenders ||
+                Boolean(firstTx?.penerimaName && resolvedClientName.trim().toLowerCase() === firstTx.penerimaName.trim().toLowerCase());
             const finalClientId = selectedClient.id === '__ALL__'
-                ? (selectedTransactionsList[0]?.pengirimId || 'manual')
+                ? (billedToReceiver ? 'manual' : (firstTx?.pengirimId || 'manual'))
                 : selectedClient.id;
             const finalClientAddress = selectedClient.id === '__ALL__'
-                ? (selectedTransactionsList[0]?.pengirimAddress || '')
+                ? (billedToReceiver
+                    ? (firstTx?.penerimaAddress || firstTx?.tujuan || '')
+                    : (firstTx?.pengirimAddress || ''))
                 : (selectedClient.address || '');
 
             const newInvoiceId = await createInvoice({
@@ -252,7 +271,7 @@ export default function NewInvoicePage() {
                                 </div>
                                 <div>
                                     <h3 className="font-bold text-blue-900">Semua Client / Bebas Pilih Resi STT</h3>
-                                    <p className="text-xs text-blue-700">Cari & gabungkan resi pending berdasarkan nomor STT atau Pemberangkatan Kapal</p>
+                                    <p className="text-xs text-blue-700">Gabungkan resi pending berdasarkan nomor STT, Pemberangkatan Kapal, atau Penerima sama (meski pengirim berbeda)</p>
                                 </div>
                             </div>
                             <ChevronRight size={18} className="text-blue-600" />
@@ -307,7 +326,7 @@ export default function NewInvoicePage() {
                                 <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                                 <input
                                     type="text"
-                                    placeholder="Cari No. STT, Pengirim, Tujuan, Kapal / Voyage..."
+                                    placeholder="Cari No. STT, Pengirim, Penerima, Tujuan, Kapal / Voyage..."
                                     className="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-100"
                                     value={sttSearch}
                                     onChange={(e) => setSttSearch(e.target.value)}
@@ -374,7 +393,7 @@ export default function NewInvoicePage() {
                                                     <span className="font-bold text-gray-900 shrink-0">{formatRupiah(effectiveAmount)}</span>
                                                 </div>
                                                 <p className="text-xs text-gray-500 mt-1">
-                                                    {new Date(tx.tanggal).toLocaleDateString('id-ID')} • Pengirim: <strong className="text-gray-700">{tx.pengirimName}</strong> • Tujuan: {tx.tujuan}
+                                                    {new Date(tx.tanggal).toLocaleDateString('id-ID')} • Pengirim: <strong className="text-gray-700">{tx.pengirimName}</strong> • Penerima: <strong className="text-gray-700">{tx.penerimaName}</strong> • Tujuan: {tx.tujuan}
                                                 </p>
                                             </div>
                                         </label>

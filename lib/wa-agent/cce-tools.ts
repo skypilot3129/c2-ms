@@ -5,6 +5,7 @@ import { adminDb } from '@/lib/firebase-admin';
 import { BRANCHES, type Branch } from '@/types/branch';
 import type { BeratUnit, CaraPelunasan, MetodePembayaran, StatusTransaksi, TipeTransaksi } from '@/types/transaction';
 import { EXPENSE_CATEGORY_LABELS, type ExpenseCategory, type VoyageStatus } from '@/types/voyage';
+import { resolveInvoiceClientIdentity } from '@/lib/invoice-reconciliation';
 import type {
     AssignSttsToVoyageDraftPayload,
     BatchUpdateSttPricingDraftPayload,
@@ -88,6 +89,29 @@ function normalizePelunasan(raw?: string, pembayaran?: MetodePembayaran): CaraPe
 function toWibDateIso(value: any): string {
     return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(toDateSafe(value));
 }
+
+function toWibTimeStr(value: any): string {
+    return (
+        new Intl.DateTimeFormat('id-ID', {
+            timeZone: 'Asia/Jakarta',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+        }).format(toDateSafe(value)) + ' WIB'
+    );
+}
+
+function fmtDayDateId(value: any): string {
+    return toDateSafe(value).toLocaleDateString('id-ID', {
+        weekday: 'long',
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+        timeZone: 'Asia/Jakarta',
+    });
+}
+
+const IKA_SYNC_START_DATE = '2026-08-23';
 
 function resolveWibPeriodRange(period?: string): { startIso?: string; endIso?: string } {
     const p = (period || '').trim().toLowerCase();
@@ -453,8 +477,13 @@ export async function toolGetTransactionBySTT(noSTT: string) {
     return { found: false, message: `Resi/STT "${raw}" tidak ditemukan di database.` };
 }
 
-export async function toolListUnbilledTransactions(clientName?: string, limitCount: number = 20) {
+export async function toolListUnbilledTransactions(
+    clientName?: string,
+    limitCount: number = 20,
+    penerimaName?: string
+) {
     const q = (clientName || '').trim().toLowerCase();
+    const pQ = (penerimaName || '').trim().toLowerCase();
     const snap = await adminDb
         .collection('transactions')
         .where('pelunasan', '==', 'Pending')
@@ -465,9 +494,14 @@ export async function toolListUnbilledTransactions(clientName?: string, limitCou
         .filter(({ data }) => {
             if (data.status === 'dibatalkan') return false;
             if (data.invoiceId) return false;
+            if (pQ) {
+                const receiver = String(data.penerimaName || '').toLowerCase();
+                if (!receiver.includes(pQ)) return false;
+            }
             if (q) {
                 const sender = String(data.pengirimName || '').toLowerCase();
-                if (!sender.includes(q)) return false;
+                const receiver = String(data.penerimaName || '').toLowerCase();
+                if (!sender.includes(q) && !receiver.includes(q)) return false;
             }
             return true;
         })
@@ -492,10 +526,48 @@ export async function toolListUnbilledTransactions(clientName?: string, limitCou
         isTaxable: Boolean(data.isTaxable) || (Number(data.ppn) || 0) > 0,
     }));
 
+    // Identifikasi grup STT dengan penerima sama namun pengirim berbeda (bisa digabung 1 invoice)
+    const byReceiver = new Map<
+        string,
+        {
+            penerimaName: string;
+            senders: Set<string>;
+            noSTTs: string[];
+            totalNominal: number;
+        }
+    >();
+    for (const { data } of filtered) {
+        const recName = String(data.penerimaName || '').trim();
+        if (!recName) continue;
+        const key = recName.toLowerCase();
+        const cur = byReceiver.get(key) || {
+            penerimaName: recName,
+            senders: new Set<string>(),
+            noSTTs: [],
+            totalNominal: 0,
+        };
+        const sender = String(data.pengirimName || '').trim();
+        if (sender) cur.senders.add(sender);
+        cur.noSTTs.push(String(data.noSTT || ''));
+        cur.totalNominal += Number(data.jumlah) || 0;
+        byReceiver.set(key, cur);
+    }
+
+    const sameReceiverGroups = Array.from(byReceiver.values())
+        .filter((g) => g.noSTTs.length >= 2 && g.senders.size > 1)
+        .map((g) => ({
+            penerimaName: g.penerimaName,
+            sttCount: g.noSTTs.length,
+            senders: Array.from(g.senders),
+            noSTTs: g.noSTTs,
+            totalNominal: g.totalNominal,
+        }));
+
     return {
         totalCount: filtered.length,
         totalNominal,
         items,
+        ...(sameReceiverGroups.length > 0 ? { sameReceiverGroups } : {}),
     };
 }
 
@@ -542,67 +614,363 @@ export async function toolGetUnpaidInvoicesSummary(clientName?: string) {
     };
 }
 
-export async function toolGetVoyageSummary(searchQuery?: string) {
-    const q = (searchQuery || '').trim().toLowerCase();
-    const snap = await adminDb.collection('voyages').get();
+export async function toolGetVoyageSummary(args?: {
+    searchQuery?: string;
+    voyageId?: string;
+    departureDate?: string;
+    startDate?: string;
+    endDate?: string;
+    month?: string;
+    period?: string;
+    status?: string;
+    includeCargoList?: boolean;
+    limit?: number;
+}) {
+    const q = (args?.searchQuery || '').trim().toLowerCase();
+    const qDigits = q.replace(/\D/g, '');
+    const reqVoyageId = (args?.voyageId || '').trim();
+    const reqStatus = (args?.status || '').trim().toLowerCase();
+    const reqDepDate = (args?.departureDate || '').trim();
+    const reqMonth = (args?.month || '').trim();
+    const periodRange = resolveWibPeriodRange(args?.period);
+    const startIso = (args?.startDate || '').trim() || periodRange.startIso || '';
+    const endIso = (args?.endDate || '').trim() || periodRange.endIso || '';
+    const includeCargoList = Boolean(args?.includeCargoList);
+    const maxLimit = Math.min(Math.max(1, typeof args?.limit === 'number' ? args.limit : 8), 50);
 
-    const voyages = snap.docs
-        .map((doc) => ({ id: doc.id, data: doc.data() || {}, depDate: toDateSafe(doc.data()?.departureDate) }))
-        .filter(({ data }) => {
-            if (!q) return true;
-            return (
-                String(data.shipName || '').toLowerCase().includes(q) ||
-                String(data.voyageNumber || '').toLowerCase().includes(q) ||
-                String(data.route || '').toLowerCase().includes(q)
-            );
+    const [voyagesSnap, shipExpSnap, expensesSnap, invoicesSnap] = await Promise.all([
+        adminDb.collection('voyages').get(),
+        adminDb.collection('owner_ship_expenses').get(),
+        adminDb.collection('expenses').get(),
+        adminDb.collection('invoices').get(),
+    ]);
+
+    const shipExpMap = new Map<string, Record<string, any>>();
+    for (const d of shipExpSnap.docs) {
+        const data = d.data() || {};
+        const vId = String(data.voyageId || d.id);
+        shipExpMap.set(vId, data);
+    }
+
+    const expensesByVoyageMap = new Map<string, Array<{ id: string; data: Record<string, any> }>>();
+    for (const d of expensesSnap.docs) {
+        const data = d.data() || {};
+        if (data.status === 'rejected') continue;
+        const vId = String(data.voyageId || '').trim();
+        if (!vId) continue;
+        const list = expensesByVoyageMap.get(vId) || [];
+        list.push({ id: d.id, data });
+        expensesByVoyageMap.set(vId, list);
+    }
+
+    // Build invoice reconciliation lookup matching lib/invoice-reconciliation.ts
+    const activeInvoices = invoicesSnap.docs
+        .map((d) => ({ id: d.id, data: d.data() || {} }))
+        .filter((inv) => String(inv.data.status || '') !== 'Cancelled')
+        .sort((a, b) => {
+            if (a.data.status === 'Paid' && b.data.status !== 'Paid') return -1;
+            if (b.data.status === 'Paid' && a.data.status !== 'Paid') return 1;
+            return toDateSafe(b.data.issueDate).getTime() - toDateSafe(a.data.issueDate).getTime();
+        });
+
+    const invByTxId = new Map<string, { id: string; data: Record<string, any> }>();
+    const invById = new Map<string, { id: string; data: Record<string, any> }>();
+    const invByNo = new Map<string, { id: string; data: Record<string, any> }>();
+    for (const inv of activeInvoices) {
+        invById.set(inv.id, inv);
+        const invNoKey = String(inv.data.invoiceNumber || '').trim().toLowerCase();
+        if (invNoKey && !invByNo.has(invNoKey)) invByNo.set(invNoKey, inv);
+        const tids: unknown[] = Array.isArray(inv.data.transactionIds) ? inv.data.transactionIds : [];
+        for (const tid of tids) {
+            if (typeof tid === 'string' && tid && !invByTxId.has(tid)) {
+                invByTxId.set(tid, inv);
+            }
+        }
+    }
+
+    const matchedVoyages = voyagesSnap.docs
+        .map((doc) => {
+            const data = doc.data() || {};
+            const depDate = toDateSafe(data.departureDate);
+            return {
+                id: doc.id,
+                data,
+                depDate,
+                depIso: toWibDateIso(depDate),
+            };
         })
-        .sort((a, b) => b.depDate.getTime() - a.depDate.getTime())
-        .slice(0, 5);
+        .filter((v) => {
+            const st = String(v.data.status || 'planned').toLowerCase();
+            if (reqStatus && reqStatus !== 'all') {
+                if (st !== reqStatus) return false;
+            } else if (!reqStatus && st === 'cancelled') {
+                return false;
+            }
+            if (reqVoyageId && v.id !== reqVoyageId) return false;
+            if (reqDepDate && v.depIso !== reqDepDate) return false;
+            if (reqMonth && !v.depIso.startsWith(reqMonth)) return false;
+            if (startIso && v.depIso < startIso) return false;
+            if (endIso && v.depIso > endIso) return false;
 
-    const results = [];
-    for (const v of voyages) {
+            if (q) {
+                const vNo = String(v.data.voyageNumber || '').toLowerCase();
+                const vDigits = vNo.replace(/\D/g, '');
+                const vehiclesArr: string[] = Array.isArray(v.data.vehicleNumbers)
+                    ? v.data.vehicleNumbers.map(String)
+                    : v.data.vehicleNumber
+                      ? [String(v.data.vehicleNumber)]
+                      : [];
+                const hit =
+                    vNo.includes(q) ||
+                    Boolean(qDigits && vDigits === qDigits) ||
+                    String(v.data.shipName || '').toLowerCase().includes(q) ||
+                    String(v.data.route || '').toLowerCase().includes(q) ||
+                    String(v.data.notes || '').toLowerCase().includes(q) ||
+                    vehiclesArr.some((vn) => vn.toLowerCase().includes(q));
+                if (!hit) return false;
+            }
+            return true;
+        })
+        .sort((a, b) => b.depDate.getTime() - a.depDate.getTime());
+
+    // Batch fetch all referenced transactions across matched voyages
+    const allTxIdsSet = new Set<string>();
+    for (const v of matchedVoyages) {
+        const txIds: unknown[] = Array.isArray(v.data.transactionIds) ? v.data.transactionIds : [];
+        for (const tid of txIds) {
+            if (typeof tid === 'string' && tid.trim()) {
+                allTxIdsSet.add(tid.trim());
+            }
+        }
+    }
+
+    const txMap = new Map<string, Record<string, any>>();
+    const allTxIds = Array.from(allTxIdsSet);
+    for (let i = 0; i < allTxIds.length; i += 100) {
+        const chunk = allTxIds.slice(i, i + 100);
+        const refs = chunk.map((tid) => adminDb.collection('transactions').doc(tid));
+        const txSnaps = await adminDb.getAll(...refs);
+        for (const txSnap of txSnaps) {
+            if (txSnap.exists) {
+                txMap.set(txSnap.id, txSnap.data() || {});
+            }
+        }
+    }
+
+    let kpiOmzetStt = 0;
+    let kpiPenjualanMakassar = 0;
+    let kpiTotalRevenue = 0;
+    let kpiShipCostsTotal = 0;
+    let kpiGeneralExpensesTotal = 0;
+    let kpiCombinedExpenses = 0;
+    let kpiNetProfit = 0;
+    let kpiPaidRevenue = 0;
+    let kpiUnpaidRevenue = 0;
+
+    const voyageDetails = matchedVoyages.map((v) => {
         const txIds: string[] = Array.isArray(v.data.transactionIds) ? v.data.transactionIds.filter(Boolean) : [];
-        let totalOmzet = 0;
+        let omzetStt = 0;
         let totalKoli = 0;
-        let paidAmount = 0;
-        let pendingAmount = 0;
+        let totalWeightKg = 0;
         let activeSttCount = 0;
+        let paidSttCount = 0;
+        let paidRevenue = 0;
+        let invoicedUnpaidCount = 0;
+        let invoicedUnpaidRevenue = 0;
+        let uninvoicedCount = 0;
+        let uninvoicedRevenue = 0;
 
-        if (txIds.length > 0) {
-            const refs = txIds.map((tid) => adminDb.collection('transactions').doc(tid));
-            const txSnaps = await adminDb.getAll(...refs);
-            for (const txSnap of txSnaps) {
-                if (!txSnap.exists) continue;
-                const td = txSnap.data() || {};
-                if (td.status === 'dibatalkan') continue;
-                const amt = Number(td.jumlah) || 0;
-                activeSttCount += 1;
-                totalOmzet += amt;
-                totalKoli += Number(td.koli) || 0;
-                if (td.pelunasan === 'Cash' || td.pelunasan === 'TF') {
-                    paidAmount += amt;
-                } else {
-                    pendingAmount += amt;
-                }
+        const cargoItems: Array<Record<string, unknown>> = [];
+
+        for (const tid of txIds) {
+            const td = txMap.get(tid);
+            if (!td || td.status === 'dibatalkan') continue;
+
+            const subtotal = Number(td.jumlah) || 0;
+            const ppn = td.isTaxable || (Number(td.ppn) || 0) > 0 ? Math.round(subtotal * 0.011) : 0;
+            const effectiveAmount = subtotal + ppn;
+
+            activeSttCount += 1;
+            omzetStt += effectiveAmount;
+            totalKoli += Number(td.koli) || 0;
+            totalWeightKg += Number(td.berat) || 0;
+
+            const linkedInv =
+                invByTxId.get(tid) ||
+                (td.invoiceId ? invById.get(String(td.invoiceId)) : undefined) ||
+                (td.invoiceNumber ? invByNo.get(String(td.invoiceNumber).trim().toLowerCase()) : undefined) ||
+                (td.noInvoice ? invByNo.get(String(td.noInvoice).trim().toLowerCase()) : undefined) ||
+                null;
+
+            const pel = String(td.pelunasan || '').trim().toLowerCase();
+            const isDirectPaid = pel === 'cash' || pel === 'tf' || pel === 'lunas' || pel.includes('transfer');
+            const isPaid = linkedInv?.data.status === 'Paid' || isDirectPaid;
+
+            let paymentStatus = 'belum_ada_invoice';
+            if (isPaid) {
+                paidSttCount += 1;
+                paidRevenue += effectiveAmount;
+                paymentStatus = 'lunas';
+            } else if (linkedInv) {
+                invoicedUnpaidCount += 1;
+                invoicedUnpaidRevenue += effectiveAmount;
+                paymentStatus = 'invoice_belum_lunas';
+            } else {
+                uninvoicedCount += 1;
+                uninvoicedRevenue += effectiveAmount;
+            }
+
+            if (includeCargoList && cargoItems.length < 60) {
+                cargoItems.push({
+                    noSTT: String(td.noSTT || ''),
+                    pengirimName: String(td.pengirimName || ''),
+                    penerimaName: String(td.penerimaName || ''),
+                    tujuan: String(td.tujuan || ''),
+                    koli: Number(td.koli) || 0,
+                    berat: Number(td.berat) || 0,
+                    beratUnit: String(td.beratUnit || 'KG'),
+                    effectiveAmount,
+                    paymentStatus,
+                    invoiceNumber: String(linkedInv?.data.invoiceNumber || td.invoiceNumber || td.noInvoice || ''),
+                    keterangan: String(td.keterangan || ''),
+                });
             }
         }
 
-        results.push({
+        const shipExp = shipExpMap.get(v.id);
+        const penjualanMakassar = Number(shipExp?.penjualanMakassar) || 0;
+        const totalRevenue = omzetStt + penjualanMakassar;
+
+        const tiket = Number(shipExp?.tiket) || 0;
+        const tiketMakassar = Number(shipExp?.tiketMakassar) || 0;
+        const opsSurabaya = Number(shipExp?.opsSurabaya) || 0;
+        const opsMakassar = Number(shipExp?.opsMakassar) || 0;
+        const gajiSopir = Number(shipExp?.gajiSopir) || 0;
+        const sewaMobil = Number(shipExp?.sewaMobil) || 0;
+        const opsTambahan = Number(shipExp?.opsTambahan) || 0;
+        const shipCostsTotal =
+            tiket + tiketMakassar + opsSurabaya + opsMakassar + gajiSopir + sewaMobil + opsTambahan;
+
+        const rawGenExpenses = expensesByVoyageMap.get(v.id) || [];
+        let generalExpensesTotal = 0;
+        const byCategory: Record<string, number> = {};
+        const generalExpenseItems = rawGenExpenses.map((e) => {
+            const amt = Number(e.data.amount) || 0;
+            const cat = String(e.data.category || 'lainnya') as ExpenseCategory;
+            const label = EXPENSE_CATEGORY_LABELS[cat] || cat;
+            generalExpensesTotal += amt;
+            byCategory[label] = (byCategory[label] || 0) + amt;
+            return {
+                category: cat,
+                categoryLabel: label,
+                amount: amt,
+                description: String(e.data.description || ''),
+                date: e.data.date ? fmtDateId(e.data.date) : '',
+                status: String(e.data.status || 'approved'),
+            };
+        });
+
+        const combinedExpensesTotal = shipCostsTotal + generalExpensesTotal;
+        const netProfit = totalRevenue - combinedExpensesTotal;
+        const profitMarginPercent = totalRevenue > 0 ? Math.round((netProfit / totalRevenue) * 100) : 0;
+        const costPerKg = totalWeightKg > 0 ? Math.round(combinedExpensesTotal / totalWeightKg) : 0;
+        const unpaidSttCount = invoicedUnpaidCount + uninvoicedCount;
+        const unpaidRevenue = invoicedUnpaidRevenue + uninvoicedRevenue;
+        const collectionPercent = activeSttCount > 0 ? Math.round((paidSttCount / activeSttCount) * 100) : 0;
+
+        kpiOmzetStt += omzetStt;
+        kpiPenjualanMakassar += penjualanMakassar;
+        kpiTotalRevenue += totalRevenue;
+        kpiShipCostsTotal += shipCostsTotal;
+        kpiGeneralExpensesTotal += generalExpensesTotal;
+        kpiCombinedExpenses += combinedExpensesTotal;
+        kpiNetProfit += netProfit;
+        kpiPaidRevenue += paidRevenue;
+        kpiUnpaidRevenue += unpaidRevenue;
+
+        const vehicleNumbers: string[] = Array.isArray(v.data.vehicleNumbers)
+            ? v.data.vehicleNumbers.filter(Boolean).map(String)
+            : v.data.vehicleNumber
+              ? [String(v.data.vehicleNumber)]
+              : [];
+
+        return {
             id: v.id,
             voyageNumber: String(v.data.voyageNumber || ''),
             shipName: String(v.data.shipName || '-'),
             route: String(v.data.route || ''),
             departureDate: fmtDateId(v.depDate),
+            departureDateIso: v.depIso,
+            arrivalDate: v.data.arrivalDate ? fmtDateId(v.data.arrivalDate) : '',
             status: String(v.data.status || 'planned'),
-            sttCount: activeSttCount,
-            totalKoli,
-            totalOmzet,
-            paidAmount,
-            pendingAmount,
-        });
-    }
+            vehicleNumbers,
+            voyageNotes: String(v.data.notes || ''),
+            cargoSummary: {
+                sttCount: activeSttCount,
+                totalKoli,
+                totalWeightKg: Number(totalWeightKg.toFixed(2)),
+                paidSttCount,
+                paidRevenue,
+                invoicedUnpaidCount,
+                invoicedUnpaidRevenue,
+                uninvoicedCount,
+                uninvoicedRevenue,
+                unpaidSttCount,
+                unpaidRevenue,
+                collectionPercent,
+            },
+            revenue: {
+                omzetStt,
+                penjualanMakassar,
+                totalRevenue,
+            },
+            shipCosts: {
+                hasManualRecord: Boolean(shipExp),
+                tiket,
+                tiketMakassar,
+                opsSurabaya,
+                opsMakassar,
+                gajiSopir,
+                sewaMobil,
+                opsTambahan,
+                shipCostsTotal,
+                costNotes: String(shipExp?.notes || ''),
+                updatedBy: String(shipExp?.updatedBy || ''),
+            },
+            generalExpenses: {
+                generalExpensesTotal,
+                byCategory,
+                items: generalExpenseItems,
+            },
+            profitLoss: {
+                combinedExpensesTotal,
+                netProfit,
+                profitMarginPercent,
+                costPerKg,
+            },
+            ...(includeCargoList ? { cargoItems } : {}),
+        };
+    });
 
-    return { count: results.length, voyages: results };
+    const avgMarginPercent = kpiTotalRevenue > 0 ? Math.round((kpiNetProfit / kpiTotalRevenue) * 100) : 0;
+
+    return {
+        matchedCount: voyageDetails.length,
+        showingCount: Math.min(voyageDetails.length, maxLimit),
+        kpiTotals: {
+            omzetStt: kpiOmzetStt,
+            penjualanMakassar: kpiPenjualanMakassar,
+            totalRevenue: kpiTotalRevenue,
+            shipCostsTotal: kpiShipCostsTotal,
+            generalExpensesTotal: kpiGeneralExpensesTotal,
+            combinedExpensesTotal: kpiCombinedExpenses,
+            netProfit: kpiNetProfit,
+            avgMarginPercent,
+            paidRevenue: kpiPaidRevenue,
+            unpaidRevenue: kpiUnpaidRevenue,
+        },
+        voyages: voyageDetails.slice(0, maxLimit),
+    };
 }
 
 interface PriceHistoryCandidate {
@@ -1059,6 +1427,7 @@ async function buildCreateInvoiceProposal(args: Record<string, any>): Promise<{
     result: Record<string, unknown>;
 }> {
     const clientNameInput = String(args.clientName || '').trim();
+    const penerimaNameInput = String(args.penerimaName || '').trim();
     const requestedStts: string[] = Array.isArray(args.noSTTs)
         ? args.noSTTs.map((s) => String(s || '').trim()).filter(Boolean)
         : [];
@@ -1082,6 +1451,12 @@ async function buildCreateInvoiceProposal(args: Record<string, any>): Promise<{
                 return sttUpper === req.toUpperCase() || (reqDigits !== '' && sttDigits === reqDigits);
             });
         }
+        if (penerimaNameInput) {
+            return (
+                data.pelunasan === 'Pending' &&
+                String(data.penerimaName || '').toLowerCase().includes(penerimaNameInput.toLowerCase())
+            );
+        }
         if (clientNameInput) {
             return (
                 data.pelunasan === 'Pending' &&
@@ -1091,6 +1466,17 @@ async function buildCreateInvoiceProposal(args: Record<string, any>): Promise<{
         return false;
     });
 
+    // Fallback: jika clientNameInput diisi tetapi tidak cocok di pengirimName, cocokkan di penerimaName
+    if (matched.length === 0 && clientNameInput && !penerimaNameInput && requestedTxIds.length === 0 && requestedStts.length === 0) {
+        matched = allDocs.filter(({ data }) => {
+            if (data.status === 'dibatalkan' || data.invoiceId) return false;
+            return (
+                data.pelunasan === 'Pending' &&
+                String(data.penerimaName || '').toLowerCase().includes(clientNameInput.toLowerCase())
+            );
+        });
+    }
+
     matched.sort((a, b) => {
         const numA = parseInt(String(a.data.noSTT || '').replace(/\D/g, ''), 10) || 0;
         const numB = parseInt(String(b.data.noSTT || '').replace(/\D/g, ''), 10) || 0;
@@ -1098,21 +1484,49 @@ async function buildCreateInvoiceProposal(args: Record<string, any>): Promise<{
     });
 
     if (matched.length === 0) {
+        const label = penerimaNameInput || clientNameInput;
         return {
             result: {
                 ok: false,
-                error: clientNameInput
-                    ? `Tidak ditemukan STT status Pending yang belum dibuat invoice untuk pengirim "${clientNameInput}".`
+                error: label
+                    ? `Tidak ditemukan STT status Pending yang belum dibuat invoice untuk "${label}".`
                     : 'Tidak ditemukan STT valid yang belum dibuat invoice.',
             },
         };
     }
 
     const first = matched[0].data;
-    const resolvedClientName = clientNameInput || String(first.pengirimName || 'Client Umum');
-    const resolvedClientId = String(first.pengirimId || 'manual');
-    const resolvedClientAddress = String(first.pengirimAddress || '');
-    const resolvedClientPhone = String(first.pengirimPhone || '');
+    const distinctSenders = new Set(
+        matched.map((m) => String(m.data.pengirimName || '').trim().toLowerCase()).filter(Boolean)
+    );
+    const distinctReceivers = new Set(
+        matched.map((m) => String(m.data.penerimaName || '').trim().toLowerCase()).filter(Boolean)
+    );
+    const hasMultipleSenders = distinctSenders.size > 1;
+
+    const resolvedClientName =
+        clientNameInput ||
+        (penerimaNameInput
+            ? String(first.penerimaName || penerimaNameInput)
+            : hasMultipleSenders && distinctReceivers.size === 1
+              ? String(first.penerimaName || 'Client Umum')
+              : String(first.pengirimName || first.penerimaName || 'Client Umum'));
+
+    const billedToReceiver =
+        hasMultipleSenders ||
+        Boolean(penerimaNameInput) ||
+        Boolean(
+            first.penerimaName &&
+                resolvedClientName.trim().toLowerCase() === String(first.penerimaName).trim().toLowerCase()
+        );
+
+    const resolvedClientId = billedToReceiver ? 'manual' : String(first.pengirimId || 'manual');
+    const resolvedClientAddress = billedToReceiver
+        ? String(first.penerimaAddress || first.tujuan || '')
+        : String(first.pengirimAddress || '');
+    const resolvedClientPhone = billedToReceiver
+        ? String(first.penerimaPhone || first.pengirimPhone || '')
+        : String(first.pengirimPhone || '');
 
     const subtotal = matched.reduce((sum, item) => sum + (Number(item.data.jumlah) || 0), 0);
     const isTaxable = matched.some((item) => Boolean(item.data.isTaxable) || (Number(item.data.ppn) || 0) > 0);
@@ -2622,6 +3036,1047 @@ export async function toolGetVoyageInvoiceImages(args: {
 }
 
 // ==========================================
+// 2A-2. PENAGIHAN IKA TOOLS (RECONCILIATION, PAYMENT, DAILY RECAP)
+// ==========================================
+
+interface ReconciledIkaInvoice {
+    id: string;
+    userId: string;
+    invoiceNumber: string;
+    clientName: string;
+    clientAddress: string;
+    transactionIds: string[];
+    sttNumbers: string[];
+    totalAmount: number;
+    status: 'Paid' | 'Unpaid';
+    issueDate: Date;
+    issueDateIso: string;
+    dueDate: Date;
+    dueDateIso: string;
+    paidDateObj: Date;
+    paidDateIso: string;
+    paidTime: string;
+    paymentMethod: string;
+    paymentRef: string;
+    paidBy: string;
+    notes: string;
+    voyage: {
+        id: string;
+        voyageNumber: string;
+        shipName: string;
+        route: string;
+        departureDateIso: string;
+    } | null;
+    collectionFeedback?: {
+        status: string;
+        notes: string;
+        promisedDate?: string;
+        officer: string;
+        updatedDateIso: string;
+    };
+}
+
+function classifyIkaPaymentChannel(paymentMethod?: string, paymentRef?: string): 'bca' | 'bri' | 'mandiri' | 'perusahaan' | 'transfer_other' {
+    const raw = `${paymentMethod || ''} ${paymentRef || ''}`.toLowerCase();
+    if (raw.includes('cash') || raw.includes('tunai') || raw.includes('perusahaan') || raw.includes('kas')) {
+        return 'perusahaan';
+    }
+    if (raw.includes('bri')) return 'bri';
+    if (raw.includes('mandiri')) return 'mandiri';
+    if (raw.includes('bca')) return 'bca';
+    if (raw.includes('transfer') || raw.includes('tf')) return 'transfer_other';
+    return 'perusahaan';
+}
+
+function computeDailyIkaSummaryFromList(allReconciled: ReconciledIkaInvoice[], targetDateIso: string) {
+    const dayPaid = allReconciled
+        .filter((inv) => inv.status === 'Paid' && inv.paidDateIso === targetDateIso)
+        .sort((a, b) => a.paidDateObj.getTime() - b.paidDateObj.getTime());
+
+    let totalCollected = 0;
+    let bca = 0;
+    let bri = 0;
+    let mandiri = 0;
+    let transferOther = 0;
+    let cash = 0;
+
+    for (const inv of dayPaid) {
+        totalCollected += inv.totalAmount;
+        const ch = classifyIkaPaymentChannel(inv.paymentMethod, inv.paymentRef);
+        if (ch === 'bca') bca += inv.totalAmount;
+        else if (ch === 'bri') bri += inv.totalAmount;
+        else if (ch === 'mandiri') mandiri += inv.totalAmount;
+        else if (ch === 'transfer_other') transferOther += inv.totalAmount;
+        else cash += inv.totalAmount;
+    }
+
+    return {
+        date: targetDateIso,
+        dateFormatted: fmtDayDateId(new Date(`${targetDateIso}T12:00:00+07:00`)),
+        paidCount: dayPaid.length,
+        totalCollected,
+        byChannel: {
+            bca,
+            bri,
+            mandiri,
+            transferTotal: bca + bri + mandiri + transferOther,
+            cash,
+        },
+        paidInvoices: dayPaid.map((inv) => ({
+            invoiceNumber: inv.invoiceNumber,
+            clientName: inv.clientName,
+            totalAmount: inv.totalAmount,
+            sttNumbers: inv.sttNumbers.join(', '),
+            paymentMethod: inv.paymentMethod || 'Cash',
+            paymentRef: inv.paymentRef,
+            paidTime: inv.paidTime || toWibTimeStr(inv.paidDateObj),
+            paidBy: inv.paidBy || 'Officer',
+            voyageLabel: inv.voyage ? `${inv.voyage.shipName || inv.voyage.voyageNumber} (${inv.voyage.voyageNumber})` : '',
+        })),
+    };
+}
+
+async function loadReconciledPenagihanIka(): Promise<ReconciledIkaInvoice[]> {
+    const [invoicesSnap, txSnap, voyagesSnap] = await Promise.all([
+        adminDb.collection('invoices').get(),
+        adminDb.collection('transactions').get(),
+        adminDb.collection('voyages').get(),
+    ]);
+
+    const txMap = new Map<string, { id: string; data: Record<string, any> }>();
+    const txByInvoiceId = new Map<string, Array<{ id: string; data: Record<string, any> }>>();
+
+    for (const doc of txSnap.docs) {
+        const data = doc.data() || {};
+        txMap.set(doc.id, { id: doc.id, data });
+        if (typeof data.invoiceId === 'string' && data.invoiceId.trim()) {
+            const list = txByInvoiceId.get(data.invoiceId.trim()) || [];
+            list.push({ id: doc.id, data });
+            txByInvoiceId.set(data.invoiceId.trim(), list);
+        }
+    }
+
+    const voyageMap = new Map<string, { id: string; voyageNumber: string; shipName: string; route: string; departureDateIso: string }>();
+    const txToVoyageId = new Map<string, string>();
+    for (const doc of voyagesSnap.docs) {
+        const data = doc.data() || {};
+        if (String(data.status || '').toLowerCase() === 'cancelled') continue;
+        const vInfo = {
+            id: doc.id,
+            voyageNumber: String(data.voyageNumber || ''),
+            shipName: String(data.shipName || ''),
+            route: String(data.route || ''),
+            departureDateIso: toWibDateIso(data.departureDate),
+        };
+        voyageMap.set(doc.id, vInfo);
+        const tids: unknown[] = Array.isArray(data.transactionIds) ? data.transactionIds : [];
+        for (const tid of tids) {
+            if (typeof tid === 'string' && tid && !txToVoyageId.has(tid)) {
+                txToVoyageId.set(tid, doc.id);
+            }
+        }
+    }
+
+    const reconciled: ReconciledIkaInvoice[] = [];
+    for (const doc of invoicesSnap.docs) {
+        const data = doc.data() || {};
+        if (String(data.status || '') === 'Cancelled') continue;
+
+        const idSet = new Set<string>(
+            Array.isArray(data.transactionIds) ? data.transactionIds.filter(Boolean).map(String) : []
+        );
+        for (const tItem of txByInvoiceId.get(doc.id) || []) {
+            idSet.add(tItem.id);
+        }
+
+        const linked = Array.from(idSet)
+            .map((tid) => txMap.get(tid))
+            .filter((t): t is { id: string; data: Record<string, any> } => Boolean(t && t.data.status !== 'dibatalkan'));
+
+        let liveClientName = String(data.clientName || '');
+        let liveClientAddress = String(data.clientAddress || '');
+        let liveTotalAmount = Number(data.totalAmount) || 0;
+        let liveStatus: 'Paid' | 'Unpaid' = String(data.status || '') === 'Paid' ? 'Paid' : 'Unpaid';
+        const sttNumbers: string[] = [];
+
+        if (linked.length > 0) {
+            for (const item of linked) {
+                sttNumbers.push(String(item.data.noSTT || '').replace(/^STT/i, ''));
+            }
+            const resolvedIdentity = resolveInvoiceClientIdentity(
+                { clientName: liveClientName, clientAddress: liveClientAddress },
+                linked.map((l) => l.data)
+            );
+            liveClientName = resolvedIdentity.clientName;
+            liveClientAddress = resolvedIdentity.clientAddress || liveClientAddress;
+            const subtotal = linked.reduce((s, item) => s + (Number(item.data.jumlah) || 0), 0);
+            const isTaxable = linked.some((item) => Boolean(item.data.isTaxable) || (Number(item.data.ppn) || 0) > 0);
+            liveTotalAmount = subtotal + (isTaxable ? Math.round(subtotal * 0.011) : 0);
+
+            const allTxPaid = linked.every((item) => item.data.pelunasan === 'TF' || item.data.pelunasan === 'Cash');
+            if (allTxPaid) liveStatus = 'Paid';
+        }
+
+        // Resolve primary voyage
+        const vCounts = new Map<string, number>();
+        for (const tid of idSet) {
+            const vId = txToVoyageId.get(tid);
+            if (vId) vCounts.set(vId, (vCounts.get(vId) || 0) + 1);
+        }
+        let bestVoyageId: string | null = null;
+        let bestCount = 0;
+        for (const [vId, cnt] of vCounts.entries()) {
+            if (cnt > bestCount) {
+                bestCount = cnt;
+                bestVoyageId = vId;
+            }
+        }
+
+        const issueDate = toDateSafe(data.issueDate);
+        const dueDate = toDateSafe(data.dueDate);
+        const paidDateObj = toDateSafe(data.paidAt || data.paymentDate || data.updatedAt);
+
+        const fbRaw = data.collectionFeedback;
+        const collectionFeedback = fbRaw
+            ? {
+                  status: String(fbRaw.status || ''),
+                  notes: String(fbRaw.notes || ''),
+                  ...(fbRaw.promisedDate ? { promisedDate: String(fbRaw.promisedDate) } : {}),
+                  officer: String(fbRaw.officer || ''),
+                  updatedDateIso: fbRaw.updatedAt ? toWibDateIso(fbRaw.updatedAt) : '',
+              }
+            : undefined;
+
+        reconciled.push({
+            id: doc.id,
+            userId: String(data.userId || ''),
+            invoiceNumber: String(data.invoiceNumber || ''),
+            clientName: liveClientName,
+            clientAddress: liveClientAddress,
+            transactionIds: Array.from(idSet),
+            sttNumbers,
+            totalAmount: liveTotalAmount,
+            status: liveStatus,
+            issueDate,
+            issueDateIso: toWibDateIso(issueDate),
+            dueDate,
+            dueDateIso: toWibDateIso(dueDate),
+            paidDateObj,
+            paidDateIso: toWibDateIso(paidDateObj),
+            paidTime: String(data.paidTime || ''),
+            paymentMethod: String(data.paymentMethod || ''),
+            paymentRef: String(data.paymentRef || ''),
+            paidBy: String(data.paidBy || ''),
+            notes: String(data.notes || ''),
+            voyage: bestVoyageId ? voyageMap.get(bestVoyageId) || null : null,
+            collectionFeedback,
+        });
+    }
+
+    return reconciled;
+}
+
+export async function toolGetPenagihanIkaOverview(args?: {
+    statusFilter?: string;
+    groupBy?: string;
+    clientName?: string;
+    voyageQuery?: string;
+    invoiceNumber?: string;
+    noSTT?: string;
+    amountHint?: number;
+    onlyWithFeedback?: boolean;
+    limit?: number;
+}) {
+    const all = await loadReconciledPenagihanIka();
+    const todayIso = toWibDateIso(new Date());
+    const statusFilter = (args?.statusFilter || 'unpaid').trim().toLowerCase();
+    const groupBy = (args?.groupBy || 'voyage').trim().toLowerCase();
+    const clientQ = (args?.clientName || '').trim().toLowerCase();
+    const voyageQ = (args?.voyageQuery || '').trim().toLowerCase();
+    const invNoQ = (args?.invoiceNumber || '').trim().toLowerCase();
+    const invDigitsQ = invNoQ.replace(/\D/g, '');
+    const sttQ = (args?.noSTT || '').trim().toLowerCase().replace(/^stt/i, '').replace(/^0+/, '');
+    const amountHint = typeof args?.amountHint === 'number' && args.amountHint > 0 ? args.amountHint : 0;
+    const onlyWithFeedback = Boolean(args?.onlyWithFeedback);
+    const maxLimit = Math.min(Math.max(1, typeof args?.limit === 'number' ? args.limit : 25), 60);
+
+    const unpaidAll = all.filter((i) => i.status !== 'Paid');
+    const paidAll = all.filter((i) => i.status === 'Paid');
+    const todayPaid = paidAll.filter((i) => i.paidDateIso === todayIso);
+
+    const filtered = all.filter((inv) => {
+        if (statusFilter === 'unpaid' && inv.status === 'Paid') return false;
+        if (statusFilter === 'paid' && inv.status !== 'Paid') return false;
+        if (clientQ && !inv.clientName.toLowerCase().includes(clientQ)) return false;
+        if (voyageQ) {
+            const vNo = (inv.voyage?.voyageNumber || '').toLowerCase();
+            const sName = (inv.voyage?.shipName || '').toLowerCase();
+            const route = (inv.voyage?.route || '').toLowerCase();
+            if (!vNo.includes(voyageQ) && !sName.includes(voyageQ) && !route.includes(voyageQ)) return false;
+        }
+        if (invNoQ) {
+            const cur = inv.invoiceNumber.toLowerCase();
+            const curDigits = cur.replace(/\D/g, '');
+            if (!cur.includes(invNoQ) && !(invDigitsQ && curDigits === invDigitsQ)) return false;
+        }
+        if (sttQ) {
+            const hit = inv.sttNumbers.some((s) => s.replace(/^0+/, '').toLowerCase() === sttQ || s.toLowerCase().includes(sttQ));
+            if (!hit) return false;
+        }
+        if (onlyWithFeedback && !inv.collectionFeedback) return false;
+        return true;
+    });
+
+    filtered.sort((a, b) => {
+        if (statusFilter === 'paid') return b.paidDateObj.getTime() - a.paidDateObj.getTime();
+        return a.dueDate.getTime() - b.dueDate.getTime();
+    });
+
+    // Optional amount matching across unpaid invoices & client totals
+    let amountMatches: { exactInvoices: Array<Record<string, unknown>>; clientCombinedTotals: Array<Record<string, unknown>> } | undefined;
+    if (amountHint > 0) {
+        const tolerance = 1000;
+        const singleHits = unpaidAll
+            .filter((i) => Math.abs(i.totalAmount - amountHint) <= tolerance)
+            .map((i) => ({
+                invoiceId: i.id,
+                invoiceNumber: i.invoiceNumber,
+                clientName: i.clientName,
+                totalAmount: i.totalAmount,
+                sttNumbers: i.sttNumbers.join(', '),
+                shipName: i.voyage?.shipName || '',
+                voyageNumber: i.voyage?.voyageNumber || '',
+            }));
+
+        const byClientUnpaid = new Map<string, ReconciledIkaInvoice[]>();
+        for (const inv of unpaidAll) {
+            const list = byClientUnpaid.get(inv.clientName) || [];
+            list.push(inv);
+            byClientUnpaid.set(inv.clientName, list);
+        }
+        const combinedHits: Array<Record<string, unknown>> = [];
+        for (const [cName, list] of byClientUnpaid.entries()) {
+            const sum = list.reduce((s, i) => s + i.totalAmount, 0);
+            if (list.length > 1 && Math.abs(sum - amountHint) <= tolerance) {
+                combinedHits.push({
+                    clientName: cName,
+                    invoiceCount: list.length,
+                    combinedTotal: sum,
+                    invoiceNumbers: list.map((i) => i.invoiceNumber),
+                });
+            }
+        }
+        amountMatches = { exactInvoices: singleHits, clientCombinedTotals: combinedHits };
+    }
+
+    // Groupings
+    let voyageGroups: Array<Record<string, unknown>> | undefined;
+    let clientGroups: Array<Record<string, unknown>> | undefined;
+
+    if (groupBy === 'voyage') {
+        const vMap = new Map<string, { label: string; depIso: string; unpaidCount: number; paidCount: number; unpaidAmount: number; paidAmount: number; invoices: ReconciledIkaInvoice[] }>();
+        for (const inv of filtered) {
+            const key = inv.voyage ? inv.voyage.id : '__UNASSIGNED__';
+            const label = inv.voyage
+                ? `${inv.voyage.shipName || 'Kapal'} (${inv.voyage.voyageNumber} - ${inv.voyage.departureDateIso})`
+                : 'Belum Masuk Pemberangkatan Kapal';
+            const cur = vMap.get(key) || {
+                label,
+                depIso: inv.voyage?.departureDateIso || '',
+                unpaidCount: 0,
+                paidCount: 0,
+                unpaidAmount: 0,
+                paidAmount: 0,
+                invoices: [],
+            };
+            if (inv.status === 'Paid') {
+                cur.paidCount += 1;
+                cur.paidAmount += inv.totalAmount;
+            } else {
+                cur.unpaidCount += 1;
+                cur.unpaidAmount += inv.totalAmount;
+            }
+            cur.invoices.push(inv);
+            vMap.set(key, cur);
+        }
+        voyageGroups = Array.from(vMap.values())
+            .sort((a, b) => b.depIso.localeCompare(a.depIso))
+            .slice(0, 12)
+            .map((g) => ({
+                voyageLabel: g.label,
+                unpaidCount: g.unpaidCount,
+                unpaidAmount: g.unpaidAmount,
+                paidCount: g.paidCount,
+                paidAmount: g.paidAmount,
+                invoices: g.invoices.slice(0, 15).map((i) => ({
+                    invoiceNumber: i.invoiceNumber,
+                    clientName: i.clientName,
+                    totalAmount: i.totalAmount,
+                    status: i.status,
+                    sttNumbers: i.sttNumbers.join(', '),
+                    overdue: i.status !== 'Paid' && i.dueDateIso < todayIso,
+                    collectionFeedback: i.collectionFeedback || null,
+                })),
+            }));
+    } else if (groupBy === 'client') {
+        const cMap = new Map<string, { clientName: string; unpaidCount: number; paidCount: number; unpaidAmount: number; paidAmount: number; invoiceNumbers: string[] }>();
+        for (const inv of filtered) {
+            const cName = inv.clientName || 'Lainnya';
+            const cur = cMap.get(cName) || {
+                clientName: cName,
+                unpaidCount: 0,
+                paidCount: 0,
+                unpaidAmount: 0,
+                paidAmount: 0,
+                invoiceNumbers: [],
+            };
+            if (inv.status === 'Paid') {
+                cur.paidCount += 1;
+                cur.paidAmount += inv.totalAmount;
+            } else {
+                cur.unpaidCount += 1;
+                cur.unpaidAmount += inv.totalAmount;
+            }
+            cur.invoiceNumbers.push(inv.invoiceNumber);
+            cMap.set(cName, cur);
+        }
+        clientGroups = Array.from(cMap.values())
+            .sort((a, b) => b.unpaidAmount - a.unpaidAmount)
+            .slice(0, 20);
+    }
+
+    const voyagesWithUnpaid = new Set(unpaidAll.map((i) => i.voyage?.id || '__UNASSIGNED__'));
+
+    return {
+        kpiSummary: {
+            totalUnpaidAmount: unpaidAll.reduce((s, i) => s + i.totalAmount, 0),
+            unpaidCount: unpaidAll.length,
+            paidCount: paidAll.length,
+            collectedTodayAmount: todayPaid.reduce((s, i) => s + i.totalAmount, 0),
+            collectedTodayCount: todayPaid.length,
+            voyagesWithUnpaidCount: voyagesWithUnpaid.size,
+        },
+        matchedCount: filtered.length,
+        ...(amountMatches ? { amountMatches } : {}),
+        ...(voyageGroups ? { voyageGroups } : {}),
+        ...(clientGroups ? { clientGroups } : {}),
+        invoices: filtered.slice(0, maxLimit).map((i) => ({
+            id: i.id,
+            invoiceNumber: i.invoiceNumber,
+            clientName: i.clientName,
+            totalAmount: i.totalAmount,
+            status: i.status,
+            sttNumbers: i.sttNumbers.join(', '),
+            issueDate: fmtDateId(i.issueDate),
+            dueDate: fmtDateId(i.dueDate),
+            overdue: i.status !== 'Paid' && i.dueDateIso < todayIso,
+            voyageLabel: i.voyage ? `${i.voyage.shipName} (${i.voyage.voyageNumber})` : 'Belum masuk voyage',
+            ...(i.status === 'Paid'
+                ? {
+                      paidDate: fmtDateId(i.paidDateObj),
+                      paidTime: i.paidTime || toWibTimeStr(i.paidDateObj),
+                      paymentMethod: i.paymentMethod,
+                      paymentRef: i.paymentRef,
+                      paidBy: i.paidBy,
+                  }
+                : {}),
+            collectionFeedback: i.collectionFeedback || null,
+        })),
+    };
+}
+
+export async function toolGetPenagihanIkaDailyRecap(args?: {
+    date?: string;
+    period?: string;
+    startDate?: string;
+    endDate?: string;
+    paidBy?: string;
+}) {
+    const all = await loadReconciledPenagihanIka();
+    const todayIso = toWibDateIso(new Date());
+    const periodRange = resolveWibPeriodRange(args?.period);
+    const reqDate = (args?.date || '').trim();
+    const startIso = (args?.startDate || '').trim() || reqDate || periodRange.startIso || todayIso;
+    const endIso = (args?.endDate || '').trim() || reqDate || periodRange.endIso || todayIso;
+    const officerQ = (args?.paidBy || '').trim().toLowerCase();
+
+    const paidInRange = all.filter((inv) => {
+        if (inv.status !== 'Paid') return false;
+        if (inv.paidDateIso < startIso || inv.paidDateIso > endIso) return false;
+        if (officerQ && !inv.paidBy.toLowerCase().includes(officerQ)) return false;
+        return true;
+    });
+
+    const uniqueDates = Array.from(new Set(paidInRange.map((i) => i.paidDateIso))).sort((a, b) =>
+        b.localeCompare(a)
+    );
+
+    const dailyRecap = uniqueDates.map((dIso) => computeDailyIkaSummaryFromList(paidInRange, dIso));
+
+    let grandTotalCollected = 0;
+    let grandBca = 0;
+    let grandBri = 0;
+    let grandMandiri = 0;
+    let grandTransferOther = 0;
+    let grandCash = 0;
+
+    for (const day of dailyRecap) {
+        grandTotalCollected += day.totalCollected;
+        grandBca += day.byChannel.bca;
+        grandBri += day.byChannel.bri;
+        grandMandiri += day.byChannel.mandiri;
+        grandTransferOther += Math.max(0, day.byChannel.transferTotal - day.byChannel.bca - day.byChannel.bri - day.byChannel.mandiri);
+        grandCash += day.byChannel.cash;
+    }
+
+    const customerFeedbacks = all
+        .filter((inv) => {
+            if (inv.status === 'Paid' || !inv.collectionFeedback) return false;
+            const fbDate = inv.collectionFeedback.updatedDateIso;
+            const promDate = inv.collectionFeedback.promisedDate || '';
+            return (
+                (fbDate >= startIso && fbDate <= endIso) ||
+                (promDate >= startIso && promDate <= endIso)
+            );
+        })
+        .map((inv) => ({
+            invoiceNumber: inv.invoiceNumber,
+            clientName: inv.clientName,
+            totalAmount: inv.totalAmount,
+            status: inv.collectionFeedback!.status,
+            notes: inv.collectionFeedback!.notes,
+            promisedDate: inv.collectionFeedback!.promisedDate || '',
+            officer: inv.collectionFeedback!.officer,
+        }));
+
+    return {
+        range: { startDate: startIso, endDate: endIso },
+        grandSummary: {
+            daysWithPayments: dailyRecap.length,
+            totalPaidInvoices: paidInRange.length,
+            totalCollectedAmount: grandTotalCollected,
+            byChannel: {
+                bca: grandBca,
+                bri: grandBri,
+                mandiri: grandMandiri,
+                transferTotal: grandBca + grandBri + grandMandiri + grandTransferOther,
+                cash: grandCash,
+            },
+        },
+        dailyRecap,
+        customerFeedbacks,
+    };
+}
+
+export async function toolPayPenagihanIkaInvoiceDirect(
+    args: {
+        invoiceNumbers?: string[];
+        invoiceNumber?: string;
+        invoiceId?: string;
+        noSTT?: string;
+        clientName?: string;
+        payAllClientUnpaid?: boolean;
+        expectedAmount?: number;
+        paymentMethod?: string;
+        bank?: string;
+        paymentRef?: string;
+        paymentDate?: string;
+        notes?: string;
+    },
+    actorName: string
+): Promise<{ result: Record<string, unknown> }> {
+    const all = await loadReconciledPenagihanIka();
+    const unpaidAll = all.filter((i) => i.status !== 'Paid');
+
+    const requestedNumbers: string[] = [];
+    if (args.invoiceNumber) requestedNumbers.push(String(args.invoiceNumber).trim());
+    if (Array.isArray(args.invoiceNumbers)) {
+        for (const n of args.invoiceNumbers) {
+            if (typeof n === 'string' && n.trim()) requestedNumbers.push(n.trim());
+        }
+    }
+
+    const reqId = (args.invoiceId || '').trim();
+    const reqStt = (args.noSTT || '').trim().toLowerCase().replace(/^stt/i, '').replace(/^0+/, '');
+    const reqClient = (args.clientName || '').trim().toLowerCase();
+    const expectedAmount = typeof args.expectedAmount === 'number' && args.expectedAmount > 0 ? args.expectedAmount : 0;
+
+    const selectedMap = new Map<string, ReconciledIkaInvoice>();
+    const alreadyPaidList: Array<Record<string, unknown>> = [];
+    const notFoundRefs: string[] = [];
+
+    const matchByInvNumber = (numStr: string): ReconciledIkaInvoice | undefined => {
+        const up = numStr.toUpperCase();
+        const digits = up.replace(/\D/g, '');
+        return all.find((i) => {
+            const cur = i.invoiceNumber.toUpperCase();
+            return cur === up || Boolean(digits && cur.replace(/\D/g, '') === digits);
+        });
+    };
+
+    if (reqId) {
+        const hit = all.find((i) => i.id === reqId);
+        if (!hit) notFoundRefs.push(reqId);
+        else if (hit.status === 'Paid') alreadyPaidList.push({ invoiceNumber: hit.invoiceNumber, clientName: hit.clientName, totalAmount: hit.totalAmount });
+        else selectedMap.set(hit.id, hit);
+    }
+
+    for (const num of requestedNumbers) {
+        const hit = matchByInvNumber(num);
+        if (!hit) notFoundRefs.push(num);
+        else if (hit.status === 'Paid') alreadyPaidList.push({ invoiceNumber: hit.invoiceNumber, clientName: hit.clientName, totalAmount: hit.totalAmount });
+        else selectedMap.set(hit.id, hit);
+    }
+
+    if (reqStt) {
+        const sttHits = all.filter((i) =>
+            i.sttNumbers.some((s) => s.replace(/^0+/, '').toLowerCase() === reqStt || s.toLowerCase() === reqStt)
+        );
+        if (sttHits.length === 0) {
+            notFoundRefs.push(`STT ${args.noSTT}`);
+        } else {
+            for (const hit of sttHits) {
+                if (hit.status === 'Paid') alreadyPaidList.push({ invoiceNumber: hit.invoiceNumber, clientName: hit.clientName, totalAmount: hit.totalAmount });
+                else selectedMap.set(hit.id, hit);
+            }
+        }
+    }
+
+    // Resolve by clientName and/or expectedAmount if no explicit invoice was resolved yet
+    if (selectedMap.size === 0 && !reqId && requestedNumbers.length === 0 && !reqStt) {
+        if (reqClient) {
+            const clientUnpaid = unpaidAll.filter((i) => i.clientName.toLowerCase().includes(reqClient));
+            if (clientUnpaid.length === 0) {
+                const clientPaid = all.filter((i) => i.status === 'Paid' && i.clientName.toLowerCase().includes(reqClient));
+                return {
+                    result: {
+                        ok: false,
+                        error:
+                            clientPaid.length > 0
+                                ? `Semua invoice untuk client "${args.clientName}" sudah berstatus Lunas.`
+                                : `Tidak ditemukan invoice Unpaid untuk client "${args.clientName}".`,
+                    },
+                };
+            }
+            if (clientUnpaid.length === 1) {
+                selectedMap.set(clientUnpaid[0].id, clientUnpaid[0]);
+            } else if (args.payAllClientUnpaid) {
+                for (const i of clientUnpaid) selectedMap.set(i.id, i);
+            } else if (expectedAmount > 0) {
+                const exactSingle = clientUnpaid.filter((i) => Math.abs(i.totalAmount - expectedAmount) <= 1000);
+                const clientCombinedSum = clientUnpaid.reduce((s, i) => s + i.totalAmount, 0);
+                if (exactSingle.length === 1) {
+                    selectedMap.set(exactSingle[0].id, exactSingle[0]);
+                } else if (Math.abs(clientCombinedSum - expectedAmount) <= 1000) {
+                    for (const i of clientUnpaid) selectedMap.set(i.id, i);
+                } else {
+                    return {
+                        result: {
+                            ok: false,
+                            needsClarification: true,
+                            error: `Client "${args.clientName}" punya ${clientUnpaid.length} invoice Unpaid dan nominal bukti (${fmtRupiah(expectedAmount)}) tidak cocok 1-per-1 maupun total gabungan (${fmtRupiah(clientCombinedSum)}). Sebutkan nomor invoice yang mau dilunasi.`,
+                            unpaidCandidates: clientUnpaid.slice(0, 15).map((i) => ({
+                                invoiceNumber: i.invoiceNumber,
+                                clientName: i.clientName,
+                                totalAmount: i.totalAmount,
+                                sttNumbers: i.sttNumbers.join(', '),
+                                shipName: i.voyage?.shipName || '',
+                            })),
+                        },
+                    };
+                }
+            } else {
+                return {
+                    result: {
+                        ok: false,
+                        needsClarification: true,
+                        error: `Client "${args.clientName}" memiliki ${clientUnpaid.length} invoice Unpaid. Sebutkan nomor invoice atau nominal transfer agar tidak salah melunasi.`,
+                        unpaidCandidates: clientUnpaid.slice(0, 15).map((i) => ({
+                            invoiceNumber: i.invoiceNumber,
+                            clientName: i.clientName,
+                            totalAmount: i.totalAmount,
+                            sttNumbers: i.sttNumbers.join(', '),
+                            shipName: i.voyage?.shipName || '',
+                        })),
+                    },
+                };
+            }
+        } else if (expectedAmount > 0) {
+            const matches = unpaidAll.filter((i) => Math.abs(i.totalAmount - expectedAmount) <= 1000);
+            if (matches.length === 1) {
+                selectedMap.set(matches[0].id, matches[0]);
+            } else {
+                return {
+                    result: {
+                        ok: false,
+                        needsClarification: true,
+                        error:
+                            matches.length > 1
+                                ? `Ditemukan ${matches.length} invoice Unpaid dengan nominal mendekati ${fmtRupiah(expectedAmount)}. Sebutkan nama client atau nomor invoice.`
+                                : `Tidak ditemukan invoice Unpaid dengan nominal mendekati ${fmtRupiah(expectedAmount)}. Sebutkan nama client atau nomor invoice.`,
+                        unpaidCandidates: matches.slice(0, 10).map((i) => ({
+                            invoiceNumber: i.invoiceNumber,
+                            clientName: i.clientName,
+                            totalAmount: i.totalAmount,
+                            sttNumbers: i.sttNumbers.join(', '),
+                        })),
+                    },
+                };
+            }
+        }
+    }
+
+    const targets = Array.from(selectedMap.values());
+    if (targets.length === 0) {
+        return {
+            result: {
+                ok: false,
+                error:
+                    alreadyPaidList.length > 0
+                        ? `Invoice tersebut sudah berstatus Lunas.`
+                        : notFoundRefs.length > 0
+                          ? `Invoice tidak ditemukan: ${notFoundRefs.join(', ')}.`
+                          : 'Sebutkan nomor invoice, no STT, atau nama client + nominal untuk melunasi.',
+                ...(alreadyPaidList.length > 0 ? { alreadyPaid: alreadyPaidList } : {}),
+            },
+        };
+    }
+
+    // Normalize payment method & Saldo Real bank
+    const rawMethod = (args.paymentMethod || '').trim().toLowerCase();
+    const rawBank = (args.bank || '').trim().toLowerCase();
+    const combinedPayStr = `${rawMethod} ${rawBank}`;
+
+    let targetBank: 'perusahaan' | 'bca' | 'bri' | 'mandiri' = 'bca';
+    let methodLabel = 'Transfer (BCA)';
+    let txPelunasan: 'TF' | 'Cash' = 'TF';
+
+    if (
+        combinedPayStr.includes('cash') ||
+        combinedPayStr.includes('tunai') ||
+        combinedPayStr.includes('perusahaan') ||
+        combinedPayStr.includes('kas')
+    ) {
+        targetBank = 'perusahaan';
+        methodLabel = 'Cash / Kas Perusahaan';
+        txPelunasan = 'Cash';
+    } else if (combinedPayStr.includes('bri')) {
+        targetBank = 'bri';
+        methodLabel = 'Transfer (BRI)';
+    } else if (combinedPayStr.includes('mandiri')) {
+        targetBank = 'mandiri';
+        methodLabel = 'Transfer (MANDIRI)';
+    } else {
+        targetBank = 'bca';
+        methodLabel = 'Transfer (BCA)';
+    }
+
+    const todayIso = toWibDateIso(new Date());
+    const reqPayDate = (args.paymentDate || '').trim();
+    const payDateObj =
+        /^\d{4}-\d{2}-\d{2}$/.test(reqPayDate) && reqPayDate !== todayIso
+            ? new Date(`${reqPayDate}T12:00:00+07:00`)
+            : new Date();
+    const payDateIso = toWibDateIso(payDateObj);
+    const payTimeStr = toWibTimeStr(payDateObj);
+    const cleanRef = (args.paymentRef || '').trim();
+    const cleanNotes = (args.notes || '').trim();
+
+    const paidNowList: Array<Record<string, unknown>> = [];
+    let totalJustPaidAmount = 0;
+
+    for (const target of targets) {
+        const invoiceRef = adminDb.collection('invoices').doc(target.id);
+        const nowTs = admin.firestore.Timestamp.now();
+
+        await adminDb.runTransaction(async (tx) => {
+            // Phase 1: ALL reads first
+            const invSnap = await tx.get(invoiceRef);
+            if (!invSnap.exists) {
+                throw new Error(`Invoice ${target.invoiceNumber} tidak ditemukan.`);
+            }
+            const invData = invSnap.data() || {};
+            const allTxIds = Array.from(
+                new Set(
+                    [
+                        ...target.transactionIds,
+                        ...(Array.isArray(invData.transactionIds) ? invData.transactionIds : []),
+                    ].filter(Boolean)
+                )
+            );
+            const txSnaps: Array<{ ref: admin.firestore.DocumentReference; exists: boolean }> = [];
+            for (const tid of allTxIds) {
+                const tRef = adminDb.collection('transactions').doc(tid);
+                const tSnap = await tx.get(tRef);
+                txSnaps.push({ ref: tRef, exists: tSnap.exists });
+            }
+
+            // Phase 2: ALL writes after
+            const invUpdates: Record<string, unknown> = {
+                status: 'Paid',
+                totalAmount: target.totalAmount,
+                paidAt: nowTs,
+                paidTime: payTimeStr,
+                paidBy: actorName,
+                paymentDate: admin.firestore.Timestamp.fromDate(payDateObj),
+                paymentMethod: methodLabel,
+                updatedAt: nowTs,
+            };
+            if (cleanRef) invUpdates.paymentRef = cleanRef;
+            if (cleanNotes) invUpdates.notes = cleanNotes;
+
+            tx.update(invoiceRef, invUpdates);
+
+            for (const item of txSnaps) {
+                if (item.exists) {
+                    tx.update(item.ref, {
+                        pelunasan: txPelunasan,
+                        invoiceId: target.id,
+                        invoiceNumber: target.invoiceNumber,
+                        invoiceStatus: 'Paid',
+                        updatedAt: nowTs,
+                    });
+                }
+            }
+        });
+
+        // Sync Saldo Real mutation if >= 2026-08-23
+        if (payDateIso >= IKA_SYNC_START_DATE) {
+            const mutSnap = await adminDb
+                .collection('real_balance_mutations')
+                .where('source', '==', 'penagihan_ika')
+                .where('invoiceId', '==', target.id)
+                .get();
+
+            const mutPayload = {
+                userId: target.userId || 'wa-agent',
+                date: payDateIso,
+                type: 'in',
+                source: 'penagihan_ika',
+                bank: targetBank,
+                targetBank: null,
+                amount: target.totalAmount,
+                category: 'Penagihan IKA',
+                description: `[PENAGIHAN IKA] Pelunasan Invoice ${target.invoiceNumber} - ${target.clientName}`,
+                refNumber: cleanRef || target.invoiceNumber,
+                invoiceId: target.id,
+                clientName: target.clientName,
+                paidBy: actorName,
+                updatedAt: nowTs,
+            };
+
+            if (mutSnap.empty) {
+                await adminDb.collection('real_balance_mutations').add({
+                    ...mutPayload,
+                    createdAt: nowTs,
+                });
+            } else {
+                const mutDocRef = mutSnap.docs[0].ref;
+                await mutDocRef.update(mutPayload);
+            }
+        }
+
+        totalJustPaidAmount += target.totalAmount;
+        paidNowList.push({
+            invoiceId: target.id,
+            invoiceNumber: target.invoiceNumber,
+            clientName: target.clientName,
+            totalAmount: target.totalAmount,
+            sttNumbers: target.sttNumbers.join(', '),
+            paymentMethod: methodLabel,
+            ...(cleanRef ? { paymentRef: cleanRef } : {}),
+            paidDate: fmtDateId(payDateObj),
+            paidTime: payTimeStr,
+            paidBy: actorName,
+        });
+    }
+
+    // Recompute daily collection summary for payDateIso after committing payments
+    const refreshedAll = await loadReconciledPenagihanIka();
+    const dailyCollectionSummary = computeDailyIkaSummaryFromList(refreshedAll, payDateIso);
+
+    return {
+        result: {
+            ok: true,
+            status: 'LUNAS_TERSIMPAN',
+            paidInvoices: paidNowList,
+            totalJustPaidAmount,
+            syncedSaldoReal: payDateIso >= IKA_SYNC_START_DATE,
+            ...(alreadyPaidList.length > 0 ? { alreadyPaid: alreadyPaidList } : {}),
+            ...(notFoundRefs.length > 0 ? { notFound: notFoundRefs } : {}),
+            dailyCollectionSummary,
+        },
+    };
+}
+
+export async function toolSavePenagihanIkaFeedbackDirect(
+    args: {
+        invoiceNumber?: string;
+        clientName?: string;
+        status?: string;
+        notes?: string;
+        promisedDate?: string;
+    },
+    actorName: string
+): Promise<{ result: Record<string, unknown> }> {
+    const all = await loadReconciledPenagihanIka();
+    const reqInvNo = (args.invoiceNumber || '').trim();
+    const reqClient = (args.clientName || '').trim().toLowerCase();
+
+    let targets: ReconciledIkaInvoice[] = [];
+    if (reqInvNo) {
+        const up = reqInvNo.toUpperCase();
+        const digits = up.replace(/\D/g, '');
+        targets = all.filter((i) => {
+            const cur = i.invoiceNumber.toUpperCase();
+            return cur === up || Boolean(digits && cur.replace(/\D/g, '') === digits);
+        });
+    } else if (reqClient) {
+        targets = all.filter((i) => i.status !== 'Paid' && i.clientName.toLowerCase().includes(reqClient));
+    }
+
+    if (targets.length === 0) {
+        return {
+            result: {
+                ok: false,
+                error: 'Invoice tidak ditemukan untuk dicatat feedback penagihannya.',
+            },
+        };
+    }
+
+    const fbStatus = (args.status || 'Janji Bayar').trim();
+    const fbNotes = (args.notes || '').trim();
+    const fbPromised = (args.promisedDate || '').trim();
+    const nowTs = admin.firestore.Timestamp.now();
+
+    const cleanFeedback: Record<string, unknown> = {
+        status: fbStatus,
+        notes: fbNotes,
+        officer: actorName,
+        updatedAt: nowTs,
+    };
+    if (fbPromised) {
+        cleanFeedback.promisedDate = fbPromised;
+    }
+
+    for (const inv of targets) {
+        await adminDb.collection('invoices').doc(inv.id).update({
+            collectionFeedback: cleanFeedback,
+            updatedAt: nowTs,
+        });
+    }
+
+    return {
+        result: {
+            ok: true,
+            updatedCount: targets.length,
+            invoices: targets.map((t) => ({
+                invoiceNumber: t.invoiceNumber,
+                clientName: t.clientName,
+                totalAmount: t.totalAmount,
+            })),
+            feedback: {
+                status: fbStatus,
+                notes: fbNotes,
+                ...(fbPromised ? { promisedDate: fbPromised } : {}),
+                officer: actorName,
+            },
+        },
+    };
+}
+
+export async function toolRevertPenagihanIkaPaymentDirect(
+    args: { invoiceNumber?: string; invoiceId?: string },
+    actorName: string
+): Promise<{ result: Record<string, unknown> }> {
+    void actorName;
+    const all = await loadReconciledPenagihanIka();
+    const reqId = (args.invoiceId || '').trim();
+    const reqInvNo = (args.invoiceNumber || '').trim();
+    const up = reqInvNo.toUpperCase();
+    const digits = up.replace(/\D/g, '');
+
+    const target = reqId
+        ? all.find((i) => i.id === reqId)
+        : reqInvNo
+          ? all.find((i) => {
+                const cur = i.invoiceNumber.toUpperCase();
+                return cur === up || Boolean(digits && cur.replace(/\D/g, '') === digits);
+            })
+          : undefined;
+
+    if (!target) {
+        return { result: { ok: false, error: `Invoice "${reqInvNo || reqId}" tidak ditemukan.` } };
+    }
+
+    const invoiceRef = adminDb.collection('invoices').doc(target.id);
+    const nowTs = admin.firestore.Timestamp.now();
+
+    await adminDb.runTransaction(async (tx) => {
+        const invSnap = await tx.get(invoiceRef);
+        if (!invSnap.exists) throw new Error('Invoice tidak ditemukan.');
+        const invData = invSnap.data() || {};
+        const allTxIds = Array.from(
+            new Set(
+                [
+                    ...target.transactionIds,
+                    ...(Array.isArray(invData.transactionIds) ? invData.transactionIds : []),
+                ].filter(Boolean)
+            )
+        );
+        const txSnaps: Array<{ ref: admin.firestore.DocumentReference; exists: boolean }> = [];
+        for (const tid of allTxIds) {
+            const tRef = adminDb.collection('transactions').doc(tid);
+            const tSnap = await tx.get(tRef);
+            txSnaps.push({ ref: tRef, exists: tSnap.exists });
+        }
+
+        tx.update(invoiceRef, {
+            status: 'Unpaid',
+            paidAt: admin.firestore.FieldValue.delete(),
+            paidTime: admin.firestore.FieldValue.delete(),
+            paidBy: admin.firestore.FieldValue.delete(),
+            paymentDate: admin.firestore.FieldValue.delete(),
+            paymentMethod: admin.firestore.FieldValue.delete(),
+            paymentRef: admin.firestore.FieldValue.delete(),
+            updatedAt: nowTs,
+        });
+
+        for (const item of txSnaps) {
+            if (item.exists) {
+                tx.update(item.ref, {
+                    pelunasan: 'Pending',
+                    invoiceId: target.id,
+                    invoiceNumber: target.invoiceNumber,
+                    invoiceStatus: 'Unpaid',
+                    updatedAt: nowTs,
+                });
+            }
+        }
+    });
+
+    const mutSnap = await adminDb
+        .collection('real_balance_mutations')
+        .where('invoiceId', '==', target.id)
+        .where('source', '==', 'penagihan_ika')
+        .get();
+    for (const d of mutSnap.docs) {
+        await d.ref.delete();
+    }
+
+    return {
+        result: {
+            ok: true,
+            status: 'DIKEMBALIKAN_KE_UNPAID',
+            invoiceNumber: target.invoiceNumber,
+            clientName: target.clientName,
+            totalAmount: target.totalAmount,
+            removedSaldoRealMutations: mutSnap.size,
+        },
+    };
+}
+
+// ==========================================
 // 2B. VOYAGE (PEMBERANGKATAN) PROPOSALS & EXECUTORS
 // ==========================================
 
@@ -3323,11 +4778,13 @@ const ALL_TOOL_DECLARATIONS: FunctionDeclaration[] = [
     },
     {
         name: 'list_unbilled_transactions',
-        description: 'Daftar STT berstatus Pending yang belum dibuatkan invoice. Bisa difilter per nama pengirim.',
+        description:
+            'Daftar STT berstatus Pending yang belum dibuatkan invoice. Bisa difilter per nama pengirim maupun nama penerima (juga mendeteksi STT penerima sama dengan pengirim berbeda).',
         parameters: {
             type: Type.OBJECT,
             properties: {
-                clientName: { type: Type.STRING, description: 'Opsional: filter nama pengirim/client.' },
+                clientName: { type: Type.STRING, description: 'Opsional: filter nama pengirim atau penerima.' },
+                penerimaName: { type: Type.STRING, description: 'Opsional: filter spesifik nama penerima.' },
                 limit: { type: Type.NUMBER, description: 'Maksimal item yang dikembalikan (default 20).' },
             },
         },
@@ -3344,11 +4801,107 @@ const ALL_TOOL_DECLARATIONS: FunctionDeclaration[] = [
     },
     {
         name: 'get_voyage_summary',
-        description: 'Lihat ringkasan pemberangkatan kapal (voyage): total STT, koli, omzet, lunas vs pending.',
+        description:
+            'Lihat data lengkap modul Pemberangkatan Kapal (voyage): omzet STT, Penjualan Makassar, rincian seluruh 7 pos biaya kapal (tiket SBY, tiket MKS, ops SBY, ops MKS, gaji sopir, sewa mobil, ops tambahan), pengeluaran tambahan berkategori, laba bersih, margin, biaya per kg, status lunas/belum lunas muatan, unit berangkat, serta catatan keterangan pemberangkatan & catatan biaya.',
         parameters: {
             type: Type.OBJECT,
             properties: {
-                searchQuery: { type: Type.STRING, description: 'Opsional: nama kapal, nomor voyage, atau rute.' },
+                searchQuery: { type: Type.STRING, description: 'Opsional: nama kapal, nomor voyage (mis. VOY045), rute, armada, atau kata kunci catatan.' },
+                voyageId: { type: Type.STRING, description: 'Opsional: ID dokumen Firestore voyage.' },
+                departureDate: { type: Type.STRING, description: 'Opsional: filter tanggal keberangkatan spesifik YYYY-MM-DD (WIB).' },
+                startDate: { type: Type.STRING, description: 'Opsional: tanggal awal rentang keberangkatan YYYY-MM-DD.' },
+                endDate: { type: Type.STRING, description: 'Opsional: tanggal akhir rentang keberangkatan YYYY-MM-DD.' },
+                month: { type: Type.STRING, description: 'Opsional: filter bulan YYYY-MM (mis. "2026-11").' },
+                period: { type: Type.STRING, description: 'Opsional: "today", "this_week", "last_7_days", atau "this_month".' },
+                status: { type: Type.STRING, description: 'Opsional: filter status "planned", "in-progress", "completed", "cancelled", atau "all".' },
+                includeCargoList: { type: Type.BOOLEAN, description: 'Set true jika user menanyakan daftar resi/STT atau keterangan isi barang/catatan per STT di pemberangkatan tersebut.' },
+                limit: { type: Type.NUMBER, description: 'Maksimal jumlah pemberangkatan yang dikembalikan (default 8, maksimal 50).' },
+            },
+        },
+    },
+    {
+        name: 'get_penagihan_ika_overview',
+        description:
+            'Pahami seluruh data modul Penagihan Ika: daftar & total piutang Unpaid / Paid, pengelompokan per pemberangkatan kapal atau per client, pencarian berdasarkan nominal transfer, no invoice, no STT, dan catatan respon/janji bayar customer.',
+        parameters: {
+            type: Type.OBJECT,
+            properties: {
+                statusFilter: { type: Type.STRING, description: '"unpaid" (default), "paid", atau "all".' },
+                groupBy: { type: Type.STRING, description: '"voyage" (default), "client", atau "none".' },
+                clientName: { type: Type.STRING, description: 'Opsional: filter nama pengirim/client.' },
+                voyageQuery: { type: Type.STRING, description: 'Opsional: filter nama kapal, no voyage, atau rute.' },
+                invoiceNumber: { type: Type.STRING, description: 'Opsional: cari nomor invoice.' },
+                noSTT: { type: Type.STRING, description: 'Opsional: cari berdasarkan nomor STT.' },
+                amountHint: { type: Type.NUMBER, description: 'Opsional: nominal transfer/uang dari bukti TF untuk mencocokkan invoice unpaid (toleransi ±Rp 1.000).' },
+                onlyWithFeedback: { type: Type.BOOLEAN, description: 'Opsional: hanya invoice yang punya catatan feedback customer.' },
+                limit: { type: Type.NUMBER, description: 'Maksimal daftar invoice dikembalikan (default 25).' },
+            },
+        },
+    },
+    {
+        name: 'get_penagihan_ika_daily_recap',
+        description:
+            'Rangkum per hari berapa total uang yang berhasil didapat/ditagih Penagihan Ika dari invoice lunas, beserta rincian per bank (BCA, BRI, Mandiri, Cash), daftar invoice yang lunas pada hari tsb, dan catatan respon customer.',
+        parameters: {
+            type: Type.OBJECT,
+            properties: {
+                date: { type: Type.STRING, description: 'Opsional: tanggal spesifik format YYYY-MM-DD (WIB). Kosongkan untuk hari ini atau gunakan period.' },
+                period: { type: Type.STRING, description: 'Opsional: "today", "this_week", "last_7_days", atau "this_month".' },
+                startDate: { type: Type.STRING, description: 'Opsional: tanggal mulai rentang rekapan YYYY-MM-DD.' },
+                endDate: { type: Type.STRING, description: 'Opsional: tanggal akhir rentang rekapan YYYY-MM-DD.' },
+                paidBy: { type: Type.STRING, description: 'Opsional: filter nama petugas.' },
+            },
+        },
+    },
+    {
+        name: 'pay_penagihan_ika_invoice',
+        description:
+            'Melunasi LANGSUNG invoice di Penagihan Ika (TANPA konfirmasi YA/BATAL), otomatis update status STT ke TF/Cash dan mencatat pemasukan ke Saldo Real, lalu mengembalikan rangkuman total uang Penagihan Ika pada tanggal pelunasan tsb.',
+        parameters: {
+            type: Type.OBJECT,
+            properties: {
+                invoiceNumber: { type: Type.STRING, description: 'Nomor invoice yang dilunasi (contoh: "13828").' },
+                invoiceNumbers: {
+                    type: Type.ARRAY,
+                    items: { type: Type.STRING },
+                    description: 'Opsional: daftar beberapa nomor invoice jika satu transfer melunasi beberapa invoice sekaligus.',
+                },
+                invoiceId: { type: Type.STRING, description: 'Opsional: ID Firestore invoice.' },
+                noSTT: { type: Type.STRING, description: 'Opsional: nomor STT jika konfirmasi menyebut no STT.' },
+                clientName: { type: Type.STRING, description: 'Opsional: nama client/pengirim jika nomor invoice tidak disebut.' },
+                payAllClientUnpaid: { type: Type.BOOLEAN, description: 'Set true jika user jelas meminta melunasi semua invoice unpaid milik client tsb.' },
+                expectedAmount: { type: Type.NUMBER, description: 'Opsional: nominal uang dari bukti transfer untuk pencocokan otomatis.' },
+                paymentMethod: { type: Type.STRING, description: '"Transfer" (default) atau "Cash".' },
+                bank: { type: Type.STRING, description: 'Bank tujuan di Saldo Real: "bca" (default), "bri", "mandiri", atau "perusahaan" (untuk Cash).' },
+                paymentRef: { type: Type.STRING, description: 'Opsional: nomor referensi / kode berita / keterangan bukti transfer.' },
+                paymentDate: { type: Type.STRING, description: 'Opsional: tanggal bayar format YYYY-MM-DD (default hari ini WIB).' },
+                notes: { type: Type.STRING, description: 'Opsional: catatan tambahan pada invoice.' },
+            },
+        },
+    },
+    {
+        name: 'save_penagihan_ika_feedback',
+        description: 'Simpan catatan respon / alasan / janji bayar customer pada invoice Unpaid di Penagihan Ika.',
+        parameters: {
+            type: Type.OBJECT,
+            properties: {
+                invoiceNumber: { type: Type.STRING, description: 'Nomor invoice target.' },
+                clientName: { type: Type.STRING, description: 'Opsional: nama client jika ingin update semua invoice unpaid client tsb.' },
+                status: { type: Type.STRING, description: 'Status respon, mis. "Janji Bayar", "Minta Waktu", "Sudah Dihubungi", "Pending Verifikasi".' },
+                notes: { type: Type.STRING, description: 'Catatan detail respon atau alasan customer.' },
+                promisedDate: { type: Type.STRING, description: 'Opsional: tanggal janji bayar format YYYY-MM-DD.' },
+            },
+            required: ['notes'],
+        },
+    },
+    {
+        name: 'revert_penagihan_ika_payment',
+        description: 'Batalkan status Lunas pada invoice Penagihan Ika dan kembalikan ke Unpaid beserta menghapus mutasi Saldo Real otomatisnya.',
+        parameters: {
+            type: Type.OBJECT,
+            properties: {
+                invoiceNumber: { type: Type.STRING, description: 'Nomor invoice yang dibatalkan pelunasannya.' },
+                invoiceId: { type: Type.STRING, description: 'Opsional: ID Firestore invoice.' },
             },
         },
     },
@@ -3431,15 +4984,24 @@ const ALL_TOOL_DECLARATIONS: FunctionDeclaration[] = [
     {
         name: 'create_invoice',
         description:
-            'Buat & terbitkan Invoice LANGSUNG dari STT Pending yang belum tertagih (TANPA konfirmasi), lalu otomatis kirim gambar PNG invoice.',
+            'Buat & terbitkan 1 Invoice LANGSUNG dari STT Pending yang belum tertagih (TANPA konfirmasi), lalu otomatis kirim gambar PNG invoice. Boleh menggabungkan beberapa STT yang PENERIMA-nya sama meskipun PENGIRIM-nya berbeda ke dalam 1 invoice.',
         parameters: {
             type: Type.OBJECT,
             properties: {
-                clientName: { type: Type.STRING, description: 'Nama pengirim / client tertagih.' },
+                clientName: {
+                    type: Type.STRING,
+                    description:
+                        'Nama pihak tertagih pada Kepada Yth (bisa nama Pengirim, atau nama Penerima bila menggabungkan beberapa STT penerima sama tapi pengirim berbeda).',
+                },
+                penerimaName: {
+                    type: Type.STRING,
+                    description:
+                        'Opsional: nama Penerima untuk mencari & menggabungkan semua STT pending belum ber-invoice milik penerima tersebut (meskipun pengirimnya berbeda-beda) menjadi 1 invoice.',
+                },
                 noSTTs: {
                     type: Type.ARRAY,
                     items: { type: Type.STRING },
-                    description: 'Opsional: daftar nomor STT spesifik jika user menyebut nomor STT tertentu.',
+                    description: 'Opsional: daftar nomor STT spesifik yang ingin digabung ke invoice ini (termasuk jika pengirim beda tapi penerima sama).',
                 },
                 issueDate: { type: Type.STRING, description: 'Opsional: tanggal terbit YYYY-MM-DD.' },
                 dueDate: { type: Type.STRING, description: 'Opsional: jatuh tempo YYYY-MM-DD.' },
@@ -3732,6 +5294,11 @@ const ALLOWED_TOOLS_BY_ROLE: Record<WaAgentRole, string[]> = {
         'list_unassigned_stts',
         'get_unpaid_invoices_summary',
         'get_voyage_summary',
+        'get_penagihan_ika_overview',
+        'get_penagihan_ika_daily_recap',
+        'pay_penagihan_ika_invoice',
+        'save_penagihan_ika_feedback',
+        'revert_penagihan_ika_payment',
         'create_stt',
         'update_stt',
         'propose_create_voyage',
@@ -3773,7 +5340,8 @@ export async function dispatchAgentToolCall(
             return {
                 result: await toolListUnbilledTransactions(
                     args.clientName ? String(args.clientName) : undefined,
-                    typeof args.limit === 'number' ? args.limit : 20
+                    typeof args.limit === 'number' ? args.limit : 20,
+                    args.penerimaName ? String(args.penerimaName) : undefined
                 ),
             };
         case 'list_pending_stt_with_price_history':
@@ -3808,8 +5376,49 @@ export async function dispatchAgentToolCall(
             };
         case 'get_voyage_summary':
             return {
-                result: await toolGetVoyageSummary(args.searchQuery ? String(args.searchQuery) : undefined),
+                result: await toolGetVoyageSummary({
+                    searchQuery: args.searchQuery ? String(args.searchQuery) : undefined,
+                    voyageId: args.voyageId ? String(args.voyageId) : undefined,
+                    departureDate: args.departureDate ? String(args.departureDate) : undefined,
+                    startDate: args.startDate ? String(args.startDate) : undefined,
+                    endDate: args.endDate ? String(args.endDate) : undefined,
+                    month: args.month ? String(args.month) : undefined,
+                    period: args.period ? String(args.period) : undefined,
+                    status: args.status ? String(args.status) : undefined,
+                    includeCargoList: typeof args.includeCargoList === 'boolean' ? args.includeCargoList : false,
+                    limit: typeof args.limit === 'number' ? args.limit : 8,
+                }),
             };
+        case 'get_penagihan_ika_overview':
+            return {
+                result: await toolGetPenagihanIkaOverview({
+                    statusFilter: args.statusFilter ? String(args.statusFilter) : undefined,
+                    groupBy: args.groupBy ? String(args.groupBy) : undefined,
+                    clientName: args.clientName ? String(args.clientName) : undefined,
+                    voyageQuery: args.voyageQuery ? String(args.voyageQuery) : undefined,
+                    invoiceNumber: args.invoiceNumber ? String(args.invoiceNumber) : undefined,
+                    noSTT: args.noSTT ? String(args.noSTT) : undefined,
+                    amountHint: typeof args.amountHint === 'number' ? args.amountHint : undefined,
+                    onlyWithFeedback: typeof args.onlyWithFeedback === 'boolean' ? args.onlyWithFeedback : false,
+                    limit: typeof args.limit === 'number' ? args.limit : 25,
+                }),
+            };
+        case 'get_penagihan_ika_daily_recap':
+            return {
+                result: await toolGetPenagihanIkaDailyRecap({
+                    date: args.date ? String(args.date) : undefined,
+                    period: args.period ? String(args.period) : undefined,
+                    startDate: args.startDate ? String(args.startDate) : undefined,
+                    endDate: args.endDate ? String(args.endDate) : undefined,
+                    paidBy: args.paidBy ? String(args.paidBy) : undefined,
+                }),
+            };
+        case 'pay_penagihan_ika_invoice':
+            return await toolPayPenagihanIkaInvoiceDirect(args, actorName);
+        case 'save_penagihan_ika_feedback':
+            return await toolSavePenagihanIkaFeedbackDirect(args, actorName);
+        case 'revert_penagihan_ika_payment':
+            return await toolRevertPenagihanIkaPaymentDirect(args, actorName);
         case 'create_stt':
             return await toolCreateSttDirect(args, actorName);
         case 'update_stt':

@@ -8,6 +8,7 @@ import { subscribeToTransactions } from '@/lib/firestore-transactions';
 import type { Invoice } from '@/types/invoice';
 import type { Transaction } from '@/types/transaction';
 import { formatRupiah, terbilang } from '@/lib/currency';
+import { resolveInvoiceClientIdentity } from '@/lib/invoice-reconciliation';
 import { COMPANY_INFO } from '@/lib/company-config';
 import { Printer, ArrowLeft, Send, CheckCircle2, User, Clock, MessageSquare, AlertTriangle, Building2 } from 'lucide-react';
 
@@ -66,9 +67,9 @@ function PrintDailyCollectionContent() {
 
             if (linked.length > 0) {
                 sttMapping[inv.id] = linked.map(t => t.noSTT.replace(/^STT/i, '')).join(', ');
-                const primaryTx = linked[0];
-                liveClientName = primaryTx.pengirimName || inv.clientName;
-                liveClientAddress = primaryTx.pengirimAddress || inv.clientAddress;
+                const resolvedIdentity = resolveInvoiceClientIdentity(inv, linked);
+                liveClientName = resolvedIdentity.clientName;
+                liveClientAddress = resolvedIdentity.clientAddress || inv.clientAddress;
 
                 const subtotal = linked.reduce((sum, t) => sum + (Number(t.jumlah) || 0), 0);
                 const isTaxable = linked.some(t => t.isTaxable || (t.ppn && Number(t.ppn) > 0));

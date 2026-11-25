@@ -5,6 +5,17 @@ import type { ExpenseCategory, VoyageStatus } from './voyage';
 
 export type WaAgentRole = UserRole;
 
+export type WaThinkingLevel = 'minimal' | 'low' | 'medium' | 'high';
+
+export interface WaTokenUsage {
+    promptTokens: number;
+    outputTokens: number;
+    thoughtTokens: number;
+    cachedTokens: number;
+    totalTokens: number;
+    modelName?: string;
+}
+
 export interface WaAgentUser {
     id: string;
     phone: string; // Normalized E.164 digits without '+', e.g., 628123456789
@@ -23,6 +34,7 @@ export interface WaAgentConfig {
     allowGroups: boolean;
     groupPrefix: string;
     modelName: string;
+    thinkingLevel?: WaThinkingLevel;
     updatedAt?: Date;
 }
 
@@ -221,6 +233,7 @@ export interface WaAgentLog {
     incomingText: string;
     replyText: string;
     toolsUsed: string[];
+    tokenUsage?: WaTokenUsage;
     status: 'ok' | 'blocked' | 'disabled' | 'error';
     errorMessage?: string;
     createdAt: Date;
@@ -232,7 +245,8 @@ export const DEFAULT_WA_AGENT_CONFIG: WaAgentConfig = {
     openwaSessionId: 'cce-admin',
     allowGroups: false,
     groupPrefix: '/cce',
-    modelName: 'gemini-2.5-flash',
+    modelName: 'gemini-4-hydrogen',
+    thinkingLevel: 'low',
 };
 
 /**

@@ -7,6 +7,7 @@ import { subscribeToTransactions } from '@/lib/firestore-transactions';
 import type { Invoice } from '@/types/invoice';
 import type { Transaction } from '@/types/transaction';
 import { formatRupiah, terbilang } from '@/lib/currency';
+import { resolveInvoiceClientIdentity } from '@/lib/invoice-reconciliation';
 import { COMPANY_INFO } from '@/lib/company-config';
 import { Printer, ArrowLeft, Filter, Search, CheckCircle2, Clock, ShieldCheck } from 'lucide-react';
 import Link from 'next/link';
@@ -70,8 +71,8 @@ function PrintPaidInvoicesContent({
 
             mapping[inv.id] = linked.map(t => t.noSTT.replace(/^STT/i, '')).join(', ');
 
-            const primaryTx = linked[0];
-            const liveClientName = primaryTx.pengirimName || inv.clientName;
+            const resolvedIdentity = resolveInvoiceClientIdentity(inv, linked);
+            const liveClientName = resolvedIdentity.clientName;
             const subtotal = linked.reduce((sum, t) => sum + (t.jumlah || 0), 0);
             const isTaxable = linked.some(t => t.isTaxable || (t.ppn && t.ppn > 0));
             const liveTotalAmount = subtotal + (isTaxable ? Math.round(subtotal * 0.011) : 0);
@@ -79,7 +80,7 @@ function PrintPaidInvoicesContent({
             return {
                 ...inv,
                 clientName: liveClientName,
-                clientAddress: primaryTx.pengirimAddress || inv.clientAddress,
+                clientAddress: resolvedIdentity.clientAddress || inv.clientAddress,
                 totalAmount: liveTotalAmount,
             };
         });

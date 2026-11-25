@@ -225,3 +225,88 @@ export const summarizeVoyagePayments = (
     };
 };
 
+export interface InvoiceClientIdentity {
+    clientName: string;
+    clientAddress: string;
+    hasMultipleSenders: boolean;
+}
+
+/**
+ * Resolves the billed party for an invoice without clobbering multi-sender / same-receiver
+ * consolidated invoices with `linkedTxs[0].pengirimName`.
+ */
+export const resolveInvoiceClientIdentity = (
+    inv: { clientName?: string; clientAddress?: string },
+    linkedTxs: Array<{
+        pengirimName?: string;
+        pengirimAddress?: string;
+        penerimaName?: string;
+        penerimaAddress?: string;
+        tujuan?: string;
+    }>
+): InvoiceClientIdentity => {
+    const savedName = (inv.clientName || '').trim();
+    const savedAddr = (inv.clientAddress || '').trim();
+
+    if (linkedTxs.length === 0) {
+        return {
+            clientName: savedName || 'Client Umum',
+            clientAddress: savedAddr,
+            hasMultipleSenders: false,
+        };
+    }
+
+    const distinctSenders = new Set(
+        linkedTxs.map((t) => (t.pengirimName || '').trim().toLowerCase()).filter(Boolean)
+    );
+    const distinctReceivers = new Set(
+        linkedTxs.map((t) => (t.penerimaName || '').trim().toLowerCase()).filter(Boolean)
+    );
+    const hasMultipleSenders = distinctSenders.size > 1;
+    const savedMatchesReceiver = Boolean(
+        savedName &&
+            linkedTxs.some((t) => (t.penerimaName || '').trim().toLowerCase() === savedName.toLowerCase())
+    );
+    const isGenericSaved =
+        !savedName ||
+        savedName === 'Client Umum' ||
+        savedName === 'Semua Client (Bebas Pilih STT)';
+
+    if (hasMultipleSenders || savedMatchesReceiver) {
+        const resolvedName = !isGenericSaved
+            ? savedName
+            : (distinctReceivers.size === 1
+                  ? (linkedTxs[0].penerimaName || '').trim()
+                  : (linkedTxs[0].pengirimName || '').trim()) || 'Client Umum';
+        const resolvedAddr =
+            savedAddr ||
+            (linkedTxs[0].penerimaAddress || '').trim() ||
+            (linkedTxs[0].tujuan || '').trim() ||
+            '';
+        return {
+            clientName: resolvedName,
+            clientAddress: resolvedAddr,
+            hasMultipleSenders,
+        };
+    }
+
+    return {
+        clientName: (linkedTxs[0].pengirimName || '').trim() || savedName || 'Client Umum',
+        clientAddress: (linkedTxs[0].pengirimAddress || '').trim() || savedAddr,
+        hasMultipleSenders: false,
+    };
+};
+
+export const formatInvoiceRowKeterangan = (
+    tx: { pengirimName?: string; penerimaName?: string; tujuan?: string },
+    hasMultipleSenders: boolean
+): string => {
+    const penerima = (tx.penerimaName || '').trim().toUpperCase();
+    const tujuan = (tx.tujuan || '').trim().toUpperCase();
+    const pengirim = (tx.pengirimName || '').trim().toUpperCase();
+    if (hasMultipleSenders && pengirim) {
+        return `${pengirim} / ${penerima} - ${tujuan}`;
+    }
+    return `${penerima} - ${tujuan}`;
+};
+

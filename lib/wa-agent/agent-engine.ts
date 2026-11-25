@@ -1,6 +1,13 @@
 import 'server-only';
 import admin from 'firebase-admin';
-import { GoogleGenAI, type Content, type Part } from '@google/genai';
+import {
+    FunctionCallingConfigMode,
+    GoogleGenAI,
+    ThinkingLevel,
+    type Content,
+    type Part,
+    type ThinkingConfig,
+} from '@google/genai';
 import { adminDb } from '@/lib/firebase-admin';
 import { COMPANY_INFO } from '@/lib/company-config';
 import { ROLE_LABELS } from '@/types/roles';
@@ -11,6 +18,8 @@ import {
     type WaAgentHistoryItem,
     type WaAgentRole,
     type WaAgentUser,
+    type WaThinkingLevel,
+    type WaTokenUsage,
 } from '@/types/wa-agent';
 import {
     dispatchAgentToolCall,
@@ -27,6 +36,8 @@ import { getWaAgentConfig } from './openwa-client';
 
 const SESSION_TTL_MS = 30 * 60 * 1000; // 30 minutes
 const MAX_HISTORY_ITEMS = 12;
+const MAX_AGENT_TOOL_STEPS = 25;
+const inFlightMessageIds = new Set<string>();
 
 const CONFIRM_REGEX =
     /^(ya|iya|yes|y|ok|oke|okay|setuju|lanjut|kirim|simpan|gas|betul|proses|sudah\s+benar|benar\s+semua|sudah\s+benar[\s,]+proses|oke\s+benar|ya\s+proses|lanjut\s+proses|oke\s+lanjut\s+proses)[.!]*$/i;
@@ -50,9 +61,35 @@ export interface AgentProcessOutput {
     replyMedia?: ReplyMediaItem[];
     suppressReplyText?: boolean;
     toolsUsed: string[];
+    tokenUsage?: WaTokenUsage;
     pendingAction: PendingAction | null;
     status: 'ok' | 'blocked' | 'disabled' | 'error';
     ignored?: boolean;
+}
+
+function resolveThinkingConfig(modelName: string, level?: WaThinkingLevel): ThinkingConfig | undefined {
+    const lvl: WaThinkingLevel = level || 'low';
+    const normalized = modelName.trim().toLowerCase();
+
+    if (normalized.startsWith('gemini-4-') || normalized.startsWith('gemini-3')) {
+        const mapped =
+            lvl === 'minimal'
+                ? ThinkingLevel.MINIMAL
+                : lvl === 'medium'
+                  ? ThinkingLevel.MEDIUM
+                  : lvl === 'high'
+                    ? ThinkingLevel.HIGH
+                    : ThinkingLevel.LOW;
+        return { thinkingLevel: mapped };
+    }
+
+    if (normalized.startsWith('gemini-2.5-')) {
+        const budget =
+            lvl === 'minimal' ? 0 : lvl === 'medium' ? 2048 : lvl === 'high' ? 8192 : 512;
+        return { thinkingBudget: budget };
+    }
+
+    return undefined;
 }
 
 function stripUndefinedDeep<T>(value: T): T {
@@ -131,25 +168,35 @@ PENGETAHUAN WAJIB TENTANG SISTEM CCE:
    - Pembayaran: \`Tunai\`, \`Kredit\` (Tagihan), atau \`DP\`.
    - Pelunasan: \`Cash\`, \`TF\`, atau \`Pending\`.
    - Jika kena pajak (\`isTaxable=true\` / PKP), ditambahkan PPN **1.1%** pada invoice.
-4. Rekening Transfer:
-   - Standar (Non-PKP): ${bankLines}
+4. Rekening Transfer & Saldo Real Penagihan Ika:
+   - Standar (Non-PKP): ${bankLines} (di Saldo Real terpetakan ke bank \`bca\`, \`bri\`, \`mandiri\`, atau \`perusahaan\` untuk Cash/Tunai)
    - Faktur Pajak (PKP): BCA 187 1414 187 a/n CAHAYA CARGO EXPRESS CV
 
 ATURAN GAYA BICARA & EKSEKUSI KETAT:
 - **SINGKAT, PADAT, JELAS, TO THE POINT.** DILARANG bertele-tele, DILARANG pembuka basa-basi (*"Halo"*, *"Baik, saya akan..."*, *"Berikut adalah informasi..."*) maupun penutup berbasa-basi (*"Ada lagi yang bisa saya bantu?"*). Langsung tampilkan hasil, poin data, angka, atau status aksi.
+- **EFISIENSI MULTI-LANGKAH:** Jika perintah mencakup banyak item/client sekaligus (mis. buat beberapa invoice, buat/revisi beberapa STT, atau cek beberapa data), panggil beberapa tool sekaligus dalam satu giliran (*parallel function calls*) atau gunakan tool batch seperti \`batch_update_stt_pricing\` agar langsung tuntas.
 - **DILARANG mengarang angka, status resi, nama client, atau nominal tagihan.** Selalu panggil tool Firestore terlebih dahulu.
 - **EKSEKUSI LANGSUNG (TANPA KONFIRMASI) UNTUK STT & INVOICE:**
   - Buat / edit / hapus STT (\`create_stt\`, \`update_stt\`, \`batch_update_stt_pricing\`, \`delete_stt\`): **langsung eksekusi** tanpa meminta konfirmasi YA/BATAL (kecuali data wajib seperti nama pengirim/penerima/tujuan pada STT baru benar-benar belum ada, tanya singkat 1 baris).
   - Buat / revisi / hapus Invoice (\`create_invoice\`, \`update_invoice\`, \`delete_invoice\`): **langsung eksekusi** tanpa konfirmasi YA/BATAL. Saat membuat/merevisi invoice, gambar PNG format A5/PKP otomatis ikut terkirim ke WhatsApp — cukup laporkan ringkas No. Invoice, Client, Total, dan jumlah resi.
+  - **ATURAN GABUNG INVOICE PENERIMA SAMA (MULTI-PENGIRIM):** STT yang memiliki **nama PENERIMA sama tetapi PENGIRIM berbeda-beda BISA & BOLEH dijadikan 1 Invoice yang sama** (ditagihkan ke nama Penerima tsb atau nama pihak tertagih yang disebut user). Jika user memerintahkan buat 1 invoice untuk beberapa STT penerima sama / pengirim beda (misal sebut daftar no STT atau nama penerima), langsung gabung semua ke **1 panggilan \`create_invoice\`** (\`noSTTs\` dan/atau \`penerimaName\` + \`clientName\`), jangan dipecah per pengirim.
   - Minta gambar invoice lama: panggil \`get_invoice_image\` langsung (set \`noText: true\` jika user minta kirim gambar saja tanpa teks).
   - Minta kirim SEMUA gambar invoice di suatu pemberangkatan / tanggal keberangkatan kapal (mis. "kirimkan semua gambar invoice pemberangkatan kapal tgl 24"): langsung panggil \`get_voyage_invoice_images\` (isi \`departureDate\` format \`YYYY-MM-DD\` berdasarkan Tanggal Hari Ini jika disebut tanggal, atau \`voyageNumber\`/\`shipName\`, dan \`silentText: true\`) agar semua gambar invoice langsung dikirim tanpa teks apa pun.
 - **ALUR CEK STT PENDING MINGGU INI / TANPA HARGA:**
   1. Jika user tanya cek STT pending minggu ini (atau rentang tanggal) yang belum ada harga dan minta data customer + harga riwayatnya: panggil \`list_pending_stt_with_price_history\` (\`onlyUnpriced: true\`, \`period: "this_week"\` atau \`startDate\`/\`endDate\`). JANGAN ubah dulu — tampilkan daftar padat bernomor: **No. STT | Customer → Tujuan | Koli / Berat | Riwayat Harga** (tulis \`-\` jika belum ada riwayat), lalu tutup 1 baris: *"Kirim harga yang mau dipakai, langsung saya update & ubah status ke dikirim."*
   2. Saat user membalas memberi harga yang ingin dipakai (per No. STT maupun per customer) dan minta ubah status ke \`dikirim\`: langsung panggil \`batch_update_stt_pricing\` (\`targetStatus: "dikirim"\`) tanpa konfirmasi lagi, lalu tampilkan ringkasan padat hasil update.
 - **MODUL PEMBERANGKATAN (VOYAGES):**
-  1. Buat pemberangkatan (\`propose_create_voyage\`): unit berangkat manual bebas nama sopir/nopol tanpa pilih armada.
-  2. Input biaya (\`propose_save_voyage_expenses\`): targetkan VOY yang disebut atau terbaru.
-  3. Cek & masukkan STT pending yang belum ikut kapal mana pun: panggil \`list_unassigned_stts\` lalu \`propose_assign_stts_to_voyage\`.
+  1. Cek detail lengkap omzet, rincian biaya, laba/margin, dan catatan keterangan pemberangkatan: panggil \`get_voyage_summary\` (isi \`searchQuery\`, \`departureDate\`, \`month\`, \`period\`, atau \`includeCargoList: true\` jika ditanya rincian STT/keterangan per resi). Sajikan angka Omzet STT + Penjualan Makassar, seluruh pos biaya (Tiket SBY, Tiket MKS, Ops SBY, Ops MKS, Gaji Sopir, Sewa Mobil, Ops Tambahan, pengeluaran berkategori), Laba Bersih & Margin, status lunas/belum lunas muatan, serta \`voyageNotes\` & \`costNotes\` secara lengkap dan rapi.
+  2. Buat pemberangkatan (\`propose_create_voyage\`): unit berangkat manual bebas nama sopir/nopol tanpa pilih armada.
+  3. Input biaya (\`propose_save_voyage_expenses\`): targetkan VOY yang disebut atau terbaru.
+  4. Cek & masukkan STT pending yang belum ikut kapal mana pun: panggil \`list_unassigned_stts\` lalu \`propose_assign_stts_to_voyage\`.
+- **MODUL PENAGIHAN IKA (PELUNASAN BUKTI TF & REKAPAN HARIAN):**
+  1. **Pelunasan Langsung dari Gambar Bukti Transfer + Teks Konfirmasi (TANPA KONFIRMASI YA/BATAL):**
+     - Jika user mengirim foto/screenshot bukti transfer/pembayaran disertai teks konfirmasi (atau konfirmasi teks pelunasan): ekstrak nama pengirim/client, nominal Rupiah, rekening bank tujuan (\`bca\`/\`bri\`/\`mandiri\`/\`perusahaan\` jika cash), nomor referensi/berita TF, tanggal bayar, serta nomor invoice/STT.
+     - Jika nomor invoice belum disebut, cek dulu dengan \`get_penagihan_ika_overview\` (\`clientName\`, \`amountHint\`). Bila target invoice jelas atau cocok secara nominal/client, **langsung panggil \`pay_penagihan_ika_invoice\`** tanpa minta konfirmasi YA/BATAL (kecuali ambigu beberapa invoice unpaid dengan nominal tidak cocok, tanyakan singkat nomor invoicenya).
+     - **Wajib langsung sertakan ringkasan uang masuk Penagihan Ika hari itu** dari \`dailyCollectionSummary\` yang dikembalikan tool (No. Invoice yang baru dilunasi, nominal, metode/bank, plus **Total Terkumpul Hari Ini** beserta jumlah invoice lunas dan pecahan per bank/cash).
+  2. **Rekap Harian / Per Hari Penagihan Ika:** Jika user menanyakan per hari Penagihan Ika dapat berapa uang dari invoice yang lunas (hari ini, tanggal tertentu, minggu ini, bulan ini), panggil \`get_penagihan_ika_daily_recap\` lalu tampilkan ringkas per tanggal: total Rupiah masuk, jumlah invoice lunas, pecahan BCA/BRI/Mandiri/Cash, dan daftar client/invoice-nya.
+  3. **Cek Data Penagihan Ika, Catat Feedback, & Batal Lunas:** Gunakan \`get_penagihan_ika_overview\` untuk cek piutang/status lunas per pemberangkatan kapal atau per client, \`save_penagihan_ika_feedback\` untuk mencatat respon/janji bayar customer, dan \`revert_penagihan_ika_payment\` jika diminta membatalkan status lunas.
 - Jika user mengirim **voice note** atau **foto nota**, ekstrak data secara cermat lalu langsung jalankan sesuai aturan di atas.
 - Jika tool menolak karena batasan role (\`${userRole}\`), jawab singkat bahwa fitur hanya untuk Owner/Admin.${pendingContextBlock}`;
 }
@@ -187,6 +234,7 @@ async function writeAuditLog(entry: {
     incomingText: string;
     replyText: string;
     toolsUsed: string[];
+    tokenUsage?: WaTokenUsage;
     status: 'ok' | 'blocked' | 'disabled' | 'error';
     errorMessage?: string;
 }) {
@@ -200,6 +248,7 @@ async function writeAuditLog(entry: {
             incomingText: entry.incomingText.slice(0, 1000),
             replyText: entry.replyText.slice(0, 2000),
             toolsUsed: entry.toolsUsed,
+            ...(entry.tokenUsage ? { tokenUsage: entry.tokenUsage } : {}),
             status: entry.status,
             ...(entry.errorMessage ? { errorMessage: entry.errorMessage } : {}),
             createdAt: admin.firestore.Timestamp.now(),
@@ -359,11 +408,21 @@ export async function processAgentMessage(input: AgentProcessInput): Promise<Age
         };
     }
 
-    // 2. Idempotency check for WhatsApp webhooks (skip retried messageIds)
-    if (input.source === 'whatsapp' && input.messageId) {
+    // 2. Idempotency check for WhatsApp webhooks (skip retried / in-flight messageIds)
+    const trackedMessageId = input.source === 'whatsapp' && input.messageId ? input.messageId : '';
+    if (trackedMessageId) {
+        if (inFlightMessageIds.has(trackedMessageId)) {
+            return {
+                replyText: '',
+                toolsUsed: [],
+                pendingAction: null,
+                status: 'ok',
+                ignored: true,
+            };
+        }
         const dupSnap = await adminDb
             .collection('wa_agent_logs')
-            .where('messageId', '==', input.messageId)
+            .where('messageId', '==', trackedMessageId)
             .limit(1)
             .get();
         if (!dupSnap.empty) {
@@ -375,8 +434,10 @@ export async function processAgentMessage(input: AgentProcessInput): Promise<Age
                 ignored: true,
             };
         }
+        inFlightMessageIds.add(trackedMessageId);
     }
 
+    try {
     // 3. Verify whitelist & role
     let resolvedRole: WaAgentRole | null = input.source === 'simulator' && input.overrideRole ? input.overrideRole : null;
     let resolvedName = input.overrideName || 'Admin Simulator';
@@ -552,16 +613,36 @@ export async function processAgentMessage(input: AgentProcessInput): Promise<Age
     let nextPendingAction: PendingAction | null = pendingAction;
     let finalReplyText = '';
 
+    const activeModel = config.modelName || 'gemini-4-hydrogen';
+    const thinkingConfig = resolveThinkingConfig(activeModel, config.thinkingLevel);
+
+    let promptTokens = 0;
+    let outputTokens = 0;
+    let thoughtTokens = 0;
+    let cachedTokens = 0;
+    let totalTokens = 0;
+
+    const accumulateUsage = (usageMeta: any) => {
+        if (!usageMeta) return;
+        promptTokens += Number(usageMeta.promptTokenCount) || 0;
+        outputTokens += Number(usageMeta.candidatesTokenCount) || 0;
+        thoughtTokens += Number(usageMeta.thoughtsTokenCount) || 0;
+        cachedTokens += Number(usageMeta.cachedContentTokenCount) || 0;
+        totalTokens += Number(usageMeta.totalTokenCount) || 0;
+    };
+
     try {
-        for (let step = 0; step < 5; step++) {
+        for (let step = 0; step < MAX_AGENT_TOOL_STEPS; step++) {
             const response = await ai.models.generateContent({
-                model: config.modelName || 'gemini-2.5-flash',
+                model: activeModel,
                 contents,
                 config: {
                     systemInstruction,
                     tools: toolDeclarations.length > 0 ? [{ functionDeclarations: toolDeclarations }] : undefined,
+                    ...(thinkingConfig ? { thinkingConfig } : {}),
                 },
             });
+            accumulateUsage(response.usageMetadata);
 
             const calls = response.functionCalls;
             const candidateContent = response.candidates?.[0]?.content;
@@ -611,14 +692,44 @@ export async function processAgentMessage(input: AgentProcessInput): Promise<Age
 
         const isSilentMedia = suppressReplyText && collectedMedia.length > 0;
         if (!finalReplyText && !isSilentMedia) {
-            finalReplyText = nextPendingAction
-                ? `Mohon konfirmasi draft berikut:\n${nextPendingAction.summaryText}\n\nBalas *YA* untuk simpan atau *BATAL* untuk membatalkan.`
-                : 'Maaf, permintaan membutuhkan terlalu banyak langkah. Bisa diulangi lebih spesifik?';
+            if (nextPendingAction) {
+                finalReplyText = `Mohon konfirmasi draft berikut:\n${nextPendingAction.summaryText}\n\nBalas *YA* untuk simpan atau *BATAL* untuk membatalkan.`;
+            } else {
+                const summaryResp = await ai.models.generateContent({
+                    model: activeModel,
+                    contents,
+                    config: {
+                        systemInstruction,
+                        tools: toolDeclarations.length > 0 ? [{ functionDeclarations: toolDeclarations }] : undefined,
+                        toolConfig:
+                            toolDeclarations.length > 0
+                                ? { functionCallingConfig: { mode: FunctionCallingConfigMode.NONE } }
+                                : undefined,
+                        ...(thinkingConfig ? { thinkingConfig } : {}),
+                    },
+                });
+                accumulateUsage(summaryResp.usageMetadata);
+                finalReplyText =
+                    (summaryResp.text || '').trim() ||
+                    `✅ Selesai diproses (${toolsUsed.length} aksi dijalankan).`;
+            }
         }
 
         const persistedReplyText = isSilentMedia
             ? `[Mengirim ${collectedMedia.length} gambar invoice tanpa teks]`
             : finalReplyText;
+
+        const tokenUsage: WaTokenUsage | undefined =
+            totalTokens > 0
+                ? {
+                      promptTokens,
+                      outputTokens,
+                      thoughtTokens,
+                      cachedTokens,
+                      totalTokens,
+                      modelName: activeModel,
+                  }
+                : undefined;
 
         await appendAndSaveSession(incomingPreview, persistedReplyText, nextPendingAction);
         await writeAuditLog({
@@ -630,6 +741,7 @@ export async function processAgentMessage(input: AgentProcessInput): Promise<Age
             incomingText: incomingPreview,
             replyText: persistedReplyText,
             toolsUsed,
+            ...(tokenUsage ? { tokenUsage } : {}),
             status: 'ok',
         });
 
@@ -638,6 +750,7 @@ export async function processAgentMessage(input: AgentProcessInput): Promise<Age
             ...(collectedMedia.length > 0 ? { replyMedia: collectedMedia } : {}),
             ...(isSilentMedia ? { suppressReplyText: true } : {}),
             toolsUsed,
+            ...(tokenUsage ? { tokenUsage } : {}),
             pendingAction: nextPendingAction,
             status: 'ok',
         };
@@ -662,5 +775,10 @@ export async function processAgentMessage(input: AgentProcessInput): Promise<Age
             pendingAction: nextPendingAction,
             status: 'error',
         };
+    }
+    } finally {
+        if (trackedMessageId) {
+            inFlightMessageIds.delete(trackedMessageId);
+        }
     }
 }

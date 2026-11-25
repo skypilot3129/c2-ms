@@ -10,6 +10,7 @@ import type { Invoice } from '@/types/invoice';
 import type { Transaction } from '@/types/transaction';
 import type { Voyage } from '@/types/voyage';
 import { formatRupiah } from '@/lib/currency';
+import { resolveInvoiceClientIdentity } from '@/lib/invoice-reconciliation';
 import { Plus, Search, Trash2, CheckCircle2, Printer, CheckSquare, Eye, ChevronLeft, ChevronRight, AlertCircle, ArrowUpDown, ArrowUp, ArrowDown, Filter, FileText, Receipt, RotateCcw, Link2, X, Ship } from 'lucide-react';
 import ProtectedRoute from '@/components/ProtectedRoute';
 
@@ -94,8 +95,8 @@ export default function InvoicesPage() {
                 return { ...inv, transactionIds: resolvedIds };
             }
 
-            const primaryTx = linked[0];
-            const liveClientName = primaryTx.pengirimName || inv.clientName;
+            const resolvedIdentity = resolveInvoiceClientIdentity(inv, linked);
+            const liveClientName = resolvedIdentity.clientName;
             const subtotal = linked.reduce((sum, t) => sum + (t.jumlah || 0), 0);
             const isTaxable = linked.some(t => t.isTaxable || (t.ppn && t.ppn > 0));
             const liveTotalAmount = subtotal + (isTaxable ? Math.round(subtotal * 0.011) : 0);
@@ -104,6 +105,7 @@ export default function InvoicesPage() {
                 ...inv,
                 transactionIds: resolvedIds,
                 clientName: liveClientName,
+                clientAddress: resolvedIdentity.clientAddress || inv.clientAddress,
                 totalAmount: liveTotalAmount,
             };
         });
@@ -281,7 +283,10 @@ export default function InvoicesPage() {
                 if (isAlreadySelected) return true;
                 if (managingOnlySameClient && clientNorm) {
                     const senderNorm = (t.pengirimName || '').trim().toLowerCase();
-                    if (senderNorm !== clientNorm && !senderNorm.includes(clientNorm)) return false;
+                    const receiverNorm = (t.penerimaName || '').trim().toLowerCase();
+                    const matchesSender = senderNorm === clientNorm || senderNorm.includes(clientNorm);
+                    const matchesReceiver = receiverNorm === clientNorm || receiverNorm.includes(clientNorm);
+                    if (!matchesSender && !matchesReceiver) return false;
                 }
                 return true;
             })

@@ -9,6 +9,7 @@ import type { Invoice } from '@/types/invoice';
 import type { Transaction } from '@/types/transaction';
 import type { Voyage } from '@/types/voyage';
 import { formatRupiah, terbilang } from '@/lib/currency';
+import { resolveInvoiceClientIdentity } from '@/lib/invoice-reconciliation';
 import { COMPANY_INFO } from '@/lib/company-config';
 import type { RealBankAccount } from '@/types/saldo-real';
 import { IKA_SYNC_START_DATE } from '@/types/saldo-real';
@@ -118,9 +119,9 @@ export default function PenagihanIkaPage() {
 
                 if (linked.length > 0) {
                     sttMapping[inv.id] = linked.map(t => t.noSTT.replace(/^STT/i, '')).join(', ');
-                    const primaryTx = linked[0];
-                    const liveClientName = primaryTx.pengirimName || inv.clientName;
-                    const liveClientAddress = primaryTx.pengirimAddress || inv.clientAddress;
+                    const resolvedIdentity = resolveInvoiceClientIdentity(inv, linked);
+                    const liveClientName = resolvedIdentity.clientName;
+                    const liveClientAddress = resolvedIdentity.clientAddress || inv.clientAddress;
 
                     if (liveClientName) clientsSet.add(liveClientName);
 

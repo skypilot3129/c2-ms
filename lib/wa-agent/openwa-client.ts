@@ -1,6 +1,11 @@
 import 'server-only';
 import { adminDb } from '@/lib/firebase-admin';
-import { DEFAULT_WA_AGENT_CONFIG, normalizeWaPhone, type WaAgentConfig } from '@/types/wa-agent';
+import {
+    DEFAULT_WA_AGENT_CONFIG,
+    normalizeWaPhone,
+    type WaAgentConfig,
+    type WaThinkingLevel,
+} from '@/types/wa-agent';
 
 export interface OpenWaHealthResult {
     reachable: boolean;
@@ -43,6 +48,9 @@ export async function getWaAgentConfig(): Promise<WaAgentConfig> {
                     typeof data.modelName === 'string' && data.modelName.trim()
                         ? data.modelName.trim()
                         : base.modelName,
+                thinkingLevel: (['minimal', 'low', 'medium', 'high'].includes(data.thinkingLevel)
+                    ? data.thinkingLevel
+                    : base.thinkingLevel || 'low') as WaThinkingLevel,
                 updatedAt: data.updatedAt?.toDate?.() || undefined,
             };
         }
@@ -114,10 +122,10 @@ async function resolveOpenWaSessionId(
         const list: any[] = Array.isArray(body)
             ? body
             : Array.isArray(body?.data)
-              ? body.data
-              : Array.isArray(body?.sessions)
-                ? body.sessions
-                : [];
+                ? body.data
+                : Array.isArray(body?.sessions)
+                    ? body.sessions
+                    : [];
 
         const matched = list.find(
             (s) => s && (s.name === trimmed || s.id === trimmed)
@@ -220,9 +228,10 @@ export async function sendOpenWaText(
     }
 }
 
-export async function sendOpenWaImage(
+async function sendOpenWaMedia(
+    endpoint: 'send-image' | 'send-document',
     chatId: string,
-    imageBase64: string,
+    mediaBase64: string,
     mimetype: string,
     caption?: string,
     sessionIdOverride?: string,
@@ -249,16 +258,16 @@ export async function sendOpenWaImage(
         headers['X-API-Key'] = apiKey;
     }
 
-    const cleanBase64 = imageBase64.replace(/^data:[^;]+;base64,/, '');
+    const cleanBase64 = mediaBase64.replace(/^data:[^;]+;base64,/, '');
 
     try {
-        const res = await fetch(`${baseUrl}/api/sessions/${encodeURIComponent(targetSession)}/messages/send-image`, {
+        const res = await fetch(`${baseUrl}/api/sessions/${encodeURIComponent(targetSession)}/messages/${endpoint}`, {
             method: 'POST',
             headers,
             body: JSON.stringify({
                 chatId: targetChatId,
                 base64: cleanBase64,
-                mimetype: mimetype || 'image/png',
+                mimetype: mimetype || (endpoint === 'send-document' ? 'application/pdf' : 'image/png'),
                 ...(filename ? { filename } : {}),
                 ...(caption ? { caption } : {}),
             }),
@@ -270,8 +279,55 @@ export async function sendOpenWaImage(
         }
         return { ok: true };
     } catch (err: any) {
-        return { ok: false, error: err?.message || 'Gagal mengirim gambar lewat OpenWA' };
+        return {
+            ok: false,
+            error:
+                err?.message ||
+                (endpoint === 'send-document' ? 'Gagal mengirim dokumen lewat OpenWA' : 'Gagal mengirim gambar lewat OpenWA'),
+        };
     }
+}
+
+export async function sendOpenWaImage(
+    chatId: string,
+    imageBase64: string,
+    mimetype: string,
+    caption?: string,
+    sessionIdOverride?: string,
+    configOverride?: WaAgentConfig,
+    filename?: string
+): Promise<{ ok: boolean; error?: string }> {
+    return sendOpenWaMedia(
+        'send-image',
+        chatId,
+        imageBase64,
+        mimetype || 'image/png',
+        caption,
+        sessionIdOverride,
+        configOverride,
+        filename
+    );
+}
+
+export async function sendOpenWaDocument(
+    chatId: string,
+    docBase64: string,
+    mimetype: string = 'application/pdf',
+    filename: string = 'Dokumen-CCE.pdf',
+    caption?: string,
+    sessionIdOverride?: string,
+    configOverride?: WaAgentConfig
+): Promise<{ ok: boolean; error?: string }> {
+    return sendOpenWaMedia(
+        'send-document',
+        chatId,
+        docBase64,
+        mimetype || 'application/pdf',
+        caption,
+        sessionIdOverride,
+        configOverride,
+        filename
+    );
 }
 
 export async function downloadOpenWaMedia(
@@ -353,8 +409,8 @@ export async function checkOpenWaHealth(): Promise<OpenWaHealthResult> {
             res.status === 401 || res.status === 403
                 ? 'OpenWA aktif, tetapi OPENWA_API_KEY belum cocok / belum diisi.'
                 : res.ok
-                  ? 'OpenWA terhubung & siap.'
-                  : `OpenWA merespons HTTP ${res.status}.`;
+                    ? 'OpenWA terhubung & siap.'
+                    : `OpenWA merespons HTTP ${res.status}.`;
         return {
             reachable: ok,
             statusCode: res.status,

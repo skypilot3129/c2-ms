@@ -3,6 +3,8 @@ import { adminAuth } from '@/lib/firebase-admin';
 import { processAgentMessage } from '@/lib/wa-agent/agent-engine';
 import type { WaAgentRole } from '@/types/wa-agent';
 
+export const maxDuration = 120;
+
 export async function POST(request: Request) {
     try {
         const authHeader = request.headers.get('authorization') || '';

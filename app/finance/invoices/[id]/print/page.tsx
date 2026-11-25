@@ -10,6 +10,7 @@ import type { Invoice } from '@/types/invoice';
 import type { Transaction } from '@/types/transaction';
 import { terbilang } from '@/lib/currency';
 import { COMPANY_INFO } from '@/lib/company-config';
+import { formatInvoiceRowKeterangan, resolveInvoiceClientIdentity } from '@/lib/invoice-reconciliation';
 import { toCanvas } from 'html-to-image';
 
 function fmtAngka(num: number): string {
@@ -275,10 +276,11 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
                 });
                 setTransactions(loaded);
 
-                if (loaded.length > 0 && loaded[0].pengirimName) {
-                    inv.clientName = loaded[0].pengirimName;
-                    if (loaded[0].pengirimAddress) {
-                        inv.clientAddress = loaded[0].pengirimAddress;
+                const resolvedIdentity = resolveInvoiceClientIdentity(inv, loaded);
+                if (loaded.length > 0) {
+                    inv.clientName = resolvedIdentity.clientName;
+                    if (resolvedIdentity.clientAddress) {
+                        inv.clientAddress = resolvedIdentity.clientAddress;
                     }
                 }
 
@@ -287,7 +289,11 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
                 setPaperMode(taxable ? 'a4-portrait' : 'a5-landscape');
 
                 // Auto-populate WhatsApp phone from linked transaction or client profile
-                let resolvedPhone = loaded.find(t => t.pengirimPhone?.trim())?.pengirimPhone?.trim() || '';
+                let resolvedPhone = resolvedIdentity.hasMultipleSenders
+                    ? (loaded.find(t => t.penerimaPhone?.trim())?.penerimaPhone?.trim() ||
+                       loaded.find(t => t.pengirimPhone?.trim())?.pengirimPhone?.trim() || '')
+                    : (loaded.find(t => t.pengirimPhone?.trim())?.pengirimPhone?.trim() ||
+                       loaded.find(t => t.penerimaPhone?.trim())?.penerimaPhone?.trim() || '');
                 if (!resolvedPhone && inv.clientId && inv.clientId !== 'manual') {
                     try {
                         const clientDoc = await getClientById(inv.clientId);
@@ -321,6 +327,7 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
     }
 
     const isTaxableInvoice = Boolean(invoice.isTaxable) || transactions.some(t => t.isTaxable || (t.ppn && t.ppn > 0));
+    const hasMultipleSenders = resolveInvoiceClientIdentity(invoice, transactions).hasMultipleSenders;
     const isCompactA5 = !isTaxableInvoice && paperMode === 'a5-landscape';
     const itemRowCount = transactions.length + (additionalFee > 0 ? 1 : 0);
     const stdLayout = getStdInvoiceLayout(isCompactA5, itemRowCount);
@@ -966,7 +973,7 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
                                                     onBlur={(e) => setKeteranganPerSTT({ ...keteranganPerSTT, [t.id]: e.currentTarget.textContent || '' })}
                                                     style={{ outline: 'none', minWidth: '100px', cursor: 'text' }}
                                                 >
-                                                    {keteranganPerSTT[t.id] ?? `${(t.penerimaName || '').toUpperCase()} - ${(t.tujuan || '').toUpperCase()}`}
+                                                    {keteranganPerSTT[t.id] ?? formatInvoiceRowKeterangan(t, hasMultipleSenders)}
                                                 </div>
                                             </td>
                                             <td style={{ textAlign: 'center', border: '1px solid #000' }}>
@@ -1145,7 +1152,7 @@ function PrintInvoiceContent({ params }: { params: Promise<{ id: string }> }) {
                                                 onBlur={(e) => setKeteranganPerSTT({ ...keteranganPerSTT, [t.id]: e.currentTarget.textContent || '' })}
                                                 style={{ outline: 'none', minWidth: '100px', cursor: 'text' }}
                                             >
-                                                {keteranganPerSTT[t.id] ?? `${(t.penerimaName || '').toUpperCase()} - ${(t.tujuan || '').toUpperCase()}`}
+                                                {keteranganPerSTT[t.id] ?? formatInvoiceRowKeterangan(t, hasMultipleSenders)}
                                             </div>
                                         </td>
                                         <td style={{ textAlign: 'center' }}>{t.noSTT.replace(/^STT/i, '')}</td>
