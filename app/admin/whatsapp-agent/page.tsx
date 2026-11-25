@@ -36,6 +36,9 @@ import {
     Bot,
     CheckCircle2,
     Copy,
+    Download,
+    ExternalLink,
+    FileText,
     ImagePlus,
     Power,
     RefreshCw,
@@ -61,6 +64,12 @@ interface HealthStatus {
     };
 }
 
+interface SimAttachment {
+    base64: string;
+    mimeType: string;
+    filename?: string;
+}
+
 interface SimMessage {
     id: string;
     sender: 'user' | 'bot';
@@ -69,9 +78,42 @@ interface SimMessage {
     tokenUsage?: WaTokenUsage;
     imagePreview?: string;
     imagePreviews?: string[];
+    attachments?: SimAttachment[];
+}
+
+function base64ToBlob(base64: string, mimeType: string): Blob {
+    const clean = base64.replace(/^data:[^;]+;base64,/, '');
+    const binary = atob(clean);
+    const len = binary.length;
+    const bytes = new Uint8Array(len);
+    for (let i = 0; i < len; i++) {
+        bytes[i] = binary.charCodeAt(i);
+    }
+    return new Blob([bytes], { type: mimeType || 'application/pdf' });
+}
+
+function openBase64PdfInNewTab(base64: string, mimeType: string) {
+    const blob = base64ToBlob(base64, mimeType || 'application/pdf');
+    const url = URL.createObjectURL(blob);
+    window.open(url, '_blank', 'noopener,noreferrer');
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+}
+
+function downloadBase64File(base64: string, mimeType: string, filename: string) {
+    const blob = base64ToBlob(base64, mimeType || 'application/pdf');
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename || 'Laporan-CCE.pdf';
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
 }
 
 const QUICK_PROMPTS = [
+    'Buatkan laporan PDF rekap tagihan piutang semua client belum lunas',
+    'Kirimkan laporan PDF manifest kapal pemberangkatan terbaru',
+    'Buatkan laporan PDF omzet dan laba biaya kapal pemberangkatan bulan ini',
+    'Kirimkan gambar invoice rekap untuk nomor invoice ',
     'Cek detail omzet, rincian biaya, dan catatan keterangan pemberangkatan kapal terbaru',
     'Rangkum per hari penagihan Ika minggu ini dapat berapa uang dari invoice yang lunas',
     'Cek STT pending minggu ini yang belum ada harga, kasih data customer dan harga riwayatnya',
@@ -80,8 +122,6 @@ const QUICK_PROMPTS = [
     'Cek piutang belum lunas',
     'Ringkasan omzet kapal terbaru',
     'Cek STT belum dibuat invoice',
-    'Input STT cabang Surabaya, pengirim DHS, penerima Toko Maju tujuan Makassar, 5 koli 100 kg, harga 2500 per kg, isi barang konveksi, pembayaran kredit',
-    'Buatkan invoice untuk DHS dari STT yang belum ditagih',
 ];
 
 const GEMINI_MODEL_OPTIONS = [
@@ -366,18 +406,28 @@ export default function WhatsAppAgentAdminPage() {
             setSimPending(data.pendingAction || null);
             const mediaList = Array.isArray(data.replyMedia) ? data.replyMedia : [];
             const imagePreviews = mediaList
-                .filter((m: any) => m?.base64 && m?.mimeType)
+                .filter((m: any) => m?.base64 && m?.mimeType && String(m.mimeType).startsWith('image/'))
                 .map((m: any) => `data:${m.mimeType};base64,${m.base64}`);
+            const attachments: SimAttachment[] = mediaList
+                .filter((m: any) => m?.base64 && m?.mimeType && !String(m.mimeType).startsWith('image/'))
+                .map((m: any) => ({
+                    base64: String(m.base64),
+                    mimeType: String(m.mimeType),
+                    filename: m.filename ? String(m.filename) : 'Laporan-CCE.pdf',
+                }));
             setSimMessages((prev) => [
                 ...prev,
                 {
                     id: `b_${Date.now()}`,
                     sender: 'bot',
-                    text: data.replyText || (imagePreviews.length > 0 ? '' : 'Tidak ada respons.'),
+                    text:
+                        data.replyText ||
+                        (imagePreviews.length > 0 || attachments.length > 0 ? '' : 'Tidak ada respons.'),
                     toolsUsed: data.toolsUsed || [],
                     tokenUsage: data.tokenUsage || undefined,
                     imagePreview: imagePreviews[0],
                     imagePreviews: imagePreviews.length > 0 ? imagePreviews : undefined,
+                    attachments: attachments.length > 0 ? attachments : undefined,
                 },
             ]);
         } catch (err: any) {
@@ -799,6 +849,60 @@ export default function WhatsAppAgentAdminPage() {
                                                         </div>
                                                     );
                                                 })()}
+                                                {msg.attachments && msg.attachments.length > 0 && (
+                                                    <div className="flex flex-col gap-2 mb-2">
+                                                        {msg.attachments.map((att, idx) => {
+                                                            const approxKb = Math.max(
+                                                                1,
+                                                                Math.round((att.base64.length * 3) / 4 / 1024)
+                                                            );
+                                                            return (
+                                                                <div
+                                                                    key={idx}
+                                                                    className="flex items-center justify-between gap-3 p-2.5 rounded-xl border border-slate-200 bg-slate-50"
+                                                                >
+                                                                    <div className="flex items-center gap-2.5 min-w-0">
+                                                                        <div className="w-9 h-9 rounded-lg bg-red-100 text-red-700 flex items-center justify-center shrink-0">
+                                                                            <FileText size={18} />
+                                                                        </div>
+                                                                        <div className="min-w-0">
+                                                                            <p className="text-xs font-bold text-slate-800 truncate">
+                                                                                {att.filename || 'Dokumen.pdf'}
+                                                                            </p>
+                                                                            <p className="text-[10px] text-slate-500 font-mono">
+                                                                                PDF • ~{approxKb} KB
+                                                                            </p>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div className="flex items-center gap-1.5 shrink-0">
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() =>
+                                                                                openBase64PdfInNewTab(att.base64, att.mimeType)
+                                                                            }
+                                                                            className="px-2.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-bold inline-flex items-center gap-1"
+                                                                        >
+                                                                            <ExternalLink size={12} /> Buka PDF
+                                                                        </button>
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() =>
+                                                                                downloadBase64File(
+                                                                                    att.base64,
+                                                                                    att.mimeType,
+                                                                                    att.filename || 'Laporan-CCE.pdf'
+                                                                                )
+                                                                            }
+                                                                            className="px-2.5 py-1.5 rounded-lg bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 text-[11px] font-bold inline-flex items-center gap-1"
+                                                                        >
+                                                                            <Download size={12} /> Unduh
+                                                                        </button>
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                )}
                                                 {msg.text && <p>{msg.text}</p>}
                                                 {((msg.toolsUsed && msg.toolsUsed.length > 0) || msg.tokenUsage) && (
                                                     <div className="mt-1.5 pt-1.5 border-t border-slate-100 flex flex-wrap items-center gap-1">

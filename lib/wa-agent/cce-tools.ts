@@ -20,7 +20,12 @@ import type {
     VoyageShipCostsInput,
     WaAgentRole,
 } from '@/types/wa-agent';
-import { renderInvoicePngById } from './invoice-image';
+import { renderInvoicePngById, renderRekapInvoicePng } from './invoice-image';
+import {
+    generateReceivablesPdf,
+    generateShipManifestPdf,
+    generateVoyageProfitLossPdf,
+} from './pdf-reports';
 
 function toDateSafe(value: any): Date {
     if (!value) return new Date();
@@ -3035,6 +3040,213 @@ export async function toolGetVoyageInvoiceImages(args: {
     };
 }
 
+export async function toolGetRekapInvoiceImage(args: {
+    invoiceNumbers?: string[];
+    invoiceIds?: string[];
+    clientName?: string;
+    notes?: string;
+    noText?: boolean;
+}): Promise<{
+    result: Record<string, unknown>;
+    replyMedia?: ReplyMediaItem[];
+    suppressReplyText?: boolean;
+}> {
+    try {
+        const rendered = await renderRekapInvoicePng({
+            invoiceNumbers: args.invoiceNumbers,
+            invoiceIds: args.invoiceIds,
+            clientName: args.clientName,
+            notes: args.notes,
+        });
+        const appUrl = (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000').replace(/\/+$/, '');
+        const invQuery = rendered.invoiceNumbers.map(encodeURIComponent).join(',');
+
+        return {
+            result: {
+                ok: true,
+                clientName: rendered.clientName,
+                invoiceCount: rendered.invoiceCount,
+                invoiceNumbers: rendered.invoiceNumbers,
+                notFoundInvoiceNumbers: rendered.notFoundInvoiceNumbers,
+                totalAmount: rendered.totalAmount,
+                printRekapUrl: `${appUrl}/finance/invoices/print-rekap${invQuery ? `?invoices=${invQuery}` : ''}`,
+                imageAttached: true,
+            },
+            replyMedia: [
+                {
+                    base64: rendered.base64,
+                    mimeType: rendered.mimeType,
+                    filename: rendered.filename,
+                },
+            ],
+            ...(args.noText ? { suppressReplyText: true } : {}),
+        };
+    } catch (err: any) {
+        return {
+            result: {
+                ok: false,
+                error: err?.message || 'Gagal merender gambar invoice rekap.',
+            },
+        };
+    }
+}
+
+export async function toolGenerateReceivablesPdf(args: {
+    clientName?: string;
+    invoiceNumbers?: string[];
+    month?: string;
+    startDate?: string;
+    endDate?: string;
+    voyageQuery?: string;
+    onlyOverdue?: boolean;
+    noText?: boolean;
+}): Promise<{
+    result: Record<string, unknown>;
+    replyMedia?: ReplyMediaItem[];
+    suppressReplyText?: boolean;
+}> {
+    try {
+        const pdf = await generateReceivablesPdf({
+            clientName: args.clientName,
+            invoiceNumbers: args.invoiceNumbers,
+            month: args.month,
+            startDate: args.startDate,
+            endDate: args.endDate,
+            voyageQuery: args.voyageQuery,
+            onlyOverdue: args.onlyOverdue,
+        });
+        return {
+            result: {
+                ok: true,
+                filename: pdf.filename,
+                pdfAttached: true,
+                ...pdf.summary,
+            },
+            replyMedia: [
+                {
+                    base64: pdf.base64,
+                    mimeType: pdf.mimeType,
+                    filename: pdf.filename,
+                },
+            ],
+            ...(args.noText ? { suppressReplyText: true } : {}),
+        };
+    } catch (err: any) {
+        return {
+            result: {
+                ok: false,
+                error: err?.message || 'Gagal membuat laporan PDF rekap tagihan piutang client.',
+            },
+        };
+    }
+}
+
+export async function toolGenerateShipManifestPdf(args: {
+    voyageId?: string;
+    voyageNumber?: string;
+    manifestId?: string;
+    shipName?: string;
+    departureDate?: string;
+    nopolOrDriver?: string;
+    source?: 'auto' | 'voyage' | 'cargo_manifest';
+    noText?: boolean;
+}): Promise<{
+    result: Record<string, unknown>;
+    replyMedia?: ReplyMediaItem[];
+    suppressReplyText?: boolean;
+}> {
+    try {
+        const pdf = await generateShipManifestPdf({
+            voyageId: args.voyageId,
+            voyageNumber: args.voyageNumber,
+            manifestId: args.manifestId,
+            shipName: args.shipName,
+            departureDate: args.departureDate,
+            nopolOrDriver: args.nopolOrDriver,
+            source: args.source,
+        });
+        return {
+            result: {
+                ok: true,
+                filename: pdf.filename,
+                pdfAttached: true,
+                ...pdf.summary,
+            },
+            replyMedia: [
+                {
+                    base64: pdf.base64,
+                    mimeType: pdf.mimeType,
+                    filename: pdf.filename,
+                },
+            ],
+            ...(args.noText ? { suppressReplyText: true } : {}),
+        };
+    } catch (err: any) {
+        return {
+            result: {
+                ok: false,
+                error: err?.message || 'Gagal membuat laporan PDF manifest kapal.',
+            },
+        };
+    }
+}
+
+export async function toolGenerateVoyageProfitLossPdf(args: {
+    voyageId?: string;
+    voyageNumber?: string;
+    searchQuery?: string;
+    shipName?: string;
+    departureDate?: string;
+    startDate?: string;
+    endDate?: string;
+    month?: string;
+    period?: string;
+    includeCargoDetail?: boolean;
+    noText?: boolean;
+}): Promise<{
+    result: Record<string, unknown>;
+    replyMedia?: ReplyMediaItem[];
+    suppressReplyText?: boolean;
+}> {
+    try {
+        const pdf = await generateVoyageProfitLossPdf({
+            voyageId: args.voyageId,
+            voyageNumber: args.voyageNumber,
+            searchQuery: args.searchQuery,
+            shipName: args.shipName,
+            departureDate: args.departureDate,
+            startDate: args.startDate,
+            endDate: args.endDate,
+            month: args.month,
+            period: args.period,
+            includeCargoDetail: args.includeCargoDetail,
+        });
+        return {
+            result: {
+                ok: true,
+                filename: pdf.filename,
+                pdfAttached: true,
+                ...pdf.summary,
+            },
+            replyMedia: [
+                {
+                    base64: pdf.base64,
+                    mimeType: pdf.mimeType,
+                    filename: pdf.filename,
+                },
+            ],
+            ...(args.noText ? { suppressReplyText: true } : {}),
+        };
+    } catch (err: any) {
+        return {
+            result: {
+                ok: false,
+                error: err?.message || 'Gagal membuat laporan PDF omzet & laba biaya kapal.',
+            },
+        };
+    }
+}
+
 // ==========================================
 // 2A-2. PENAGIHAN IKA TOOLS (RECONCILIATION, PAYMENT, DAILY RECAP)
 // ==========================================
@@ -5151,6 +5363,93 @@ const ALL_TOOL_DECLARATIONS: FunctionDeclaration[] = [
         },
     },
     {
+        name: 'get_rekap_invoice_image',
+        description:
+            'Render dan kirim gambar PNG Rekapitulasi Tagihan Pelanggan (Invoice Rekap) dari daftar nomor invoice yang dipilih sendiri oleh user (boleh multi-client / status apa pun) atau dari seluruh invoice unpaid milik 1 client.',
+        parameters: {
+            type: Type.OBJECT,
+            properties: {
+                invoiceNumbers: {
+                    type: Type.ARRAY,
+                    items: { type: Type.STRING },
+                    description: 'Daftar nomor invoice yang dipilih untuk direkap (contoh: ["13828", "13830", "INV012345"]).',
+                },
+                invoiceIds: {
+                    type: Type.ARRAY,
+                    items: { type: Type.STRING },
+                    description: 'Opsional: daftar ID dokumen Firestore invoice.',
+                },
+                clientName: {
+                    type: Type.STRING,
+                    description: 'Opsional: nama penerima / Kepada Yth pada header rekap (atau nama client jika memilih otomatis seluruh invoice unpaid client tsb).',
+                },
+                notes: { type: Type.STRING, description: 'Opsional: catatan singkat di bawah Kepada Yth.' },
+                noText: { type: Type.BOOLEAN, description: 'Set true jika user meminta kirim gambar rekap saja tanpa teks tambahan.' },
+            },
+        },
+    },
+    {
+        name: 'generate_receivables_pdf',
+        description:
+            'Buat dan kirim file laporan PDF Rekap Tagihan Piutang Client (invoice belum lunas). Otomatis menyesuaikan layout single-client (surat tagihan rekap) atau multi-client (ringkasan piutang per client + tabel rincian ber-checklist).',
+        parameters: {
+            type: Type.OBJECT,
+            properties: {
+                clientName: { type: Type.STRING, description: 'Opsional: filter nama client/tertagih.' },
+                invoiceNumbers: {
+                    type: Type.ARRAY,
+                    items: { type: Type.STRING },
+                    description: 'Opsional: daftar nomor invoice tertentu yang ingin dimasukkan ke PDF piutang.',
+                },
+                month: { type: Type.STRING, description: 'Opsional: filter bulan terbit invoice YYYY-MM.' },
+                startDate: { type: Type.STRING, description: 'Opsional: tanggal awal terbit invoice YYYY-MM-DD.' },
+                endDate: { type: Type.STRING, description: 'Opsional: tanggal akhir terbit invoice YYYY-MM-DD.' },
+                voyageQuery: { type: Type.STRING, description: 'Opsional: filter nama kapal atau no voyage.' },
+                onlyOverdue: { type: Type.BOOLEAN, description: 'Opsional: set true jika hanya invoice jatuh tempo.' },
+                noText: { type: Type.BOOLEAN, description: 'Set true jika user minta kirim file PDF saja tanpa teks.' },
+            },
+        },
+    },
+    {
+        name: 'generate_ship_manifest_pdf',
+        description:
+            'Buat dan kirim file laporan PDF Manifest Muatan Kapal A4 Landscape lengkap (daftar STT, pengirim, penerima, tujuan, koli, berat, isi barang, alamat, keterangan, total & kolom tanda tangan) dari modul Pemberangkatan atau Cargo Manifest.',
+        parameters: {
+            type: Type.OBJECT,
+            properties: {
+                voyageNumber: { type: Type.STRING, description: 'Opsional: nomor voyage, mis. "VOY045" atau "45".' },
+                voyageId: { type: Type.STRING, description: 'Opsional: ID Firestore voyage.' },
+                manifestId: { type: Type.STRING, description: 'Opsional: ID dokumen cargo_manifests.' },
+                shipName: { type: Type.STRING, description: 'Opsional: nama kapal, mis. "KM Dharma Kencana".' },
+                departureDate: { type: Type.STRING, description: 'Opsional: tanggal keberangkatan YYYY-MM-DD.' },
+                nopolOrDriver: { type: Type.STRING, description: 'Opsional: filter nomor polisi atau nama sopir.' },
+                source: { type: Type.STRING, description: 'Opsional: "auto" (default), "voyage", atau "cargo_manifest".' },
+                noText: { type: Type.BOOLEAN, description: 'Set true jika user minta kirim PDF saja tanpa teks.' },
+            },
+        },
+    },
+    {
+        name: 'generate_voyage_profit_loss_pdf',
+        description:
+            'Buat dan kirim file laporan PDF Omzet & Laba Biaya Kapal dari modul Pemberangkatan (omzet STT, penjualan Makassar, seluruh 7 pos biaya kapal + pengeluaran lapangan, laba bersih, margin %, dan detail kargo STT jika single trip atau diminta).',
+        parameters: {
+            type: Type.OBJECT,
+            properties: {
+                voyageNumber: { type: Type.STRING, description: 'Opsional: nomor voyage spesifik (mis. VOY045).' },
+                voyageId: { type: Type.STRING, description: 'Opsional: ID Firestore voyage.' },
+                searchQuery: { type: Type.STRING, description: 'Opsional: nama kapal, rute, no voyage, atau armada.' },
+                shipName: { type: Type.STRING, description: 'Opsional: nama kapal.' },
+                departureDate: { type: Type.STRING, description: 'Opsional: tanggal keberangkatan spesifik YYYY-MM-DD.' },
+                startDate: { type: Type.STRING, description: 'Opsional: tanggal awal rentang keberangkatan YYYY-MM-DD.' },
+                endDate: { type: Type.STRING, description: 'Opsional: tanggal akhir rentang keberangkatan YYYY-MM-DD.' },
+                month: { type: Type.STRING, description: 'Opsional: filter bulan YYYY-MM.' },
+                period: { type: Type.STRING, description: 'Opsional: "today", "this_week", "last_7_days", "this_month", atau "all".' },
+                includeCargoDetail: { type: Type.BOOLEAN, description: 'Set true untuk menyertakan tabel rincian STT & pengeluaran lapangan tiap kapal (otomatis aktif jika 1 voyage).' },
+                noText: { type: Type.BOOLEAN, description: 'Set true jika user minta kirim PDF saja tanpa teks.' },
+            },
+        },
+    },
+    {
         name: 'list_unassigned_stts',
         description:
             'Lihat daftar STT (default status pending) yang BELUM ikut / belum dimasukkan ke pemberangkatan kapal mana pun.',
@@ -5294,6 +5593,10 @@ const ALLOWED_TOOLS_BY_ROLE: Record<WaAgentRole, string[]> = {
         'list_unassigned_stts',
         'get_unpaid_invoices_summary',
         'get_voyage_summary',
+        'get_rekap_invoice_image',
+        'generate_receivables_pdf',
+        'generate_ship_manifest_pdf',
+        'generate_voyage_profit_loss_pdf',
         'get_penagihan_ika_overview',
         'get_penagihan_ika_daily_recap',
         'pay_penagihan_ika_invoice',
@@ -5449,6 +5752,58 @@ export async function dispatchAgentToolCall(
                 startDate: args.startDate ? String(args.startDate) : undefined,
                 endDate: args.endDate ? String(args.endDate) : undefined,
                 silentText: typeof args.silentText === 'boolean' ? args.silentText : true,
+            });
+        case 'get_rekap_invoice_image':
+            return await toolGetRekapInvoiceImage({
+                invoiceNumbers: Array.isArray(args.invoiceNumbers)
+                    ? args.invoiceNumbers.map(String)
+                    : undefined,
+                invoiceIds: Array.isArray(args.invoiceIds) ? args.invoiceIds.map(String) : undefined,
+                clientName: args.clientName ? String(args.clientName) : undefined,
+                notes: args.notes ? String(args.notes) : undefined,
+                noText: typeof args.noText === 'boolean' ? args.noText : undefined,
+            });
+        case 'generate_receivables_pdf':
+            return await toolGenerateReceivablesPdf({
+                clientName: args.clientName ? String(args.clientName) : undefined,
+                invoiceNumbers: Array.isArray(args.invoiceNumbers)
+                    ? args.invoiceNumbers.map(String)
+                    : undefined,
+                month: args.month ? String(args.month) : undefined,
+                startDate: args.startDate ? String(args.startDate) : undefined,
+                endDate: args.endDate ? String(args.endDate) : undefined,
+                voyageQuery: args.voyageQuery ? String(args.voyageQuery) : undefined,
+                onlyOverdue: typeof args.onlyOverdue === 'boolean' ? args.onlyOverdue : undefined,
+                noText: typeof args.noText === 'boolean' ? args.noText : undefined,
+            });
+        case 'generate_ship_manifest_pdf':
+            return await toolGenerateShipManifestPdf({
+                voyageId: args.voyageId ? String(args.voyageId) : undefined,
+                voyageNumber: args.voyageNumber ? String(args.voyageNumber) : undefined,
+                manifestId: args.manifestId ? String(args.manifestId) : undefined,
+                shipName: args.shipName ? String(args.shipName) : undefined,
+                departureDate: args.departureDate ? String(args.departureDate) : undefined,
+                nopolOrDriver: args.nopolOrDriver ? String(args.nopolOrDriver) : undefined,
+                source:
+                    args.source === 'voyage' || args.source === 'cargo_manifest'
+                        ? args.source
+                        : 'auto',
+                noText: typeof args.noText === 'boolean' ? args.noText : undefined,
+            });
+        case 'generate_voyage_profit_loss_pdf':
+            return await toolGenerateVoyageProfitLossPdf({
+                voyageId: args.voyageId ? String(args.voyageId) : undefined,
+                voyageNumber: args.voyageNumber ? String(args.voyageNumber) : undefined,
+                searchQuery: args.searchQuery ? String(args.searchQuery) : undefined,
+                shipName: args.shipName ? String(args.shipName) : undefined,
+                departureDate: args.departureDate ? String(args.departureDate) : undefined,
+                startDate: args.startDate ? String(args.startDate) : undefined,
+                endDate: args.endDate ? String(args.endDate) : undefined,
+                month: args.month ? String(args.month) : undefined,
+                period: args.period ? String(args.period) : undefined,
+                includeCargoDetail:
+                    typeof args.includeCargoDetail === 'boolean' ? args.includeCargoDetail : undefined,
+                noText: typeof args.noText === 'boolean' ? args.noText : undefined,
             });
         case 'propose_create_voyage':
             return await buildCreateVoyageProposal(args);

@@ -779,3 +779,554 @@ export async function renderInvoicePngById(invoiceId: string): Promise<RenderedI
         sttCount: txs.length,
     };
 }
+
+export interface RenderRekapInvoiceOptions {
+    invoiceNumbers?: string[];
+    invoiceIds?: string[];
+    clientName?: string;
+    notes?: string;
+}
+
+export interface RenderedRekapInvoiceImage {
+    base64: string;
+    mimeType: 'image/png';
+    filename: string;
+    clientName: string;
+    invoiceCount: number;
+    invoiceNumbers: string[];
+    notFoundInvoiceNumbers: string[];
+    totalAmount: number;
+}
+
+function parseRekapInvoiceTokens(rawList?: string[]): string[] {
+    if (!Array.isArray(rawList)) return [];
+    const tokens: string[] = [];
+    const seen = new Set<string>();
+    for (const item of rawList) {
+        const parts = String(item || '')
+            .split(/[,;\n]+/)
+            .map((p) => p.trim())
+            .filter(Boolean);
+        for (const part of parts) {
+            const key = part.toUpperCase();
+            if (!seen.has(key)) {
+                seen.add(key);
+                tokens.push(part);
+            }
+        }
+    }
+    return tokens;
+}
+
+function buildRekapFilename(clientName: string, invoiceCount: number): string {
+    const safeClient = (clientName || 'Client')
+        .trim()
+        .replace(/[^a-zA-Z0-9_-]+/g, '_')
+        .replace(/^_+|_+$/g, '')
+        .slice(0, 32);
+    return `Rekap-Invoice-${safeClient || 'CCE'}-${invoiceCount}Inv.png`;
+}
+
+export async function renderRekapInvoicePng(
+    options: RenderRekapInvoiceOptions
+): Promise<RenderedRekapInvoiceImage> {
+    const reqTokens = parseRekapInvoiceTokens(options.invoiceNumbers);
+    const reqIds = Array.isArray(options.invoiceIds)
+        ? Array.from(new Set(options.invoiceIds.map((id) => String(id || '').trim()).filter(Boolean)))
+        : [];
+    const reqClient = String(options.clientName || '').trim();
+    const reqClientLower = reqClient.toLowerCase();
+    const notes = String(options.notes || '').trim();
+
+    if (reqTokens.length === 0 && reqIds.length === 0 && !reqClientLower) {
+        throw new Error('Sebutkan daftar nomor invoice atau nama client untuk membuat gambar rekap invoice.');
+    }
+
+    const [invoicesSnap, txSnap] = await Promise.all([
+        adminDb.collection('invoices').get(),
+        adminDb.collection('transactions').get(),
+    ]);
+
+    const txById = new Map<string, { id: string; data: Record<string, any> }>();
+    const txByInvoiceId = new Map<string, Array<{ id: string; data: Record<string, any> }>>();
+    for (const doc of txSnap.docs) {
+        const data = doc.data() || {};
+        txById.set(doc.id, { id: doc.id, data });
+        const invId = String(data.invoiceId || '').trim();
+        if (invId) {
+            const arr = txByInvoiceId.get(invId) || [];
+            arr.push({ id: doc.id, data });
+            txByInvoiceId.set(invId, arr);
+        }
+    }
+
+    const activeInvoices = invoicesSnap.docs
+        .map((doc) => ({ id: doc.id, data: doc.data() || {} }))
+        .filter(({ data }) => String(data.status || '') !== 'Cancelled');
+
+    const selectedDocs: Array<{ id: string; data: Record<string, any> }> = [];
+    const selectedIdSet = new Set<string>();
+    const notFoundInvoiceNumbers: string[] = [];
+
+    if (reqIds.length > 0 || reqTokens.length > 0) {
+        for (const id of reqIds) {
+            const hit = activeInvoices.find((inv) => inv.id === id);
+            if (hit && !selectedIdSet.has(hit.id)) {
+                selectedIdSet.add(hit.id);
+                selectedDocs.push(hit);
+            }
+        }
+        for (const token of reqTokens) {
+            const tokUpper = token.toUpperCase();
+            const tokDigits = tokUpper.replace(/\D/g, '');
+            const hit =
+                activeInvoices.find(
+                    (inv) => String(inv.data.invoiceNumber || '').trim().toUpperCase() === tokUpper
+                ) ||
+                activeInvoices.find((inv) => {
+                    const invDigits = String(inv.data.invoiceNumber || '').trim().toUpperCase().replace(/\D/g, '');
+                    return Boolean(tokDigits && invDigits && invDigits === tokDigits);
+                });
+            if (hit) {
+                if (!selectedIdSet.has(hit.id)) {
+                    selectedIdSet.add(hit.id);
+                    selectedDocs.push(hit);
+                }
+            } else {
+                notFoundInvoiceNumbers.push(token);
+            }
+        }
+    } else {
+        // Fallback by clientName: select all Unpaid invoices matching clientName
+        const sortedUnpaid = activeInvoices
+            .filter(({ data }) => String(data.status || 'Unpaid') !== 'Paid')
+            .sort(
+                (a, b) =>
+                    toDateSafe(a.data.issueDate || a.data.createdAt).getTime() -
+                    toDateSafe(b.data.issueDate || b.data.createdAt).getTime()
+            );
+
+        for (const invDoc of sortedUnpaid) {
+            const declaredIds: unknown[] = Array.isArray(invDoc.data.transactionIds)
+                ? invDoc.data.transactionIds
+                : [];
+            const idSet = new Set<string>();
+            for (const tid of declaredIds) {
+                if (typeof tid === 'string' && tid.trim()) idSet.add(tid.trim());
+            }
+            for (const t of txByInvoiceId.get(invDoc.id) || []) {
+                idSet.add(t.id);
+            }
+            const linked = Array.from(idSet)
+                .map((tid) => txById.get(tid))
+                .filter((x): x is { id: string; data: Record<string, any> } => Boolean(x && x.data.status !== 'dibatalkan'))
+                .map(({ data }) => ({
+                    pengirimName: String(data.pengirimName || ''),
+                    pengirimAddress: String(data.pengirimAddress || ''),
+                    penerimaName: String(data.penerimaName || ''),
+                    penerimaAddress: String(data.penerimaAddress || ''),
+                }));
+            const identity = resolveInvoiceClientIdentity(
+                {
+                    clientName: String(invDoc.data.clientName || ''),
+                    clientAddress: String(invDoc.data.clientAddress || ''),
+                },
+                linked
+            );
+            if (identity.clientName.toLowerCase().includes(reqClientLower)) {
+                selectedIdSet.add(invDoc.id);
+                selectedDocs.push(invDoc);
+            }
+        }
+    }
+
+    if (selectedDocs.length === 0) {
+        throw new Error(
+            notFoundInvoiceNumbers.length > 0
+                ? `Nomor invoice tidak ditemukan: ${notFoundInvoiceNumbers.join(', ')}`
+                : `Tidak ditemukan data invoice yang sesuai untuk direkap.`
+        );
+    }
+
+    interface RekapRowItem {
+        id: string;
+        invoiceNumber: string;
+        issueDateStr: string;
+        sttNumbers: string;
+        clientName: string;
+        clientAddress: string;
+        totalAmount: number;
+        isTaxable: boolean;
+    }
+
+    const rows: RekapRowItem[] = selectedDocs.map((invDoc) => {
+        const inv = invDoc.data;
+        const declaredIds: unknown[] = Array.isArray(inv.transactionIds) ? inv.transactionIds : [];
+        const txIdSet = new Set<string>();
+        for (const tid of declaredIds) {
+            if (typeof tid === 'string' && tid.trim()) txIdSet.add(tid.trim());
+        }
+        for (const t of txByInvoiceId.get(invDoc.id) || []) {
+            txIdSet.add(t.id);
+        }
+
+        const linkedTxs = Array.from(txIdSet)
+            .map((tid) => txById.get(tid))
+            .filter((x): x is { id: string; data: Record<string, any> } => Boolean(x && x.data.status !== 'dibatalkan'))
+            .sort((a, b) => {
+                const na = parseInt(String(a.data.noSTT || '').replace(/\D/g, ''), 10) || 0;
+                const nb = parseInt(String(b.data.noSTT || '').replace(/\D/g, ''), 10) || 0;
+                return na - nb;
+            });
+
+        const identity = resolveInvoiceClientIdentity(
+            {
+                clientName: String(inv.clientName || ''),
+                clientAddress: String(inv.clientAddress || ''),
+            },
+            linkedTxs.map(({ data }) => ({
+                pengirimName: String(data.pengirimName || ''),
+                pengirimAddress: String(data.pengirimAddress || ''),
+                penerimaName: String(data.penerimaName || ''),
+                penerimaAddress: String(data.penerimaAddress || ''),
+            }))
+        );
+
+        const subtotal = linkedTxs.reduce((s, { data }) => s + (Number(data.jumlah) || 0), 0);
+        const isTaxable =
+            Boolean(inv.isTaxable) ||
+            linkedTxs.some(({ data }) => Boolean(data.isTaxable) || (Number(data.ppn) || 0) > 0);
+        const totalAmount =
+            linkedTxs.length > 0
+                ? subtotal + (isTaxable ? Math.round(subtotal * 0.011) : 0)
+                : Number(inv.totalAmount) || 0;
+
+        const sttNumbers =
+            linkedTxs
+                .map(({ data }) => String(data.noSTT || '').replace(/^STT/i, '').trim())
+                .filter(Boolean)
+                .join(', ') || '-';
+
+        const issueDateStr = toDateSafe(inv.issueDate || inv.createdAt).toLocaleDateString('id-ID', {
+            timeZone: 'Asia/Jakarta',
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+        });
+
+        return {
+            id: invDoc.id,
+            invoiceNumber: String(inv.invoiceNumber || invDoc.id),
+            issueDateStr,
+            sttNumbers,
+            clientName: identity.clientName || 'CLIENT',
+            clientAddress: identity.clientAddress || '',
+            totalAmount,
+            isTaxable,
+        };
+    });
+
+    const uniqueClientNames = Array.from(new Set(rows.map((r) => r.clientName.trim()).filter(Boolean)));
+    let recipientName = '';
+    if (reqClient && (reqTokens.length > 0 || reqIds.length > 0)) {
+        recipientName = reqClient;
+    } else if (uniqueClientNames.length === 1) {
+        recipientName = uniqueClientNames[0];
+    } else if (uniqueClientNames.length > 1) {
+        recipientName =
+            uniqueClientNames.slice(0, 3).join(' / ') +
+            (uniqueClientNames.length > 3 ? ` (+${uniqueClientNames.length - 3} lainnya)` : '');
+    } else {
+        recipientName = 'PELANGGAN CCE';
+    }
+
+    const recipientAddress =
+        uniqueClientNames.length === 1 ? rows.find((r) => r.clientAddress)?.clientAddress || '' : '';
+    const grandTotal = rows.reduce((s, r) => s + r.totalAmount, 0);
+    const hasTaxable = rows.some((r) => r.isTaxable);
+    const hasNonTaxable = rows.some((r) => !r.isTaxable);
+
+    const minEmptyRows = Math.max(0, 5 - rows.length);
+    const extraSttWrapPx = rows.reduce((sum, r) => {
+        const extraLines = Math.max(0, Math.ceil(r.sttNumbers.length / 28) - 1);
+        return sum + extraLines * 24;
+    }, 0);
+    const width = 1100;
+    const height = Math.max(1554, 700 + (rows.length + minEmptyRows) * 52 + extraSttWrapPx);
+
+    const logoUri = loadPublicImageDataUri('logo.png');
+    const ttdUri = loadPublicImageDataUri('ttd.png');
+    const fonts = loadArialFonts();
+    const fontFamily = fonts.length > 0 ? 'Arial, sans-serif' : 'sans-serif';
+    const printDateStr = fmtTanggalUpper(new Date());
+
+    const img = new ImageResponse(
+        (
+            <div
+                style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    width: '100%',
+                    height: '100%',
+                    backgroundColor: '#ffffff',
+                    color: '#000000',
+                    padding: '44px 52px',
+                    fontFamily,
+                }}
+            >
+                {/* Header */}
+                <div
+                    style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'flex-start',
+                        borderBottom: '3px solid #000000',
+                        paddingBottom: 18,
+                        marginBottom: 24,
+                    }}
+                >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
+                        {logoUri ? <img src={logoUri} width={96} height={96} alt="Logo" /> : null}
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                            <div style={{ display: 'flex', fontSize: 25, fontWeight: 700, letterSpacing: 0.5 }}>
+                                {COMPANY_INFO.name}
+                            </div>
+                            <div style={{ display: 'flex', fontSize: 15, marginTop: 4, color: '#1e293b' }}>
+                                {`${COMPANY_INFO.address}, ${COMPANY_INFO.city}`}
+                            </div>
+                            <div style={{ display: 'flex', fontSize: 15, marginTop: 2, color: '#1e293b' }}>
+                                {`Telp: ${COMPANY_INFO.phone}`}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                        <div style={{ display: 'flex', fontSize: 30, fontWeight: 700, letterSpacing: 4, color: '#0f172a' }}>
+                            REKAPITULASI
+                        </div>
+                        <div style={{ display: 'flex', fontSize: 17, fontWeight: 700, marginTop: 4, color: '#475569' }}>
+                            TAGIHAN PELANGGAN
+                        </div>
+                    </div>
+                </div>
+
+                {/* Meta Info */}
+                <div
+                    style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'flex-start',
+                        marginBottom: 22,
+                    }}
+                >
+                    <div style={{ display: 'flex', flexDirection: 'column', maxWidth: 560 }}>
+                        <div style={{ display: 'flex', fontSize: 16, color: '#475569', marginBottom: 4 }}>
+                            Kepada Yth,
+                        </div>
+                        <div style={{ display: 'flex', fontSize: 21, fontWeight: 700, lineHeight: 1.3 }}>
+                            {recipientName.toUpperCase()}
+                        </div>
+                        {recipientAddress ? (
+                            <div style={{ display: 'flex', fontSize: 16, marginTop: 4, color: '#1e293b' }}>
+                                {recipientAddress.toUpperCase()}
+                            </div>
+                        ) : null}
+                        {notes ? (
+                            <div style={{ display: 'flex', fontSize: 14, fontStyle: 'italic', marginTop: 6, color: '#334155' }}>
+                                {`Catatan: ${notes}`}
+                            </div>
+                        ) : null}
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', fontSize: 16, lineHeight: 1.65 }}>
+                        <div style={{ display: 'flex', gap: 10 }}>
+                            <div style={{ display: 'flex', width: 130, color: '#475569' }}>Tanggal Cetak</div>
+                            <div style={{ display: 'flex' }}>:</div>
+                            <div style={{ display: 'flex', fontWeight: 700 }}>{printDateStr}</div>
+                        </div>
+                        <div style={{ display: 'flex', gap: 10 }}>
+                            <div style={{ display: 'flex', width: 130, color: '#475569' }}>Total Invoice</div>
+                            <div style={{ display: 'flex' }}>:</div>
+                            <div style={{ display: 'flex', fontWeight: 700 }}>{`${rows.length} Dokumen`}</div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Table */}
+                <div
+                    style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        borderTop: '2px solid #000000',
+                        borderLeft: '2px solid #000000',
+                        marginBottom: 22,
+                        fontSize: 16,
+                    }}
+                >
+                    {/* Header Row */}
+                    <div
+                        style={{
+                            display: 'flex',
+                            backgroundColor: '#f8fafc',
+                            fontWeight: 700,
+                            borderBottom: '2px solid #000000',
+                            minHeight: 44,
+                        }}
+                    >
+                        <div style={{ display: 'flex', width: '6%', justifyContent: 'center', alignItems: 'center', padding: '8px 4px', borderRight: '1.5px solid #000000' }}>NO</div>
+                        <div style={{ display: 'flex', width: '21%', justifyContent: 'center', alignItems: 'center', padding: '8px 6px', borderRight: '1.5px solid #000000' }}>NO. INVOICE</div>
+                        <div style={{ display: 'flex', width: '16%', justifyContent: 'center', alignItems: 'center', padding: '8px 6px', borderRight: '1.5px solid #000000' }}>TGL INVOICE</div>
+                        <div style={{ display: 'flex', width: '35%', justifyContent: 'center', alignItems: 'center', padding: '8px 8px', borderRight: '1.5px solid #000000' }}>NOMOR STT</div>
+                        <div style={{ display: 'flex', width: '22%', justifyContent: 'center', alignItems: 'center', padding: '8px 8px', borderRight: '2px solid #000000' }}>TOTAL TAGIHAN</div>
+                    </div>
+
+                    {/* Data Rows */}
+                    {rows.map((row, idx) => (
+                        <div
+                            key={row.id}
+                            style={{
+                                display: 'flex',
+                                borderBottom: '1.5px solid #000000',
+                                minHeight: 44,
+                                backgroundColor: idx % 2 === 1 ? '#f8fafc' : '#ffffff',
+                            }}
+                        >
+                            <div style={{ display: 'flex', width: '6%', justifyContent: 'center', alignItems: 'center', padding: '8px 4px', borderRight: '1.5px solid #000000' }}>
+                                {idx + 1}
+                            </div>
+                            <div style={{ display: 'flex', width: '21%', justifyContent: 'center', alignItems: 'center', padding: '8px 6px', fontWeight: 700, borderRight: '1.5px solid #000000' }}>
+                                {row.invoiceNumber}
+                            </div>
+                            <div style={{ display: 'flex', width: '16%', justifyContent: 'center', alignItems: 'center', padding: '8px 6px', borderRight: '1.5px solid #000000' }}>
+                                {row.issueDateStr}
+                            </div>
+                            <div style={{ display: 'flex', width: '35%', alignItems: 'center', padding: '8px 10px', fontSize: 15, lineHeight: 1.35, borderRight: '1.5px solid #000000' }}>
+                                {row.sttNumbers}
+                            </div>
+                            <div style={{ display: 'flex', width: '22%', justifyContent: 'flex-end', alignItems: 'center', padding: '8px 12px', fontWeight: 700, borderRight: '2px solid #000000' }}>
+                                {`Rp ${fmtAngka(row.totalAmount)}`}
+                            </div>
+                        </div>
+                    ))}
+
+                    {/* Empty padding rows when < 5 */}
+                    {Array.from({ length: minEmptyRows }).map((_, idx) => (
+                        <div key={`emp-${idx}`} style={{ display: 'flex', borderBottom: '1.5px solid #000000', height: 40 }}>
+                            <div style={{ display: 'flex', width: '6%', borderRight: '1.5px solid #000000' }} />
+                            <div style={{ display: 'flex', width: '21%', borderRight: '1.5px solid #000000' }} />
+                            <div style={{ display: 'flex', width: '16%', borderRight: '1.5px solid #000000' }} />
+                            <div style={{ display: 'flex', width: '35%', borderRight: '1.5px solid #000000' }} />
+                            <div style={{ display: 'flex', width: '22%', borderRight: '2px solid #000000' }} />
+                        </div>
+                    ))}
+
+                    {/* Grand Total Row */}
+                    <div
+                        style={{
+                            display: 'flex',
+                            backgroundColor: '#f1f5f9',
+                            borderTop: '1px solid #000000',
+                            borderBottom: '2px solid #000000',
+                            minHeight: 54,
+                        }}
+                    >
+                        <div
+                            style={{
+                                display: 'flex',
+                                width: '78%',
+                                justifyContent: 'flex-end',
+                                alignItems: 'center',
+                                padding: '10px 16px',
+                                fontWeight: 700,
+                                fontStyle: 'italic',
+                                fontSize: 18,
+                                borderRight: '1.5px solid #000000',
+                            }}
+                        >
+                            GRAND TOTAL :
+                        </div>
+                        <div
+                            style={{
+                                display: 'flex',
+                                width: '22%',
+                                justifyContent: 'flex-end',
+                                alignItems: 'center',
+                                padding: '10px 12px',
+                                fontWeight: 700,
+                                fontSize: 21,
+                                borderRight: '2px solid #000000',
+                            }}
+                        >
+                            {`Rp ${fmtAngka(grandTotal)}`}
+                        </div>
+                    </div>
+                </div>
+
+                {/* Terbilang */}
+                <div
+                    style={{
+                        display: 'flex',
+                        backgroundColor: '#f8fafc',
+                        border: '1.5px solid #cbd5e1',
+                        padding: '12px 16px',
+                        marginBottom: 28,
+                        fontSize: 16,
+                        fontStyle: 'italic',
+                    }}
+                >
+                    <div style={{ display: 'flex', fontWeight: 700, fontStyle: 'normal', marginRight: 8 }}>
+                        Terbilang:
+                    </div>
+                    <div style={{ display: 'flex' }}>{`# ${terbilang(grandTotal)} #`}</div>
+                </div>
+
+                {/* Footer & Signature */}
+                <div
+                    style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'flex-end',
+                        marginTop: 'auto',
+                    }}
+                >
+                    <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.55, fontSize: 16 }}>
+                        <div style={{ display: 'flex', fontWeight: 700, textDecoration: 'underline', marginBottom: 6 }}>
+                            PEMBAYARAN DITRANSFER KE :
+                        </div>
+                        {hasNonTaxable &&
+                            COMPANY_INFO.bankAccounts.map((acc, i) => (
+                                <div key={i} style={{ display: 'flex', fontWeight: 700 }}>
+                                    {`${acc.bank} ${acc.accountNumber} a/n ${acc.accountName}`}
+                                </div>
+                            ))}
+                        {hasTaxable ? (
+                            <div style={{ display: 'flex', fontWeight: 700, marginTop: hasNonTaxable ? 4 : 0 }}>
+                                BCA 187 1414 187 a/n CAHAYA CARGO EXPRESS CV (PKP)
+                            </div>
+                        ) : null}
+                        <div style={{ display: 'flex', fontSize: 13, fontStyle: 'italic', color: '#475569', marginTop: 10 }}>
+                            * Mohon cantumkan nama perusahaan / nomor invoice saat melakukan transfer.
+                        </div>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 210 }}>
+                        {ttdUri ? <img src={ttdUri} width={160} height={142} alt="TTD" /> : null}
+                    </div>
+                </div>
+            </div>
+        ),
+        { width, height, ...(fonts.length > 0 ? { fonts } : {}) }
+    );
+
+    const buf = Buffer.from(await img.arrayBuffer());
+    return {
+        base64: buf.toString('base64'),
+        mimeType: 'image/png',
+        filename: buildRekapFilename(recipientName, rows.length),
+        clientName: recipientName,
+        invoiceCount: rows.length,
+        invoiceNumbers: rows.map((r) => r.invoiceNumber),
+        notFoundInvoiceNumbers,
+        totalAmount: grandTotal,
+    };
+}

@@ -181,7 +181,13 @@ ATURAN GAYA BICARA & EKSEKUSI KETAT:
   - Buat / revisi / hapus Invoice (\`create_invoice\`, \`update_invoice\`, \`delete_invoice\`): **langsung eksekusi** tanpa konfirmasi YA/BATAL. Saat membuat/merevisi invoice, gambar PNG format A5/PKP otomatis ikut terkirim ke WhatsApp — cukup laporkan ringkas No. Invoice, Client, Total, dan jumlah resi.
   - **ATURAN GABUNG INVOICE PENERIMA SAMA (MULTI-PENGIRIM):** STT yang memiliki **nama PENERIMA sama tetapi PENGIRIM berbeda-beda BISA & BOLEH dijadikan 1 Invoice yang sama** (ditagihkan ke nama Penerima tsb atau nama pihak tertagih yang disebut user). Jika user memerintahkan buat 1 invoice untuk beberapa STT penerima sama / pengirim beda (misal sebut daftar no STT atau nama penerima), langsung gabung semua ke **1 panggilan \`create_invoice\`** (\`noSTTs\` dan/atau \`penerimaName\` + \`clientName\`), jangan dipecah per pengirim.
   - Minta gambar invoice lama: panggil \`get_invoice_image\` langsung (set \`noText: true\` jika user minta kirim gambar saja tanpa teks).
+  - **Kirim Gambar Invoice Rekap dari Nomor Invoice Pilihan:** Jika user minta kirim gambar invoice rekap dari daftar nomor invoice yang dipilih sendiri (mis. *"kirim gambar rekap invoice nomor 13828, 13830"* atau rekap tagihan client tertentu), langsung panggil \`get_rekap_invoice_image\` (\`invoiceNumbers\`, opsional \`clientName\`, \`notes\`, dan \`noText: true\` jika hanya minta gambar).
   - Minta kirim SEMUA gambar invoice di suatu pemberangkatan / tanggal keberangkatan kapal (mis. "kirimkan semua gambar invoice pemberangkatan kapal tgl 24"): langsung panggil \`get_voyage_invoice_images\` (isi \`departureDate\` format \`YYYY-MM-DD\` berdasarkan Tanggal Hari Ini jika disebut tanggal, atau \`voyageNumber\`/\`shipName\`, dan \`silentText: true\`) agar semua gambar invoice langsung dikirim tanpa teks apa pun.
+- **LAPORAN PDF SIAP KIRIM WA (EKSEKUSI LANGSUNG TANPA KONFIRMASI):**
+  - Rekap Tagihan Piutang Client PDF -> \`generate_receivables_pdf\` (filter \`clientName\`, \`invoiceNumbers\`, \`month\`, \`startDate\`/\`endDate\`, \`voyageQuery\`, \`onlyOverdue\`).
+  - Manifest Kapal PDF -> \`generate_ship_manifest_pdf\` (filter \`voyageNumber\`, \`shipName\`, \`departureDate\`, \`nopolOrDriver\`, atau \`source\`).
+  - Laporan Omzet & Laba Biaya Kapal dari Pemberangkatan PDF -> \`generate_voyage_profit_loss_pdf\` (filter \`voyageNumber\`, \`shipName\`, \`departureDate\`, \`month\`, \`period\`, \`includeCargoDetail\`).
+  - File PDF otomatis dikirim ke WhatsApp — jawab singkat & padat 2-4 baris merangkum angka utama PDF-nya (atau tanpa teks jika \`noText: true\`).
 - **ALUR CEK STT PENDING MINGGU INI / TANPA HARGA:**
   1. Jika user tanya cek STT pending minggu ini (atau rentang tanggal) yang belum ada harga dan minta data customer + harga riwayatnya: panggil \`list_pending_stt_with_price_history\` (\`onlyUnpriced: true\`, \`period: "this_week"\` atau \`startDate\`/\`endDate\`). JANGAN ubah dulu — tampilkan daftar padat bernomor: **No. STT | Customer → Tujuan | Koli / Berat | Riwayat Harga** (tulis \`-\` jika belum ada riwayat), lalu tutup 1 baris: *"Kirim harga yang mau dipakai, langsung saya update & ubah status ke dikirim."*
   2. Saat user membalas memberi harga yang ingin dipakai (per No. STT maupun per customer) dan minta ubah status ke \`dikirim\`: langsung panggil \`batch_update_stt_pricing\` (\`targetStatus: "dikirim"\`) tanpa konfirmasi lagi, lalu tampilkan ringkasan padat hasil update.
@@ -716,7 +722,7 @@ export async function processAgentMessage(input: AgentProcessInput): Promise<Age
         }
 
         const persistedReplyText = isSilentMedia
-            ? `[Mengirim ${collectedMedia.length} gambar invoice tanpa teks]`
+            ? `[Mengirim ${collectedMedia.length} lampiran media/dokumen tanpa teks]`
             : finalReplyText;
 
         const tokenUsage: WaTokenUsage | undefined =
